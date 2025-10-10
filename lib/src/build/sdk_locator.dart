@@ -282,6 +282,119 @@ class SdkLocator {
     throw Exception('javac not found. Please install JDK and set JAVA_HOME');
   }
 
+  /// Locate Flutter embedding JAR
+  Future<String> findFlutterJar() async {
+    final flutterSdk = await findFlutterSdk();
+
+    // Try multiple possible locations in Flutter SDK cache
+    final possiblePaths = [
+      p.join(flutterSdk, 'bin', 'cache', 'artifacts', 'engine', 'android-x64',
+          'flutter.jar'),
+      p.join(flutterSdk, 'bin', 'cache', 'artifacts', 'engine', 'android-arm',
+          'flutter.jar'),
+      p.join(flutterSdk, 'bin', 'cache', 'artifacts', 'engine', 'android-arm64',
+          'flutter.jar'),
+      p.join(flutterSdk, 'bin', 'cache', 'artifacts', 'engine', 'android',
+          'flutter.jar'),
+    ];
+
+    for (final path in possiblePaths) {
+      if (await File(path).exists()) {
+        return path;
+      }
+    }
+
+    throw Exception(
+      'Flutter embedding JAR not found. Please run "flutter precache" to download required artifacts.',
+    );
+  }
+
+  /// Locate AndroidX annotation JAR
+  Future<String> findAndroidXAnnotations() async {
+    // Check Gradle cache first
+    final home = Platform.environment['HOME'] ?? '';
+    final gradleCacheDir = p.join(home, '.gradle', 'caches', 'modules-2',
+        'files-2.1', 'androidx.annotation', 'annotation');
+
+    if (await Directory(gradleCacheDir).exists()) {
+      // Find the latest version directory
+      final versions = await Directory(gradleCacheDir)
+          .list()
+          .where((e) => e is Directory)
+          .map((e) => p.basename(e.path))
+          .toList();
+
+      if (versions.isNotEmpty) {
+        versions.sort((a, b) => b.compareTo(a)); // Reverse sort for latest
+
+        for (final version in versions) {
+          final versionDir = p.join(gradleCacheDir, version);
+          final hashDirs = await Directory(versionDir)
+              .list()
+              .where((e) => e is Directory)
+              .toList();
+
+          for (final hashDir in hashDirs) {
+            final jarPath = p.join(hashDir.path, 'annotation-$version.jar');
+            if (await File(jarPath).exists()) {
+              return jarPath;
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback: Check Flutter's local Maven repository
+    final flutterSdk = await findFlutterSdk();
+    final flutterMavenDir =
+        p.join(flutterSdk, 'bin', 'cache', 'artifacts', 'engine', 'androidx');
+
+    if (await Directory(flutterMavenDir).exists()) {
+      final annotationJar =
+          await _findFileRecursive(flutterMavenDir, 'annotation-', '.jar');
+      if (annotationJar != null) {
+        return annotationJar;
+      }
+    }
+
+    // If not found, try to download from Android SDK (if available)
+    final androidSdk = await findAndroidSdk();
+    final androidxDir = p.join(androidSdk, 'extras', 'androidx', 'annotation');
+
+    if (await Directory(androidxDir).exists()) {
+      final annotationJar =
+          await _findFileRecursive(androidxDir, 'annotation-', '.jar');
+      if (annotationJar != null) {
+        return annotationJar;
+      }
+    }
+
+    throw Exception(
+      'AndroidX annotation JAR not found. Please ensure you have built a Flutter Android app at least once, '
+      'or manually download androidx.annotation:annotation from Maven Central.',
+    );
+  }
+
+  /// Helper to find a file recursively in a directory
+  Future<String?> _findFileRecursive(
+      String dirPath, String prefix, String extension) async {
+    final directory = Directory(dirPath);
+    if (!await directory.exists()) {
+      return null;
+    }
+
+    await for (final entity in directory.list(recursive: true)) {
+      if (entity is File) {
+        final basename = p.basename(entity.path);
+        if (basename.startsWith(prefix) && basename.endsWith(extension)) {
+          return entity.path;
+        }
+      }
+    }
+
+    return null;
+  }
+
   /// Validate all required tools are available
   Future<Map<String, String>> validateTools() async {
     final tools = <String, String>{};

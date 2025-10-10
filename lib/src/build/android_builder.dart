@@ -122,6 +122,9 @@ class AndroidBuilder {
     final linkedResPath = p.join(ctx.buildDir, 'resources.ap_');
     final rJavaPath = p.join(ctx.buildDir, 'gen');
 
+    // Find all compiled resource files
+    final compiledFiles = await _findSourceFiles(compiledResDir, '.flat');
+
     final linkResult = await Process.run(
       aapt2,
       [
@@ -135,8 +138,7 @@ class AndroidBuilder {
         '--java',
         rJavaPath,
         '--auto-add-overlay',
-        '-A',
-        compiledResDir,
+        ...compiledFiles.expand((f) => ['-R', f]),
       ],
     );
 
@@ -183,13 +185,26 @@ class AndroidBuilder {
       'android.jar',
     );
 
+    // Get Flutter and AndroidX JARs
+    final flutterJar = await _sdkLocator.findFlutterJar();
+    final androidxAnnotationJar = await _sdkLocator.findAndroidXAnnotations();
+
+    // Build classpath with all required JARs
+    final classpathSeparator = Platform.isWindows ? ';' : ':';
+    final classpath = [
+      androidJar,
+      flutterJar,
+      androidxAnnotationJar,
+      classesDir,
+    ].join(classpathSeparator);
+
     // Compile Kotlin files first if kotlinc is available
     if (kotlinc != null && kotlinFiles.isNotEmpty) {
       final kotlinResult = await Process.run(
         kotlinc,
         [
           '-classpath',
-          androidJar,
+          classpath,
           '-d',
           classesDir,
           ...kotlinFiles,
@@ -213,13 +228,11 @@ class AndroidBuilder {
         javac,
         [
           '-classpath',
-          '$androidJar:$classesDir',
+          classpath,
           '-d',
           classesDir,
-          '-source',
-          '1.8',
-          '-target',
-          '1.8',
+          '--release',
+          '8',
           ...allJavaFiles,
         ],
       );
