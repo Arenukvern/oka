@@ -426,6 +426,34 @@ class SdkLocator {
     );
   }
 
+  /// Locate AndroidX lifecycle-runtime JAR
+  ///
+  /// Downloads from Google Maven if not found in oka cache
+  Future<String> findAndroidXLifecycleRuntime() async {
+    final home = Platform.environment['HOME'] ?? '';
+
+    // Check oka cache
+    final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
+    final cachedJar = p.join(okaCacheDir, 'lifecycle-runtime-2.8.7.jar');
+    if (await File(cachedJar).exists()) {
+      return cachedJar;
+    }
+
+    // Download from Google Maven
+    if (_promptUserForDownload('androidx.lifecycle:lifecycle-runtime')) {
+      print(
+          '📥 Downloading AndroidX lifecycle-runtime JAR from Google Maven...');
+      final downloadedPath = await _downloadAndroidXLifecycleRuntime('2.8.7');
+      print('✅ Downloaded to: $downloadedPath');
+      return downloadedPath;
+    }
+
+    throw Exception(
+      'AndroidX lifecycle-runtime JAR not found. '
+      'Download from https://maven.google.com/androidx/lifecycle/lifecycle-runtime/',
+    );
+  }
+
   /// Prompt user for permission to download a package
   bool _promptUserForDownload(String packageName) {
     stdout.write('\n⚠️  $packageName not found locally.\n'
@@ -569,6 +597,105 @@ class SdkLocator {
       final jarFile = File(jarPath);
       if (await jarFile.exists()) {
         await jarFile.delete();
+      }
+      rethrow;
+    }
+  }
+
+  /// Download AndroidX lifecycle-runtime JAR from Google Maven repository
+  ///
+  /// Downloads the AAR and extracts classes.jar from it since the Android
+  /// classes are packaged in AAR format, not as standalone JARs
+  Future<String> _downloadAndroidXLifecycleRuntime(String version) async {
+    final home = Platform.environment['HOME'] ?? '';
+    final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
+    await Directory(cacheDir).create(recursive: true);
+
+    final jarFileName = 'lifecycle-runtime-$version.jar';
+    final jarPath = p.join(cacheDir, jarFileName);
+
+    // If already exists, return it
+    if (await File(jarPath).exists()) {
+      return jarPath;
+    }
+
+    // Download AAR file
+    final aarFileName = 'lifecycle-runtime-$version.aar';
+    final aarPath = p.join(cacheDir, aarFileName);
+    final url =
+        'https://maven.google.com/androidx/lifecycle/lifecycle-runtime/$version/$aarFileName';
+
+    print('   URL: $url');
+    print('   Downloading AAR...');
+
+    try {
+      // Download AAR
+      final downloadResult = await Process.run(
+        'curl',
+        [
+          '-L', // Follow redirects
+          '-f', // Fail on HTTP errors
+          '-o',
+          aarPath,
+          '--progress-bar',
+          url,
+        ],
+        stdoutEncoding: null,
+        stderrEncoding: null,
+      );
+
+      if (downloadResult.exitCode != 0) {
+        final stderr = downloadResult.stderr != null
+            ? String.fromCharCodes(downloadResult.stderr as List<int>)
+            : 'Unknown error';
+        throw Exception(
+            'Download failed (exit code ${downloadResult.exitCode}): $stderr');
+      }
+
+      // Extract classes.jar from AAR (AAR is just a ZIP file)
+      print('   Extracting classes.jar from AAR...');
+      final extractResult = await Process.run(
+        'unzip',
+        ['-j', aarPath, 'classes.jar', '-d', cacheDir],
+      );
+
+      if (extractResult.exitCode != 0) {
+        throw Exception(
+            'Failed to extract classes.jar: ${extractResult.stderr}');
+      }
+
+      // Rename extracted classes.jar to our target name
+      final extractedJar = p.join(cacheDir, 'classes.jar');
+      await File(extractedJar).rename(jarPath);
+
+      // Clean up AAR file
+      await File(aarPath).delete();
+
+      // Validate extracted JAR
+      final jarFile = File(jarPath);
+      if (!await jarFile.exists()) {
+        throw Exception('Extracted JAR not found at: $jarPath');
+      }
+
+      final fileSize = await jarFile.length();
+      print('   File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+
+      if (fileSize < 1000) {
+        // JAR should be at least 1KB
+        await jarFile.delete();
+        throw Exception('Extracted file is too small (possibly invalid)');
+      }
+
+      return jarPath;
+    } catch (e) {
+      // Clean up partial downloads
+      final jarFile = File(jarPath);
+      if (await jarFile.exists()) {
+        await jarFile.delete();
+      }
+      final aarFile = File(aarPath);
+      if (await aarFile.exists()) {
+        await aarFile.delete();
       }
       rethrow;
     }

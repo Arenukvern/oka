@@ -198,6 +198,8 @@ class AndroidBuilder {
     final flutterJar = await _sdkLocator.findFlutterJar();
     final androidxAnnotationJar = await _sdkLocator.findAndroidXAnnotations();
     final androidxLifecycleJar = await _sdkLocator.findAndroidXLifecycle();
+    final androidxLifecycleRuntimeJar =
+        await _sdkLocator.findAndroidXLifecycleRuntime();
 
     // Build classpath with all required JARs
     final classpathSeparator = Platform.isWindows ? ';' : ':';
@@ -206,6 +208,7 @@ class AndroidBuilder {
       flutterJar,
       androidxAnnotationJar,
       androidxLifecycleJar,
+      androidxLifecycleRuntimeJar,
       classesDir,
     ].join(classpathSeparator);
 
@@ -349,6 +352,32 @@ class AndroidBuilder {
       throw Exception('Failed to create classes JAR: ${jarResult.stderr}');
     }
 
+    // Collect all dependency JARs that need to be included in DEX
+    // These are the same JARs used during compilation
+    final flutterJar = await _sdkLocator.findFlutterJar();
+    final androidxAnnotationJar = await _sdkLocator.findAndroidXAnnotations();
+    final androidxLifecycleJar = await _sdkLocator.findAndroidXLifecycle();
+    final androidxLifecycleRuntimeJar =
+        await _sdkLocator.findAndroidXLifecycleRuntime();
+    final kotlinStdlib = await _sdkLocator.findKotlinStdlib();
+
+    // Build list of all JARs to include in DEX
+    final inputJars = [
+      classesJar,
+      flutterJar,
+      androidxAnnotationJar,
+      androidxLifecycleJar,
+      androidxLifecycleRuntimeJar,
+      if (kotlinStdlib != null) kotlinStdlib,
+    ];
+
+    if (_verbose) {
+      print('Including ${inputJars.length} JARs in DEX conversion:');
+      for (final jar in inputJars) {
+        print('  - ${p.basename(jar)}');
+      }
+    }
+
     if (ctx.mode.isRelease) {
       // Try to use R8 for release builds with optimization
       final r8 = await _sdkLocator.findR8();
@@ -376,7 +405,7 @@ class AndroidBuilder {
             p.dirname(dexFile),
             '--min-api',
             ctx.config.android.minSdk,
-            classesJar,
+            ...inputJars,
           ],
         );
 
@@ -397,7 +426,7 @@ class AndroidBuilder {
             p.dirname(dexFile),
             '--min-api',
             ctx.config.android.minSdk,
-            classesJar,
+            ...inputJars,
           ],
         );
 
@@ -416,7 +445,7 @@ class AndroidBuilder {
           p.dirname(dexFile),
           '--min-api',
           ctx.config.android.minSdk,
-          classesJar,
+          ...inputJars,
         ],
       );
 
