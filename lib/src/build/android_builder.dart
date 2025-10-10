@@ -216,21 +216,30 @@ class AndroidBuilder {
       }
 
       // Add JVM arguments to handle newer Java versions
-      // Set environment to work around Java version detection issues
       final env = Map<String, String>.from(Platform.environment);
-      env['JAVA_OPTS'] = '-Dkotlin.incremental=false';
+
+      // Get the target Java version from config
+      final targetJavaVersion = ctx.config.android.javaVersion;
+
+      // Build JVM arguments list
+      final jvmArgs = <String>[
+        '-J-Dkotlin.incremental=false',
+        '-J--add-opens=java.base/java.lang=ALL-UNNAMED',
+        '-J--add-opens=java.base/java.lang.reflect=ALL-UNNAMED',
+      ];
+
+      final String kotlinCommand = kotlinc;
 
       final kotlinResult = await Process.run(
-        kotlinc,
+        kotlinCommand,
         [
-          '-J-Djava.version=21',
-          '-J-Dkotlin.incremental=false',
+          ...jvmArgs,
           '-classpath',
           kotlinClasspath,
           '-d',
           classesDir,
           '-jvm-target',
-          '11',
+          '$targetJavaVersion',
           ...kotlinFiles,
         ],
         environment: env,

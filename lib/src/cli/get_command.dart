@@ -266,8 +266,8 @@ class GetCommand {
       await Directory(okaCacheDir).create(recursive: true);
 
       // Kotlin version to download
-      // Using 1.9.24 for better Java compatibility
-      const kotlinVersion = '1.9.24';
+      // Using 2.1.0 for latest Java compatibility
+      const kotlinVersion = '2.1.0';
       final kotlinDir = p.join(okaCacheDir, 'kotlin-$kotlinVersion');
 
       // Check if already downloaded but not in PATH
