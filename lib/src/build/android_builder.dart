@@ -135,6 +135,7 @@ class AndroidBuilder {
         '--java',
         rJavaPath,
         '--auto-add-overlay',
+        '-A',
         compiledResDir,
       ],
     );
