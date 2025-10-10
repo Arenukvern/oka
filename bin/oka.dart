@@ -8,6 +8,7 @@ import 'package:oka/src/cli/clean_command.dart';
 import 'package:oka/src/cli/dev_command.dart';
 import 'package:oka/src/cli/doctor_command.dart';
 import 'package:oka/src/cli/init_command.dart';
+import 'package:oka/src/version.dart';
 
 void main(List<String> arguments) async {
   final parser = ArgParser()
@@ -30,7 +31,8 @@ void main(List<String> arguments) async {
     }
 
     if (command == '--version' || command == '-v') {
-      print('Oka version 0.1.0');
+      final version = await getOkaVersion();
+      print('Oka version $version');
       exit(0);
     }
 

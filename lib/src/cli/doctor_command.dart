@@ -3,11 +3,17 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../build/sdk_locator.dart';
+import '../version.dart';
 
 /// Doctor command to check system requirements
 class DoctorCommand {
   Future<void> run(List<String> args) async {
     print('🔍 Oka Doctor - Checking system configuration...\n');
+
+    final okaVersion = await getOkaVersion();
+    print('[Oka Version]');
+    print('  ℹ️  Oka v$okaVersion');
+    print('');
 
     final locator = SdkLocator();
     var allGood = true;
