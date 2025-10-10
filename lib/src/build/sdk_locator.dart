@@ -344,6 +344,13 @@ class SdkLocator {
       }
     }
 
+    // Check oka cache
+    final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
+    final cachedJar = p.join(okaCacheDir, 'annotation-1.9.1.jar');
+    if (await File(cachedJar).exists()) {
+      return cachedJar;
+    }
+
     // Fallback: Check Flutter's local Maven repository
     final flutterSdk = await findFlutterSdk();
     final flutterMavenDir =
@@ -369,9 +376,17 @@ class SdkLocator {
       }
     }
 
+    // Not found - prompt user to download
+    if (_promptUserForDownload('androidx.annotation:annotation')) {
+      print('📥 Downloading AndroidX annotation JAR from Google Maven...');
+      final downloadedPath = await _downloadAndroidXAnnotations('1.9.1');
+      print('✅ Downloaded to: $downloadedPath');
+      return downloadedPath;
+    }
+
     throw Exception(
       'AndroidX annotation JAR not found. Please ensure you have built a Flutter Android app at least once, '
-      'or manually download androidx.annotation:annotation from Maven Central.',
+      'or manually download androidx.annotation:annotation from https://maven.google.com',
     );
   }
 
@@ -393,6 +408,84 @@ class SdkLocator {
     }
 
     return null;
+  }
+
+  /// Prompt user for permission to download a package
+  bool _promptUserForDownload(String packageName) {
+    stdout.write('\n⚠️  $packageName not found locally.\n'
+        '📦 Download from Google Maven? (y/n): ');
+    final response = stdin.readLineSync()?.trim().toLowerCase();
+    return response == 'y' || response == 'yes';
+  }
+
+  /// Download AndroidX annotation JAR from Google Maven repository
+  Future<String> _downloadAndroidXAnnotations(String version) async {
+    final home = Platform.environment['HOME'] ?? '';
+    final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
+    await Directory(cacheDir).create(recursive: true);
+
+    final jarFileName = 'annotation-$version.jar';
+    final jarPath = p.join(cacheDir, jarFileName);
+
+    // If already exists, return it
+    if (await File(jarPath).exists()) {
+      return jarPath;
+    }
+
+    final url =
+        'https://maven.google.com/androidx/annotation/annotation/$version/$jarFileName';
+
+    print('   URL: $url');
+    print('   Target: $jarPath');
+
+    try {
+      // Use curl to download with verbose output
+      final result = await Process.run(
+        'curl',
+        [
+          '-L', // Follow redirects
+          '-f', // Fail on HTTP errors
+          '-o',
+          jarPath,
+          '--progress-bar',
+          url,
+        ],
+        stdoutEncoding: null,
+        stderrEncoding: null,
+      );
+
+      if (result.exitCode != 0) {
+        final stderr = result.stderr != null
+            ? String.fromCharCodes(result.stderr as List<int>)
+            : 'Unknown error';
+        throw Exception(
+            'Download failed (exit code ${result.exitCode}): $stderr');
+      }
+
+      // Validate downloaded file
+      final jarFile = File(jarPath);
+      if (!await jarFile.exists()) {
+        throw Exception('Downloaded file not found at: $jarPath');
+      }
+
+      final fileSize = await jarFile.length();
+      print('   File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+
+      if (fileSize < 1000) {
+        // JAR should be at least 1KB
+        await jarFile.delete();
+        throw Exception('Downloaded file is too small (possibly invalid)');
+      }
+
+      return jarPath;
+    } catch (e) {
+      // Clean up partial download
+      final jarFile = File(jarPath);
+      if (await jarFile.exists()) {
+        await jarFile.delete();
+      }
+      rethrow;
+    }
   }
 
   /// Validate all required tools are available
