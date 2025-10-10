@@ -46,7 +46,6 @@ class DoctorCommand {
       final tools = {
         'aapt2': locator.findAapt2(),
         'd8': locator.findD8(),
-        'r8': locator.findR8(),
         'zipalign': locator.findZipalign(),
         'apksigner': locator.findApksigner(),
         'adb': locator.findAdb(),
@@ -60,6 +59,22 @@ class DoctorCommand {
           print('  ❌ ${entry.key}: Not found');
           allGood = false;
         }
+      }
+
+      // Check R8 separately (it's optional but recommended)
+      try {
+        final r8Path = await locator.findR8();
+        if (r8Path != null) {
+          print('  ✅ r8: ${p.basename(p.dirname(r8Path))}');
+        } else {
+          print(
+              '  ⚠️  r8: Not found (optional, but recommended for release builds)');
+          print('      💡 Run "oka get r8" to install');
+        }
+      } catch (e) {
+        print(
+            '  ⚠️  r8: Not found (optional, but recommended for release builds)');
+        print('      💡 Run "oka get r8" to install');
       }
     } catch (e) {
       print('  ❌ Not found: $e');

@@ -239,35 +239,60 @@ class AndroidBuilder {
     final dexFile = p.join(ctx.buildDir, 'classes.dex');
 
     if (ctx.mode.isRelease) {
-      // Use R8 for release builds with optimization
+      // Try to use R8 for release builds with optimization
       final r8 = await _sdkLocator.findR8();
-      final androidSdk = await _sdkLocator.findAndroidSdk();
-      final androidJar = p.join(
-        androidSdk,
-        'platforms',
-        'android-${ctx.config.android.compileSdk}',
-        'android.jar',
-      );
 
-      final r8Result = await Process.run(
-        'java',
-        [
-          '-cp',
-          r8,
-          'com.android.tools.r8.R8',
-          '--release',
-          '--lib',
-          androidJar,
-          '--output',
-          p.dirname(dexFile),
-          '--min-api',
-          ctx.config.android.minSdk,
-          classesDir,
-        ],
-      );
+      if (r8 != null) {
+        // Use R8 for optimized release builds
+        final androidSdk = await _sdkLocator.findAndroidSdk();
+        final androidJar = p.join(
+          androidSdk,
+          'platforms',
+          'android-${ctx.config.android.compileSdk}',
+          'android.jar',
+        );
 
-      if (r8Result.exitCode != 0) {
-        throw Exception('R8 failed: ${r8Result.stderr}');
+        final r8Result = await Process.run(
+          'java',
+          [
+            '-cp',
+            r8,
+            'com.android.tools.r8.R8',
+            '--release',
+            '--lib',
+            androidJar,
+            '--output',
+            p.dirname(dexFile),
+            '--min-api',
+            ctx.config.android.minSdk,
+            classesDir,
+          ],
+        );
+
+        if (r8Result.exitCode != 0) {
+          throw Exception('R8 failed: ${r8Result.stderr}');
+        }
+      } else {
+        // Fallback to D8 if R8 is not available
+        print('⚠️  R8 not found, falling back to D8 (no optimization)');
+        print('💡 Run "oka get r8" to install R8 for optimized builds');
+
+        final d8 = await _sdkLocator.findD8();
+
+        final d8Result = await Process.run(
+          d8,
+          [
+            '--output',
+            p.dirname(dexFile),
+            '--min-api',
+            ctx.config.android.minSdk,
+            classesDir,
+          ],
+        );
+
+        if (d8Result.exitCode != 0) {
+          throw Exception('D8 failed: ${d8Result.stderr}');
+        }
       }
     } else {
       // Use D8 for debug builds (faster, no optimization)

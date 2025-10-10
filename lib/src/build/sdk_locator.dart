@@ -133,33 +133,45 @@ class SdkLocator {
   }
 
   /// Locate r8 tool (DEX compiler with optimization for release)
-  Future<String> findR8() async {
+  ///
+  /// Returns null if r8 is not found instead of throwing an exception
+  Future<String?> findR8() async {
     final androidSdk = await findAndroidSdk();
     final buildToolsDir = Directory(p.join(androidSdk, 'build-tools'));
 
-    final versions = await buildToolsDir
-        .list()
-        .where((e) => e is Directory)
-        .map((e) => p.basename(e.path))
-        .toList();
+    if (await buildToolsDir.exists()) {
+      final versions = await buildToolsDir
+          .list()
+          .where((e) => e is Directory)
+          .map((e) => p.basename(e.path))
+          .toList();
 
-    versions.sort((a, b) => b.compareTo(a));
+      versions.sort((a, b) => b.compareTo(a));
 
-    for (final version in versions) {
-      final r8Path = p.join(androidSdk, 'build-tools', version, 'r8');
-      if (await File(r8Path).exists()) {
-        return r8Path;
-      }
+      for (final version in versions) {
+        final r8Path = p.join(androidSdk, 'build-tools', version, 'r8');
+        if (await File(r8Path).exists()) {
+          return r8Path;
+        }
 
-      // R8 might be a jar file
-      final r8JarPath =
-          p.join(androidSdk, 'build-tools', version, 'lib', 'r8.jar');
-      if (await File(r8JarPath).exists()) {
-        return r8JarPath;
+        // R8 might be a jar file
+        final r8JarPath =
+            p.join(androidSdk, 'build-tools', version, 'lib', 'r8.jar');
+        if (await File(r8JarPath).exists()) {
+          return r8JarPath;
+        }
       }
     }
 
-    throw Exception('r8 not found in Android SDK build-tools');
+    // Check cmdline-tools location
+    final cmdlineToolsR8 =
+        p.join(androidSdk, 'cmdline-tools', 'latest', 'lib', 'r8.jar');
+    if (await File(cmdlineToolsR8).exists()) {
+      return cmdlineToolsR8;
+    }
+
+    // Not found, return null instead of throwing
+    return null;
   }
 
   /// Locate zipalign tool
@@ -279,7 +291,12 @@ class SdkLocator {
       tools['flutter_sdk'] = await findFlutterSdk();
       tools['aapt2'] = await findAapt2();
       tools['d8'] = await findD8();
-      tools['r8'] = await findR8();
+
+      final r8 = await findR8();
+      if (r8 != null) {
+        tools['r8'] = r8;
+      }
+
       tools['zipalign'] = await findZipalign();
       tools['apksigner'] = await findApksigner();
       tools['adb'] = await findAdb();

@@ -7,6 +7,7 @@ import 'package:oka/src/cli/build_command.dart';
 import 'package:oka/src/cli/clean_command.dart';
 import 'package:oka/src/cli/dev_command.dart';
 import 'package:oka/src/cli/doctor_command.dart';
+import 'package:oka/src/cli/get_command.dart';
 import 'package:oka/src/cli/init_command.dart';
 import 'package:oka/src/version.dart';
 
@@ -52,6 +53,9 @@ void main(List<String> arguments) async {
       case 'clean':
         await CleanCommand().run(commandArgs);
         break;
+      case 'get':
+        await GetCommand().run(commandArgs);
+        break;
       default:
         print('Unknown command: $command');
         _printUsage(parser);
@@ -77,6 +81,7 @@ Commands:
   build     Build APK or AAB
   dev       Start development mode with hot reload
   doctor    Check system requirements and configuration
+  get       Install missing Android SDK dependencies
   clean     Clean build cache
 
 Options:
@@ -87,6 +92,7 @@ Examples:
   oka build apk --release     # Build release APK
   oka dev                     # Start dev mode with hot reload
   oka doctor                  # Check system setup
+  oka get r8                  # Install R8 optimizer
 
 For more information, visit https://github.com/yourusername/oka
 ''');
