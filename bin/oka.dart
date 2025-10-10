@@ -31,8 +31,8 @@ void main(List<String> arguments) async {
     }
 
     if (command == '--version' || command == '-v') {
-      final version = await getOkaVersion();
-      print('Oka version $version');
+      final okaVersion = getOkaVersion();
+      print('Oka version $okaVersion');
       exit(0);
     }
 

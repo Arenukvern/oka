@@ -1,6 +1,6 @@
 name: oka
 description: AI-powered Flutter Android build system that replaces Gradle for faster builds
-version: 0.1.1
+version: 0.1.2
 homepage: https://github.com/yourusername/oka
 
 environment:

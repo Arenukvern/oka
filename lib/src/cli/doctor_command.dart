@@ -10,7 +10,7 @@ class DoctorCommand {
   Future<void> run(List<String> args) async {
     print('🔍 Oka Doctor - Checking system configuration...\n');
 
-    final okaVersion = await getOkaVersion();
+    final okaVersion = getOkaVersion();
     print('[Oka Version]');
     print('  ℹ️  Oka v$okaVersion');
     print('');
