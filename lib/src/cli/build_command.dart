@@ -9,6 +9,16 @@ import '../build/sdk_locator.dart';
 import '../config/build_context.dart';
 import '../config/oka_config.dart';
 
+/// Recursively converts YamlMap/YamlList to Map/List
+dynamic _yamlToJson(dynamic value) {
+  if (value is YamlMap) {
+    return value.map((k, v) => MapEntry(k.toString(), _yamlToJson(v)));
+  } else if (value is YamlList) {
+    return value.map(_yamlToJson).toList();
+  }
+  return value;
+}
+
 /// Build command to compile APK or AAB
 class BuildCommand {
   Future<void> run(List<String> args) async {
@@ -45,7 +55,7 @@ class BuildCommand {
 
     final okaYamlContent = await okaYamlFile.readAsString();
     final okaYamlData = loadYaml(okaYamlContent);
-    final config = OkaConfig.fromJson(okaYamlData);
+    final config = OkaConfig.fromJson(_yamlToJson(okaYamlData));
 
     if (verbose) {
       print('📋 Configuration:');
