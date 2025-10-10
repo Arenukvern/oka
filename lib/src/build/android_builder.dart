@@ -250,7 +250,19 @@ class AndroidBuilder {
   /// Convert compiled classes to DEX format
   Future<void> convertToDex(BuildContext ctx) async {
     final classesDir = p.join(ctx.buildDir, 'classes');
+    final classesJar = p.join(ctx.buildDir, 'classes.jar');
     final dexFile = p.join(ctx.buildDir, 'classes.dex');
+
+    // Create JAR from compiled classes
+    // D8/R8 prefer JAR input over directory input
+    final jarResult = await Process.run(
+      'jar',
+      ['cf', classesJar, '-C', classesDir, '.'],
+    );
+
+    if (jarResult.exitCode != 0) {
+      throw Exception('Failed to create classes JAR: ${jarResult.stderr}');
+    }
 
     if (ctx.mode.isRelease) {
       // Try to use R8 for release builds with optimization
@@ -279,7 +291,7 @@ class AndroidBuilder {
             p.dirname(dexFile),
             '--min-api',
             ctx.config.android.minSdk,
-            classesDir,
+            classesJar,
           ],
         );
 
@@ -300,7 +312,7 @@ class AndroidBuilder {
             p.dirname(dexFile),
             '--min-api',
             ctx.config.android.minSdk,
-            classesDir,
+            classesJar,
           ],
         );
 
@@ -319,7 +331,7 @@ class AndroidBuilder {
           p.dirname(dexFile),
           '--min-api',
           ctx.config.android.minSdk,
-          classesDir,
+          classesJar,
         ],
       );
 

@@ -346,7 +346,7 @@ class SdkLocator {
 
     // Check oka cache
     final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
-    final cachedJar = p.join(okaCacheDir, 'annotation-1.9.1.jar');
+    final cachedJar = p.join(okaCacheDir, 'annotation-jvm-1.9.1.jar');
     if (await File(cachedJar).exists()) {
       return cachedJar;
     }
@@ -424,7 +424,7 @@ class SdkLocator {
     final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
     await Directory(cacheDir).create(recursive: true);
 
-    final jarFileName = 'annotation-$version.jar';
+    final jarFileName = 'annotation-jvm-$version.jar';
     final jarPath = p.join(cacheDir, jarFileName);
 
     // If already exists, return it
@@ -433,7 +433,7 @@ class SdkLocator {
     }
 
     final url =
-        'https://maven.google.com/androidx/annotation/annotation/$version/$jarFileName';
+        'https://maven.google.com/androidx/annotation/annotation-jvm/$version/$jarFileName';
 
     print('   URL: $url');
     print('   Target: $jarPath');
