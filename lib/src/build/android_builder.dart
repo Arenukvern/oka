@@ -197,6 +197,7 @@ class AndroidBuilder {
     // Get Flutter and AndroidX JARs
     final flutterJar = await _sdkLocator.findFlutterJar();
     final androidxAnnotationJar = await _sdkLocator.findAndroidXAnnotations();
+    final androidxLifecycleJar = await _sdkLocator.findAndroidXLifecycle();
 
     // Build classpath with all required JARs
     final classpathSeparator = Platform.isWindows ? ';' : ':';
@@ -204,6 +205,7 @@ class AndroidBuilder {
       androidJar,
       flutterJar,
       androidxAnnotationJar,
+      androidxLifecycleJar,
       classesDir,
     ].join(classpathSeparator);
 

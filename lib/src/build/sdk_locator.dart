@@ -375,38 +375,7 @@ class SdkLocator {
 
   /// Locate AndroidX annotation JAR
   Future<String> findAndroidXAnnotations() async {
-    // Check Gradle cache first
     final home = Platform.environment['HOME'] ?? '';
-    final gradleCacheDir = p.join(home, '.gradle', 'caches', 'modules-2',
-        'files-2.1', 'androidx.annotation', 'annotation');
-
-    if (await Directory(gradleCacheDir).exists()) {
-      // Find the latest version directory
-      final versions = await Directory(gradleCacheDir)
-          .list()
-          .where((e) => e is Directory)
-          .map((e) => p.basename(e.path))
-          .toList();
-
-      if (versions.isNotEmpty) {
-        versions.sort((a, b) => b.compareTo(a)); // Reverse sort for latest
-
-        for (final version in versions) {
-          final versionDir = p.join(gradleCacheDir, version);
-          final hashDirs = await Directory(versionDir)
-              .list()
-              .where((e) => e is Directory)
-              .toList();
-
-          for (final hashDir in hashDirs) {
-            final jarPath = p.join(hashDir.path, 'annotation-$version.jar');
-            if (await File(jarPath).exists()) {
-              return jarPath;
-            }
-          }
-        }
-      }
-    }
 
     // Check oka cache
     final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
@@ -415,32 +384,7 @@ class SdkLocator {
       return cachedJar;
     }
 
-    // Fallback: Check Flutter's local Maven repository
-    final flutterSdk = await findFlutterSdk();
-    final flutterMavenDir =
-        p.join(flutterSdk, 'bin', 'cache', 'artifacts', 'engine', 'androidx');
-
-    if (await Directory(flutterMavenDir).exists()) {
-      final annotationJar =
-          await _findFileRecursive(flutterMavenDir, 'annotation-', '.jar');
-      if (annotationJar != null) {
-        return annotationJar;
-      }
-    }
-
-    // If not found, try to download from Android SDK (if available)
-    final androidSdk = await findAndroidSdk();
-    final androidxDir = p.join(androidSdk, 'extras', 'androidx', 'annotation');
-
-    if (await Directory(androidxDir).exists()) {
-      final annotationJar =
-          await _findFileRecursive(androidxDir, 'annotation-', '.jar');
-      if (annotationJar != null) {
-        return annotationJar;
-      }
-    }
-
-    // Not found - prompt user to download
+    // Download from Google Maven
     if (_promptUserForDownload('androidx.annotation:annotation')) {
       print('📥 Downloading AndroidX annotation JAR from Google Maven...');
       final downloadedPath = await _downloadAndroidXAnnotations('1.9.1');
@@ -454,24 +398,32 @@ class SdkLocator {
     );
   }
 
-  /// Helper to find a file recursively in a directory
-  Future<String?> _findFileRecursive(
-      String dirPath, String prefix, String extension) async {
-    final directory = Directory(dirPath);
-    if (!await directory.exists()) {
-      return null;
+  /// Locate AndroidX lifecycle-common JAR
+  ///
+  /// Downloads from Google Maven if not found in oka cache
+  Future<String> findAndroidXLifecycle() async {
+    final home = Platform.environment['HOME'] ?? '';
+
+    // Check oka cache
+    final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
+    final cachedJar = p.join(okaCacheDir, 'lifecycle-common-jvm-2.8.7.jar');
+    if (await File(cachedJar).exists()) {
+      return cachedJar;
     }
 
-    await for (final entity in directory.list(recursive: true)) {
-      if (entity is File) {
-        final basename = p.basename(entity.path);
-        if (basename.startsWith(prefix) && basename.endsWith(extension)) {
-          return entity.path;
-        }
-      }
+    // Download from Google Maven
+    if (_promptUserForDownload('androidx.lifecycle:lifecycle-common')) {
+      print(
+          '📥 Downloading AndroidX lifecycle-common JAR from Google Maven...');
+      final downloadedPath = await _downloadAndroidXLifecycle('2.8.7');
+      print('✅ Downloaded to: $downloadedPath');
+      return downloadedPath;
     }
 
-    return null;
+    throw Exception(
+      'AndroidX lifecycle-common JAR not found. '
+      'Download from https://maven.google.com/androidx/lifecycle/lifecycle-common-jvm/',
+    );
   }
 
   /// Prompt user for permission to download a package
@@ -498,6 +450,76 @@ class SdkLocator {
 
     final url =
         'https://maven.google.com/androidx/annotation/annotation-jvm/$version/$jarFileName';
+
+    print('   URL: $url');
+    print('   Target: $jarPath');
+
+    try {
+      // Use curl to download with verbose output
+      final result = await Process.run(
+        'curl',
+        [
+          '-L', // Follow redirects
+          '-f', // Fail on HTTP errors
+          '-o',
+          jarPath,
+          '--progress-bar',
+          url,
+        ],
+        stdoutEncoding: null,
+        stderrEncoding: null,
+      );
+
+      if (result.exitCode != 0) {
+        final stderr = result.stderr != null
+            ? String.fromCharCodes(result.stderr as List<int>)
+            : 'Unknown error';
+        throw Exception(
+            'Download failed (exit code ${result.exitCode}): $stderr');
+      }
+
+      // Validate downloaded file
+      final jarFile = File(jarPath);
+      if (!await jarFile.exists()) {
+        throw Exception('Downloaded file not found at: $jarPath');
+      }
+
+      final fileSize = await jarFile.length();
+      print('   File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+
+      if (fileSize < 1000) {
+        // JAR should be at least 1KB
+        await jarFile.delete();
+        throw Exception('Downloaded file is too small (possibly invalid)');
+      }
+
+      return jarPath;
+    } catch (e) {
+      // Clean up partial download
+      final jarFile = File(jarPath);
+      if (await jarFile.exists()) {
+        await jarFile.delete();
+      }
+      rethrow;
+    }
+  }
+
+  /// Download AndroidX lifecycle-common JAR from Google Maven repository
+  Future<String> _downloadAndroidXLifecycle(String version) async {
+    final home = Platform.environment['HOME'] ?? '';
+    final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
+    await Directory(cacheDir).create(recursive: true);
+
+    final jarFileName = 'lifecycle-common-jvm-$version.jar';
+    final jarPath = p.join(cacheDir, jarFileName);
+
+    // If already exists, return it
+    if (await File(jarPath).exists()) {
+      return jarPath;
+    }
+
+    final url =
+        'https://maven.google.com/androidx/lifecycle/lifecycle-common-jvm/$version/$jarFileName';
 
     print('   URL: $url');
     print('   Target: $jarPath');
