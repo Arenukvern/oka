@@ -243,27 +243,64 @@ class SDKMANVersionManager extends VersionManager {
     final output = result.stdout as String;
     final lines = output.split('\n');
 
-    // Parse SDKMAN! output to find matching version
-    // Look for lines containing the version number
+    // Parse SDKMAN! table output
+    // Format: | >>> | Identifier | Vendor | Version | Dist | Status | Identifier
+    // Example: |     | 21.0.5-tem | Temurin | 21.0.5 | tem | installed | 21.0.5-tem
+
+    final candidates = <String>[];
+
     for (final line in lines) {
-      if (line.contains('$version.') || line.contains('$version-')) {
-        // Extract identifier from line (typically first column)
-        final parts = line.trim().split(RegExp(r'\s+'));
-        if (parts.isNotEmpty) {
-          final identifier = parts[0];
-          if (identifier.isNotEmpty && !identifier.startsWith('|')) {
-            return identifier;
-          }
+      // Skip header, separator, and empty lines
+      if (line.trim().isEmpty ||
+          line.contains('Identifier') ||
+          line.contains('===') ||
+          line.contains('---')) {
+        continue;
+      }
+
+      // Extract identifiers from table columns
+      // The identifier appears in the table, need to extract it properly
+      final cleaned = line
+          .replaceAll('|', ' ')
+          .replaceAll('>', ' ')
+          .replaceAll('*', ' ')
+          .trim();
+
+      if (cleaned.isEmpty) continue;
+
+      final parts = cleaned.split(RegExp(r'\s+'));
+
+      // Find parts that look like version identifiers (e.g., "21.0.5-tem", "21-open")
+      for (final part in parts) {
+        if (part.isEmpty) continue;
+
+        // Check if this part is a valid identifier containing our version
+        if (_isValidJavaIdentifier(part, version)) {
+          candidates.add(part);
         }
       }
     }
 
-    // Fallback: try common patterns
+    // Prioritize Temurin distributions (most stable and widely used)
+    for (final candidate in candidates) {
+      if (candidate.contains('-tem')) {
+        return candidate;
+      }
+    }
+
+    // Then try other distributions
+    if (candidates.isNotEmpty) {
+      return candidates.first;
+    }
+
+    // Fallback: try common patterns that are known to work
     final patterns = [
       '$version-tem',
-      '$version-open',
       '$version.0-tem',
+      '$version-open',
       '$version.0-open',
+      '$version-amzn',
+      '$version.0-amzn',
     ];
 
     for (final pattern in patterns) {
@@ -273,6 +310,31 @@ class SDKMANVersionManager extends VersionManager {
     }
 
     return null;
+  }
+
+  /// Check if a string is a valid Java identifier for the requested version
+  bool _isValidJavaIdentifier(String identifier, String version) {
+    // Must contain the version number
+    if (!identifier.contains(version)) {
+      return false;
+    }
+
+    // Must have a vendor suffix (like -tem, -open, -amzn, etc.)
+    if (!identifier.contains('-')) {
+      return false;
+    }
+
+    // Should start with a digit (version number)
+    if (!RegExp(r'^\d').hasMatch(identifier)) {
+      return false;
+    }
+
+    // Should match pattern like "21.0.5-tem" or "21-open"
+    if (!RegExp(r'^\d+(\.\d+)*-[a-z]+$').hasMatch(identifier)) {
+      return false;
+    }
+
+    return true;
   }
 }
 
