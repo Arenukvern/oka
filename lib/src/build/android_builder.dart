@@ -232,7 +232,7 @@ class AndroidBuilder {
           '-d',
           classesDir,
           '--release',
-          '8',
+          '${ctx.config.android.javaVersion}',
           ...allJavaFiles,
         ],
       );

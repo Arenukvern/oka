@@ -49,6 +49,12 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
   /// Supported ABIs (arm64-v8a, armeabi-v7a, x86_64, etc.)
   List<String> get abis => jsonDecodeListAs<String>(value['abis']);
 
+  /// Java source/target compatibility version (defaults to 11)
+  int get javaVersion {
+    final version = jsonDecodeInt(value['java_version']);
+    return version == 0 ? 11 : version;
+  }
+
   Map<String, dynamic> toJson() => value;
 
   static const empty = AndroidConfig({});
