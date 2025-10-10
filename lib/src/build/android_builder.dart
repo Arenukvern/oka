@@ -153,6 +153,15 @@ class AndroidBuilder {
 
   /// Compile Kotlin and Java sources
   Future<void> compileKotlin(BuildContext ctx) async {
+    // Resolve Java environment first
+    final javaEnvironment = await _sdkLocator.resolveJavaForKotlin(ctx);
+    final env = javaEnvironment ?? Platform.environment;
+
+    if (javaEnvironment != null && _verbose) {
+      print('🔧 Using custom Java environment for Kotlin compilation');
+      print('   JAVA_HOME: ${javaEnvironment['JAVA_HOME']}');
+    }
+
     final javac = await _sdkLocator.findJavac();
     final kotlinc = await _sdkLocator.findKotlinc();
 
@@ -214,9 +223,6 @@ class AndroidBuilder {
           print('Using Kotlin stdlib: $kotlinStdlib');
         }
       }
-
-      // Add JVM arguments to handle newer Java versions
-      final env = Map<String, String>.from(Platform.environment);
 
       // Get the target Java version from config
       final targetJavaVersion = ctx.config.android.javaVersion;
@@ -297,6 +303,7 @@ class AndroidBuilder {
           '${ctx.config.android.javaVersion}',
           ...allJavaFiles,
         ],
+        environment: env,
       );
 
       if (_verbose) {

@@ -5,6 +5,12 @@ android:
   min_sdk: 21
   target_sdk: 34
   java_version: 11
+  # Optional: Specify Kotlin compiler version
+  # kotlin_version: "2.1.0"
+  # Optional: Specify required Java runtime version for Kotlin compilation
+  # This is the Java version used to run kotlinc (not the bytecode target)
+  # Example: Kotlin 2.1.0 requires Java 11-24 (not compatible with Java 25+)
+  # required_java_version: "21"
   package_name: com.example.example
   version_code: 1
   version_name: 1.0.0+1

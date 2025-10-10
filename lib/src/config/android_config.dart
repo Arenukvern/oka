@@ -55,6 +55,21 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
     return version == 0 ? 11 : version;
   }
 
+  /// Kotlin compiler version (optional)
+  /// Specifies which Kotlin version should be used for compilation
+  String? get kotlinVersion {
+    final version = jsonDecodeString(value['kotlin_version']);
+    return version.isEmpty ? null : version;
+  }
+
+  /// Required Java runtime version for Kotlin compilation (optional)
+  /// This specifies the Java version to use for running kotlinc, not bytecode target
+  /// If not specified, will use system default Java
+  String? get requiredJavaVersion {
+    final version = jsonDecodeString(value['required_java_version']);
+    return version.isEmpty ? null : version;
+  }
+
   Map<String, dynamic> toJson() => value;
 
   static const empty = AndroidConfig({});

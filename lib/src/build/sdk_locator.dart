@@ -2,14 +2,22 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../config/build_context.dart';
+import 'java_environment.dart';
+
 /// Locates Android SDK tools and validates their availability
 class SdkLocator {
   final String? _androidSdkPath;
   final String? _flutterSdkPath;
+  final bool _verbose;
 
-  SdkLocator({String? androidSdkPath, String? flutterSdkPath})
-      : _androidSdkPath = androidSdkPath,
-        _flutterSdkPath = flutterSdkPath;
+  SdkLocator({
+    String? androidSdkPath,
+    String? flutterSdkPath,
+    bool verbose = false,
+  })  : _androidSdkPath = androidSdkPath,
+        _flutterSdkPath = flutterSdkPath,
+        _verbose = verbose;
 
   /// Find Android SDK path
   Future<String> findAndroidSdk() async {
@@ -540,6 +548,38 @@ class SdkLocator {
       if (await jarFile.exists()) {
         await jarFile.delete();
       }
+      rethrow;
+    }
+  }
+
+  /// Resolve Java environment for Kotlin compilation
+  ///
+  /// Reads required Java version from [BuildContext] and ensures
+  /// the correct Java version is available for kotlinc
+  ///
+  /// Returns environment variables map to use for Process.run calls,
+  /// or null if system default Java should be used
+  Future<Map<String, String>?> resolveJavaForKotlin(BuildContext ctx) async {
+    final requiredJavaVersion = ctx.config.android.requiredJavaVersion;
+
+    if (requiredJavaVersion == null) {
+      if (_verbose) {
+        print('No specific Java version required in oka.yaml');
+      }
+      return null;
+    }
+
+    final javaEnv = JavaEnvironment(verbose: _verbose);
+
+    try {
+      final env = await javaEnv.resolveJavaEnvironment(
+        requiredJavaVersion,
+        autoInstall: true,
+      );
+
+      return env;
+    } catch (e) {
+      print('❌ Failed to resolve Java environment: $e');
       rethrow;
     }
   }

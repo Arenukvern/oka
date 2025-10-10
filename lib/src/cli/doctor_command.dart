@@ -1,9 +1,22 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 import '../build/sdk_locator.dart';
+import '../build/version_manager.dart';
+import '../config/oka_config.dart';
 import '../version.dart';
+
+/// Recursively converts YamlMap/YamlList to Map/List
+dynamic _yamlToJson(dynamic value) {
+  if (value is YamlMap) {
+    return value.map((k, v) => MapEntry(k.toString(), _yamlToJson(v)));
+  } else if (value is YamlList) {
+    return value.map(_yamlToJson).toList();
+  }
+  return value;
+}
 
 /// Doctor command to check system requirements
 class DoctorCommand {
@@ -17,6 +30,19 @@ class DoctorCommand {
 
     final locator = SdkLocator();
     var allGood = true;
+
+    // Load oka.yaml if it exists for version requirements
+    OkaConfig? config;
+    final okaYamlFile = File('oka.yaml');
+    if (await okaYamlFile.exists()) {
+      try {
+        final okaYamlContent = await okaYamlFile.readAsString();
+        final okaYamlData = loadYaml(okaYamlContent);
+        config = OkaConfig.fromJson(_yamlToJson(okaYamlData));
+      } catch (e) {
+        // Failed to parse config
+      }
+    }
 
     // Check Flutter SDK
     print('[Flutter SDK]');
@@ -90,13 +116,78 @@ class DoctorCommand {
 
       final result = await Process.run('java', ['-version']);
       if (result.exitCode == 0) {
-        final version = (result.stderr as String).split('\n')[0];
-        print('  ℹ️  $version');
+        final versionOutput = (result.stderr as String).split('\n')[0];
+        print('  ℹ️  $versionOutput');
+
+        // Extract major version
+        final versionMatch = RegExp(r'version "(\d+)\.?(\d*)\.?(\d*)[_\-]?.*?"')
+            .firstMatch(versionOutput);
+
+        if (versionMatch != null) {
+          final major = versionMatch.group(1)!;
+          final currentMajor = major == '1' ? versionMatch.group(2)! : major;
+
+          // Check if there's a required version in oka.yaml
+          if (config != null) {
+            final requiredVersion = config.android.requiredJavaVersion;
+            final kotlinVersion = config.android.kotlinVersion;
+
+            if (requiredVersion != null) {
+              print('  ℹ️  Required by oka.yaml: Java $requiredVersion');
+
+              try {
+                final currentInt = int.parse(currentMajor);
+                final requiredInt = int.parse(requiredVersion);
+
+                if (currentInt > requiredInt) {
+                  print(
+                      '  ⚠️  Warning: Current Java ($currentMajor) is newer than required ($requiredVersion)');
+                  if (kotlinVersion != null) {
+                    print('     Kotlin $kotlinVersion may not be compatible');
+                  }
+                } else if (currentInt == requiredInt) {
+                  print('  ✓ Java version matches requirements');
+                }
+              } catch (e) {
+                // Could not parse versions
+              }
+            }
+
+            if (kotlinVersion != null) {
+              print('  ℹ️  Kotlin version: $kotlinVersion');
+            }
+          }
+        }
       }
     } catch (e) {
       print('  ❌ Not found: $e');
       print('  💡 Install JDK 11 or later');
       allGood = false;
+    }
+
+    // Check version managers
+    print('');
+    print('[Java Version Managers]');
+    final versionManager = await VersionManager.detectBestVersionManager();
+    if (versionManager != null) {
+      print('  ✅ ${versionManager.name} detected');
+
+      final installedVersions =
+          await versionManager.listInstalledJavaVersions();
+      if (installedVersions.isNotEmpty) {
+        print('  ℹ️  Installed Java versions:');
+        for (final version in installedVersions.take(5)) {
+          print('     - $version');
+        }
+        if (installedVersions.length > 5) {
+          print('     ... and ${installedVersions.length - 5} more');
+        }
+      }
+    } else {
+      print('  ⚠️  No version manager detected');
+      print(
+          '     Consider installing SDKMAN! (Linux/macOS) or using winget (Windows)');
+      print('     This allows automatic Java version switching');
     }
     print('');
 

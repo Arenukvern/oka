@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../build/sdk_locator.dart';
+import '../build/version_manager.dart';
 
 /// Get command to install missing Android SDK dependencies
 class GetCommand {
@@ -24,6 +25,14 @@ class GetCommand {
         break;
       case 'kotlin':
         await _installKotlin();
+        break;
+      case 'java':
+        if (args.length < 2) {
+          print('❌ Please specify Java version');
+          print('   Example: oka get java 21');
+          exit(1);
+        }
+        await _installJava(args[1]);
         break;
       case 'all':
         await _installAll();
@@ -345,6 +354,100 @@ class GetCommand {
     }
   }
 
+  /// Install specific Java version
+  Future<void> _installJava(String version) async {
+    print('📦 Installing Java $version...\n');
+
+    // Detect available version manager
+    final versionManager = await VersionManager.detectBestVersionManager();
+
+    if (versionManager == null) {
+      print('❌ No version manager detected');
+      print('');
+      _printJavaInstallInstructions(version);
+      exit(1);
+    }
+
+    print('🔍 Using ${versionManager.name} for installation...');
+    print('');
+
+    try {
+      // Check if already installed
+      final installedVersions =
+          await versionManager.listInstalledJavaVersions();
+      final alreadyInstalled = installedVersions.any(
+        (v) =>
+            v == version ||
+            v.startsWith('$version.') ||
+            v.startsWith('$version-'),
+      );
+
+      if (alreadyInstalled) {
+        print('✅ Java $version is already installed');
+        print('');
+        print('💡 Run "oka doctor" to verify installation');
+        return;
+      }
+
+      // Install
+      final success = await versionManager.installJavaVersion(version);
+
+      if (success) {
+        print('');
+        print('✅ Java $version installed successfully!');
+        print('');
+        print('💡 Run "oka doctor" to verify installation');
+      } else {
+        print('');
+        print('❌ Failed to install Java $version');
+        _printJavaInstallInstructions(version);
+        exit(1);
+      }
+    } catch (e) {
+      print('❌ Error: $e');
+      _printJavaInstallInstructions(version);
+      exit(1);
+    }
+  }
+
+  /// Print Java installation instructions
+  void _printJavaInstallInstructions(String version) {
+    print('');
+    print('═══════════════════════════════════════════════════════════');
+    print('📋 Manual Java Installation Instructions');
+    print('═══════════════════════════════════════════════════════════');
+    print('');
+
+    if (Platform.isLinux || Platform.isMacOS) {
+      print('Option 1: Install SDKMAN! (recommended)');
+      print('  curl -s "https://get.sdkman.io" | bash');
+      print('  sdk install java $version-tem');
+      print('');
+      print('Option 2: Install asdf');
+      print('  https://asdf-vm.com/guide/getting-started.html');
+      print('  asdf plugin-add java');
+      print('  asdf install java temurin-$version');
+      print('');
+    }
+
+    if (Platform.isWindows) {
+      print('Option 1: Use winget');
+      print('  winget install EclipseAdoptium.Temurin.$version.JDK');
+      print('');
+    }
+
+    if (Platform.isMacOS) {
+      print('Option 3: Use Homebrew');
+      print('  brew install openjdk@$version');
+      print('');
+    }
+
+    print('Or download directly from:');
+    print('  https://adoptium.net/');
+    print('═══════════════════════════════════════════════════════════');
+    print('');
+  }
+
   /// Print usage information
   void _printUsage() {
     print('''
@@ -353,13 +456,15 @@ Usage: oka get <dependency>
 Install missing build dependencies.
 
 Dependencies:
-  r8            Install R8 optimizer for release builds
-  build-tools   Install Android Build Tools
-  kotlin        Install Kotlin compiler
-  all           Install all missing dependencies
+  r8              Install R8 optimizer for release builds
+  build-tools     Install Android Build Tools
+  kotlin          Install Kotlin compiler
+  java <version>  Install specific Java JDK version
+  all             Install all missing dependencies
 
 Examples:
   oka get kotlin        # Install Kotlin compiler
+  oka get java 21       # Install Java 21
   oka get r8            # Install R8 optimizer
   oka get build-tools   # Install Android Build Tools
   oka get all           # Install everything missing

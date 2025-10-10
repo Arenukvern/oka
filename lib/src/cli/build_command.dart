@@ -89,7 +89,7 @@ class BuildCommand {
     });
 
     // Build APK
-    final locator = SdkLocator();
+    final locator = SdkLocator(verbose: verbose);
     final builder = AndroidBuilder(locator, verbose: verbose);
 
     final artifact = await builder.buildApk(buildContext);
