@@ -236,6 +236,28 @@ class SdkLocator {
 
   /// Locate kotlinc compiler
   Future<String?> findKotlinc() async {
+    // First check oka's managed Kotlin installation
+    final homeDir = Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '';
+    if (homeDir.isNotEmpty) {
+      final okaCacheDir = p.join(homeDir, '.oka', 'tools');
+      final kotlinDir = Directory(okaCacheDir);
+
+      if (await kotlinDir.exists()) {
+        // Look for any kotlin-* directory
+        await for (final entity in kotlinDir.list()) {
+          if (entity is Directory &&
+              p.basename(entity.path).startsWith('kotlin-')) {
+            final kotlincPath = p.join(entity.path, 'bin', 'kotlinc');
+            if (await File(kotlincPath).exists()) {
+              return kotlincPath;
+            }
+          }
+        }
+      }
+    }
+
     // Check if kotlinc is in PATH
     try {
       final result = await Process.run('which', ['kotlinc']);
@@ -256,6 +278,40 @@ class SdkLocator {
     }
 
     return null; // Kotlin compiler optional
+  }
+
+  /// Find Kotlin standard library JAR
+  /// Returns the path to kotlin-stdlib.jar needed for Kotlin compilation
+  Future<String?> findKotlinStdlib() async {
+    final kotlinc = await findKotlinc();
+    if (kotlinc == null) {
+      return null;
+    }
+
+    // kotlinc is typically at: <kotlin-home>/bin/kotlinc
+    // stdlib is at: <kotlin-home>/lib/kotlin-stdlib.jar
+    final kotlincDir = p.dirname(kotlinc); // bin directory
+    final kotlinHome = p.dirname(kotlincDir); // kotlin home
+    final libDir = p.join(kotlinHome, 'lib');
+
+    // Look for kotlin-stdlib.jar
+    final stdlibPath = p.join(libDir, 'kotlin-stdlib.jar');
+    if (await File(stdlibPath).exists()) {
+      return stdlibPath;
+    }
+
+    // If not found, try to find any kotlin-stdlib*.jar in lib directory
+    final libDirectory = Directory(libDir);
+    if (await libDirectory.exists()) {
+      await for (final entity in libDirectory.list()) {
+        if (entity is File &&
+            p.basename(entity.path).startsWith('kotlin-stdlib')) {
+          return entity.path;
+        }
+      }
+    }
+
+    return null;
   }
 
   /// Locate javac compiler

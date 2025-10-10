@@ -22,6 +22,9 @@ class GetCommand {
       case 'build-tools':
         await _installBuildTools();
         break;
+      case 'kotlin':
+        await _installKotlin();
+        break;
       case 'all':
         await _installAll();
         break;
@@ -149,8 +152,13 @@ class GetCommand {
       missing.add('apksigner');
     }
 
+    final kotlinc = await locator.findKotlinc();
+    if (kotlinc == null) {
+      missing.add('kotlin');
+    }
+
     if (missing.isEmpty) {
-      print('✅ All Android SDK tools are already installed!');
+      print('✅ All build tools are already installed!');
       return;
     }
 
@@ -158,8 +166,20 @@ class GetCommand {
     print('Missing tools: ${missing.join(", ")}');
     print('');
 
-    // Install build-tools to get all missing tools
-    await _installBuildTools();
+    // Install missing tools
+    if (missing.any((t) => t != 'kotlin' && t != 'r8')) {
+      await _installBuildTools();
+    }
+
+    if (missing.contains('kotlin')) {
+      print('');
+      await _installKotlin();
+    }
+
+    if (missing.contains('r8')) {
+      print('');
+      await _installR8();
+    }
   }
 
   /// Find Android SDK Manager (sdkmanager)
@@ -221,19 +241,125 @@ class GetCommand {
     print('═══════════════════════════════════════════════════════════');
   }
 
+  /// Install Kotlin compiler
+  Future<void> _installKotlin() async {
+    print('📦 Installing Kotlin compiler...\n');
+
+    try {
+      // Check if Kotlin already exists
+      final locator = SdkLocator();
+      final existingKotlin = await locator.findKotlinc();
+      if (existingKotlin != null) {
+        print('✅ Kotlin compiler is already installed at: $existingKotlin');
+        return;
+      }
+
+      // Get oka cache directory
+      final homeDir = Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE'] ??
+          '';
+      if (homeDir.isEmpty) {
+        throw Exception('Could not determine home directory');
+      }
+
+      final okaCacheDir = p.join(homeDir, '.oka', 'tools');
+      await Directory(okaCacheDir).create(recursive: true);
+
+      // Kotlin version to download
+      // Using 1.9.24 for better Java compatibility
+      const kotlinVersion = '1.9.24';
+      final kotlinDir = p.join(okaCacheDir, 'kotlin-$kotlinVersion');
+
+      // Check if already downloaded but not in PATH
+      if (await Directory(kotlinDir).exists()) {
+        print('✅ Kotlin $kotlinVersion is already downloaded at: $kotlinDir');
+        print('💡 Kotlin compiler will be used automatically by oka');
+        return;
+      }
+
+      // Download Kotlin
+      print('📥 Downloading Kotlin $kotlinVersion...');
+      print('   This may take a few minutes...\n');
+
+      const downloadUrl =
+          'https://github.com/JetBrains/kotlin/releases/download/v$kotlinVersion/kotlin-compiler-$kotlinVersion.zip';
+
+      // Download using curl
+      final tempFile = p.join(okaCacheDir, 'kotlin-compiler.zip');
+      final downloadResult = await Process.run(
+        'curl',
+        ['-L', '-o', tempFile, downloadUrl],
+        runInShell: true,
+      );
+
+      if (downloadResult.exitCode != 0) {
+        throw Exception('Failed to download Kotlin: ${downloadResult.stderr}');
+      }
+
+      print('📦 Extracting Kotlin compiler...');
+
+      // Extract using unzip
+      final extractResult = await Process.run(
+        'unzip',
+        ['-q', tempFile, '-d', okaCacheDir],
+        runInShell: true,
+      );
+
+      if (extractResult.exitCode != 0) {
+        throw Exception('Failed to extract Kotlin: ${extractResult.stderr}');
+      }
+
+      // Rename extracted directory to include version
+      final extractedDir = p.join(okaCacheDir, 'kotlinc');
+      if (await Directory(extractedDir).exists()) {
+        await Directory(extractedDir).rename(kotlinDir);
+      }
+
+      // Clean up temp file
+      await File(tempFile).delete();
+
+      // Make kotlinc executable
+      if (!Platform.isWindows) {
+        final kotlincPath = p.join(kotlinDir, 'bin', 'kotlinc');
+        await Process.run('chmod', ['+x', kotlincPath]);
+      }
+
+      print('✅ Kotlin compiler installed successfully!');
+      print('   Location: $kotlinDir');
+      print('   Version: $kotlinVersion');
+      print('');
+      print(
+          '💡 Kotlin compiler will be used automatically by oka during builds');
+      print('');
+      print('To use it system-wide, add to your PATH:');
+      if (Platform.isWindows) {
+        print('   \$env:PATH += ";$kotlinDir\\bin"');
+      } else {
+        print('   export PATH="\$PATH:$kotlinDir/bin"');
+      }
+    } catch (e) {
+      print('❌ Error: $e');
+      print('');
+      print('You can manually install Kotlin from:');
+      print('  https://kotlinlang.org/docs/command-line.html');
+    }
+  }
+
   /// Print usage information
   void _printUsage() {
     print('''
 Usage: oka get <dependency>
 
-Install missing Android SDK dependencies.
+Install missing build dependencies.
 
 Dependencies:
   r8            Install R8 optimizer for release builds
   build-tools   Install Android Build Tools
+  kotlin        Install Kotlin compiler
   all           Install all missing dependencies
 
 Examples:
+  oka get kotlin        # Install Kotlin compiler
   oka get r8            # Install R8 optimizer
   oka get build-tools   # Install Android Build Tools
   oka get all           # Install everything missing

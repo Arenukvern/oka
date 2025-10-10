@@ -1,4 +1,4 @@
-.PHONY: help install global clean test lint
+.PHONY: help install global clean test lint logcat
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -31,4 +31,7 @@ lint: ## Run linter
 
 dev: ## Run oka locally without global install
 	dart run bin/oka.dart
+
+logcat: ## View logcat
+	adb logcat | grep com.example.example/com.example.example.MainActivity
 

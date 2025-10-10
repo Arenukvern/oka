@@ -200,29 +200,82 @@ class AndroidBuilder {
 
     // Compile Kotlin files first if kotlinc is available
     if (kotlinc != null && kotlinFiles.isNotEmpty) {
+      // Get Kotlin standard library for compilation
+      final kotlinStdlib = await _sdkLocator.findKotlinStdlib();
+
+      // Build Kotlin-specific classpath with stdlib
+      final kotlinClasspath = kotlinStdlib != null
+          ? '$classpath$classpathSeparator$kotlinStdlib'
+          : classpath;
+
+      if (_verbose) {
+        print('Compiling ${kotlinFiles.length} Kotlin file(s)...');
+        if (kotlinStdlib != null) {
+          print('Using Kotlin stdlib: $kotlinStdlib');
+        }
+      }
+
+      // Add JVM arguments to handle newer Java versions
+      // Set environment to work around Java version detection issues
+      final env = Map<String, String>.from(Platform.environment);
+      env['JAVA_OPTS'] = '-Dkotlin.incremental=false';
+
       final kotlinResult = await Process.run(
         kotlinc,
         [
+          '-J-Djava.version=21',
+          '-J-Dkotlin.incremental=false',
           '-classpath',
-          classpath,
+          kotlinClasspath,
           '-d',
           classesDir,
+          '-jvm-target',
+          '11',
           ...kotlinFiles,
         ],
+        environment: env,
       );
 
+      if (_verbose) {
+        if (kotlinResult.stdout.toString().isNotEmpty) {
+          print('kotlinc stdout: ${kotlinResult.stdout}');
+        }
+        if (kotlinResult.stderr.toString().isNotEmpty) {
+          print('kotlinc stderr: ${kotlinResult.stderr}');
+        }
+      }
+
       if (kotlinResult.exitCode != 0) {
-        throw Exception('kotlinc failed: ${kotlinResult.stderr}');
+        print('❌ Kotlin compilation failed:');
+        print(kotlinResult.stderr);
+        if (kotlinResult.stdout.toString().isNotEmpty) {
+          print(kotlinResult.stdout);
+        }
+        throw Exception(
+            'kotlinc failed with exit code ${kotlinResult.exitCode}');
       }
 
       if (_verbose) {
-        print('Kotlin compilation successful');
+        print('✓ Kotlin compilation successful');
       }
+    } else if (kotlinFiles.isNotEmpty && kotlinc == null) {
+      print('');
+      print(
+          '❌ Kotlin compiler not found but ${kotlinFiles.length} Kotlin file(s) need to be compiled');
+      print('');
+      print('📥 Auto-installing Kotlin compiler...');
+      print('   Run "oka get kotlin" to install manually');
+      print('');
+      throw Exception('Kotlin compiler required. Run: oka get kotlin');
     }
 
     // Compile Java files
     if (javaFiles.isNotEmpty || genJavaFiles.isNotEmpty) {
       final allJavaFiles = [...javaFiles, ...genJavaFiles];
+
+      if (_verbose) {
+        print('Compiling ${allJavaFiles.length} Java file(s)...');
+      }
 
       final javaResult = await Process.run(
         javac,
@@ -237,12 +290,26 @@ class AndroidBuilder {
         ],
       );
 
+      if (_verbose) {
+        if (javaResult.stdout.toString().isNotEmpty) {
+          print('javac stdout: ${javaResult.stdout}');
+        }
+        if (javaResult.stderr.toString().isNotEmpty) {
+          print('javac stderr: ${javaResult.stderr}');
+        }
+      }
+
       if (javaResult.exitCode != 0) {
-        throw Exception('javac failed: ${javaResult.stderr}');
+        print('❌ Java compilation failed:');
+        print(javaResult.stderr);
+        if (javaResult.stdout.toString().isNotEmpty) {
+          print(javaResult.stdout);
+        }
+        throw Exception('javac failed with exit code ${javaResult.exitCode}');
       }
 
       if (_verbose) {
-        print('Java compilation successful');
+        print('✓ Java compilation successful');
       }
     }
   }
