@@ -45,6 +45,64 @@ abstract class VersionManager {
 
     return null;
   }
+
+  /// Install SDKMAN! version manager
+  ///
+  /// Downloads and installs SDKMAN! using the official installation script
+  /// Returns true if installation was successful
+  static Future<bool> installSDKMAN() async {
+    if (Platform.isWindows) {
+      print('❌ SDKMAN! is not available for Windows');
+      print('   Please use winget or manual Java installation');
+      return false;
+    }
+
+    print('');
+    print('📥 Installing SDKMAN!...');
+    print('   This will download and install SDKMAN! to ~/.sdkman');
+    print('');
+
+    try {
+      // Download and execute SDKMAN! installation script
+      final result = await Process.run(
+        'bash',
+        [
+          '-c',
+          'curl -s "https://get.sdkman.io" | bash',
+        ],
+        runInShell: true,
+      );
+
+      if (result.exitCode != 0) {
+        print('❌ SDKMAN! installation failed');
+        if (result.stderr.toString().isNotEmpty) {
+          print('   Error: ${result.stderr}');
+        }
+        return false;
+      }
+
+      print('');
+      print('✅ SDKMAN! installed successfully');
+      print('');
+      print('💡 Note: You may need to restart your terminal or run:');
+      print('   source "\$HOME/.sdkman/bin/sdkman-init.sh"');
+      print('');
+
+      // Verify installation
+      final home = Platform.environment['HOME'] ?? '';
+      final sdkmanDir = p.join(home, '.sdkman');
+
+      if (await Directory(sdkmanDir).exists()) {
+        return true;
+      } else {
+        print('⚠️  SDKMAN! directory not found after installation');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Failed to install SDKMAN!: $e');
+      return false;
+    }
+  }
 }
 
 /// SDKMAN! version manager implementation for Linux/macOS

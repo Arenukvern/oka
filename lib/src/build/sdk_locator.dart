@@ -562,13 +562,6 @@ class SdkLocator {
   Future<Map<String, String>?> resolveJavaForKotlin(BuildContext ctx) async {
     final requiredJavaVersion = ctx.config.android.requiredJavaVersion;
 
-    if (requiredJavaVersion == null) {
-      if (_verbose) {
-        print('No specific Java version required in oka.yaml');
-      }
-      return null;
-    }
-
     final javaEnv = JavaEnvironment(verbose: _verbose);
 
     try {

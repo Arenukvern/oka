@@ -13,6 +13,12 @@ import 'version_manager.dart';
 class JavaEnvironment {
   final bool _verbose;
 
+  /// Maximum Java version supported by Kotlin compiler (2.1.0)
+  static const int _kotlinMaxJavaVersion = 24;
+
+  /// Recommended Java version for Kotlin compilation
+  static const int _kotlinRecommendedJavaVersion = 21;
+
   /// {@macro java_environment}
   JavaEnvironment({bool verbose = false}) : _verbose = verbose;
 
@@ -27,27 +33,53 @@ class JavaEnvironment {
     String? requiredVersion, {
     bool autoInstall = true,
   }) async {
-    // If no specific version required, use system default
+    // Check current Java version first
+    final currentVersion = await _getCurrentJavaVersion();
+
+    // Determine the effective required version
+    String? effectiveRequiredVersion = requiredVersion;
+
     if (requiredVersion == null || requiredVersion.isEmpty) {
-      if (_verbose) {
-        print('No specific Java version required, using system default');
+      // No specific version required, but check if current version is within Kotlin's supported range
+      if (currentVersion != null) {
+        final currentMajor = int.tryParse(currentVersion);
+        if (currentMajor != null && currentMajor > _kotlinMaxJavaVersion) {
+          // Current Java is too new for Kotlin, fallback to recommended version
+          effectiveRequiredVersion = '$_kotlinRecommendedJavaVersion';
+          print('');
+          print(
+              '⚠️  Detected Java $currentVersion, but Kotlin requires Java 11-$_kotlinMaxJavaVersion');
+          print(
+              '   Attempting to switch to Java $_kotlinRecommendedJavaVersion...');
+        } else {
+          // Current version is within range, use system default
+          if (_verbose) {
+            print(
+                'No specific Java version required, using system default (Java $currentVersion)');
+          }
+          return null;
+        }
+      } else {
+        // No Java found, will be handled by version manager below
+        if (_verbose) {
+          print('No Java installation detected');
+        }
+        effectiveRequiredVersion = '$_kotlinRecommendedJavaVersion';
       }
-      return null;
     }
 
     if (_verbose) {
-      print('🔍 Resolving Java environment for version $requiredVersion');
+      print(
+          '🔍 Resolving Java environment for version $effectiveRequiredVersion');
     }
 
-    // Check current Java version
-    final currentVersion = await _getCurrentJavaVersion();
     if (currentVersion != null) {
       if (_verbose) {
         print('   Current Java version: $currentVersion');
       }
 
       // Check if current version is compatible
-      if (_isVersionCompatible(currentVersion, requiredVersion)) {
+      if (_isVersionCompatible(currentVersion, effectiveRequiredVersion!)) {
         if (_verbose) {
           print('   ✓ Current Java version is compatible');
         }
@@ -55,21 +87,49 @@ class JavaEnvironment {
       } else {
         if (_verbose) {
           print(
-              '   ⚠️  Current Java version ($currentVersion) may not be compatible with required version ($requiredVersion)');
+              '   ⚠️  Current Java version ($currentVersion) is not compatible with required version ($effectiveRequiredVersion)');
         }
       }
     }
 
     // Try to find/install compatible Java version
-    final versionManager = await VersionManager.detectBestVersionManager();
+    var versionManager = await VersionManager.detectBestVersionManager();
 
     if (versionManager == null) {
       print('');
       print('⚠️  No version manager detected (SDKMAN!, asdf, winget)');
       print('   Cannot automatically switch Java versions');
       print('');
-      _printManualInstructions(requiredVersion);
-      return null;
+
+      // Offer to install SDKMAN! on Unix systems
+      if (!Platform.isWindows) {
+        if (_promptUserForSDKMANInstall()) {
+          final installed = await VersionManager.installSDKMAN();
+
+          if (installed) {
+            // Re-detect version managers after installation
+            versionManager = await VersionManager.detectBestVersionManager();
+
+            if (versionManager == null) {
+              print('');
+              print('⚠️  SDKMAN! installed but not detected');
+              print('   Please restart your terminal and try again');
+              print('');
+              return null;
+            }
+            // Continue with the newly installed version manager
+          } else {
+            _printManualInstructions(effectiveRequiredVersion!);
+            return null;
+          }
+        } else {
+          _printManualInstructions(effectiveRequiredVersion!);
+          return null;
+        }
+      } else {
+        _printManualInstructions(effectiveRequiredVersion!);
+        return null;
+      }
     }
 
     if (_verbose) {
@@ -79,7 +139,7 @@ class JavaEnvironment {
     // Check if required version is already installed
     final installedVersions = await versionManager.listInstalledJavaVersions();
     final compatibleVersion =
-        _findCompatibleVersion(installedVersions, requiredVersion);
+        _findCompatibleVersion(installedVersions, effectiveRequiredVersion!);
 
     if (compatibleVersion != null) {
       if (_verbose) {
@@ -95,27 +155,30 @@ class JavaEnvironment {
     // Install if not found and auto-install is enabled
     if (autoInstall) {
       print('');
-      print('📥 Java $requiredVersion not found, attempting to install...');
+      print(
+          '📥 Java $effectiveRequiredVersion not found, attempting to install...');
 
       final installed =
-          await versionManager.installJavaVersion(requiredVersion);
+          await versionManager.installJavaVersion(effectiveRequiredVersion);
 
       if (installed) {
-        final javaHome = await versionManager.getJavaHome(requiredVersion);
+        final javaHome =
+            await versionManager.getJavaHome(effectiveRequiredVersion);
         if (javaHome != null) {
           return _buildEnvironment(javaHome);
         }
       } else {
-        print('❌ Failed to install Java $requiredVersion');
-        _printManualInstructions(requiredVersion);
+        print('❌ Failed to install Java $effectiveRequiredVersion');
+        _printManualInstructions(effectiveRequiredVersion);
         throw Exception(
-            'Java $requiredVersion is required but could not be installed');
+            'Java $effectiveRequiredVersion is required but could not be installed');
       }
     } else {
       print('');
-      print('⚠️  Java $requiredVersion not found');
-      _printManualInstructions(requiredVersion);
-      throw Exception('Java $requiredVersion is required but not installed');
+      print('⚠️  Java $effectiveRequiredVersion not found');
+      _printManualInstructions(effectiveRequiredVersion);
+      throw Exception(
+          'Java $effectiveRequiredVersion is required but not installed');
     }
 
     return null;
@@ -154,9 +217,19 @@ class JavaEnvironment {
       final currentMajor = int.parse(current);
       final requiredMajor = int.parse(required);
 
-      // Java is generally forward compatible within major versions
-      // but Kotlin may have upper limits
-      return currentMajor <= requiredMajor;
+      // Check upper bound: Kotlin has a maximum supported Java version
+      if (currentMajor > _kotlinMaxJavaVersion) {
+        return false;
+      }
+
+      // Check if current version matches required version (exact major match preferred)
+      if (currentMajor == requiredMajor) {
+        return true;
+      }
+
+      // Allow some flexibility: current can be slightly older but within range
+      // For example, if required is 21, allow 17-21
+      return currentMajor >= 11 && currentMajor <= requiredMajor;
     } catch (e) {
       return false;
     }
@@ -207,6 +280,13 @@ class JavaEnvironment {
     }
 
     return env;
+  }
+
+  /// Prompt user to install SDKMAN!
+  bool _promptUserForSDKMANInstall() {
+    stdout.write('\n💡 Would you like to install SDKMAN! now? (y/n): ');
+    final response = stdin.readLineSync()?.trim().toLowerCase();
+    return response == 'y' || response == 'yes';
   }
 
   /// Print manual installation instructions
