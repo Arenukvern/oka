@@ -1,0 +1,186 @@
+[package]
+name = "flutter_wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+version_code = 1
+version_name = "1.0.0+1"
+min_sdk_version = 21
+target_sdk_version = 34
+compile_sdk_version = 34
+
+[package.metadata.android.application]
+label = "example"
+icon = "@mipmap/ic_launcher"
+debuggable = true
+extract_native_libs = true
+
+[package.metadata.android.application.activity]
+label = "example"
+launch_mode = "singleTop"
+orientation = "portrait"
+exported = true
+config_changes = "orientation|keyboardHidden|screenSize"
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+build_targets = ["arm64-v8a", "armeabi-v7a"]
+
+version_code = 1
+version_name = "1.0.0+1"
+min_sdk_version = 21
+target_sdk_version = 34
+compile_sdk_version = 34
+
+[package.metadata.android.application]
+label = "example"
+icon = "@mipmap/ic_launcher"
+debuggable = true
+extract_native_libs = true
+
+[package.metadata.android.application.activity]
+label = "example"
+launch_mode = "singleTop"
+orientation = "portrait"
+exported = true
+config_changes = "orientation|keyboardHidden|screenSize"
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+build_targets = ["arm64-v8a", "armeabi-v7a"]
+
+version_code = 1
+version_name = "1.0.0+1"
+min_sdk_version = 21
+target_sdk_version = 34
+compile_sdk_version = 34
+
+[package.metadata.android.application]
+label = "example"
+icon = "@mipmap/ic_launcher"
+debuggable = true
+extract_native_libs = true
+
+[package.metadata.android.application.activity]
+label = "example"
+launch_mode = "singleTop"
+orientation = "portrait"
+exported = true
+config_changes = "orientation|keyboardHidden|screenSize"
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+build_targets = ["arm64-v8a", "armeabi-v7a"]
+
+version_code = 1
+version_name = "1.0.0+1"
+min_sdk_version = 21
+target_sdk_version = 34
+compile_sdk_version = 34
+
+[package.metadata.android.application]
+label = "example"
+icon = "@mipmap/ic_launcher"
+debuggable = true
+extract_native_libs = true
+
+[package.metadata.android.application.activity]
+label = "example"
+launch_mode = "singleTop"
+orientation = "portrait"
+exported = true
+config_changes = "orientation|keyboardHidden|screenSize"
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+build_targets = ["arm64-v8a", "armeabi-v7a"]
+
+[package.metadata.android]
+package_name = "com.example.example"
+version_code = 1
+version_name = "1.0.0+1"
+min_sdk_version = 21
+target_sdk_version = 34
+compile_sdk_version = 34
+
+[package.metadata.android.application]
+label = "example"
+icon = "@mipmap/ic_launcher"
+debuggable = true
+extract_native_libs = true
+
+[package.metadata.android.application.activity]
+label = "example"
+launch_mode = "singleTop"
+orientation = "portrait"
+exported = true
+config_changes = "orientation|keyboardHidden|screenSize"
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+build_targets = ["arm64-v8a", "armeabi-v7a"]
+
+[dependencies]
+jni = "0.21"
+ndk = "0.8"
+ndk-sys = "0.5"
+log = "0.4"
+android_logger = "0.13"
+
+# Will be overridden by oka.yaml configuration
+# assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+# native_libs = ["libflutter.so", "libdart.so"]
+# target_sdk_version = "34"

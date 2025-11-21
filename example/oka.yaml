@@ -1,5 +1,15 @@
 name: example
 version: 1.0.0+1
+
+flutter:
+  entrypoint: lib/main.dart
+  assets:
+    - assets/
+  build_mode: debug
+  target_platform: android
+  tree_shake_icons: true
+  enable_hot_reload: true
+
 android:
   compile_sdk: 34
   min_sdk: 21

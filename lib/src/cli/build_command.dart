@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/android_builder.dart';
+import '../build/flutter_android_builder.dart';
 import '../build/sdk_locator.dart';
 import '../config/build_context.dart';
 import '../config/oka_config.dart';
@@ -27,11 +28,13 @@ class BuildCommand {
       ..addFlag('debug',
           negatable: false, help: 'Build debug variant (default)')
       ..addFlag('profile', negatable: false, help: 'Build profile variant')
+      ..addFlag('flutter', negatable: false, help: 'Use Flutter hybrid build pipeline (cargo-apk)')
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
       ..addOption('flavor', help: 'Build flavor');
 
     final results = parser.parse(args);
     final verbose = results['verbose'] as bool;
+    final useFlutter = results['flutter'] as bool;
 
     // Determine build mode
     final BuildMode mode;
@@ -90,9 +93,17 @@ class BuildCommand {
 
     // Build APK
     final locator = SdkLocator(verbose: verbose);
-    final builder = AndroidBuilder(locator, verbose: verbose);
 
-    final artifact = await builder.buildApk(buildContext);
+    BuildArtifact artifact;
+    if (useFlutter) {
+      // Use Flutter hybrid build pipeline
+      final builder = FlutterAndroidBuilder(locator, verbose: verbose);
+      artifact = await builder.buildFlutterApk(buildContext);
+    } else {
+      // Use traditional Android SDK build pipeline
+      final builder = AndroidBuilder(locator, verbose: verbose);
+      artifact = await builder.buildApk(buildContext);
+    }
 
     if (!artifact.success) {
       print('\n❌ Build failed!');

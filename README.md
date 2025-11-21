@@ -54,11 +54,15 @@ oka init
 **Build APK:**
 
 ```bash
-# Debug build (default)
+# Traditional Android SDK build (default)
 oka build apk
 
-# Release build
+# Flutter hybrid build (cargo-apk + Flutter tools)
+oka build apk --flutter
+
+# Release builds
 oka build apk --release
+oka build apk --flutter --release
 
 # With verbose output
 oka build apk --verbose
@@ -82,6 +86,37 @@ oka clean --full
 # Clean AI conversion cache
 oka clean --ai-cache
 ```
+
+## Flutter Hybrid Builds
+
+Oka supports two build approaches:
+
+### Traditional Android SDK Build (Default)
+
+- Direct Android SDK tool invocation
+- Manual resource compilation, Java/Kotlin compilation, DEX conversion
+- No Gradle dependency
+- Best for pure Android apps or custom Android plugins
+
+### Flutter Hybrid Build (`--flutter` flag)
+
+- Combines Flutter tools + cargo-apk
+- Flutter handles Dart compilation and asset bundling
+- Rust NativeActivity hosts Flutter engine
+- cargo-apk handles APK packaging and signing
+- Best for Flutter apps wanting faster builds than Gradle
+
+**When to use Flutter hybrid builds:**
+
+- You're building a Flutter app
+- You want Flutter's asset management and plugin system
+- You want faster builds than Gradle but keep Flutter compatibility
+
+**Requirements for Flutter builds:**
+
+- Flutter SDK installed
+- cargo-apk installed (`cargo install cargo-apk`)
+- Rust toolchain
 
 ## Configuration
 
