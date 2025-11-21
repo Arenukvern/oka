@@ -10,7 +10,7 @@ pubspec.lock
 *.iml
 *.ipr
 *.iws
-
+rust_wrapper/flutter_assets/
 # Build cache
 .oka_cache/
 
