@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:path/path.dart' as p;
 
-import '../config/flutter_config.dart';
 import '../config/build_context.dart';
 
 /// Flutter asset bundler that prepares flutter_assets/ directory
@@ -15,11 +14,25 @@ class FlutterAssetBundler {
 
   FlutterAssetBundler({bool verbose = false}) : _verbose = verbose;
 
+  /// Get environment variables needed for Android builds
+  Future<Map<String, String>> _getAndroidEnvironment() async {
+    final environment = Map<String, String>.from(Platform.environment);
+
+    // For now, we'll rely on the environment variables being set externally
+    // In a full implementation, we'd want to find Android SDK here too
+    // But for simplicity, let's assume it's set in the shell environment
+
+    return environment;
+  }
+
   /// Bundle Flutter assets for the given build context
   ///
   /// This runs `flutter build bundle` to create the flutter_assets/
   /// directory that contains all compiled assets, fonts, and metadata
   /// needed by the Flutter engine at runtime.
+  ///
+  /// For cargo-apk integration, assets need to be in the APK root directory
+  /// so they're accessible to the Rust NativeActivity.
   Future<String> bundleAssets(BuildContext ctx) async {
     final flutterAssetsDir = p.join(ctx.buildDir, 'flutter_assets');
 
@@ -35,13 +48,14 @@ class FlutterAssetBundler {
     if (await assetsDir.exists()) {
       await assetsDir.delete(recursive: true);
     }
+    await assetsDir.create(recursive: true);
 
     // Build asset bundle using Flutter tools
     // Map our target platform to Flutter's expected format
     String flutterTargetPlatform;
     switch (ctx.config.flutter.targetPlatform.toLowerCase()) {
       case 'android':
-        flutterTargetPlatform = 'android-arm'; // Default to ARM for Android
+        flutterTargetPlatform = 'android-arm64'; // Use arm64 for modern Android
         break;
       default:
         flutterTargetPlatform = ctx.config.flutter.targetPlatform;
@@ -52,12 +66,9 @@ class FlutterAssetBundler {
       'bundle',
       '--target', ctx.config.flutter.entrypoint,
       '--target-platform', flutterTargetPlatform,
-      '--${ctx.config.flutter.buildMode}',
+      '--${ctx.mode.name}',
       '--asset-dir', flutterAssetsDir,
     ];
-
-    // Note: --tree-shake-icons is not applicable to bundle command
-    // Tree shaking icons only applies to AOT compilation
 
     // Add any custom build arguments
     buildArgs.addAll(ctx.config.flutter.buildArgs);
@@ -66,10 +77,12 @@ class FlutterAssetBundler {
       print('   Running: flutter ${buildArgs.join(' ')}');
     }
 
+    final environment = await _getAndroidEnvironment();
     final result = await Process.run(
       'flutter',
       buildArgs,
       workingDirectory: ctx.projectPath,
+      environment: environment,
     );
 
     if (_verbose) {
@@ -92,7 +105,7 @@ class FlutterAssetBundler {
 
     final assets = await assetsDir.list().length;
     if (_verbose) {
-      print('✅ Created $assets asset files');
+      print('✅ Created $assets asset files in flutter_assets/');
     }
 
     return flutterAssetsDir;
@@ -154,10 +167,12 @@ class FlutterAssetBundler {
       print('   Running: flutter ${buildArgs.join(' ')}');
     }
 
+    final environment = await _getAndroidEnvironment();
     final result = await Process.run(
       'flutter',
       buildArgs,
       workingDirectory: ctx.projectPath,
+      environment: environment,
     );
 
     if (_verbose) {

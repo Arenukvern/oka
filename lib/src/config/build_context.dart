@@ -70,6 +70,9 @@ extension type const BuildContext(Map<String, dynamic> value) {
   /// Target device ABI
   String get targetAbi => jsonDecodeString(value['target_abi']);
 
+  /// Whether to build Android App Bundle instead of APK
+  bool get buildAab => jsonDecodeBool(value['build_aab']);
+
   Map<String, dynamic> toJson() => value;
 
   static const empty = BuildContext({});
@@ -80,8 +83,11 @@ extension type const BuildArtifact(Map<String, dynamic> value) {
   factory BuildArtifact.fromJson(dynamic json) =>
       BuildArtifact(jsonDecodeMap(json));
 
-  /// APK file path
-  String get apkPath => jsonDecodeString(value['apk_path']);
+  /// Output file path (APK or AAB)
+  String get apkPath => jsonDecodeString(value['apk_path']); // Keep for backward compatibility
+
+  /// Output file path (APK or AAB)
+  String get outputPath => jsonDecodeString(value['apk_path']);
 
   /// APK file size in bytes
   int get size => jsonDecodeInt(value['size']);

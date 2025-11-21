@@ -60,7 +60,7 @@ class FlutterAndroidBuilder {
       // Prepare Flutter engine artifacts
       await _assetBundler.prepareEngineArtifacts(ctx);
 
-      // Update manifest with built asset paths
+      // Update manifest with built asset paths and copy assets to rust_wrapper
       await _manifestGenerator.updateManifestWithBuiltAssets(
         ctx,
         flutterAssetsDir,
@@ -68,17 +68,18 @@ class FlutterAndroidBuilder {
       );
 
       // Build APK using cargo-apk
-      print('📦 Building APK with cargo-apk...');
+      print('📦 Building ${ctx.buildAab ? 'AAB' : 'APK'} with cargo-apk...');
       final apkPath = await _buildWithCargoApk(ctx);
 
       final endTime = DateTime.now();
       final duration = endTime.difference(startTime);
 
-      final apkFile = File(apkPath);
-      final size = await apkFile.length();
+      final outputFile = File(apkPath);
+      final size = await outputFile.length();
+      final outputType = ctx.buildAab ? 'AAB' : 'APK';
 
-      print('✅ Flutter APK build successful in ${duration.inSeconds}s');
-      print('📍 APK: $apkPath');
+      print('✅ Flutter $outputType build successful in ${duration.inSeconds}s');
+      print('📍 $outputType: $apkPath');
       print('📊 Size: ${(size / 1024 / 1024).toStringAsFixed(2)} MB');
 
       return BuildArtifact.fromJson({
@@ -146,11 +147,13 @@ class FlutterAndroidBuilder {
     final okaProjectRoot = _findOkaProjectRoot(ctx.projectPath);
     final rustWrapperDir = p.join(okaProjectRoot, 'rust_wrapper');
 
-    // Check if Android SDK is available
-    String? androidSdkPath;
-    try {
-      androidSdkPath = await _sdkLocator.findAndroidSdk();
-    } catch (e) {
+    // Check if we can get Android environment (SDK available)
+    final testEnvironment = await _getAndroidEnvironment();
+    final hasAndroidSdk =
+        testEnvironment.containsKey('ANDROID_SDK_ROOT') ||
+        testEnvironment.containsKey('ANDROID_HOME');
+
+    if (!hasAndroidSdk) {
       // Android SDK not available, fall back to Flutter APK build
       print('📦 Android SDK not found, falling back to Flutter APK build...');
       return await _buildWithFlutter(ctx);
@@ -161,8 +164,8 @@ class FlutterAndroidBuilder {
     // Ensure output directory exists
     await Directory(apkOutputDir).create(recursive: true);
 
-    // Build arguments for cargo apk
-    final buildArgs = <String>['apk', 'build'];
+    // Build arguments for cargo apk/aab
+    final buildArgs = <String>[if (ctx.buildAab) 'aab' else 'apk', 'build'];
 
     // Add build mode
     switch (ctx.mode.name) {
@@ -195,10 +198,14 @@ class FlutterAndroidBuilder {
       print('   Working directory: $rustWrapperDir');
     }
 
+    // Set up environment variables for cargo-apk
+    final environment = await _getAndroidEnvironment();
+
     final result = await Process.run(
       'cargo',
       buildArgs,
       workingDirectory: rustWrapperDir,
+      environment: environment,
     );
 
     if (_verbose) {
@@ -214,30 +221,36 @@ class FlutterAndroidBuilder {
       throw Exception('cargo-apk build failed: ${result.stderr}');
     }
 
-    // Find the generated APK
-    final apkPattern = ctx.mode.name == 'release'
-        ? RegExp(r'flutter_wrapper.*\.apk')
-        : RegExp(r'flutter_wrapper.*-debug\.apk');
+    // Find the generated APK/AAB
+    final fileExtension = ctx.buildAab ? 'aab' : 'apk';
+    final filePattern = ctx.mode.name == 'release'
+        ? RegExp(r'flutter_wrapper.*\.$fileExtension')
+        : RegExp(r'flutter_wrapper.*-debug\.$fileExtension');
 
-    final apkFiles = await Directory(rustWrapperDir)
+    final outputFiles = await Directory(rustWrapperDir)
         .list()
         .where(
           (entity) =>
-              entity is File && apkPattern.hasMatch(p.basename(entity.path)),
+              entity is File && filePattern.hasMatch(p.basename(entity.path)),
         )
         .toList();
 
-    if (apkFiles.isEmpty) {
-      throw Exception('APK file not found after cargo-apk build');
+    if (outputFiles.isEmpty) {
+      throw Exception(
+        '${fileExtension.toUpperCase()} file not found after cargo-apk build',
+      );
     }
 
-    final apkPath = apkFiles.first.path;
+    final outputPath = outputFiles.first.path;
 
-    // Move APK to build directory
-    final finalApkPath = p.join(ctx.buildDir, 'app-${ctx.mode.name}.apk');
-    await File(apkPath).copy(finalApkPath);
+    // Move file to build directory
+    final finalOutputPath = p.join(
+      ctx.buildDir,
+      'app-${ctx.mode.name}.$fileExtension',
+    );
+    await File(outputPath).copy(finalOutputPath);
 
-    return finalApkPath;
+    return finalOutputPath;
   }
 
   /// Fallback APK build using Flutter tools directly
@@ -289,10 +302,12 @@ class FlutterAndroidBuilder {
       print('   Running: flutter ${buildArgs.join(' ')}');
     }
 
+    final environment = await _getAndroidEnvironment();
     final result = await Process.run(
       'flutter',
       buildArgs,
       workingDirectory: ctx.projectPath,
+      environment: environment,
     );
 
     if (_verbose) {
@@ -363,6 +378,129 @@ class FlutterAndroidBuilder {
 
     // Fallback: assume startPath is the project root
     return startPath;
+  }
+
+  /// Get environment variables needed for Android builds
+  ///
+  /// Leverages Flutter's Android SDK detection since Flutter already knows
+  /// where the Android SDK is installed (especially when installed via Android Studio).
+  Future<Map<String, String>> _getAndroidEnvironment() async {
+    final environment = Map<String, String>.from(Platform.environment);
+
+    // Check if Android SDK environment variables are already set
+    final hasAndroidSdk =
+        environment.containsKey('ANDROID_SDK_ROOT') ||
+        environment.containsKey('ANDROID_HOME');
+
+    if (!hasAndroidSdk) {
+      try {
+        // First, try to get Android SDK path from Flutter's known locations
+        final androidSdkPath = await _getAndroidSdkFromFlutter();
+        if (androidSdkPath != null) {
+          environment['ANDROID_SDK_ROOT'] = androidSdkPath;
+          environment['ANDROID_HOME'] =
+              androidSdkPath; // Some tools use ANDROID_HOME
+          if (_verbose) {
+            print('   Flutter-detected Android SDK: $androidSdkPath');
+          }
+        } else {
+          // Fallback to manual detection
+          final manualSdkPath = await _sdkLocator.findAndroidSdk();
+          environment['ANDROID_SDK_ROOT'] = manualSdkPath;
+          environment['ANDROID_HOME'] = manualSdkPath;
+          if (_verbose) {
+            print('   Manually detected Android SDK: $manualSdkPath');
+          }
+        }
+      } catch (e) {
+        if (_verbose) {
+          print('   Warning: Could not locate Android SDK: $e');
+          print(
+            '   Flutter works because it has sophisticated Android SDK detection built-in.',
+          );
+          print('   Common Android Studio SDK locations:');
+          print('     macOS: ~/Library/Android/sdk');
+          print('     Linux: ~/Android/Sdk');
+          print('     Windows: %LOCALAPPDATA%\\Android\\Sdk');
+          print(
+            '   Set ANDROID_SDK_ROOT environment variable or install Android SDK via Android Studio.',
+          );
+        }
+      }
+    } else {
+      if (_verbose) {
+        print('   Android SDK environment variables already set');
+      }
+    }
+
+    return environment;
+  }
+
+  /// Get Android SDK path using Flutter's detection logic
+  ///
+  /// Flutter finds Android SDK in these locations (in order):
+  /// 1. ANDROID_SDK_ROOT / ANDROID_HOME environment variables
+  /// 2. Android Studio installation paths
+  /// 3. Common system paths
+  ///
+  /// This mirrors how Flutter's doctor command detects Android SDK.
+  Future<String?> _getAndroidSdkFromFlutter() async {
+    // Check common Android Studio installation paths that Flutter knows about
+    final home = Platform.environment['HOME'] ?? '';
+    final possiblePaths = [
+      // macOS Android Studio default locations
+      '$home/Library/Android/sdk',
+      '/Applications/Android Studio.app/sdk', // Android Studio app bundle
+      '/Users/Shared/Android/sdk', // Shared system location
+      // Linux Android Studio default locations
+      '$home/Android/Sdk',
+      '$home/android-sdk', // Alternative Linux location
+      // Windows Android Studio default locations
+      '$home/AppData/Local/Android/Sdk',
+      '$home/AppData/Local/Android/sdk',
+
+      // System-wide installations
+      '/opt/android-sdk',
+      '/usr/local/android-sdk',
+      '/Library/Android/sdk', // macOS system-wide
+      'C:\\Android\\android-sdk', // Windows system
+    ];
+
+    for (final path in possiblePaths) {
+      if (await Directory(path).exists()) {
+        // Verify it has the basic Android SDK structure
+        final buildToolsDir = Directory('$path/build-tools');
+        final platformsDir = Directory('$path/platforms');
+        final platformToolsDir = Directory('$path/platform-tools');
+
+        // Check if essential SDK directories exist (Flutter requires these)
+        if (await platformsDir.exists() &&
+            (await buildToolsDir.exists() || await platformToolsDir.exists())) {
+          return path;
+        }
+      }
+    }
+
+    // Try to infer from existing environment or flutter config
+    try {
+      // Check if we can run a flutter command to get SDK info
+      // This is a last resort since we can't run flutter in sandbox
+      final localAppData = Platform.environment['LOCALAPPDATA'];
+      final programFiles = Platform.environment['PROGRAMFILES'];
+      final programFilesX86 = Platform.environment['PROGRAMFILES(X86)'];
+
+      // Additional Windows paths
+      if (localAppData != null) {
+        final winPath = '$localAppData\\Android\\Sdk';
+        if (await Directory(winPath).exists()) {
+          return winPath;
+        }
+      }
+    } catch (_) {
+      // Ignore errors in additional path checking
+    }
+
+    return null;
   }
 
   Future<void> _validateTools(BuildContext ctx) async {

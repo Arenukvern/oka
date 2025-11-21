@@ -13,23 +13,26 @@ target_sdk_version = 34
 compile_sdk_version = 34
 
 [package.metadata.android.application]
-label = "example"
+label = "Example App"
 icon = "@mipmap/ic_launcher"
+theme = "@style/AppTheme"
 debuggable = true
-extract_native_libs = true
+extract_native_libs = "true"
 
 [package.metadata.android.application.activity]
-label = "example"
+label = "Example App"
 launch_mode = "singleTop"
 orientation = "portrait"
-exported = true
-config_changes = "orientation|keyboardHidden|screenSize"
+exported = "true"
+config_changes = "[orientation, keyboardHidden, screenSize]"
 
 [[package.metadata.android.application.activity.intent_filter]]
 actions = ["android.intent.action.MAIN"]
 categories = ["android.intent.category.LAUNCHER"]
 
-assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+assets = "flutter_assets"
+
+assets = "flutter_assets/icudtl.dat"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
@@ -37,7 +40,11 @@ name = "android.permission.INTERNET"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.ACCESS_NETWORK_STATE"
 
-build_targets = ["arm64-v8a", "armeabi-v7a"]
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.touchscreen"
+required = "true"
+
+build_targets = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
 
 version_code = 1
 version_name = "1.0.0+1"
@@ -46,23 +53,26 @@ target_sdk_version = 34
 compile_sdk_version = 34
 
 [package.metadata.android.application]
-label = "example"
+label = "Example App"
 icon = "@mipmap/ic_launcher"
+theme = "@style/AppTheme"
 debuggable = true
-extract_native_libs = true
+extract_native_libs = "true"
 
 [package.metadata.android.application.activity]
-label = "example"
+label = "Example App"
 launch_mode = "singleTop"
 orientation = "portrait"
-exported = true
-config_changes = "orientation|keyboardHidden|screenSize"
+exported = "true"
+config_changes = "[orientation, keyboardHidden, screenSize]"
 
 [[package.metadata.android.application.activity.intent_filter]]
 actions = ["android.intent.action.MAIN"]
 categories = ["android.intent.category.LAUNCHER"]
 
-assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+assets = "flutter_assets"
+
+assets = "flutter_assets/icudtl.dat"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
@@ -70,7 +80,11 @@ name = "android.permission.INTERNET"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.ACCESS_NETWORK_STATE"
 
-build_targets = ["arm64-v8a", "armeabi-v7a"]
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.touchscreen"
+required = "true"
+
+build_targets = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
 
 version_code = 1
 version_name = "1.0.0+1"
@@ -79,23 +93,26 @@ target_sdk_version = 34
 compile_sdk_version = 34
 
 [package.metadata.android.application]
-label = "example"
+label = "Example App"
 icon = "@mipmap/ic_launcher"
+theme = "@style/AppTheme"
 debuggable = true
-extract_native_libs = true
+extract_native_libs = "true"
 
 [package.metadata.android.application.activity]
-label = "example"
+label = "Example App"
 launch_mode = "singleTop"
 orientation = "portrait"
-exported = true
-config_changes = "orientation|keyboardHidden|screenSize"
+exported = "true"
+config_changes = "[orientation, keyboardHidden, screenSize]"
 
 [[package.metadata.android.application.activity.intent_filter]]
 actions = ["android.intent.action.MAIN"]
 categories = ["android.intent.category.LAUNCHER"]
 
-assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+assets = "flutter_assets"
+
+assets = "flutter_assets/icudtl.dat"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
@@ -103,40 +120,11 @@ name = "android.permission.INTERNET"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.ACCESS_NETWORK_STATE"
 
-build_targets = ["arm64-v8a", "armeabi-v7a"]
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.touchscreen"
+required = "true"
 
-version_code = 1
-version_name = "1.0.0+1"
-min_sdk_version = 21
-target_sdk_version = 34
-compile_sdk_version = 34
-
-[package.metadata.android.application]
-label = "example"
-icon = "@mipmap/ic_launcher"
-debuggable = true
-extract_native_libs = true
-
-[package.metadata.android.application.activity]
-label = "example"
-launch_mode = "singleTop"
-orientation = "portrait"
-exported = true
-config_changes = "orientation|keyboardHidden|screenSize"
-
-[[package.metadata.android.application.activity.intent_filter]]
-actions = ["android.intent.action.MAIN"]
-categories = ["android.intent.category.LAUNCHER"]
-
-assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
-
-[[package.metadata.android.uses_permission]]
-name = "android.permission.INTERNET"
-
-[[package.metadata.android.uses_permission]]
-name = "android.permission.ACCESS_NETWORK_STATE"
-
-build_targets = ["arm64-v8a", "armeabi-v7a"]
+build_targets = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
 
 [package.metadata.android]
 package_name = "com.example.example"
@@ -147,23 +135,26 @@ target_sdk_version = 34
 compile_sdk_version = 34
 
 [package.metadata.android.application]
-label = "example"
+label = "Example App"
 icon = "@mipmap/ic_launcher"
+theme = "@style/AppTheme"
 debuggable = true
-extract_native_libs = true
+extract_native_libs = "true"
 
 [package.metadata.android.application.activity]
-label = "example"
+label = "Example App"
 launch_mode = "singleTop"
 orientation = "portrait"
-exported = true
-config_changes = "orientation|keyboardHidden|screenSize"
+exported = "true"
+config_changes = "[orientation, keyboardHidden, screenSize]"
 
 [[package.metadata.android.application.activity.intent_filter]]
 actions = ["android.intent.action.MAIN"]
 categories = ["android.intent.category.LAUNCHER"]
 
-assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
+assets = "flutter_assets"
+
+assets = "flutter_assets/icudtl.dat"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
@@ -171,7 +162,11 @@ name = "android.permission.INTERNET"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.ACCESS_NETWORK_STATE"
 
-build_targets = ["arm64-v8a", "armeabi-v7a"]
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.touchscreen"
+required = "true"
+
+build_targets = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
 
 [dependencies]
 jni = "0.21"
@@ -180,7 +175,5 @@ ndk-sys = "0.5"
 log = "0.4"
 android_logger = "0.13"
 
-# Will be overridden by oka.yaml configuration
-# assets = "/Users/anton/xs/oka/example/.oka_cache/build/debug/flutter_assets"
-# native_libs = ["libflutter.so", "libdart.so"]
-# target_sdk_version = "34"
+[build-dependencies]
+serde_json = "1.0"

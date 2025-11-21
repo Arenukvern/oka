@@ -29,12 +29,14 @@ class BuildCommand {
           negatable: false, help: 'Build debug variant (default)')
       ..addFlag('profile', negatable: false, help: 'Build profile variant')
       ..addFlag('flutter', negatable: false, help: 'Use Flutter hybrid build pipeline (cargo-apk)')
+      ..addFlag('aab', negatable: false, help: 'Build Android App Bundle (AAB) instead of APK')
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
       ..addOption('flavor', help: 'Build flavor');
 
     final results = parser.parse(args);
     final verbose = results['verbose'] as bool;
     final useFlutter = results['flutter'] as bool;
+    final buildAab = results['aab'] as bool;
 
     // Determine build mode
     final BuildMode mode;
@@ -46,7 +48,7 @@ class BuildCommand {
       mode = BuildMode.debug;
     }
 
-    print('🔨 Building ${mode.name} APK...\n');
+    print('🔨 Building ${mode.name} ${buildAab ? 'AAB' : 'APK'}...\n');
 
     // Load oka.yaml
     final okaYamlFile = File('oka.yaml');
@@ -89,6 +91,7 @@ class BuildCommand {
       'verbose': verbose,
       'flavor': results['flavor'] ?? '',
       'target_abi': 'arm64-v8a',
+      'build_aab': buildAab,
     });
 
     // Build APK
@@ -111,7 +114,7 @@ class BuildCommand {
     }
 
     print('\n✅ Build successful!');
-    print('📍 APK: ${artifact.apkPath}');
+    print('📍 ${buildAab ? 'AAB' : 'APK'}: ${artifact.apkPath}');
     print(
         '⏱️  Build time: ${(artifact.buildDuration / 1000).toStringAsFixed(1)}s');
     print('📊 Size: ${(artifact.size / 1024 / 1024).toStringAsFixed(2)} MB');

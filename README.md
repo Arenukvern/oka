@@ -51,7 +51,7 @@ cd your-flutter-project
 oka init
 ```
 
-**Build APK:**
+**Build APK or AAB:**
 
 ```bash
 # Traditional Android SDK build (default)
@@ -59,13 +59,18 @@ oka build apk
 
 # Flutter hybrid build (cargo-apk + Flutter tools)
 oka build apk --flutter
+oka build aab --flutter
 
 # Release builds
 oka build apk --release
 oka build apk --flutter --release
+oka build aab --flutter --release
+
+# Debug builds
+oka build apk --flutter --debug
 
 # With verbose output
-oka build apk --verbose
+oka build apk --flutter --verbose
 ```
 
 **Development mode** (coming soon):
@@ -100,10 +105,10 @@ Oka supports two build approaches:
 
 ### Flutter Hybrid Build (`--flutter` flag)
 
-- Combines Flutter tools + cargo-apk
+- Combines Flutter tools + cargo-apk + Rust NativeActivity
 - Flutter handles Dart compilation and asset bundling
-- Rust NativeActivity hosts Flutter engine
-- cargo-apk handles APK packaging and signing
+- Rust NativeActivity provides Android integration and hosts Flutter engine
+- cargo-apk handles APK/AAB packaging and signing
 - Best for Flutter apps wanting faster builds than Gradle
 
 **When to use Flutter hybrid builds:**
@@ -111,12 +116,35 @@ Oka supports two build approaches:
 - You're building a Flutter app
 - You want Flutter's asset management and plugin system
 - You want faster builds than Gradle but keep Flutter compatibility
+- You need Android App Bundle (AAB) support
 
 **Requirements for Flutter builds:**
 
 - Flutter SDK installed
 - cargo-apk installed (`cargo install cargo-apk`)
 - Rust toolchain
+- Android SDK (for cargo-apk packaging)
+
+**Environment Setup:**
+
+Before building, ensure Android SDK is available:
+
+```bash
+# Set Android SDK path (choose one)
+export ANDROID_SDK_ROOT=/path/to/android/sdk
+# or
+export ANDROID_HOME=/path/to/android/sdk
+
+# Common locations:
+# macOS: ~/Library/Android/sdk
+# Linux: ~/Android/Sdk
+# Windows: %LOCALAPPDATA%\Android\Sdk
+```
+
+**Supported output formats:**
+
+- APK (Android Package): `oka build apk --flutter`
+- AAB (Android App Bundle): `oka build aab --flutter`
 
 ## Configuration
 
@@ -125,6 +153,16 @@ Oka uses `oka.yaml` for configuration:
 ```yaml
 name: my_app
 version: 1.0.0
+
+flutter:
+  entrypoint: lib/main.dart
+  assets:
+    - assets/
+  build_mode: debug
+  target_platform: android-arm64
+  tree_shake_icons: true
+  enable_hot_reload: true
+  build_args: []
 
 android:
   compile_sdk: "34"
@@ -141,6 +179,27 @@ android:
   abis:
     - arm64-v8a
     - armeabi-v7a
+
+# Cargo-apk specific configuration for Flutter hybrid builds
+cargo_apk:
+  build_targets: ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+  application:
+    label: "My App"
+    icon: "@mipmap/ic_launcher"
+    theme: "@style/AppTheme"
+    debuggable: false
+    extract_native_libs: true
+  activity:
+    label: "My App"
+    launch_mode: "singleTop"
+    orientation: "portrait"
+    exported: true
+    config_changes: ["orientation", "keyboardHidden", "screenSize"]
+  permissions:
+    - "android.permission.INTERNET"
+    - "android.permission.ACCESS_NETWORK_STATE"
+  features: []
+  manifest_entries: {}
 
 dependencies:
   - name: androidx.core:core-ktx
@@ -210,9 +269,10 @@ Current version does not support:
 
 - ❌ build_runner / code generation (use Flutter tools separately)
 - ❌ Complex Android features (AIDL, RenderScript, data binding)
-- ❌ NDK/native C++ compilation
-- ❌ Android App Bundle (AAB) - planned for future
-- ❌ 100% Gradle compatibility - targets common use cases
+- ❌ NDK/native C++ compilation (except via cargo-apk)
+- ❌ 100% Gradle compatibility - targets common Flutter use cases
+- ❌ Flutter plugins with complex Android native code
+- ❌ Hot reload during development (planned for future)
 
 ## Example Apps
 
@@ -237,13 +297,16 @@ MIT License - see LICENSE file for details
 
 ## Roadmap
 
+- [x] Android App Bundle (AAB) support via cargo-apk
+- [x] Cargo-apk integration with Flutter
+- [x] Rust NativeActivity implementation
 - [ ] Complete hot reload integration
 - [ ] AAR dependency processing
 - [ ] Plugin system for custom build steps
-- [ ] Android App Bundle (AAB) support
-- [ ] Support for 10-15 popular Flutter plugins
+- [ ] Support for popular Flutter plugins
 - [ ] Build cache sharing across machines
 - [ ] CI/CD integration examples
+- [ ] Dart 3.10 build hooks integration
 
 ## Acknowledgments
 

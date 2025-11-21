@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../config/build_context.dart';
-import '../config/flutter_config.dart';
 
 /// Generates cargo-apk manifest configuration
 ///
@@ -86,20 +85,17 @@ class CargoApkManifest {
     // Insert before [dependencies] section or at the end
     final depsIndex = cargoToml.indexOf('[dependencies]');
     if (depsIndex != -1) {
-      return cargoToml.substring(0, depsIndex) +
-             androidMetadata +
-             '\n' +
-             cargoToml.substring(depsIndex);
+      return '${cargoToml.substring(0, depsIndex)}$androidMetadata\n${cargoToml.substring(depsIndex)}';
     }
 
     // Append at end
-    return cargoToml + '\n' + androidMetadata;
+    return '$cargoToml\n$androidMetadata';
   }
 
   String _generateAndroidMetadata(BuildContext ctx) {
     final config = ctx.config;
     final android = config.android;
-    final flutter = config.flutter;
+    final cargoApk = config.cargoApk;
 
     final buffer = StringBuffer();
     buffer.writeln('[package.metadata.android]');
@@ -110,22 +106,26 @@ class CargoApkManifest {
     buffer.writeln('target_sdk_version = ${android.targetSdk}');
     buffer.writeln('compile_sdk_version = ${android.compileSdk}');
 
-    // Application configuration
+    // Application configuration from oka.yaml
     buffer.writeln();
     buffer.writeln('[package.metadata.android.application]');
-    buffer.writeln('label = "${config.name}"');
-    buffer.writeln('icon = "@mipmap/ic_launcher"');
-    buffer.writeln('debuggable = ${ctx.mode.name == 'debug'}');
-    buffer.writeln('extract_native_libs = true');
+    final appConfig = cargoApk.application;
+    appConfig.forEach((key, value) {
+      if (key == 'debuggable') {
+        // Override debuggable based on build mode
+        buffer.writeln('$key = ${ctx.mode.name == 'debug'}');
+      } else {
+        buffer.writeln('$key = "$value"');
+      }
+    });
 
-    // Activity configuration
+    // Activity configuration from oka.yaml
     buffer.writeln();
     buffer.writeln('[package.metadata.android.application.activity]');
-    buffer.writeln('label = "${config.name}"');
-    buffer.writeln('launch_mode = "singleTop"');
-    buffer.writeln('orientation = "portrait"');
-    buffer.writeln('exported = true');
-    buffer.writeln('config_changes = "orientation|keyboardHidden|screenSize"');
+    final activityConfig = cargoApk.activity;
+    activityConfig.forEach((key, value) {
+      buffer.writeln('$key = "$value"');
+    });
 
     // Intent filter for main activity
     buffer.writeln();
@@ -133,33 +133,41 @@ class CargoApkManifest {
     buffer.writeln('actions = ["android.intent.action.MAIN"]');
     buffer.writeln('categories = ["android.intent.category.LAUNCHER"]');
 
-    // Assets configuration
-    final flutterAssetsPath = p.join(ctx.buildDir, 'flutter_assets');
+    // Assets configuration - cargo-apk expects assets in APK root
     buffer.writeln();
-    buffer.writeln('assets = "$flutterAssetsPath"');
+    buffer.writeln('assets = "flutter_assets"');
 
     // Native libraries (Flutter engine, AOT snapshot)
-    if (flutter.buildMode == 'release') {
-      final aotDir = p.join(ctx.buildDir, 'aot');
+    if (ctx.mode.name == 'release') {
       buffer.writeln('native_libs = [');
-      buffer.writeln('  "$aotDir/libapp.so",');
-      buffer.writeln('  # Add Flutter engine libraries here');
+      buffer.writeln('  "lib/libapp.so",');
       buffer.writeln(']');
     }
 
-    // Uses permissions (basic set for Flutter apps)
+    // Additional assets for Flutter (ICU data, etc.)
     buffer.writeln();
-    buffer.writeln('[[package.metadata.android.uses_permission]]');
-    buffer.writeln('name = "android.permission.INTERNET"');
+    buffer.writeln('assets = "flutter_assets/icudtl.dat"');
 
-    buffer.writeln();
-    buffer.writeln('[[package.metadata.android.uses_permission]]');
-    buffer.writeln('name = "android.permission.ACCESS_NETWORK_STATE"');
-
-    // Build targets (ABIs)
-    if (android.abis.isNotEmpty) {
+    // Permissions from oka.yaml
+    for (final permission in cargoApk.permissions) {
       buffer.writeln();
-      buffer.writeln('build_targets = ["${android.abis.join('", "')}"]');
+      buffer.writeln('[[package.metadata.android.uses_permission]]');
+      buffer.writeln('name = "$permission"');
+    }
+
+    // Features from oka.yaml
+    for (final feature in cargoApk.features) {
+      buffer.writeln();
+      buffer.writeln('[[package.metadata.android.uses_feature]]');
+      feature.forEach((key, value) {
+        buffer.writeln('$key = "$value"');
+      });
+    }
+
+    // Build targets (ABIs) from oka.yaml
+    if (cargoApk.buildTargets.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('build_targets = ["${cargoApk.buildTargets.join('", "')}"]');
     }
 
     // Signing configuration for release builds
@@ -182,31 +190,63 @@ class CargoApkManifest {
   /// This is called after Flutter assets and AOT are built to update
   /// the manifest with the actual file paths.
   Future<void> updateManifestWithBuiltAssets(BuildContext ctx, String flutterAssetsDir, String aotDir) async {
+    // For cargo-apk, we need to ensure the assets are in the right location
+    // cargo-apk copies assets from the specified directory to the APK root
+
     // Find the oka project root (where rust_wrapper should be)
     final okaProjectRoot = _findOkaProjectRoot(ctx.projectPath);
-    final cargoTomlPath = p.join(okaProjectRoot, 'rust_wrapper', 'Cargo.toml');
-    String cargoToml = await File(cargoTomlPath).readAsString();
+    final rustWrapperDir = p.join(okaProjectRoot, 'rust_wrapper');
 
-    // Update assets path
-    cargoToml = cargoToml.replaceAll(
-      RegExp(r'assets = "[^"]*"'),
-      'assets = "$flutterAssetsDir"'
-    );
+    // Copy flutter_assets to rust_wrapper directory so cargo-apk can find them
+    final rustAssetsDir = p.join(rustWrapperDir, 'flutter_assets');
+    final sourceAssetsDir = Directory(flutterAssetsDir);
 
-    // Update native libs for release builds
-    if (ctx.config.flutter.buildMode == 'release') {
-      final appSoPath = p.join(aotDir, 'app.so');
-      final nativeLibsEntry = 'native_libs = [\n  "$appSoPath",\n]';
-      cargoToml = cargoToml.replaceAll(
-        RegExp(r'native_libs = \[[\s\S]*?\]'),
-        nativeLibsEntry
-      );
+    if (await sourceAssetsDir.exists()) {
+      // Remove old assets
+      if (await Directory(rustAssetsDir).exists()) {
+        await Directory(rustAssetsDir).delete(recursive: true);
+      }
+
+      // Copy new assets
+      await _copyDirectory(sourceAssetsDir, Directory(rustAssetsDir));
+
+      if (_verbose) {
+        print('📁 Copied flutter_assets to rust_wrapper directory');
+      }
     }
 
-    await File(cargoTomlPath).writeAsString(cargoToml);
+    // Copy AOT snapshot for release builds
+    if (ctx.mode.name == 'release' && aotDir.isNotEmpty) {
+      final aotSource = p.join(aotDir, 'app.so');
+      final aotDest = p.join(rustWrapperDir, 'lib', 'libapp.so');
+
+      if (await File(aotSource).exists()) {
+        await Directory(p.dirname(aotDest)).create(recursive: true);
+        await File(aotSource).copy(aotDest);
+
+        if (_verbose) {
+          print('📁 Copied AOT snapshot to rust_wrapper/lib/');
+        }
+      }
+    }
 
     if (_verbose) {
-      print('🔄 Updated cargo-apk manifest with built asset paths');
+      print('🔄 Prepared assets for cargo-apk build');
+    }
+  }
+
+  Future<void> _copyDirectory(Directory source, Directory destination) async {
+    await destination.create(recursive: true);
+
+    await for (final entity in source.list(recursive: true)) {
+      final relativePath = p.relative(entity.path, from: source.path);
+      final destPath = p.join(destination.path, relativePath);
+
+      if (entity is File) {
+        await entity.copy(destPath);
+      } else if (entity is Directory) {
+        await Directory(destPath).create(recursive: true);
+      }
     }
   }
 
