@@ -1,0 +1,70 @@
+# Oka no-Gradle Flutter APK — phase checklist
+
+Issue checklist for compiling Flutter apps/games without Gradle (Android SDK
+CLI tools only). Mark a phase done only when its tests/evidence exist.
+
+Evidence roots:
+
+- Unit tests under `test/`
+- Scratch verification logs (goal runs): see harness `{SCRATCH}`
+
+## Phase 0 — Stop bleeding
+
+- [x] In-repo phase 0–5 checklist (this file)
+- [x] Default build path never shells out to `flutter build apk` / Gradle as success
+- [x] Default build never mutates/corrupts shared `rust_wrapper/Cargo.toml`
+- [x] cargo-apk hybrid demoted: `--flutter` / cargo path does not rewrite shared TOML
+- [x] Tests: `test/phase0_no_gradle_fallback_test.dart`, `test/cargo_apk_manifest_test.dart`
+
+## Phase 1 — Debug Flutter APK layout (assemble + embedding + package)
+
+- [x] `flutter assemble` command construction + orchestration (`flutter_assemble.dart`)
+- [x] MainActivity + GeneratedPluginRegistrant host codegen (`host_codegen.dart`)
+- [x] Package layout: `classes.dex`, `assets/flutter_assets/**`, `lib/<abi>/libflutter.so` (`apk_layout.dart`)
+- [x] Engine artifact extraction from Flutter SDK `flutter.jar` (`engine_artifacts.dart`)
+- [x] Default `oka build apk` wires no-Gradle orchestrator (`flutter_apk_builder.dart`)
+- [x] Doctor-oriented error when Android SDK / build-tools missing (non-zero exit)
+- [x] Tests: `test/flutter_assemble_test.dart`, `test/apk_layout_test.dart`, `test/host_codegen_test.dart`
+
+## Phase 2 — Release AOT / multi-ABI
+
+- [x] Release assemble target / `libapp.so` packaging paths
+- [x] Multi-ABI selection from `android.abis` / config
+- [x] Tests: `test/release_abi_test.dart`
+
+## Phase 3 — Minimal deps without Gradle
+
+- [x] Fixed-set embedding + AndroidX resolve/cache
+- [x] AAR → `classes.jar` extraction
+- [x] Tests: `test/dependency_cache_test.dart`
+
+## Phase 4 — Plugin discovery
+
+- [x] Enumerate Flutter plugins from project (`.flutter-plugins-dependencies` / pubspec)
+- [x] GeneratedPluginRegistrant for zero plugins and discovered names
+- [x] Clear failure for unsupported native complexity
+- [x] Tests: `test/plugin_discovery_test.dart`
+
+## Phase 5 — Rust hybrid quarantine
+
+- [x] `rust_wrapper` Cargo.toml valid TOML (or documented unused by default)
+- [x] Hybrid path not default success path; README/docs note demotion
+- [x] Full `dart test` green; example CLI build evidence under scratch
+
+## Evidence index (tests)
+
+| Phase | Test file(s) |
+|-------|----------------|
+| 0 | `phase0_no_gradle_fallback_test.dart`, `cargo_apk_manifest_test.dart` |
+| 1 | `flutter_assemble_test.dart`, `apk_layout_test.dart`, `host_codegen_test.dart`, `aapt2_commands_test.dart`, `layout_validation_fail_test.dart`, `packaging_tools_test.dart` |
+| 2 | `release_abi_test.dart` |
+| 3 | `dependency_cache_test.dart` |
+| 4 | `plugin_discovery_test.dart` |
+| 5 | rust wrapper validity checked in `cargo_apk_manifest_test.dart` / verify scripts |
+
+## Definition of done (product)
+
+1. `oka build apk` in a Flutter project uses assemble + SDK tools only (no Gradle).
+2. With Android SDK: debug APK contains dex + flutter_assets + libflutter.so.
+3. Without Android SDK: non-zero exit + clear message (run `oka doctor`).
+4. Release/multi-ABI and deps/plugin discovery covered by unit tests on real shipped APIs.
