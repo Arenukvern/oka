@@ -88,10 +88,10 @@ Options:
 ${parser.usage}
 
 Examples:
-  oka init                    # Initialize oka.yaml from Gradle
-  oka build apk --release     # Build release APK
-  oka build apk --flutter     # Build Flutter APK (hybrid pipeline)
-  oka dev                     # Start dev mode with hot reload
+  oka init                    # Initialize oka.yaml
+  oka build apk               # No-Gradle Flutter debug APK
+  oka build apk --release     # Release (AOT / libapp.so)
+  oka build apk --native-android  # Legacy non-Flutter pipeline
   oka doctor                  # Check system setup
   oka get r8                  # Install R8 optimizer
 

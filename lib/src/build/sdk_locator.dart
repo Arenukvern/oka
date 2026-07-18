@@ -21,8 +21,32 @@ class SdkLocator {
 
   /// Find Android SDK path
   Future<String> findAndroidSdk() async {
-    if (_androidSdkPath != null && await Directory(_androidSdkPath).exists()) {
-      return _androidSdkPath;
+    if (_androidSdkPath != null) {
+      if (await Directory(_androidSdkPath).exists()) {
+        return _androidSdkPath;
+      }
+      // Explicit override that does not exist — do not silently fall through.
+      throw Exception(
+        'Android SDK not found at configured path: $_androidSdkPath',
+      );
+    }
+
+    // Oka-managed install root (preferred for no-Gradle CI / laptop setups)
+    final okaSdkEnv = Platform.environment['OKA_ANDROID_SDK'];
+    if (okaSdkEnv != null && await Directory(okaSdkEnv).exists()) {
+      return okaSdkEnv;
+    }
+
+    final home = Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '';
+    final okaManaged = p.join(home, '.oka', 'android-sdk');
+    if (home.isNotEmpty && await Directory(okaManaged).exists()) {
+      // Prefer if it has packaging tools
+      final bt = Directory(p.join(okaManaged, 'build-tools'));
+      if (await bt.exists()) {
+        return okaManaged;
+      }
     }
 
     // Check ANDROID_HOME environment variable
@@ -42,6 +66,7 @@ class SdkLocator {
       p.join(Platform.environment['HOME'] ?? '', 'Android', 'Sdk'),
       p.join(Platform.environment['HOME'] ?? '', 'Library', 'Android', 'sdk'),
       '/usr/local/android-sdk',
+      if (home.isNotEmpty) okaManaged,
     ];
 
     for (final path in commonPaths) {
@@ -51,8 +76,8 @@ class SdkLocator {
     }
 
     throw Exception(
-      'Android SDK not found. Please set ANDROID_HOME environment variable '
-      'or install Android SDK.',
+      'Android SDK not found. Run: oka get android-sdk\n'
+      'Or set ANDROID_HOME / OKA_ANDROID_SDK.',
     );
   }
 
@@ -726,32 +751,51 @@ class SdkLocator {
     }
   }
 
-  /// Validate all required tools are available
-  Future<Map<String, String>> validateTools() async {
+  /// Tools required to **package** an APK (no device install).
+  ///
+  /// Does **not** require `adb` / platform-tools — missing adb must not abort
+  /// the no-Gradle build pipeline.
+  Future<Map<String, String>> validatePackagingTools() async {
     final tools = <String, String>{};
 
+    tools['android_sdk'] = await findAndroidSdk();
+    tools['flutter_sdk'] = await findFlutterSdk();
+    tools['aapt2'] = await findAapt2();
+    tools['d8'] = await findD8();
+    tools['zipalign'] = await findZipalign();
+    tools['apksigner'] = await findApksigner();
+    tools['javac'] = await findJavac();
+
+    final r8 = await findR8();
+    if (r8 != null) {
+      tools['r8'] = r8;
+    }
+
+    final kotlinc = await findKotlinc();
+    if (kotlinc != null) {
+      tools['kotlinc'] = kotlinc;
+    }
+
+    return tools;
+  }
+
+  /// Validate tools for doctor / full environment checks.
+  ///
+  /// Includes optional `adb` when present; packaging validation is
+  /// [validatePackagingTools].
+  Future<Map<String, String>> validateTools({bool requireAdb = false}) async {
+    final tools = await validatePackagingTools();
+
     try {
-      tools['android_sdk'] = await findAndroidSdk();
-      tools['flutter_sdk'] = await findFlutterSdk();
-      tools['aapt2'] = await findAapt2();
-      tools['d8'] = await findD8();
-
-      final r8 = await findR8();
-      if (r8 != null) {
-        tools['r8'] = r8;
-      }
-
-      tools['zipalign'] = await findZipalign();
-      tools['apksigner'] = await findApksigner();
       tools['adb'] = await findAdb();
-      tools['javac'] = await findJavac();
-
-      final kotlinc = await findKotlinc();
-      if (kotlinc != null) {
-        tools['kotlinc'] = kotlinc;
-      }
     } catch (e) {
-      rethrow;
+      if (requireAdb) {
+        rethrow;
+      }
+      // Optional for packaging-only flows
+      if (_verbose) {
+        print('⚠️  adb not found (optional for APK packaging): $e');
+      }
     }
 
     return tools;

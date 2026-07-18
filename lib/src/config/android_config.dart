@@ -11,13 +11,13 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
       AndroidConfig(jsonDecodeMap(json));
 
   /// Compile SDK version (e.g., "34")
-  String get compileSdk => jsonDecodeString(value['compile_sdk']);
+  String get compileSdk => _sdkString(value['compile_sdk']);
 
   /// Minimum SDK version (e.g., "21")
-  String get minSdk => jsonDecodeString(value['min_sdk']);
+  String get minSdk => _sdkString(value['min_sdk']);
 
   /// Target SDK version (e.g., "34")
-  String get targetSdk => jsonDecodeString(value['target_sdk']);
+  String get targetSdk => _sdkString(value['target_sdk']);
 
   /// Android package name (e.g., "com.example.app")
   String get packageName => jsonDecodeString(value['package_name']);
@@ -73,4 +73,12 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
   Map<String, dynamic> toJson() => value;
 
   static const empty = AndroidConfig({});
+
+  /// Accepts YAML ints or strings for SDK API levels.
+  static String _sdkString(dynamic raw) {
+    if (raw == null) return '';
+    if (raw is int) return '$raw';
+    if (raw is num) return '${raw.toInt()}';
+    return jsonDecodeString(raw);
+  }
 }

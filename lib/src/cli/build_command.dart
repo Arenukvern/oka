@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/android_builder.dart';
-import '../build/flutter_android_builder.dart';
+import '../build/flutter_apk_builder.dart';
 import '../build/sdk_locator.dart';
 import '../config/build_context.dart';
 import '../config/oka_config.dart';
@@ -28,15 +28,43 @@ class BuildCommand {
       ..addFlag('debug',
           negatable: false, help: 'Build debug variant (default)')
       ..addFlag('profile', negatable: false, help: 'Build profile variant')
-      ..addFlag('flutter', negatable: false, help: 'Use Flutter hybrid build pipeline (cargo-apk)')
-      ..addFlag('aab', negatable: false, help: 'Build Android App Bundle (AAB) instead of APK')
+      ..addFlag(
+        'flutter',
+        negatable: false,
+        help:
+            'Deprecated alias: default path is already no-Gradle Flutter packaging',
+      )
+      ..addFlag(
+        'native-android',
+        negatable: false,
+        help:
+            'Use legacy pure-Android SDK pipeline (no Flutter assemble; not for Flutter apps)',
+      )
+      ..addFlag(
+        'soft-plugins',
+        negatable: false,
+        help:
+            'Optional: skip plugins that fail packaging (default is complete packaging)',
+      )
+      ..addFlag(
+        'strict-plugins',
+        negatable: false,
+        help: 'Hard-fail on unpackageable plugins (default)',
+      )
+      ..addFlag('aab',
+          negatable: false, help: 'Build Android App Bundle (AAB) instead of APK')
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
-      ..addOption('flavor', help: 'Build flavor');
+      ..addOption('flavor', help: 'Build flavor')
+      ..addOption('abi',
+          help: 'Single ABI to build (e.g. arm64-v8a)', defaultsTo: '');
 
     final results = parser.parse(args);
     final verbose = results['verbose'] as bool;
-    final useFlutter = results['flutter'] as bool;
+    final useNativeAndroid = results['native-android'] as bool;
     final buildAab = results['aab'] as bool;
+    final softPlugins = results['soft-plugins'] as bool;
+    // Soft wins over strict when both passed; default is strict.
+    final strictPlugins = !softPlugins;
 
     // Determine build mode
     final BuildMode mode;
@@ -48,7 +76,19 @@ class BuildCommand {
       mode = BuildMode.debug;
     }
 
-    print('🔨 Building ${mode.name} ${buildAab ? 'AAB' : 'APK'}...\n');
+    // Remaining args may include "apk" / "aab" subcommand tokens
+    final rest = results.rest;
+    final wantsAab =
+        buildAab || rest.any((r) => r.toLowerCase() == 'aab');
+
+    print('🔨 Building ${mode.name} ${wantsAab ? 'AAB' : 'APK'}...\n');
+
+    if (wantsAab) {
+      print(
+        '⚠️  AAB via no-Gradle path is limited; building APK layout pipeline.\n'
+        '   Full AAB/bundletool support is not the primary path yet.\n',
+      );
+    }
 
     // Load oka.yaml
     final okaYamlFile = File('oka.yaml');
@@ -71,13 +111,12 @@ class BuildCommand {
       print('');
     }
 
-    // Setup build context
     final projectPath = Directory.current.path;
     final buildDir = p.join(projectPath, '.oka_cache', 'build', mode.name);
     final cacheDir = p.join(projectPath, '.oka_cache');
+    await Directory(buildDir).create(recursive: true);
 
-    // Create AndroidManifest.xml if needed
-    await _prepareManifest(config, buildDir);
+    final targetAbi = (results['abi'] as String?) ?? '';
 
     final buildContext = BuildContext.fromJson({
       'project_path': projectPath,
@@ -90,65 +129,44 @@ class BuildCommand {
       'android_sdk_path': '',
       'verbose': verbose,
       'flavor': results['flavor'] ?? '',
-      'target_abi': 'arm64-v8a',
-      'build_aab': buildAab,
+      'target_abi': targetAbi,
+      'build_aab': wantsAab,
     });
 
-    // Build APK
     final locator = SdkLocator(verbose: verbose);
 
     BuildArtifact artifact;
-    if (useFlutter) {
-      // Use Flutter hybrid build pipeline
-      final builder = FlutterAndroidBuilder(locator, verbose: verbose);
-      artifact = await builder.buildFlutterApk(buildContext);
-    } else {
-      // Use traditional Android SDK build pipeline
+    if (useNativeAndroid) {
+      // Legacy non-Flutter Android shell pipeline (not for Flutter apps).
+      print('⚙️  Using legacy native-android pipeline (no Flutter assemble)\n');
       final builder = AndroidBuilder(locator, verbose: verbose);
+      artifact = await builder.buildApk(buildContext);
+    } else {
+      // Default: no-Gradle Flutter APK (never flutter build apk / Gradle).
+      if (softPlugins) {
+        print('🧩 Soft plugin mode: unsupported plugins will be skipped\n');
+      }
+      final builder = FlutterApkBuilder(
+        locator,
+        verbose: verbose,
+        strictPlugins: strictPlugins,
+      );
       artifact = await builder.buildApk(buildContext);
     }
 
     if (!artifact.success) {
       print('\n❌ Build failed!');
+      if (artifact.error.isNotEmpty) {
+        print('   ${artifact.error}');
+      }
       exit(1);
     }
 
     print('\n✅ Build successful!');
-    print('📍 ${buildAab ? 'AAB' : 'APK'}: ${artifact.apkPath}');
+    print('📍 ${wantsAab ? 'AAB' : 'APK'}: ${artifact.apkPath}');
     print(
-        '⏱️  Build time: ${(artifact.buildDuration / 1000).toStringAsFixed(1)}s');
+      '⏱️  Build time: ${(artifact.buildDuration / 1000).toStringAsFixed(1)}s',
+    );
     print('📊 Size: ${(artifact.size / 1024 / 1024).toStringAsFixed(2)} MB');
-  }
-
-  Future<void> _prepareManifest(OkaConfig config, String buildDir) async {
-    // Create build directory
-    await Directory(buildDir).create(recursive: true);
-
-    // Create basic AndroidManifest.xml
-    final manifestPath = p.join(buildDir, 'AndroidManifest.xml');
-    final manifest = '''<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="${config.android.packageName}">
-    
-    <uses-sdk
-        android:minSdkVersion="${config.android.minSdk}"
-        android:targetSdkVersion="${config.android.targetSdk}" />
-    
-    <application
-        android:label="${config.name}"
-        android:icon="@mipmap/ic_launcher">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-''';
-
-    await File(manifestPath).writeAsString(manifest);
   }
 }

@@ -3,15 +3,36 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
+import '../build/android_sdk_installer.dart';
+
 /// Clean command to clear build caches
 class CleanCommand {
   Future<void> run(List<String> args) async {
     final parser = ArgParser()
       ..addFlag('full', negatable: false, help: 'Clear dependency cache too')
       ..addFlag('ai-cache',
-          negatable: false, help: 'Clear AI conversion cache');
+          negatable: false, help: 'Clear AI conversion cache')
+      ..addFlag(
+        'android-sdk',
+        negatable: false,
+        help: 'Remove oka-managed Android SDK (~/.oka/android-sdk)',
+      );
 
     final results = parser.parse(args);
+
+    if (results['android-sdk'] as bool) {
+      print('🧹 Cleaning oka-managed Android SDK...');
+      final installer = AndroidSdkInstaller();
+      final result = await installer.cleanup();
+      if (result.success) {
+        print('  ✅ ${result.message}');
+      } else {
+        print('  ❌ ${result.message}');
+        exit(1);
+      }
+      print('\n✅ Clean complete!');
+      return;
+    }
 
     print('🧹 Cleaning build cache...');
 

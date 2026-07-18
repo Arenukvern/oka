@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../build/android_sdk_installer.dart';
 import '../build/sdk_locator.dart';
 import '../build/version_manager.dart';
 
@@ -17,6 +18,11 @@ class GetCommand {
     final target = args[0].toLowerCase();
 
     switch (target) {
+      case 'android-sdk':
+      case 'packaging-sdk':
+      case 'sdk':
+        await _installAndroidSdk();
+        break;
       case 'r8':
         await _installR8();
         break;
@@ -35,12 +41,32 @@ class GetCommand {
         await _installJava(args[1]);
         break;
       case 'all':
+        await _installAndroidSdk();
         await _installAll();
         break;
       default:
         print('❌ Unknown dependency: $target');
         _printUsage();
         exit(1);
+    }
+  }
+
+  Future<void> _installAndroidSdk() async {
+    print('📦 Installing oka-managed packaging Android SDK...\n');
+    final installer = AndroidSdkInstaller(verbose: true);
+    print('   Root: ${installer.sdkRoot}');
+    final result = await installer.installPackagingSdk();
+    if (result.success) {
+      print('✅ ${result.message}');
+      print('   Packages: ${result.packages.join(', ')}');
+      print('');
+      print('💡 Export for this shell (optional):');
+      print('   export OKA_ANDROID_SDK=${result.sdkRoot}');
+      print('   export ANDROID_SDK_ROOT=${result.sdkRoot}');
+      print('   Run: oka doctor');
+    } else {
+      print('❌ ${result.message}');
+      exit(1);
     }
   }
 
@@ -456,17 +482,19 @@ Usage: oka get <dependency>
 Install missing build dependencies.
 
 Dependencies:
+  android-sdk     Install oka-managed packaging SDK (aapt2/d8/zipalign/apksigner)
+  packaging-sdk   Alias for android-sdk
   r8              Install R8 optimizer for release builds
-  build-tools     Install Android Build Tools
+  build-tools     Install Android Build Tools (via sdkmanager if present)
   kotlin          Install Kotlin compiler
   java <version>  Install specific Java JDK version
-  all             Install all missing dependencies
+  all             Install android-sdk + other missing tools
 
 Examples:
+  oka get android-sdk   # Bootstrap packaging SDK under ~/.oka/android-sdk
   oka get kotlin        # Install Kotlin compiler
   oka get java 21       # Install Java 21
   oka get r8            # Install R8 optimizer
-  oka get build-tools   # Install Android Build Tools
   oka get all           # Install everything missing
 
 Run "oka doctor" to see what's currently installed.

@@ -91,10 +91,13 @@ class AndroidBuilder {
 
     final resDir =
         p.join(ctx.projectPath, 'android', 'app', 'src', 'main', 'res');
-    final compiledResDir = p.join(ctx.buildDir, 'compiled_res');
-    await Directory(compiledResDir).create(recursive: true);
+    // aapt2 compile --dir writes a compiled-resources ZIP (not a directory).
+    final compiledResZip = p.join(ctx.buildDir, 'compiled_resources.zip');
+    await Directory(ctx.buildDir).create(recursive: true);
+    if (await File(compiledResZip).exists()) {
+      await File(compiledResZip).delete();
+    }
 
-    // Compile resources
     final compileResult = await Process.run(
       aapt2,
       [
@@ -102,7 +105,7 @@ class AndroidBuilder {
         '--dir',
         resDir,
         '-o',
-        compiledResDir,
+        compiledResZip,
       ],
     );
 
@@ -121,9 +124,7 @@ class AndroidBuilder {
     final manifestPath = p.join(ctx.buildDir, 'AndroidManifest.xml');
     final linkedResPath = p.join(ctx.buildDir, 'resources.ap_');
     final rJavaPath = p.join(ctx.buildDir, 'gen');
-
-    // Find all compiled resource files
-    final compiledFiles = await _findSourceFiles(compiledResDir, '.flat');
+    await Directory(rJavaPath).create(recursive: true);
 
     final linkResult = await Process.run(
       aapt2,
@@ -138,7 +139,8 @@ class AndroidBuilder {
         '--java',
         rJavaPath,
         '--auto-add-overlay',
-        ...compiledFiles.expand((f) => ['-R', f]),
+        '-R',
+        compiledResZip,
       ],
     );
 

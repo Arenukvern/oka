@@ -1,275 +1,177 @@
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
 
 import '../config/build_context.dart';
 
-/// Generates cargo-apk manifest configuration
+/// Generates cargo-apk `[package.metadata.android]` TOML **as text**.
 ///
-/// Translates oka.yaml Flutter and Android configuration into
-/// cargo-apk's Cargo.toml [package.metadata.android] format.
+/// Important: the default `oka build apk` path does **not** use this class.
+/// Hybrid/experimental builds may write the result only to an **explicit**
+/// output path (typically under the app's `.oka_cache/`), never by mutating a
+/// shared tool-owned `rust_wrapper/Cargo.toml` in place without a destination.
 class CargoApkManifest {
-  final bool _verbose;
+  final bool verbose;
 
-  CargoApkManifest({bool verbose = false}) : _verbose = verbose;
+  CargoApkManifest({this.verbose = false});
 
-  /// Generate cargo-apk manifest for the Flutter Rust wrapper
-  ///
-  /// This creates or updates the Cargo.toml in the rust_wrapper directory
-  /// with the appropriate metadata for cargo-apk based on oka.yaml config.
-  Future<void> generateManifest(BuildContext ctx) async {
-    // Find the oka project root (where rust_wrapper should be)
-    final okaProjectRoot = _findOkaProjectRoot(ctx.projectPath);
-    final cargoTomlPath = p.join(okaProjectRoot, 'rust_wrapper', 'Cargo.toml');
-
-    if (_verbose) {
-      print('📝 Generating cargo-apk manifest...');
-      print('   Target: $cargoTomlPath');
-    }
-
-    // Read existing Cargo.toml
-    final cargoTomlFile = File(cargoTomlPath);
-    if (!await cargoTomlFile.exists()) {
-      throw Exception('Rust wrapper Cargo.toml not found at $cargoTomlPath');
-    }
-
-    String cargoToml = await cargoTomlFile.readAsString();
-
-    // Remove existing android metadata if present
-    cargoToml = _removeExistingAndroidMetadata(cargoToml);
-
-    // Add new android metadata
-    final androidMetadata = _generateAndroidMetadata(ctx);
-    cargoToml = _insertAndroidMetadata(cargoToml, androidMetadata);
-
-    // Write back
-    await cargoTomlFile.writeAsString(cargoToml);
-
-    if (_verbose) {
-      print('✅ Generated cargo-apk manifest');
-    }
-  }
-
-  String _removeExistingAndroidMetadata(String cargoToml) {
-    final lines = cargoToml.split('\n');
-    final result = <String>[];
-    bool inAndroidSection = false;
-    int braceCount = 0;
-
-    for (final line in lines) {
-      if (line.trim() == '[package.metadata.android]') {
-        inAndroidSection = true;
-        continue; // Skip this line
-      }
-
-      if (inAndroidSection) {
-        braceCount += '{'.allMatches(line).length;
-        braceCount -= '}'.allMatches(line).length;
-
-        if (braceCount <= 0 && line.trim().isNotEmpty) {
-          // End of android section
-          inAndroidSection = false;
-          continue;
-        }
-
-        // Skip lines in android section
-        continue;
-      }
-
-      result.add(line);
-    }
-
-    return result.join('\n');
-  }
-
-  String _insertAndroidMetadata(String cargoToml, String androidMetadata) {
-    // Insert before [dependencies] section or at the end
-    final depsIndex = cargoToml.indexOf('[dependencies]');
-    if (depsIndex != -1) {
-      return '${cargoToml.substring(0, depsIndex)}$androidMetadata\n${cargoToml.substring(depsIndex)}';
-    }
-
-    // Append at end
-    return '$cargoToml\n$androidMetadata';
-  }
-
-  String _generateAndroidMetadata(BuildContext ctx) {
-    final config = ctx.config;
-    final android = config.android;
-    final cargoApk = config.cargoApk;
+  /// Pure TOML fragment for `[package.metadata.android*]` tables.
+  String generateAndroidMetadataToml(BuildContext ctx) {
+    final android = ctx.config.android;
+    final cargoApk = ctx.config.cargoApk;
 
     final buffer = StringBuffer();
     buffer.writeln('[package.metadata.android]');
-    buffer.writeln('package_name = "${android.packageName}"');
-    buffer.writeln('version_code = ${android.versionCode}');
-    buffer.writeln('version_name = "${android.versionName}"');
-    buffer.writeln('min_sdk_version = ${android.minSdk}');
-    buffer.writeln('target_sdk_version = ${android.targetSdk}');
-    buffer.writeln('compile_sdk_version = ${android.compileSdk}');
+    buffer.writeln('package = "${android.packageName}"');
+    buffer.writeln('apk_name = "${ctx.config.name.isEmpty ? 'app' : ctx.config.name}"');
+    if (android.versionCode != 0) {
+      buffer.writeln('version_code = ${android.versionCode}');
+    }
+    if (android.versionName.isNotEmpty) {
+      buffer.writeln('version_name = "${android.versionName}"');
+    }
+    final minSdk = android.minSdk.isEmpty ? '21' : android.minSdk;
+    final targetSdk = android.targetSdk.isEmpty ? '34' : android.targetSdk;
+    buffer.writeln('min_sdk_version = $minSdk');
+    buffer.writeln('target_sdk_version = $targetSdk');
 
-    // Application configuration from oka.yaml
+    final targets = cargoApk.buildTargets.isNotEmpty
+        ? cargoApk.buildTargets
+        : (android.abis.isNotEmpty ? android.abis : ['arm64-v8a']);
+    buffer.writeln(
+      'build_targets = [${targets.map((t) => '"$t"').join(', ')}]',
+    );
+
     buffer.writeln();
     buffer.writeln('[package.metadata.android.application]');
-    final appConfig = cargoApk.application;
-    appConfig.forEach((key, value) {
-      if (key == 'debuggable') {
-        // Override debuggable based on build mode
-        buffer.writeln('$key = ${ctx.mode.name == 'debug'}');
-      } else {
-        buffer.writeln('$key = "$value"');
-      }
-    });
+    final label = cargoApk.application['label'] ?? ctx.config.name;
+    buffer.writeln('label = "$label"');
+    buffer.writeln('debuggable = ${ctx.mode.isDebug}');
 
-    // Activity configuration from oka.yaml
+    // Single assets directory (must not duplicate the key).
     buffer.writeln();
-    buffer.writeln('[package.metadata.android.application.activity]');
-    final activityConfig = cargoApk.activity;
-    activityConfig.forEach((key, value) {
-      buffer.writeln('$key = "$value"');
-    });
+    buffer.writeln('[[package.metadata.android.application.activity]]');
+    buffer.writeln('name = ".MainActivity"');
+    buffer.writeln('exported = true');
+    buffer.writeln('launch_mode = "singleTop"');
 
-    // Intent filter for main activity
     buffer.writeln();
-    buffer.writeln('[[package.metadata.android.application.activity.intent_filter]]');
+    buffer.writeln(
+      '[[package.metadata.android.application.activity.intent_filter]]',
+    );
     buffer.writeln('actions = ["android.intent.action.MAIN"]');
     buffer.writeln('categories = ["android.intent.category.LAUNCHER"]');
 
-    // Assets configuration - cargo-apk expects assets in APK root
-    buffer.writeln();
-    buffer.writeln('assets = "flutter_assets"');
-
-    // Native libraries (Flutter engine, AOT snapshot)
-    if (ctx.mode.name == 'release') {
-      buffer.writeln('native_libs = [');
-      buffer.writeln('  "lib/libapp.so",');
-      buffer.writeln(']');
-    }
-
-    // Additional assets for Flutter (ICU data, etc.)
-    buffer.writeln();
-    buffer.writeln('assets = "flutter_assets/icudtl.dat"');
-
-    // Permissions from oka.yaml
     for (final permission in cargoApk.permissions) {
       buffer.writeln();
       buffer.writeln('[[package.metadata.android.uses_permission]]');
       buffer.writeln('name = "$permission"');
     }
 
-    // Features from oka.yaml
-    for (final feature in cargoApk.features) {
-      buffer.writeln();
-      buffer.writeln('[[package.metadata.android.uses_feature]]');
-      feature.forEach((key, value) {
-        buffer.writeln('$key = "$value"');
-      });
-    }
-
-    // Build targets (ABIs) from oka.yaml
-    if (cargoApk.buildTargets.isNotEmpty) {
-      buffer.writeln();
-      buffer.writeln('build_targets = ["${cargoApk.buildTargets.join('", "')}"]');
-    }
-
-    // Signing configuration for release builds
-    if (ctx.mode.name == 'release' && config.signing.isNotEmpty) {
-      buffer.writeln();
-      buffer.writeln('[package.metadata.android.signing.release]');
-      buffer.writeln('keystore_password = "${config.signing['store_password'] ?? ''}"');
-
-      final keystorePath = config.signing['store_file'];
-      if (keystorePath != null) {
-        buffer.writeln('path = "$keystorePath"');
-      }
-    }
-
     return buffer.toString();
   }
 
-  /// Update manifest with dynamic paths after Flutter compilation
+  /// Writes metadata **only** to [destinationCargoToml] (must be provided).
   ///
-  /// This is called after Flutter assets and AOT are built to update
-  /// the manifest with the actual file paths.
-  Future<void> updateManifestWithBuiltAssets(BuildContext ctx, String flutterAssetsDir, String aotDir) async {
-    // For cargo-apk, we need to ensure the assets are in the right location
-    // cargo-apk copies assets from the specified directory to the APK root
+  /// Does not walk the filesystem looking for oka's shared rust_wrapper.
+  Future<void> writeManifestTo({
+    required BuildContext ctx,
+    required String destinationCargoToml,
+  }) async {
+    final dest = File(destinationCargoToml);
+    await dest.parent.create(recursive: true);
 
-    // Find the oka project root (where rust_wrapper should be)
-    final okaProjectRoot = _findOkaProjectRoot(ctx.projectPath);
-    final rustWrapperDir = p.join(okaProjectRoot, 'rust_wrapper');
+    String base;
+    if (await dest.exists()) {
+      base = await dest.readAsString();
+      base = stripAndroidMetadataSections(base);
+    } else {
+      base = '''
+[package]
+name = "flutter_wrapper"
+version = "0.1.0"
+edition = "2021"
 
-    // Copy flutter_assets to rust_wrapper directory so cargo-apk can find them
-    final rustAssetsDir = p.join(rustWrapperDir, 'flutter_assets');
-    final sourceAssetsDir = Directory(flutterAssetsDir);
+[lib]
+crate-type = ["cdylib"]
 
-    if (await sourceAssetsDir.exists()) {
-      // Remove old assets
-      if (await Directory(rustAssetsDir).exists()) {
-        await Directory(rustAssetsDir).delete(recursive: true);
-      }
-
-      // Copy new assets
-      await _copyDirectory(sourceAssetsDir, Directory(rustAssetsDir));
-
-      if (_verbose) {
-        print('📁 Copied flutter_assets to rust_wrapper directory');
-      }
+[dependencies]
+''';
     }
 
-    // Copy AOT snapshot for release builds
-    if (ctx.mode.name == 'release' && aotDir.isNotEmpty) {
-      final aotSource = p.join(aotDir, 'app.so');
-      final aotDest = p.join(rustWrapperDir, 'lib', 'libapp.so');
+    final metadata = generateAndroidMetadataToml(ctx);
+    final merged = insertAndroidMetadata(base, metadata);
+    await dest.writeAsString(merged);
 
-      if (await File(aotSource).exists()) {
-        await Directory(p.dirname(aotDest)).create(recursive: true);
-        await File(aotSource).copy(aotDest);
+    if (verbose) {
+      print('📝 Wrote cargo-apk metadata to $destinationCargoToml');
+    }
+  }
 
-        if (_verbose) {
-          print('📁 Copied AOT snapshot to rust_wrapper/lib/');
+  /// @deprecated Prefer [writeManifestTo] with an explicit path.
+  /// Kept for API compatibility; refuses to mutate a path named rust_wrapper
+  /// under a discovered oka root unless [allowSharedWrapper] is true.
+  Future<void> generateManifest(
+    BuildContext ctx, {
+    bool allowSharedWrapper = false,
+  }) async {
+    final dest = p.join(ctx.buildDir, 'cargo_apk', 'Cargo.toml');
+    if (!allowSharedWrapper) {
+      await writeManifestTo(ctx: ctx, destinationCargoToml: dest);
+      return;
+    }
+    // Explicit opt-in: still write under buildDir to avoid corruption.
+    await writeManifestTo(ctx: ctx, destinationCargoToml: dest);
+  }
+
+  /// Removes prior `[package.metadata.android...]` tables from TOML text.
+  static String stripAndroidMetadataSections(String cargoToml) {
+    final lines = cargoToml.split('\n');
+    final result = <String>[];
+    var skipping = false;
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('[package.metadata.android')) {
+        skipping = true;
+        continue;
+      }
+      if (skipping) {
+        // Next top-level table that is not android metadata ends skip.
+        if (trimmed.startsWith('[') &&
+            !trimmed.startsWith('[package.metadata.android')) {
+          skipping = false;
+          result.add(line);
         }
+        continue;
       }
+      result.add(line);
     }
-
-    if (_verbose) {
-      print('🔄 Prepared assets for cargo-apk build');
-    }
+    return result.join('\n');
   }
 
-  Future<void> _copyDirectory(Directory source, Directory destination) async {
-    await destination.create(recursive: true);
-
-    await for (final entity in source.list(recursive: true)) {
-      final relativePath = p.relative(entity.path, from: source.path);
-      final destPath = p.join(destination.path, relativePath);
-
-      if (entity is File) {
-        await entity.copy(destPath);
-      } else if (entity is Directory) {
-        await Directory(destPath).create(recursive: true);
-      }
+  static String insertAndroidMetadata(String cargoToml, String androidMetadata) {
+    final depsIndex = cargoToml.indexOf('[dependencies]');
+    if (depsIndex != -1) {
+      return '${cargoToml.substring(0, depsIndex)}$androidMetadata\n${cargoToml.substring(depsIndex)}';
     }
+    return '$cargoToml\n$androidMetadata';
   }
 
-  /// Find the oka project root directory containing rust_wrapper
-  String _findOkaProjectRoot(String startPath) {
-    var current = startPath;
-
-    // Try up to 5 levels up to find rust_wrapper directory
-    for (var i = 0; i < 5; i++) {
-      final rustWrapperPath = p.join(current, 'rust_wrapper', 'Cargo.toml');
-      if (File(rustWrapperPath).existsSync()) {
-        return current;
-      }
-
-      final parent = p.dirname(current);
-      if (parent == current) {
-        // Reached filesystem root
-        break;
-      }
-      current = parent;
+  /// Validates generated metadata has no duplicate `assets =` keys and parses
+  /// as non-empty android section.
+  static bool isWellFormedMetadata(String tomlFragment) {
+    final assetsMatches = RegExp(r'^\s*assets\s*=', multiLine: true)
+        .allMatches(tomlFragment)
+        .length;
+    if (assetsMatches > 1) return false;
+    if (!tomlFragment.contains('[package.metadata.android]')) return false;
+    // Free-floating version_code before any table is invalid.
+    final firstTable = tomlFragment.indexOf('[');
+    if (firstTable > 0) {
+      final preamble = tomlFragment.substring(0, firstTable);
+      if (RegExp(r'version_code\s*=').hasMatch(preamble)) return false;
     }
-
-    // Fallback: assume startPath is the project root
-    return startPath;
+    return true;
   }
 }

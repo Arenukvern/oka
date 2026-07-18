@@ -92,38 +92,34 @@ oka clean --full
 oka clean --ai-cache
 ```
 
-## Flutter Hybrid Builds
+## Build approaches
 
-Oka supports two build approaches:
+### Default: no-Gradle Flutter APK (`oka build apk`)
 
-### Traditional Android SDK Build (Default)
+This is the **supported** path for Flutter apps/games:
 
-- Direct Android SDK tool invocation
-- Manual resource compilation, Java/Kotlin compilation, DEX conversion
-- No Gradle dependency
-- Best for pure Android apps or custom Android plugins
+1. `flutter assemble` (assets / kernel / AOT) — not `flutter build apk`
+2. Extract `libflutter.so` from Flutter engine `flutter.jar`
+3. Generate `MainActivity` + `GeneratedPluginRegistrant`
+4. Resolve minimal AndroidX JARs (Maven cache under `~/.oka/cache/maven`)
+5. `aapt2` / `javac` / `d8` / zip / `zipalign` / `apksigner`
 
-### Flutter Hybrid Build (`--flutter` flag)
+**Requirements:**
 
-- Combines Flutter tools + cargo-apk + Rust NativeActivity
-- Flutter handles Dart compilation and asset bundling
-- Rust NativeActivity provides Android integration and hosts Flutter engine
-- cargo-apk handles APK/AAB packaging and signing
-- Best for Flutter apps wanting faster builds than Gradle
+- Flutter SDK
+- Android SDK **build-tools** + `platforms` (no Gradle / AGP)
+- JDK 11+
 
-**When to use Flutter hybrid builds:**
+See `docs/PHASE_CHECKLIST.md` for the phase plan and test evidence map.
 
-- You're building a Flutter app
-- You want Flutter's asset management and plugin system
-- You want faster builds than Gradle but keep Flutter compatibility
-- You need Android App Bundle (AAB) support
+### Legacy native-android (`--native-android`)
 
-**Requirements for Flutter builds:**
+Optional pure Android SDK shell pipeline without Flutter assemble. Not for Flutter apps.
 
-- Flutter SDK installed
-- cargo-apk installed (`cargo install cargo-apk`)
-- Rust toolchain
-- Android SDK (for cargo-apk packaging)
+### Experimental Rust / cargo-apk (demoted)
+
+The cargo-apk + Rust NativeActivity hybrid is **demoted** and unused by default.
+`rust_wrapper/` is kept for experiments only; default builds never rewrite its `Cargo.toml`.
 
 **Environment Setup:**
 
