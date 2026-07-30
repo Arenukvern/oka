@@ -207,12 +207,54 @@ class PluginPackager {
         version: '1.10.2',
         packaging: 'jar',
       ));
+      rootCoords.add(const MavenCoordinate(
+        groupId: 'org.jetbrains.kotlinx',
+        artifactId: 'kotlinx-coroutines-android',
+        version: '1.10.2',
+        packaging: 'jar',
+      ));
+      // Common AndroidX KMP shells → ensure android variants are pulled
+      rootCoords.add(const MavenCoordinate(
+        groupId: 'androidx.datastore',
+        artifactId: 'datastore-preferences-android',
+        version: '1.1.7',
+        packaging: 'aar',
+      ));
+      rootCoords.add(const MavenCoordinate(
+        groupId: 'androidx.datastore',
+        artifactId: 'datastore-core-android',
+        version: '1.1.7',
+        packaging: 'aar',
+      ));
     }
+    // Bootstrap classpath for typical Flutter Android plugins
+    rootCoords.addAll(const [
+      MavenCoordinate(
+        groupId: 'androidx.annotation',
+        artifactId: 'annotation-jvm',
+        version: '1.9.1',
+        packaging: 'jar',
+      ),
+      MavenCoordinate(
+        groupId: 'androidx.core',
+        artifactId: 'core',
+        version: '1.13.1',
+        packaging: 'aar',
+      ),
+      MavenCoordinate(
+        groupId: 'org.jetbrains',
+        artifactId: 'annotations',
+        version: '24.1.0',
+        packaging: 'jar',
+      ),
+    ]);
     if (rootCoords.isNotEmpty) {
       try {
         final resolved = await dependencyCache.resolveWithTransitives(
           rootCoords,
           extraRepos: extraRepos,
+          maxDepth: 1,
+          maxArtifacts: 40,
         );
         jarDeps.addAll(resolved.map((r) => r.jarPath));
       } catch (e) {
@@ -284,6 +326,18 @@ class PluginPackager {
       );
     }
 
+    // Generate BuildConfig for plugins that reference it
+    final buildConfigSources = <String>[];
+    final pkg = plugin.androidPackage;
+    if (pkg != null && pkg.isNotEmpty) {
+      final bc = await _writeBuildConfig(
+        workDir: workDir,
+        packageName: pkg,
+        debuggable: true,
+      );
+      buildConfigSources.add(bc);
+    }
+
     if (verbose) {
       print(
         '   ${plugin.name}: java=${javaMain.length} kt=${ktMain.length} '
@@ -293,7 +347,7 @@ class PluginPackager {
 
     return PackagedPlugin(
       plugin: plugin,
-      javaSources: javaMain,
+      javaSources: [...javaMain, ...buildConfigSources],
       kotlinSources: ktMain,
       jarDeps: jarDeps,
       nativeLibsByAbi: nativesByAbi,
@@ -301,6 +355,28 @@ class PluginPackager {
       manifestPaths: manifests,
       packable: true,
     );
+  }
+
+  /// Minimal AGP-compatible BuildConfig for plugin sources that reference it.
+  Future<String> _writeBuildConfig({
+    required String workDir,
+    required String packageName,
+    required bool debuggable,
+  }) async {
+    final rel = packageName.replaceAll('.', '/');
+    final path = p.join(workDir, 'gen', rel, 'BuildConfig.java');
+    await File(path).parent.create(recursive: true);
+    await File(path).writeAsString('''
+package $packageName;
+
+public final class BuildConfig {
+  public static final boolean DEBUG = $debuggable;
+  public static final String LIBRARY_PACKAGE_NAME = "$packageName";
+  public static final String BUILD_TYPE = "${debuggable ? 'debug' : 'release'}";
+  private BuildConfig() {}
+}
+''');
+    return path;
   }
 
   Future<List<String>> _findSources(String pluginPath, List<String> exts) async {

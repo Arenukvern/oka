@@ -156,6 +156,8 @@ ApkLayoutValidation validatePathSet(
           normalized.any((p) => p.endsWith('/classes.dex')),
     );
   }
+  // Multi-dex: if any classesN.dex was staged, all should be present in path set
+  // (callers validate explicit multi-dex via validatePathSet with full listing).
 
   if (spec.requireFlutterAssets) {
     check(
@@ -194,16 +196,41 @@ ApkLayoutValidation validatePathSet(
   );
 }
 
+/// Collect all multi-dex outputs from a d8 directory (`classes.dex`,
+/// `classes2.dex`, …). Sorted so `classes.dex` comes first.
+Future<List<String>> listDexOutputs(String dexDir) async {
+  final dir = Directory(dexDir);
+  if (!await dir.exists()) return const [];
+  final files = <String>[];
+  await for (final e in dir.list(recursive: true, followLinks: false)) {
+    if (e is! File) continue;
+    final name = p.basename(e.path);
+    if (name == 'classes.dex' ||
+        RegExp(r'^classes\d+\.dex$').hasMatch(name)) {
+      files.add(e.path);
+    }
+  }
+  files.sort((a, b) {
+    final na = p.basename(a);
+    final nb = p.basename(b);
+    if (na == 'classes.dex') return -1;
+    if (nb == 'classes.dex') return 1;
+    return na.compareTo(nb);
+  });
+  return files;
+}
+
 /// Stage files into an APK-shaped directory tree (before zip/aapt packaging).
 ///
 /// Copies:
-/// - [dexFile] → `classes.dex`
+/// - [dexFile] / [dexFiles] → APK root as `classes.dex`, `classes2.dex`, …
 /// - [flutterAssetsDir] → `assets/flutter_assets/`
 /// - per-ABI `libflutter.so` from [libflutterByAbi]
 /// - optional per-ABI `libapp.so` from [libappByAbi]
 Future<void> stageApkLayout({
   required String stagingDir,
   String? dexFile,
+  List<String> dexFiles = const [],
   String? flutterAssetsDir,
   Map<String, String> libflutterByAbi = const {},
   Map<String, String> libappByAbi = const {},
@@ -215,11 +242,20 @@ Future<void> stageApkLayout({
   }
   await root.create(recursive: true);
 
-  if (dexFile != null) {
-    final src = File(dexFile);
-    if (await src.exists()) {
-      await src.copy(p.join(stagingDir, 'classes.dex'));
-    }
+  final allDex = <String>[
+    if (dexFile != null) dexFile,
+    ...dexFiles,
+  ];
+  // Preserve multi-dex names (classes.dex, classes2.dex, …)
+  for (final dex in allDex) {
+    final src = File(dex);
+    if (!await src.exists()) continue;
+    final name = p.basename(dex);
+    final destName =
+        (name == 'classes.dex' || RegExp(r'^classes\d+\.dex$').hasMatch(name))
+            ? name
+            : 'classes.dex';
+    await src.copy(p.join(stagingDir, destName));
   }
 
   if (flutterAssetsDir != null) {
@@ -293,6 +329,79 @@ Future<List<String>> listApkEntries(String apkPath) async {
       .where((f) => f.isFile)
       .map((f) => f.name.replaceAll(r'\', '/'))
       .toList();
+}
+
+/// Extract multi-dex entry names from an APK listing (`classes.dex`,
+/// `classes2.dex`, …).
+List<String> multiDexEntries(Iterable<String> apkPaths) {
+  return apkPaths
+      .map((e) => e.replaceAll(r'\', '/'))
+      .where(
+        (e) =>
+            e == 'classes.dex' ||
+            RegExp(r'(^|/)classes\d+\.dex$').hasMatch(e),
+      )
+      .map((e) => e.contains('/') ? e.split('/').last : e)
+      .toSet()
+      .toList()
+    ..sort((a, b) {
+      if (a == 'classes.dex') return -1;
+      if (b == 'classes.dex') return 1;
+      return a.compareTo(b);
+    });
+}
+
+/// Search raw DEX bytes for a UTF-8 needle (class descriptors often appear
+/// as plain strings, e.g. `Lio/flutter/plugins/GeneratedPluginRegistrant;`).
+bool dexBytesContainString(List<int> dexBytes, String needle) {
+  if (needle.isEmpty) return false;
+  final n = needle.codeUnits;
+  if (n.length > dexBytes.length) return false;
+  outer:
+  for (var i = 0; i <= dexBytes.length - n.length; i++) {
+    for (var j = 0; j < n.length; j++) {
+      if (dexBytes[i + j] != n[j]) continue outer;
+    }
+    return true;
+  }
+  return false;
+}
+
+/// Convert Java FQCN to a DEX type descriptor used in string tables.
+String javaClassToDexDescriptor(String fullyQualifiedClass) {
+  return 'L${fullyQualifiedClass.replaceAll('.', '/')};';
+}
+
+/// True if any of the given DEX blobs contains [fullyQualifiedClass].
+bool anyDexContainsClass(
+  Iterable<List<int>> dexBlobs,
+  String fullyQualifiedClass,
+) {
+  final desc = javaClassToDexDescriptor(fullyQualifiedClass);
+  final simple = fullyQualifiedClass.split('.').last;
+  for (final blob in dexBlobs) {
+    if (dexBytesContainString(blob, desc) ||
+        dexBytesContainString(blob, fullyQualifiedClass) ||
+        dexBytesContainString(blob, simple)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Read all multi-dex blobs from an APK zip.
+Future<Map<String, List<int>>> readApkDexBlobs(String apkPath) async {
+  final bytes = await File(apkPath).readAsBytes();
+  final archive = ZipDecoder().decodeBytes(bytes);
+  final out = <String, List<int>>{};
+  for (final f in archive) {
+    if (!f.isFile) continue;
+    final name = f.name.replaceAll(r'\', '/').split('/').last;
+    if (name == 'classes.dex' || RegExp(r'^classes\d+\.dex$').hasMatch(name)) {
+      out[name] = List<int>.from(f.content as List<int>);
+    }
+  }
+  return out;
 }
 
 Future<void> _copyDirectory(Directory source, Directory destination) async {

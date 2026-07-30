@@ -43,13 +43,10 @@ class BuildCommand {
       ..addFlag(
         'soft-plugins',
         negatable: false,
+        hide: true,
         help:
-            'Optional: skip plugins that fail packaging (default is complete packaging)',
-      )
-      ..addFlag(
-        'strict-plugins',
-        negatable: false,
-        help: 'Hard-fail on unpackageable plugins (default)',
+            'Escape hatch only: skip plugins that fail packaging. '
+            'Default builds package all plugins completely.',
       )
       ..addFlag('aab',
           negatable: false, help: 'Build Android App Bundle (AAB) instead of APK')
@@ -62,8 +59,9 @@ class BuildCommand {
     final verbose = results['verbose'] as bool;
     final useNativeAndroid = results['native-android'] as bool;
     final buildAab = results['aab'] as bool;
+    // Default is complete plugin packaging (strict). --soft-plugins is a
+    // hidden escape hatch, not the supported path for real apps.
     final softPlugins = results['soft-plugins'] as bool;
-    // Soft wins over strict when both passed; default is strict.
     final strictPlugins = !softPlugins;
 
     // Determine build mode

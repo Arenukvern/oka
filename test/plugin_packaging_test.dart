@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:oka/src/build/dependency_cache.dart';
 import 'package:oka/src/build/host_codegen.dart';
 import 'package:oka/src/build/plugin_discovery.dart';
@@ -158,6 +159,14 @@ dependencies {
     implementation("androidx.core:core:1.13.1")
 }
 ''');
+      // Seed non-empty AAR classes jar so resolveWithTransitives keeps it
+      final classes = List<int>.from(minimalJarBytes());
+      while (classes.length < 300) {
+        classes.addAll(minimalJarBytes());
+      }
+      final aar = Archive();
+      aar.addFile(ArchiveFile('classes.jar', classes.length, classes));
+      final aarBytes = ZipEncoder().encode(aar)!;
       await cache.resolve(
         const MavenCoordinate(
           groupId: 'androidx.core',
@@ -165,7 +174,26 @@ dependencies {
           version: '1.13.1',
           packaging: 'aar',
         ),
-        fixtureBytes: minimalAarBytes(),
+        fixtureBytes: aarBytes,
+      );
+      // Bootstrap deps also required offline
+      await cache.resolve(
+        const MavenCoordinate(
+          groupId: 'androidx.annotation',
+          artifactId: 'annotation-jvm',
+          version: '1.9.1',
+          packaging: 'jar',
+        ),
+        fixtureBytes: classes,
+      );
+      await cache.resolve(
+        const MavenCoordinate(
+          groupId: 'org.jetbrains',
+          artifactId: 'annotations',
+          version: '24.1.0',
+          packaging: 'jar',
+        ),
+        fixtureBytes: classes,
       );
 
       final packager = PluginPackager(

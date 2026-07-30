@@ -15,7 +15,7 @@ void main() {
       );
       expect(
         googleMavenUrl(c),
-        'https://maven.google.com/androidx/annotation/annotation-jvm/1.9.1/annotation-jvm-1.9.1.jar',
+        'https://dl.google.com/dl/android/maven2/androidx/annotation/annotation-jvm/1.9.1/annotation-jvm-1.9.1.jar',
       );
     });
   });
@@ -77,13 +77,20 @@ void main() {
         version: '1.13.1',
         packaging: 'aar',
       );
+      final aarBytes = minimalAarBytes();
+      // Ensure AAR classes.jar is large enough to pass empty-shell filter
       final resolved = await cache.resolve(
         coord,
-        fixtureBytes: minimalAarBytes(),
+        fixtureBytes: aarBytes,
       );
       expect(await File(resolved.jarPath).exists(), isTrue);
       expect(resolved.jarPath, contains('classes.jar'));
-      // Second resolve hits cache
+      // Seed a non-tiny classes jar so cache hit is kept (>200 bytes)
+      final nonEmpty = List<int>.from(minimalJarBytes());
+      while (nonEmpty.length < 250) {
+        nonEmpty.addAll(minimalJarBytes());
+      }
+      await File(resolved.jarPath).writeAsBytes(nonEmpty);
       final again = await cache.resolve(coord);
       expect(again.jarPath, resolved.jarPath);
     });

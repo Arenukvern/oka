@@ -137,41 +137,39 @@ flutter:
       );
     });
 
-    test('detects unsupported gradle cmake in plugin android/', () async {
+    test('detects unsupported AGP google-services plugins', () async {
       await File(p.join(tmp.path, '.flutter-plugins-dependencies')).writeAsString('''
 {
   "plugins": {
     "android": [
-      {"name": "native_heavy", "path": "${tmp.path}/native_heavy"}
+      {"name": "firebase_heavy", "path": "${tmp.path}/firebase_heavy"}
     ]
   }
 }
 ''');
-      final pluginDir = Directory(p.join(tmp.path, 'native_heavy', 'android'));
+      final pluginDir = Directory(p.join(tmp.path, 'firebase_heavy', 'android'));
       await pluginDir.create(recursive: true);
-      await File(p.join(tmp.path, 'native_heavy', 'pubspec.yaml')).writeAsString('''
-name: native_heavy
+      await File(p.join(tmp.path, 'firebase_heavy', 'pubspec.yaml')).writeAsString('''
+name: firebase_heavy
 flutter:
   plugin:
     platforms:
       android:
-        package: com.example.native_heavy
-        pluginClass: NativeHeavyPlugin
+        package: com.example.firebase_heavy
+        pluginClass: FirebaseHeavyPlugin
 ''');
+      // CMake alone is packable via NDK; AGP google-services is not.
       await File(p.join(pluginDir.path, 'build.gradle')).writeAsString('''
+apply plugin: 'com.google.gms.google-services'
 android {
-  externalNativeBuild {
-    cmake {
-      path "CMakeLists.txt"
-    }
-  }
+  // ...
 }
 ''');
 
       final d = PluginDiscovery();
       final result = await d.discover(tmp.path);
       expect(result.hasUnsupported, isTrue);
-      expect(result.unsupported.first.name, 'native_heavy');
+      expect(result.unsupported.first.name, 'firebase_heavy');
     });
   });
 }

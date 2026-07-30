@@ -286,7 +286,7 @@ class FlutterApkBuilder {
       }
 
       print('🔨 Compiling resources and Java/Kotlin (Android SDK tools)...');
-      final dexPath = await _compileAndDex(
+      final dexFiles = await _compileAndDex(
         ctx: ctx,
         hostDir: hostDir,
         embeddingJar: embeddingJar,
@@ -300,7 +300,7 @@ class FlutterApkBuilder {
       print('📱 Packaging APK...');
       final apkPath = await _packageAndSign(
         ctx: ctx,
-        dexPath: dexPath,
+        dexFiles: dexFiles,
         flutterAssetsDir: assetsDir,
         libflutterByAbi: libflutterByAbi,
         libappByAbi: libappByAbi,
@@ -454,7 +454,8 @@ class FlutterApkBuilder {
     return fallback;
   }
 
-  Future<String> _compileAndDex({
+  /// Returns all multi-dex outputs (`classes.dex`, `classes2.dex`, …).
+  Future<List<String>> _compileAndDex({
     required BuildContext ctx,
     required String hostDir,
     required String embeddingJar,
@@ -614,53 +615,64 @@ class FlutterApkBuilder {
     final dexOutDir = p.join(ctx.buildDir, 'dex');
     await Directory(dexOutDir).create(recursive: true);
 
-    // Prefer newer build-tools d8 (35+) for embedding + large classpaths
-    final d8Inputs = [
+    // Prefer newer build-tools d8 (35+) for embedding + large classpaths.
+    // Compile-only jars (annotations) go to --lib, not into the program DEX.
+    final programJars = <String>[
       classesJar,
       embeddingJar,
-      ...androidxJars,
-      ...pluginJarDeps,
+      ..._filterRuntimeJars([...androidxJars, ...pluginJarDeps]),
+    ];
+    final compileOnlyJars = <String>[
+      ..._filterCompileOnlyJars([...androidxJars, ...pluginJarDeps]),
     ];
     final minApi =
         ctx.config.android.minSdk.isEmpty ? '21' : ctx.config.android.minSdk;
-    final d8Result = await Process.run(d8, [
+    final d8Args = <String>[
       '--output',
       dexOutDir,
       '--min-api',
       minApi,
       '--lib',
       androidJar,
-      ...d8Inputs,
-    ]);
+      for (final lib in compileOnlyJars) ...['--lib', lib],
+      ...programJars,
+    ];
+    if (verbose) {
+      print('   d8 program jars: ${programJars.length}, '
+          'lib jars: ${compileOnlyJars.length + 1}');
+    }
+    final d8Result = await Process.run(d8, d8Args);
     if (d8Result.exitCode != 0) {
+      // Retry without extra --lib jars (older d8)
       final d8Result2 = await Process.run(d8, [
         '--output',
         dexOutDir,
         '--min-api',
         minApi,
-        ...d8Inputs,
+        '--lib',
+        androidJar,
+        ...programJars,
       ]);
       if (d8Result2.exitCode != 0) {
         throw Exception('d8 failed: ${d8Result2.stderr}');
       }
     }
 
-    final dexPath = p.join(dexOutDir, 'classes.dex');
-    if (!await File(dexPath).exists()) {
-      // d8 may write to output dir with different structure
-      await for (final e in Directory(dexOutDir).list(recursive: true)) {
-        if (e is File && e.path.endsWith('classes.dex')) {
-          return e.path;
-        }
-      }
-      throw Exception('classes.dex not produced by d8');
+    final dexFiles = await listDexOutputs(dexOutDir);
+    if (dexFiles.isEmpty) {
+      throw Exception('d8 produced no classes*.dex under $dexOutDir');
     }
-    return dexPath;
+    if (verbose) {
+      print(
+        '   d8 multi-dex: ${dexFiles.map(p.basename).join(', ')}',
+      );
+    }
+    return dexFiles;
   }
 
   Future<String> _packageAndSign({
     required BuildContext ctx,
-    required String dexPath,
+    required List<String> dexFiles,
     required String flutterAssetsDir,
     required Map<String, String> libflutterByAbi,
     required Map<String, String> libappByAbi,
@@ -673,7 +685,7 @@ class FlutterApkBuilder {
     final mergedFlutter = Map<String, String>.from(libflutterByAbi);
     await stageApkLayout(
       stagingDir: staging,
-      dexFile: dexPath,
+      dexFiles: dexFiles,
       flutterAssetsDir: flutterAssetsDir,
       libflutterByAbi: mergedFlutter,
       libappByAbi: libappByAbi,
@@ -718,6 +730,98 @@ class FlutterApkBuilder {
       throw Exception('apksigner failed: ${sign.stderr}');
     }
     return signed;
+  }
+
+  /// Jars that should be desugared into the APK (runtime).
+  ///
+  /// Dedupes by Maven artifact identity (group:artifact), keeping the highest
+  /// version so d8 does not see duplicate types (e.g. kotlin-stdlib 1.9 vs 2.0).
+  List<String> _filterRuntimeJars(List<String> jars) {
+    final best = <String, ({String path, String version})>{};
+    for (final j in jars) {
+      final base = p.basename(j).toLowerCase();
+      if (_isCompileOnlyJarName(base)) continue;
+      try {
+        if (File(j).lengthSync() <= 200) continue;
+      } catch (_) {
+        continue;
+      }
+      final id = _artifactKey(j);
+      final ver = _artifactVersion(j);
+      final prev = best[id];
+      if (prev == null || _compareVersions(ver, prev.version) > 0) {
+        best[id] = (path: j, version: ver);
+      }
+    }
+    return best.values.map((e) => e.path).toList();
+  }
+
+  /// `.../group/path/artifact/version/file.jar` → `group.path:baseArtifact`
+  ///
+  /// Strips KMP suffixes (`-android`, `-jvm`, `-ktx`) so
+  /// `lifecycle-runtime` and `lifecycle-runtime-android` collapse.
+  String _artifactKey(String jarPath) {
+    final parts = p.split(jarPath);
+    // expect .../maven/<group>/<artifact>/<version>/<file>
+    if (parts.length >= 4) {
+      final version = parts[parts.length - 2];
+      var artifact = parts[parts.length - 3];
+      artifact = artifact.replaceAll(RegExp(r'-(android|jvm|ktx)$'), '');
+      final groupParts = <String>[];
+      for (var i = parts.length - 4; i >= 0; i--) {
+        if (parts[i] == 'maven' || parts[i] == 'cache') break;
+        groupParts.insert(0, parts[i]);
+      }
+      if (groupParts.isNotEmpty) {
+        return '${groupParts.join('.')}:$artifact';
+      }
+      return '$artifact@$version';
+    }
+    return p.basename(jarPath);
+  }
+
+  String _artifactVersion(String jarPath) {
+    final parts = p.split(jarPath);
+    if (parts.length >= 2) return parts[parts.length - 2];
+    return '0';
+  }
+
+  int _compareVersions(String a, String b) {
+    List<int> parse(String v) => v
+        .split(RegExp(r'[^0-9]+'))
+        .where((s) => s.isNotEmpty)
+        .map(int.parse)
+        .toList();
+    final pa = parse(a);
+    final pb = parse(b);
+    final n = pa.length > pb.length ? pa.length : pb.length;
+    for (var i = 0; i < n; i++) {
+      final x = i < pa.length ? pa[i] : 0;
+      final y = i < pb.length ? pb[i] : 0;
+      if (x != y) return x.compareTo(y);
+    }
+    return 0;
+  }
+
+  List<String> _filterCompileOnlyJars(List<String> jars) {
+    final out = <String>[];
+    final seen = <String>{};
+    for (final j in jars) {
+      final base = p.basename(j).toLowerCase();
+      if (!_isCompileOnlyJarName(base)) continue;
+      if (!seen.add(base)) continue;
+      out.add(j);
+    }
+    return out;
+  }
+
+  bool _isCompileOnlyJarName(String base) {
+    return base.contains('annotation') ||
+        base.contains('annotations') ||
+        base.contains('jspecify') ||
+        base.startsWith('kotlin-stdlib-common') ||
+        base.contains('animal-sniffer') ||
+        base.contains('checker-qual');
   }
 
   /// Prefer Java 17/21 for kotlinc — Kotlin 2.1 rejects JDK 25 version strings.

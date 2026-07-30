@@ -201,7 +201,14 @@ class DependencyCache {
     var working = coord;
     final jarPath = jarPathFor(working);
     if (await File(jarPath).exists()) {
-      return ResolvedJar(coordinate: working, jarPath: jarPath);
+      final existingLen = await File(jarPath).length();
+      // Do not treat metadata-only empty shells as a successful cache hit.
+      if (existingLen > 200) {
+        return ResolvedJar(coordinate: working, jarPath: jarPath);
+      }
+      try {
+        await File(jarPath).delete();
+      } catch (_) {}
     }
 
     List<int> bytes;
@@ -248,6 +255,23 @@ class DependencyCache {
     List<String> extraRepos = const [],
   }) async {
     final candidates = <MavenCoordinate>[coord];
+    // AndroidX multiplatform: real classes often live in *-android / *-jvm
+    if (coord.groupId.startsWith('androidx.') &&
+        !coord.artifactId.endsWith('-android') &&
+        !coord.artifactId.endsWith('-jvm')) {
+      candidates.add(MavenCoordinate(
+        groupId: coord.groupId,
+        artifactId: '${coord.artifactId}-android',
+        version: coord.version,
+        packaging: 'aar',
+      ));
+      candidates.add(MavenCoordinate(
+        groupId: coord.groupId,
+        artifactId: '${coord.artifactId}-jvm',
+        version: coord.version,
+        packaging: 'jar',
+      ));
+    }
     if (coord.packaging == 'aar') {
       candidates.add(MavenCoordinate(
         groupId: coord.groupId,
@@ -267,18 +291,19 @@ class DependencyCache {
     final client = httpClient ?? http.Client();
     try {
       for (final c in candidates) {
-        final urls = <String>[
-          for (final base in extraRepos)
-            _repoUrl(base, c),
-          googleMavenUrl(c),
-        ];
-        for (final url in urls) {
+        for (final url in _candidateUrls(c, extraRepos)) {
           if (verbose) {
             print('📥 Trying $c\n   $url');
           }
-          final response = await client.get(Uri.parse(url));
-          if (response.statusCode == 200 && response.bodyBytes.length > 32) {
-            return (coord: c, bytes: response.bodyBytes);
+          try {
+            final response = await client
+                .get(Uri.parse(url))
+                .timeout(const Duration(seconds: 30));
+            if (response.statusCode == 200 && response.bodyBytes.length > 32) {
+              return (coord: c, bytes: response.bodyBytes);
+            }
+          } catch (_) {
+            // try next URL
           }
         }
       }
@@ -288,6 +313,51 @@ class DependencyCache {
         client.close();
       }
     }
+  }
+
+  /// Repo order: platform-appropriate first (avoid thrashing VK artifactory
+  /// for every AndroidX artifact).
+  List<String> _candidateUrls(
+    MavenCoordinate c,
+    List<String> extraRepos,
+  ) {
+    final urls = <String>[];
+    final isGoogle = c.groupId.startsWith('androidx.') ||
+        c.groupId.startsWith('com.android.') ||
+        c.groupId.startsWith('com.google.android.');
+    final isCentral = c.groupId.startsWith('org.jetbrains') ||
+        c.groupId.startsWith('com.squareup') ||
+        c.groupId.startsWith('org.slf4j') ||
+        c.groupId.startsWith('javax.');
+    final isCustom = c.groupId.startsWith('ru.rustore') ||
+        c.groupId.startsWith('ru.vk');
+
+    void add(String u) {
+      if (!urls.contains(u)) urls.add(u);
+    }
+
+    if (isCustom) {
+      for (final base in extraRepos) {
+        add(_repoUrl(base, c));
+      }
+    }
+    if (isGoogle) {
+      add(googleMavenUrl(c));
+      // AndroidX jars sometimes only on Maven Central as -jvm
+      add('https://repo1.maven.org/maven2/${c.pathSegment}/${c.fileName}');
+    } else if (isCentral) {
+      add('https://repo1.maven.org/maven2/${c.pathSegment}/${c.fileName}');
+      add(googleMavenUrl(c));
+    } else {
+      add(googleMavenUrl(c));
+      add('https://repo1.maven.org/maven2/${c.pathSegment}/${c.fileName}');
+    }
+    if (!isCustom) {
+      for (final base in extraRepos) {
+        add(_repoUrl(base, c));
+      }
+    }
+    return urls;
   }
 
   String _repoUrl(String base, MavenCoordinate coord) {
@@ -311,19 +381,25 @@ class DependencyCache {
     return results;
   }
 
-  /// Resolve [roots] plus one level of POM transitive compile dependencies.
+  /// Resolve [roots] plus limited POM transitive compile dependencies.
   Future<List<ResolvedJar>> resolveWithTransitives(
     List<MavenCoordinate> roots, {
     List<String> extraRepos = const [],
-    int maxDepth = 2,
+    int maxDepth = 1,
+    int maxArtifacts = 60,
   }) async {
     final seen = <String>{};
     final out = <ResolvedJar>[];
     final queue = <({MavenCoordinate c, int depth})>[
       for (final r in roots) (c: r, depth: 0),
     ];
+    var iterations = 0;
+    const maxIterations = 120;
 
-    while (queue.isNotEmpty) {
+    while (queue.isNotEmpty &&
+        out.length < maxArtifacts &&
+        iterations < maxIterations) {
+      iterations++;
       final item = queue.removeAt(0);
       final key = item.c.cacheKey;
       if (!seen.add(key)) continue;
@@ -332,7 +408,6 @@ class DependencyCache {
           item.c,
           extraRepos: extraRepos,
         );
-        // Skip empty jars (metadata shells)
         final len = await File(resolved.jarPath).length();
         if (len > 200) {
           out.add(resolved);
@@ -340,27 +415,42 @@ class DependencyCache {
           print('   skip empty jar ${resolved.coordinate}');
         }
 
-        // Prefer android/jvm variants when metadata-only
-        if (len <= 200 && item.c.packaging == 'aar') {
-          for (final suffix in ['-android', '-jvm', '-ktx']) {
-            final alt = MavenCoordinate(
+        // Prefer android/jvm variants when metadata-only (do not expand -ktx)
+        if (len <= 200) {
+          final base = item.c.artifactId
+              .replaceAll(RegExp(r'-(android|jvm|ktx)$'), '');
+          for (final alt in [
+            MavenCoordinate(
               groupId: item.c.groupId,
-              artifactId: '${item.c.artifactId}$suffix',
+              artifactId: '$base-android',
               version: item.c.version,
               packaging: 'aar',
-            );
-            if (!seen.contains(alt.cacheKey)) {
+            ),
+            MavenCoordinate(
+              groupId: item.c.groupId,
+              artifactId: '$base-jvm',
+              version: item.c.version,
+              packaging: 'jar',
+            ),
+          ]) {
+            if (!seen.contains(alt.cacheKey) &&
+                alt.artifactId != item.c.artifactId) {
               queue.add((c: alt, depth: item.depth));
             }
           }
         }
 
-        if (item.depth < maxDepth) {
+        if (item.depth < maxDepth && out.length < maxArtifacts) {
           final pomDeps = await _fetchPomDependencies(
-            item.c,
+            resolved.coordinate,
             extraRepos: extraRepos,
           );
           for (final d in pomDeps) {
+            // Skip massive optional graphs
+            if (d.groupId.startsWith('org.jetbrains.kotlin') &&
+                d.artifactId.contains('stdlib-common')) {
+              continue;
+            }
             if (!seen.contains(d.cacheKey)) {
               queue.add((c: d, depth: item.depth + 1));
             }
@@ -370,8 +460,13 @@ class DependencyCache {
         if (verbose) print('   resolve skip ${item.c}: $e');
       }
     }
+    if (verbose) {
+      print('   resolveWithTransitives: ${out.length} jars '
+          '($iterations iterations)');
+    }
     return out;
   }
+
 
   Future<List<MavenCoordinate>> _fetchPomDependencies(
     MavenCoordinate coord, {
@@ -422,9 +517,18 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
     final g = RegExp(r'<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
     final a =
         RegExp(r'<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
-    final v = RegExp(r'<version>([^<]+)</version>').firstMatch(body)?.group(1);
+    var v = RegExp(r'<version>([^<]+)</version>').firstMatch(body)?.group(1);
     if (g == null || a == null || v == null) continue;
     if (v.startsWith('\${')) continue;
+    // Strip Maven version ranges: [1.1.7], (1.0,), etc. → first version token
+    v = v.trim();
+    if (v.startsWith('[') || v.startsWith('(')) {
+      final m = RegExp(r'[\d][\d.]*').firstMatch(v);
+      if (m == null) continue;
+      v = m.group(0)!;
+    }
+    // Skip BOMs (no classes)
+    if (a.endsWith('-bom') || a == 'bom') continue;
     final type =
         RegExp(r'<type>([^<]+)</type>').firstMatch(body)?.group(1) ?? 'jar';
     final packaging = type == 'aar' ? 'aar' : 'jar';

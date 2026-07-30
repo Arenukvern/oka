@@ -108,7 +108,7 @@ class AndroidSdkInstaller {
 
   /// Bootstrap cmdline-tools + packaging packages.
   Future<AndroidSdkInstallResult> installPackagingSdk({
-    String buildTools = '34.0.0',
+    String buildTools = '35.0.0',
     String platformApi = '34',
     bool acceptLicenses = true,
   }) async {

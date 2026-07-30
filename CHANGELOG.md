@@ -2,6 +2,23 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.1.6] - 2026-07-29
+
+### Added
+
+- **Complete no-Gradle plugin packaging** (`PluginPackager`):
+  - Compile plugin Java/Kotlin sources into the app DEX
+  - Parse Gradle deps + Maven/AAR resolve with limited POM transitives
+  - Generate per-plugin `BuildConfig`
+  - CMake/NDK build for `jni` → `libdartjni.so`
+  - Real non-empty `GeneratedPluginRegistrant` by default
+- d8 classpath: runtime vs compile-only jars; version/KMP artifact dedupe
+
+### Changed
+
+- Default `oka build apk` packages all plugins (no empty soft-shell registrant)
+- `--soft-plugins` hidden escape hatch only
+
 ## [0.1.5] - 2026-07-18
 
 ### Added
