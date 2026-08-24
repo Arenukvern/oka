@@ -3,8 +3,8 @@
 After a code change, sync documentation. Stay short & smart.
 
 1. Classify the change:
-   - Architectural / internal trade-off → `DESIGN_FAQ.md` (edit existing Q&A first) or new ADR in `docs/decisions/`
-   - Command / API usage pattern → `DX_FAQ.md`
+   - Architectural / internal trade-off → `docs/guides/design_faq.md` (edit existing Q&A first) or new ADR in `docs/decisions/`
+   - Command / API usage pattern → `docs/guides/build_and_config.md`
    - Both → both, but never duplicate paragraphs between them
 2. Verify against the actual codebase — document what exists, not wishful APIs.
 3. Remove or supersede Q&As that no longer apply.

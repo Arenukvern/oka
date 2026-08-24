@@ -1,7 +1,7 @@
 # ADR index
 
 ADRs are for maintainers and agents changing architecture. Day-to-day usage
-docs live in `README.md` and `DX_FAQ.md`.
+docs live in `README.md` and `docs/guides/build_and_config.md`.
 
 | ID | Title | Status |
 |----|-------|--------|

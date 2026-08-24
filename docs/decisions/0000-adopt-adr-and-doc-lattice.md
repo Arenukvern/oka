@@ -14,9 +14,9 @@ forks.
 
 Adopt a vectorless doc lattice:
 
-- `docs/NORTH_STAR.md` — charter: ownership + boundaries
+- `docs/start_here/why_this_repo_matters.md` — charter: ownership + boundaries
 - `docs/decisions/` — MADR-style ADRs, append-only, this index
-- `DESIGN_FAQ.md` / `DX_FAQ.md` — why / how Q&A per FAQ-driven development
+- `docs/guides/design_faq.md` / `docs/guides/build_and_config.md` — why / how Q&A per FAQ-driven development
 - `AGENTS.md` stays a router (~100 lines), never an encyclopedia
 
 Docs link to code; code + tests remain the behavior SSOT.

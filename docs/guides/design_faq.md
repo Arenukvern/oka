@@ -1,7 +1,12 @@
-# DESIGN_FAQ — Oka
+---
+title: Design FAQ
+---
 
-Why oka is built the way it is. How-to lives in `DX_FAQ.md`; settled decisions
-live in `docs/decisions/`.
+# Design FAQ
+
+Why oka is built the way it is. How-to lives in the
+[build & configuration guide](build_and_config.md); settled decisions live
+in [`docs/decisions/`](../decisions/index.md).
 
 ## Build path
 

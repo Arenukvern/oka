@@ -1,0 +1,140 @@
+{
+  "$schema": "https://docs.page/schema.json",
+  "name": "Oka",
+  "description": "No-Gradle build system for Flutter Android: flutter assemble + direct Android SDK tools for 3-5x faster incremental builds.",
+  "github": "https://github.com/Arenukvern/oka",
+  "theme": {
+    "defaultTheme": "system",
+    "primary": "#02569B"
+  },
+  "header": {
+    "showName": true,
+    "showThemeToggle": true,
+    "showGitHubCard": true,
+    "links": [
+      {
+        "title": "GitHub",
+        "href": "https://github.com/Arenukvern/oka"
+      },
+      {
+        "title": "Get started",
+        "href": "/start_here/quick_recipes",
+        "cta": true
+      }
+    ]
+  },
+  "anchors": [
+    {
+      "icon": "github",
+      "title": "GitHub",
+      "href": "https://github.com/Arenukvern/oka"
+    },
+    {
+      "icon": "book-open",
+      "title": "pub.dev",
+      "href": "https://pub.dev/packages/oka"
+    }
+  ],
+  "social": {
+    "github": "Arenukvern"
+  },
+  "seo": {
+    "noindex": false
+  },
+  "variables": {
+    "repo": "https://github.com/Arenukvern/oka",
+    "docs": "https://docs.page/arenukvern/oka"
+  },
+  "content": {
+    "headerDepth": 3,
+    "zoomImages": true,
+    "automaticallyInferNextPrevious": true,
+    "showPageTitle": true
+  },
+  "sidebar": [
+    {
+      "group": "Start Here",
+      "pages": [
+        {
+          "title": "Overview",
+          "href": "/"
+        },
+        {
+          "title": "Why This Repo Matters",
+          "href": "/start_here/why_this_repo_matters"
+        },
+        {
+          "title": "Quick Recipes",
+          "href": "/start_here/quick_recipes"
+        },
+        {
+          "title": "Docs Map",
+          "href": "/start_here/docs_map"
+        }
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        {
+          "title": "Build & Configuration",
+          "href": "/guides/build_and_config"
+        },
+        {
+          "title": "Design FAQ",
+          "href": "/guides/design_faq"
+        }
+      ]
+    },
+    {
+      "group": "Decisions",
+      "pages": [
+        {
+          "title": "Overview",
+          "href": "/decisions/index"
+        },
+        {
+          "title": "0000 — Adopt ADRs + doc lattice",
+          "href": "/decisions/0000-adopt-adr-and-doc-lattice"
+        },
+        {
+          "title": "0001 — No-Gradle default build path",
+          "href": "/decisions/0001-no-gradle-default-build-path"
+        },
+        {
+          "title": "0002 — Composable build pipeline",
+          "href": "/decisions/0002-composable-build-pipeline"
+        },
+        {
+          "title": "0003 — Vector-first launcher icons",
+          "href": "/decisions/0003-vector-first-launcher-icons"
+        },
+        {
+          "title": "0004 — No-Gradle AAB bundle",
+          "href": "/decisions/0004-no-gradle-aab-bundle"
+        }
+      ]
+    },
+    {
+      "group": "Project",
+      "pages": [
+        {
+          "title": "Phase Checklist",
+          "href": "/PHASE_CHECKLIST"
+        },
+        {
+          "title": "Contributing",
+          "href": "/contributing/contribution_guide"
+        },
+        {
+          "title": "Changelog",
+          "href": "https://github.com/Arenukvern/oka/blob/main/CHANGELOG.md"
+        },
+        {
+          "title": "Security",
+          "href": "https://github.com/Arenukvern/oka/blob/main/SECURITY.md"
+        }
+      ]
+    }
+  ]
+}

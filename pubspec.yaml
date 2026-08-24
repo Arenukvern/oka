@@ -1,7 +1,16 @@
 name: oka
-description: AI-powered Flutter Android build system that replaces Gradle for faster builds
+description: No-Gradle build system for Flutter Android. Runs flutter assemble + direct Android SDK tools (aapt2, d8, apksigner) instead of Gradle, with plugin packaging, AAB support, and dependency recovery.
 version: 0.1.6
-homepage: https://github.com/arenukvern/oka
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - flutter
+  - android
+  - build-system
+  - cli
+  - gradle
 
 environment:
   sdk: ^3.12.0

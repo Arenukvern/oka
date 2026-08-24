@@ -49,4 +49,4 @@ Bad / Neutral:
 - Users must author VectorDrawable XML for custom glyphs (no SVG conversion)
 
 **Authoritative source:** `lib/src/build/launcher_icon.dart`,
-`test/launcher_icon_test.dart`, `DX_FAQ.md` → Assets & Icon Station
+`test/launcher_icon_test.dart`, [build guide](../guides/build_and_config.md) → Assets & Icon Station

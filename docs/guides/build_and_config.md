@@ -1,7 +1,12 @@
-# DX_FAQ — Oka
+---
+title: Build & configuration guide
+---
 
-How to run, build, and extend oka. Why-rationale lives in `DESIGN_FAQ.md`;
-settled decisions in `docs/decisions/`.
+# Build & configuration guide
+
+How to run, build, and extend oka. Why-rationale lives in the
+[design FAQ](design_faq.md); settled decisions in
+[`docs/decisions/`](../decisions/index.md).
 
 ## 🏠 Setup Hub
 
