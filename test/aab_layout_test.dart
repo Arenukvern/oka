@@ -29,7 +29,8 @@ void main() {
   group('validateAabPathSet', () {
     test('complete debug bundle passes', () {
       final v = validateAabPathSet([
-        'base/AndroidManifest.xml',
+        'BundleConfig.pb',
+        'base/manifest/AndroidManifest.xml',
         'base/resources.pb',
         'base/dex/classes.dex',
         'base/assets/flutter_assets/AssetManifest.json',
@@ -38,20 +39,35 @@ void main() {
       expect(v.ok, isTrue);
     });
 
-    test('missing proto resources fails', () {
+    test('manifest at APK-style path fails (must be base/manifest/)', () {
       final v = validateAabPathSet([
+        'BundleConfig.pb',
+        'base/AndroidManifest.xml', // wrong location
+        'base/resources.pb',
         'base/dex/classes.dex',
         'base/assets/flutter_assets/x',
         'base/lib/arm64-v8a/libflutter.so',
       ]);
       expect(v.ok, isFalse);
-      expect(v.missing, contains('base/AndroidManifest.xml'));
-      expect(v.missing, contains('base/resources.pb'));
+      expect(v.missing, contains('base/manifest/AndroidManifest.xml'));
+    });
+
+    test('missing BundleConfig.pb fails', () {
+      final v = validateAabPathSet([
+        'base/manifest/AndroidManifest.xml',
+        'base/resources.pb',
+        'base/dex/classes.dex',
+        'base/assets/flutter_assets/x',
+        'base/lib/arm64-v8a/libflutter.so',
+      ]);
+      expect(v.ok, isFalse);
+      expect(v.missing, contains('BundleConfig.pb'));
     });
 
     test('release requires libapp.so per ABI', () {
       final entries = [
-        'base/AndroidManifest.xml',
+        'BundleConfig.pb',
+        'base/manifest/AndroidManifest.xml',
         'base/resources.pb',
         'base/dex/classes.dex',
         'base/assets/flutter_assets/x',
@@ -73,7 +89,8 @@ void main() {
 
     test('multi-dex accepted', () {
       final v = validateAabPathSet([
-        'base/AndroidManifest.xml',
+        'BundleConfig.pb',
+        'base/manifest/AndroidManifest.xml',
         'base/resources.pb',
         'base/dex/classes.dex',
         'base/dex/classes2.dex',
@@ -95,49 +112,66 @@ void main() {
       if (await tmp.exists()) await tmp.delete(recursive: true);
     });
 
-    test('explodes proto ap into base/, stages dex/assets/libs', () async {
-      // Build a fake proto-format resources archive.
-      final protoZip = File('${tmp.path}/resources_proto.ap_');
-      final archive = Archive()
-        ..addFile(ArchiveFile('AndroidManifest.xml', 4, [1, 2, 3, 4]))
-        ..addFile(ArchiveFile('resources.pb', 2, [9, 9]))
-        ..addFile(ArchiveFile('res/values/values.arsc.flat', 1, [7]));
-      await protoZip.writeAsBytes(ZipEncoder().encode(archive)!);
+    test(
+      'explodes proto ap into base/ with manifest under manifest/',
+      () async {
+        // Build a fake proto-format resources archive.
+        final protoZip = File('${tmp.path}/resources_proto.ap_');
+        final archive = Archive()
+          ..addFile(ArchiveFile('AndroidManifest.xml', 4, [1, 2, 3, 4]))
+          ..addFile(ArchiveFile('resources.pb', 2, [9, 9]))
+          ..addFile(ArchiveFile('res/values/values.arsc.flat', 1, [7]));
+        await protoZip.writeAsBytes(ZipEncoder().encode(archive)!);
 
-      final dex = File('${tmp.path}/classes.dex');
-      await dex.writeAsBytes([0x64, 0x65, 0x78]);
-      final assetsDir = Directory('${tmp.path}/fa');
-      await Directory('${assetsDir.path}/sub').create(recursive: true);
-      await File('${assetsDir.path}/sub/a.txt').writeAsString('hi');
+        final dex = File('${tmp.path}/classes.dex');
+        await dex.writeAsBytes([0x64, 0x65, 0x78]);
+        final assetsDir = Directory('${tmp.path}/fa');
+        await Directory('${assetsDir.path}/sub').create(recursive: true);
+        await File('${assetsDir.path}/sub/a.txt').writeAsString('hi');
 
-      final libflutter = File('${tmp.path}/libflutter.so');
-      await libflutter.writeAsBytes([1, 2]);
+        final libflutter = File('${tmp.path}/libflutter.so');
+        await libflutter.writeAsBytes([1, 2]);
 
-      final baseDir = '${tmp.path}/aab/base';
-      await stageAabBaseModule(
-        baseDir: baseDir,
-        protoResourcesAp: protoZip.path,
-        dexFiles: [dex.path],
-        flutterAssetsDir: assetsDir.path,
-        libflutterByAbi: {'arm64-v8a': libflutter.path},
-      );
+        final baseDir = '${tmp.path}/aab/base';
+        await stageAabBaseModule(
+          baseDir: baseDir,
+          protoResourcesAp: protoZip.path,
+          dexFiles: [dex.path],
+          flutterAssetsDir: assetsDir.path,
+          libflutterByAbi: {'arm64-v8a': libflutter.path},
+        );
 
-      expect(File('$baseDir/AndroidManifest.xml').existsSync(), isTrue);
-      expect(File('$baseDir/resources.pb').existsSync(), isTrue);
-      expect(File('$baseDir/res/values/values.arsc.flat').existsSync(), isTrue);
-      expect(File('$baseDir/dex/classes.dex').existsSync(), isTrue);
-      expect(
-        File('$baseDir/assets/flutter_assets/sub/a.txt').existsSync(),
-        isTrue,
-      );
-      expect(File('$baseDir/lib/arm64-v8a/libflutter.so').existsSync(), isTrue);
+        expect(
+          File('$baseDir/manifest/AndroidManifest.xml').existsSync(),
+          isTrue,
+        );
+        expect(File('$baseDir/AndroidManifest.xml').existsSync(), isFalse);
+        expect(File('$baseDir/resources.pb').existsSync(), isTrue);
+        expect(
+          File('$baseDir/res/values/values.arsc.flat').existsSync(),
+          isTrue,
+        );
+        expect(File('$baseDir/dex/classes.dex').existsSync(), isTrue);
+        expect(
+          File('$baseDir/assets/flutter_assets/sub/a.txt').existsSync(),
+          isTrue,
+        );
+        expect(
+          File('$baseDir/lib/arm64-v8a/libflutter.so').existsSync(),
+          isTrue,
+        );
 
-      // Round-trip: zip + list + validate.
-      final aabPath = '${tmp.path}/out.aab';
-      await zipBundle('${tmp.path}/aab', aabPath);
-      final entries = await listAabEntries(aabPath);
-      final validation = validateAabPathSet(entries);
-      expect(validation.ok, isTrue);
-    });
+        // Round-trip: zip + list + validate (BundleConfig.pb written like
+        // the real packager does).
+        await File(
+          '${tmp.path}/aab/BundleConfig.pb',
+        ).writeAsBytes(minimalBundleConfigPb());
+        final aabPath = '${tmp.path}/out.aab';
+        await zipBundle('${tmp.path}/aab', aabPath);
+        final entries = await listAabEntries(aabPath);
+        final validation = validateAabPathSet(entries);
+        expect(validation.ok, isTrue, reason: validation.missing.join(', '));
+      },
+    );
   });
 }

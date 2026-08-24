@@ -809,6 +809,10 @@ Future<String> packageAndSignAab({
   );
 
   final bundleRoot = p.dirname(baseDir);
+  // Bundle-level metadata required by the App Bundle format spec.
+  await File(
+    p.join(bundleRoot, 'BundleConfig.pb'),
+  ).writeAsBytes(minimalBundleConfigPb(), flush: true);
   final unsigned = p.join(bundleRoot, 'app-${ctx.mode.name}-unsigned.aab');
   await zipBundle(bundleRoot, unsigned);
 

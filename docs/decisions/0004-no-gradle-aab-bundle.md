@@ -40,5 +40,33 @@ Consequences:
 - Signing is v1-only (jarsigner) which is what bundletool/Play accept for
   `.aab`; upload keys are managed by Play after upload.
 
+## Spec corrections (post-review)
+
+Checked against the App Bundle format spec:
+
+1. The module manifest lives at **`base/manifest/AndroidManifest.xml`**, not
+   `base/AndroidManifest.xml`. The proto-format link output explodes with the
+   manifest relocated into `manifest/`.
+2. A **`BundleConfig.pb`** must exist at the bundle root; oka writes a minimal
+   (empty-message) one.
+3. An `.aab` **cannot be installed on a device directly** — bundles are an
+   upload format; Play/bundletool generate the installable split APKs.
+
+## Verification loop
+
+bundletool is a *verification* dependency only (never a build dependency):
+
+```bash
+oka get bundletool          # downloads bundletool.jar into ~/.oka/tools
+oka build aab --verify-aab  # build-apks --mode=universal against the bundle
+adb install -r .oka_cache/build/<mode>/universal/app-universal.apk
+```
+
+`build-apks` exercises the same parsing/generation path as Google Play, so a
+structurally invalid bundle fails there before upload. Structural unit tests
+(`test/aab_layout_test.dart`) assert the manifest path and BundleConfig.pb
+requirements so regressions fail fast without bundletool.
+
 **Authoritative source:** `lib/src/build/aab_layout.dart`,
-`lib/src/pipeline/default_pipeline.dart`, this file.
+`lib/src/build/bundletool.dart`, `lib/src/pipeline/default_pipeline.dart`,
+this file.

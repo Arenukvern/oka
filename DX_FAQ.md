@@ -27,9 +27,15 @@ oka build aab            # or: oka build release aab
 Same `oka.yaml` config, plugins, extra_deps, icons and deeplinks as APK builds.
 Resources link with `aapt2 --proto-format`; the bundle signs with jarsigner v1
 (debug keystore by default — supply your upload key for store releases).
-Verify locally with bundletool if desired:
+
+**Q: An .aab can't be installed directly — how do I verify it?**
+An App Bundle is an upload format; Play/bundletool generate the installable
+split APKs. Verify locally (bundletool exercises the same parsing path as Play):
 ```bash
-bundletool build-apks --bundle=app-release.aab --output=app.apks
+oka get bundletool          # one-time download into ~/.oka/tools
+oka build aab --verify-aab  # runs bundletool build-apks --mode=universal
+adb install -r .oka_cache/build/<mode>/universal/app-universal.apk
+adb shell am start -n com.example.example/.MainActivity
 ```
 
 **Q: How do I install & launch on a device?**

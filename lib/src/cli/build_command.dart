@@ -5,10 +5,12 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/android_builder.dart';
+import '../build/bundletool.dart';
 import '../build/flutter_apk_builder.dart';
 import '../build/sdk_locator.dart';
 import '../config/build_context.dart';
 import '../config/oka_config.dart';
+import '../pipeline/toolchain.dart' show debugKeystore;
 
 /// Recursively converts YamlMap/YamlList to Map/List
 dynamic _yamlToJson(dynamic value) {
@@ -55,6 +57,13 @@ class BuildCommand {
         'aab',
         negatable: false,
         help: 'Build Android App Bundle (AAB) instead of APK',
+      )
+      ..addFlag(
+        'verify-aab',
+        negatable: false,
+        help:
+            'After building an AAB, verify it with bundletool build-apks '
+            '(universal mode). Requires bundletool: oka get bundletool',
       )
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
       ..addOption('flavor', help: 'Build flavor')
@@ -167,5 +176,48 @@ class BuildCommand {
       '⏱️  Build time: ${(artifact.buildDuration / 1000).toStringAsFixed(1)}s',
     );
     print('📊 Size: ${(artifact.size / 1024 / 1024).toStringAsFixed(2)} MB');
+
+    if (wantsAab && (results['verify-aab'] as bool)) {
+      final ok = await _verifyAab(artifact.apkPath, verbose: verbose);
+      if (!ok) exit(1);
+    }
+  }
+
+  /// bundletool verification loop for AABs (ADR-0004).
+  ///
+  /// An .aab cannot be installed directly; build-apks exercises the same
+  /// parsing/generation path as Play. Optionally install the universal APK.
+  Future<bool> _verifyAab(String aabPath, {required bool verbose}) async {
+    print('\n🔍 Verifying AAB with bundletool...');
+    try {
+      final ks = await debugKeystore();
+      final apksPath = '${p.withoutExtension(aabPath)}.apks';
+      final result = await verifyAabWithBundletool(
+        aabPath: aabPath,
+        outputApksPath: apksPath,
+        keystorePath: ks,
+        keyAlias: 'androiddebugkey',
+        keyPass: 'android',
+        verbose: verbose,
+      );
+      if (!result.ok) {
+        print('❌ AAB verification failed:\n${result.error}');
+        return false;
+      }
+      print('✅ bundletool accepted the bundle: $apksPath');
+
+      final universalDir = p.join(p.dirname(aabPath), 'universal');
+      final universalApk = await extractUniversalApk(
+        apksPath,
+        p.join(universalDir, 'app-universal.apk'),
+      );
+      print('📱 Universal APK extracted: $universalApk');
+      print('   Install on a device with:');
+      print('     adb install -r $universalApk');
+      return true;
+    } on Exception catch (e) {
+      print('❌ AAB verification failed: $e');
+      return false;
+    }
   }
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../build/android_sdk_installer.dart';
+import '../build/bundletool.dart';
 import '../build/dependency_cache.dart';
 import '../build/sdk_locator.dart';
 import '../build/version_manager.dart';
@@ -32,6 +33,9 @@ class GetCommand {
         break;
       case 'kotlin':
         await _installKotlin();
+        break;
+      case 'bundletool':
+        await _installBundletool();
         break;
       case 'java':
         if (args.length < 2) {
@@ -86,6 +90,26 @@ class GetCommand {
       print('Then run: oka build apk');
     } catch (e) {
       print('❌ Failed to resolve $coordinate: $e');
+      exit(1);
+    }
+  }
+
+  /// Install bundletool.jar for AAB verification (ADR-0004).
+  Future<void> _installBundletool() async {
+    print('📦 Installing bundletool (AAB verification tool)...\n');
+    try {
+      final existing = await findBundletool();
+      if (existing != null) {
+        print('✅ bundletool already available: $existing');
+        return;
+      }
+      final jar = await downloadBundletool(verbose: true);
+      print('✅ bundletool installed: $jar');
+      print('');
+      print('💡 Verify an AAB with:');
+      print('   oka build aab --verify-aab');
+    } catch (e) {
+      print('❌ Failed to install bundletool: $e');
       exit(1);
     }
   }

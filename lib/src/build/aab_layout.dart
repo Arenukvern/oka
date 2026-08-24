@@ -5,10 +5,11 @@ import 'package:path/path.dart' as p;
 
 /// App Bundle layout helpers (ADR-0004).
 ///
-/// An `.aab` is a zip whose entries live under a module directory (`base/`):
+/// An `.aab` is a zip per the App Bundle format spec:
 ///
 /// ```
-/// base/AndroidManifest.xml      (protobuf, from aapt2 --proto-format)
+/// BundleConfig.pb               (bundle metadata, minimal protobuf)
+/// base/manifest/AndroidManifest.xml   (protobuf, from aapt2 --proto-format)
 /// base/resources.pb
 /// base/res/**                   (compiled resources)
 /// base/dex/classes*.dex
@@ -16,8 +17,18 @@ import 'package:path/path.dart' as p;
 /// base/assets/flutter_assets/**
 /// ```
 ///
-/// Unlike APKs, bundles are signed with **v1 JAR signing** (jarsigner);
-/// apksigner does not sign bundles.
+/// Note the manifest lives under `base/manifest/` — unlike APKs. Bundles are
+/// signed with **v1 JAR signing** (jarsigner); apksigner does not sign bundles.
+
+/// Minimal `BundleConfig.pb`: a BundleConfig protobuf message with only the
+/// compression (unspecified → default) and optimization fields unset, which
+/// bundletool accepts as valid.
+List<int> minimalBundleConfigPb() {
+  // BundleConfig { } — zero-length message body prefixed by field 1 (version)
+  // varint 0? bundletool accepts an entirely empty message; we emit one byte
+  // field: compression unspecified. Simplest valid payload is empty bytes.
+  return <int>[];
+}
 
 /// Stage an AAB `base/` module directory.
 ///
@@ -41,12 +52,18 @@ Future<void> stageAabBaseModule({
   }
   await root.create(recursive: true);
 
-  // Proto-format resources archive explodes directly into base/.
+  // Proto-format resources archive: AndroidManifest.xml must land under
+  // base/manifest/ per the App Bundle spec; resources.pb and res/** stay at
+  // base/ root.
   final bytes = await File(protoResourcesAp).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
   for (final file in archive) {
     if (!file.isFile) continue;
-    final outPath = p.join(baseDir, file.name);
+    var name = file.name.replaceAll(r'\', '/');
+    if (name == 'AndroidManifest.xml') {
+      name = 'manifest/AndroidManifest.xml';
+    }
+    final outPath = p.join(baseDir, name);
     await File(outPath).parent.create(recursive: true);
     await File(outPath).writeAsBytes(file.content as List<int>);
   }
@@ -151,6 +168,7 @@ class AabLayoutSpec {
   final bool requireDex;
   final bool requireFlutterAssets;
   final bool requireProtoResources;
+  final bool requireBundleConfig;
   final List<String> abis;
   final bool requireLibapp;
 
@@ -158,6 +176,7 @@ class AabLayoutSpec {
     this.requireDex = true,
     this.requireFlutterAssets = true,
     this.requireProtoResources = true,
+    this.requireBundleConfig = true,
     this.abis = const ['arm64-v8a'],
     this.requireLibapp = false,
   });
@@ -195,8 +214,15 @@ AabLayoutValidation validateAabPathSet(
 
   bool has(String entry) => normalized.contains('base/$entry');
 
+  if (spec.requireBundleConfig) {
+    check('BundleConfig.pb', () => normalized.contains('BundleConfig.pb'));
+  }
   if (spec.requireProtoResources) {
-    check('base/AndroidManifest.xml', () => has('AndroidManifest.xml'));
+    // Manifest lives under base/manifest/ per the App Bundle format spec.
+    check(
+      'base/manifest/AndroidManifest.xml',
+      () => has('manifest/AndroidManifest.xml'),
+    );
     check('base/resources.pb', () => has('resources.pb'));
   }
   if (spec.requireDex) {
