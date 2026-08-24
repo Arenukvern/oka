@@ -14,13 +14,7 @@ List<String> buildAapt2CompileDirArgs({
       !compiledResourcesZip.endsWith('.flata')) {
     // Still allow non-.zip paths but prefer .zip; callers should pass a file path.
   }
-  return <String>[
-    'compile',
-    '--dir',
-    resDir,
-    '-o',
-    compiledResourcesZip,
-  ];
+  return <String>['compile', '--dir', resDir, '-o', compiledResourcesZip];
 }
 
 /// Args after the aapt2 executable for linking a compiled-resources zip.
@@ -45,6 +39,36 @@ List<String> buildAapt2LinkArgs({
     if (autoAddOverlay) '--auto-add-overlay',
     if (assetsDir != null) ...['-A', assetsDir],
     // Single compiled-resources archive from `aapt2 compile --dir ... -o zip`
+    '-R',
+    compiledResourcesZip,
+  ];
+}
+
+/// Args after aapt2 for linking in **proto format** (App Bundle inputs).
+///
+/// Produces `AndroidManifest.xml` (protobuf), `resources.pb` and compiled
+/// `res/**` inside the output archive — the exact layout an AAB `base/`
+/// module expects. Reuses the same single `-R <compiled.zip>` rule as
+/// [buildAapt2LinkArgs].
+List<String> buildAapt2LinkProtoFormatArgs({
+  required String androidJar,
+  required String manifestPath,
+  required String outputAp,
+  required String compiledResourcesZip,
+  String? javaOutDir,
+  bool autoAddOverlay = true,
+}) {
+  return <String>[
+    'link',
+    '--proto-format',
+    '-I',
+    androidJar,
+    '--manifest',
+    manifestPath,
+    '-o',
+    outputAp,
+    if (javaOutDir != null) ...['--java', javaOutDir],
+    if (autoAddOverlay) '--auto-add-overlay',
     '-R',
     compiledResourcesZip,
   ];

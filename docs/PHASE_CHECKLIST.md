@@ -80,3 +80,4 @@ Evidence roots:
 | Custom pipeline Dart API example | 0002 | `example/bin/custom_pipeline.dart` ran end-to-end with custom steps | — |
 | Extra assets / deeplinks fast-settings | 0002 | `test/asset_steps_test.dart`; verified in APK + on-device deeplink launch | `asset_steps.dart` |
 | Vector-first launcher icons | [0003](decisions/0003-vector-first-launcher-icons.md) | `test/launcher_icon_test.dart`; `aapt2 dump badging` shows icon | `launcher_icon.dart` |
+| No-Gradle AAB (hand-assembled bundle) | [0004](decisions/0004-no-gradle-aab-bundle.md) | `test/aab_layout_test.dart`, `test/aab_pipeline_test.dart` | `aab_layout.dart`, proto link in `toolchain.dart` |

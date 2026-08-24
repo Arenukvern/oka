@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../config/build_context.dart';
 import '../pipeline/default_pipeline.dart';
+import '../pipeline/pipeline.dart';
 import 'dependency_cache.dart';
 import 'dependency_suggest.dart';
 import 'flutter_assemble.dart';
@@ -54,19 +55,35 @@ class FlutterApkBuilder {
 
   Future<BuildArtifact> buildApk(BuildContext ctx) async {
     final start = DateTime.now();
+    final isAab = ctx.buildAab;
     try {
-      print('🚀 Building Flutter ${ctx.mode.name} APK (no-Gradle)...');
+      print(
+        '🚀 Building Flutter ${ctx.mode.name} ${isAab ? 'AAB' : 'APK'} '
+        '(no-Gradle)...',
+      );
 
       final overrides = await PipelineOverrides.load(ctx.projectPath);
-      final pipeline = await defaultApkPipeline(
-        sdkLocator,
-        verbose: verbose,
-        layoutOnly: layoutOnly,
-        strictPlugins: strictPlugins,
-        allowNetwork: allowNetwork,
-        dependencyCache: dependencyCache,
-        overrides: overrides,
-      );
+      final Pipeline pipeline;
+      if (isAab) {
+        pipeline = await defaultAabPipeline(
+          sdkLocator,
+          verbose: verbose,
+          strictPlugins: strictPlugins,
+          allowNetwork: allowNetwork,
+          dependencyCache: dependencyCache,
+          overrides: overrides,
+        );
+      } else {
+        pipeline = await defaultApkPipeline(
+          sdkLocator,
+          verbose: verbose,
+          layoutOnly: layoutOnly,
+          strictPlugins: strictPlugins,
+          allowNetwork: allowNetwork,
+          dependencyCache: dependencyCache,
+          overrides: overrides,
+        );
+      }
       final result = await pipeline.run(ctx);
       if (!result.ok) {
         throw Exception(result.error);
@@ -75,8 +92,11 @@ class FlutterApkBuilder {
       final size = apkPath == null ? 0 : await File(apkPath).length();
       final duration = DateTime.now().difference(start);
       if (result.data['layout_only'] != true) {
-        print('✅ Flutter APK build successful in ${duration.inSeconds}s');
-        print('📍 APK: $apkPath');
+        print(
+          '✅ Flutter ${isAab ? 'AAB' : 'APK'} build successful in '
+          '${duration.inSeconds}s',
+        );
+        print('📍 ${isAab ? 'AAB' : 'APK'}: $apkPath');
         print('📊 Size: ${(size / 1024 / 1024).toStringAsFixed(2)} MB');
       }
       return BuildArtifact.fromJson({

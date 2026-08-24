@@ -19,6 +19,19 @@ cd example && flutter pub get && oka build apk
 # output: .oka_cache/build/debug/app-debug.apk
 ```
 
+**Q: How do I build an App Bundle (AAB) for Play Store?**
+```bash
+oka build aab            # or: oka build release aab
+# output: .oka_cache/build/<mode>/aab/app-<mode>.aab
+```
+Same `oka.yaml` config, plugins, extra_deps, icons and deeplinks as APK builds.
+Resources link with `aapt2 --proto-format`; the bundle signs with jarsigner v1
+(debug keystore by default — supply your upload key for store releases).
+Verify locally with bundletool if desired:
+```bash
+bundletool build-apks --bundle=app-release.aab --output=app.apks
+```
+
 **Q: How do I install & launch on a device?**
 ```bash
 adb install -r example/.oka_cache/build/debug/app-debug.apk

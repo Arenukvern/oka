@@ -72,6 +72,12 @@ A: Android 11+ rejects installs (-124) when resources.arsc is compressed or
 not 4-byte aligned for targetSdk ≥ 30. `zipStagingToApk` marks it STORED and
 zipalign runs with `-p 4`; found via real-device install failure.
 
+**Q: Why hand-assemble AABs instead of using bundletool? (ADR 0004)**
+A: The bundle is just a zip with a proto-format `base/` module; reusing the
+existing pipeline with one aapt2 flag (`--proto-format`) keeps oka's zero-extra-
+tool dependency and lets it structurally validate its own output. Bundles sign
+with jarsigner v1 because apksigner doesn't sign bundles.
+
 **Q: Why vector-first launcher icons without PNG generation?**
 A: Adaptive icons (API 26+) are pure XML — VectorDrawable foreground + color
 background need no image tooling or binary assets, keeping oka's zero-dep

@@ -25,8 +25,11 @@ class BuildCommand {
   Future<void> run(List<String> args) async {
     final parser = ArgParser()
       ..addFlag('release', negatable: false, help: 'Build release variant')
-      ..addFlag('debug',
-          negatable: false, help: 'Build debug variant (default)')
+      ..addFlag(
+        'debug',
+        negatable: false,
+        help: 'Build debug variant (default)',
+      )
       ..addFlag('profile', negatable: false, help: 'Build profile variant')
       ..addFlag(
         'flutter',
@@ -48,12 +51,18 @@ class BuildCommand {
             'Escape hatch only: skip plugins that fail packaging. '
             'Default builds package all plugins completely.',
       )
-      ..addFlag('aab',
-          negatable: false, help: 'Build Android App Bundle (AAB) instead of APK')
+      ..addFlag(
+        'aab',
+        negatable: false,
+        help: 'Build Android App Bundle (AAB) instead of APK',
+      )
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
       ..addOption('flavor', help: 'Build flavor')
-      ..addOption('abi',
-          help: 'Single ABI to build (e.g. arm64-v8a)', defaultsTo: '');
+      ..addOption(
+        'abi',
+        help: 'Single ABI to build (e.g. arm64-v8a)',
+        defaultsTo: '',
+      );
 
     final results = parser.parse(args);
     final verbose = results['verbose'] as bool;
@@ -76,17 +85,9 @@ class BuildCommand {
 
     // Remaining args may include "apk" / "aab" subcommand tokens
     final rest = results.rest;
-    final wantsAab =
-        buildAab || rest.any((r) => r.toLowerCase() == 'aab');
+    final wantsAab = buildAab || rest.any((r) => r.toLowerCase() == 'aab');
 
     print('🔨 Building ${mode.name} ${wantsAab ? 'AAB' : 'APK'}...\n');
-
-    if (wantsAab) {
-      print(
-        '⚠️  AAB via no-Gradle path is limited; building APK layout pipeline.\n'
-        '   Full AAB/bundletool support is not the primary path yet.\n',
-      );
-    }
 
     // Load oka.yaml
     final okaYamlFile = File('oka.yaml');

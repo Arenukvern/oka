@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../build/aab_layout.dart';
 import '../build/aapt2_commands.dart';
 import '../build/apk_layout.dart';
 import '../build/sdk_locator.dart';
@@ -274,6 +275,264 @@ Future<CompileDexOutcome> compileAndDex({
   }
 }
 
+/// aapt2 compile + **proto-format** link + kotlinc/javac + d8 (AAB path).
+///
+/// Same compile/dex behavior as [compileAndDex]; the link step emits proto
+/// resources (`resources.pb` + protobuf manifest) consumed by the bundle
+/// packager. Returns dex files; proto output lands at `resources_proto.ap_`.
+Future<CompileDexOutcome> compileAndDexProto({
+  required BuildContext ctx,
+  required SdkLocator sdkLocator,
+  required String hostDir,
+  required String embeddingJar,
+  required List<String> androidxJarPaths,
+  List<String> pluginJavaSources = const [],
+  List<String> pluginKotlinSources = const [],
+  List<String> pluginJarDeps = const [],
+  List<String> pluginResDirs = const [],
+}) async {
+  try {
+    final aapt2 = await sdkLocator.findAapt2();
+    final androidSdk = await sdkLocator.findAndroidSdk();
+    final compileSdk = ctx.config.android.compileSdk.isEmpty
+        ? '34'
+        : ctx.config.android.compileSdk;
+    final androidJar = await resolveAndroidJar(androidSdk, compileSdk);
+
+    final resDir = p.join(ctx.buildDir, 'res');
+    for (final pluginRes in pluginResDirs) {
+      final src = Directory(pluginRes);
+      if (await src.exists()) {
+        await copyDirectory(src, Directory(resDir));
+      }
+    }
+
+    final compiledResZip = p.join(ctx.buildDir, 'compiled_resources.zip');
+    final compiledParent = Directory(p.dirname(compiledResZip));
+    if (!await compiledParent.exists()) {
+      await compiledParent.create(recursive: true);
+    }
+    if (await File(compiledResZip).exists()) {
+      await File(compiledResZip).delete();
+    }
+
+    final compile = await Process.run(
+      aapt2,
+      buildAapt2CompileDirArgs(
+        resDir: resDir,
+        compiledResourcesZip: compiledResZip,
+      ),
+    );
+    if (compile.exitCode != 0) {
+      return CompileDexOutcome(
+        ok: false,
+        error: 'aapt2 compile failed: ${compile.stderr}',
+      );
+    }
+    if (!await File(compiledResZip).exists()) {
+      return CompileDexOutcome(
+        ok: false,
+        error:
+            'aapt2 compile did not produce compiled-resources zip at $compiledResZip',
+      );
+    }
+
+    final linkedRes = p.join(ctx.buildDir, 'resources_proto.ap_');
+    final genDir = p.join(ctx.buildDir, 'gen');
+    await Directory(genDir).create(recursive: true);
+    final manifestPath = p.join(ctx.buildDir, 'AndroidManifest.xml');
+
+    final link = await Process.run(
+      aapt2,
+      buildAapt2LinkProtoFormatArgs(
+        androidJar: androidJar,
+        manifestPath: manifestPath,
+        outputAp: linkedRes,
+        compiledResourcesZip: compiledResZip,
+        javaOutDir: genDir,
+      ),
+    );
+    if (link.exitCode != 0) {
+      return CompileDexOutcome(
+        ok: false,
+        error: 'aapt2 link --proto-format failed: ${link.stderr}',
+      );
+    }
+
+    return _compileJavaAndDex(
+      ctx: ctx,
+      sdkLocator: sdkLocator,
+      hostDir: hostDir,
+      embeddingJar: embeddingJar,
+      androidxJarPaths: androidxJarPaths,
+      pluginJavaSources: pluginJavaSources,
+      pluginKotlinSources: pluginKotlinSources,
+      pluginJarDeps: pluginJarDeps,
+      androidJar: androidJar,
+      genDir: genDir,
+    );
+  } on Exception catch (e) {
+    return CompileDexOutcome(ok: false, error: e.toString());
+  }
+}
+
+/// Shared javac/kotlinc/jar/d8 tail used by both APK and AAB compile paths.
+Future<CompileDexOutcome> _compileJavaAndDex({
+  required BuildContext ctx,
+  required SdkLocator sdkLocator,
+  required String hostDir,
+  required String embeddingJar,
+  required List<String> androidxJarPaths,
+  required String androidJar,
+  required String genDir,
+  List<String> pluginJavaSources = const [],
+  List<String> pluginKotlinSources = const [],
+  List<String> pluginJarDeps = const [],
+}) async {
+  final javac = await sdkLocator.findJavac();
+  final classesDir = p.join(ctx.buildDir, 'classes');
+  if (await Directory(classesDir).exists()) {
+    await Directory(classesDir).delete(recursive: true);
+  }
+  await Directory(classesDir).create(recursive: true);
+
+  final javaFiles = <String>[...pluginJavaSources];
+  await for (final e in Directory(hostDir).list(recursive: true)) {
+    if (e is File && e.path.endsWith('.java')) javaFiles.add(e.path);
+  }
+  await for (final e in Directory(genDir).list(recursive: true)) {
+    if (e is File && e.path.endsWith('.java')) javaFiles.add(e.path);
+  }
+
+  final cpSep = Platform.isWindows ? ';' : ':';
+  final classpathEntries = <String>[
+    androidJar,
+    embeddingJar,
+    ...androidxJarPaths,
+    ...pluginJarDeps,
+  ];
+  final classpath = classpathEntries.join(cpSep);
+
+  if (pluginKotlinSources.isNotEmpty) {
+    final kotlinc = await sdkLocator.findKotlinc();
+    if (kotlinc == null) {
+      return CompileDexOutcome(
+        ok: false,
+        error:
+            'Kotlin sources present (${pluginKotlinSources.length}) but kotlinc '
+            'not found. Run: oka get kotlin',
+      );
+    }
+    final kotlinEnv = await kotlinJavaEnvironment(verbose: ctx.verbose);
+    final ktArgs = <String>[
+      '-classpath',
+      classpath,
+      '-d',
+      classesDir,
+      '-jvm-target',
+      '${ctx.config.android.javaVersion}',
+      ...pluginKotlinSources,
+      ...javaFiles,
+    ];
+    final ktResult = await Process.run(kotlinc, ktArgs, environment: kotlinEnv);
+    if (ktResult.exitCode != 0) {
+      return CompileDexOutcome(
+        ok: false,
+        error: 'kotlinc failed: ${ktResult.stderr}\n${ktResult.stdout}',
+      );
+    }
+  }
+
+  if (javaFiles.isNotEmpty) {
+    final javaCp = '$classpath$cpSep$classesDir';
+    final javacResult = await Process.run(javac, [
+      '-classpath',
+      javaCp,
+      '-d',
+      classesDir,
+      '--release',
+      '${ctx.config.android.javaVersion}',
+      ...javaFiles,
+    ]);
+    if (javacResult.exitCode != 0) {
+      return CompileDexOutcome(
+        ok: false,
+        error: 'javac failed: ${javacResult.stderr}',
+      );
+    }
+  }
+
+  final classesJar = p.join(ctx.buildDir, 'classes.jar');
+  final jarResult = await Process.run('jar', [
+    'cf',
+    classesJar,
+    '-C',
+    classesDir,
+    '.',
+  ]);
+  if (jarResult.exitCode != 0) {
+    return CompileDexOutcome(
+      ok: false,
+      error: 'jar failed: ${jarResult.stderr}',
+    );
+  }
+
+  final d8 = await sdkLocator.findD8();
+  final dexOutDir = p.join(ctx.buildDir, 'dex');
+  await Directory(dexOutDir).create(recursive: true);
+
+  final programJars = <String>[
+    classesJar,
+    embeddingJar,
+    ...filterRuntimeJars([...androidxJarPaths, ...pluginJarDeps]),
+  ];
+  final compileOnlyJars = filterCompileOnlyJars([
+    ...androidxJarPaths,
+    ...pluginJarDeps,
+  ]);
+  final minApi = ctx.config.android.minSdk.isEmpty
+      ? '21'
+      : ctx.config.android.minSdk;
+  final d8Args = <String>[
+    '--output',
+    dexOutDir,
+    '--min-api',
+    minApi,
+    '--lib',
+    androidJar,
+    for (final lib in compileOnlyJars) ...['--lib', lib],
+    ...programJars,
+  ];
+
+  var d8Result = await Process.run(d8, d8Args);
+  if (d8Result.exitCode != 0) {
+    d8Result = await Process.run(d8, [
+      '--output',
+      dexOutDir,
+      '--min-api',
+      minApi,
+      '--lib',
+      androidJar,
+      ...programJars,
+    ]);
+    if (d8Result.exitCode != 0) {
+      return CompileDexOutcome(
+        ok: false,
+        error: 'd8 failed: ${d8Result.stderr}',
+      );
+    }
+  }
+
+  final dexFiles = await listDexOutputs(dexOutDir);
+  if (dexFiles.isEmpty) {
+    return CompileDexOutcome(
+      ok: false,
+      error: 'd8 produced no classes*.dex under $dexOutDir',
+    );
+  }
+  return CompileDexOutcome(ok: true, dexFiles: dexFiles);
+}
+
 /// Stage layout → zip → zipalign → apksigner. Returns signed APK path.
 Future<String> packageAndSign({
   required BuildContext ctx,
@@ -524,6 +783,64 @@ Future<void> copyDirectory(Directory source, Directory dest) async {
       await e.copy(out);
     }
   }
+}
+
+/// Stage `base/` module → zip → jarsigner (v1). Returns signed AAB path.
+Future<String> packageAndSignAab({
+  required BuildContext ctx,
+  required SdkLocator sdkLocator,
+  required List<String> dexFiles,
+  required String flutterAssetsDir,
+  required Map<String, String> libflutterByAbi,
+  required Map<String, String> libappByAbi,
+  Map<String, List<String>> extraNativeByAbi = const {},
+}) async {
+  final baseDir = p.join(ctx.buildDir, 'aab', 'base');
+  final protoRes = p.join(ctx.buildDir, 'resources_proto.ap_');
+
+  await stageAabBaseModule(
+    baseDir: baseDir,
+    protoResourcesAp: protoRes,
+    dexFiles: dexFiles,
+    flutterAssetsDir: flutterAssetsDir,
+    libflutterByAbi: libflutterByAbi,
+    libappByAbi: libappByAbi,
+    extraNativeByAbi: extraNativeByAbi,
+  );
+
+  final bundleRoot = p.dirname(baseDir);
+  final unsigned = p.join(bundleRoot, 'app-${ctx.mode.name}-unsigned.aab');
+  await zipBundle(bundleRoot, unsigned);
+
+  // v1 JAR signing — apksigner does not sign bundles (ADR-0004).
+  final ks = await debugKeystore();
+  final signed = p.join(bundleRoot, 'app-${ctx.mode.name}.aab');
+  final jarsigner = await _findJarsigner(sdkLocator);
+  await signAab(
+    unsignedAabPath: unsigned,
+    keystorePath: ks,
+    keyAlias: 'androiddebugkey',
+    storePass: 'android',
+    signedAabPath: signed,
+    jarsignerPath: jarsigner,
+  );
+  return signed;
+}
+
+/// Locate jarsigner: next to javac first, then PATH.
+Future<String?> _findJarsigner(SdkLocator sdkLocator) async {
+  try {
+    final javac = await sdkLocator.findJavac();
+    final candidate = p.join(p.dirname(javac), 'jarsigner');
+    if (await File(candidate).exists()) return candidate;
+  } catch (_) {
+    // javac unavailable; fall through to PATH lookup below.
+  }
+  try {
+    final r = await Process.run('which', ['jarsigner']);
+    if (r.exitCode == 0) return (r.stdout as String).trim();
+  } catch (_) {}
+  return null;
 }
 
 Future<String> debugKeystore() async {

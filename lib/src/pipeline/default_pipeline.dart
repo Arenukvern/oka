@@ -127,6 +127,48 @@ Future<Pipeline> defaultApkPipeline(
   ], verbose: verbose);
 }
 
+/// Builds the default no-Gradle AAB pipeline (ADR-0004).
+///
+/// Shares steps 1–10 with the APK pipeline; diverges at resource linking
+/// (`--proto-format`), packaging (`base/` module + jarsigner v1) and layout
+/// validation.
+Future<Pipeline> defaultAabPipeline(
+  SdkLocator sdkLocator, {
+  bool verbose = false,
+  bool strictPlugins = true,
+  bool allowNetwork = true,
+  DependencyCache? dependencyCache,
+  PipelineOverrides overrides = const PipelineOverrides(),
+}) async {
+  final cache =
+      dependencyCache ??
+      DependencyCache(verbose: verbose, allowNetwork: allowNetwork);
+  final assembler = FlutterAssembler(verbose: verbose);
+  final discovery = PluginDiscovery(verbose: verbose);
+
+  return Pipeline([
+    EnsureAndroidSdkStep(sdkLocator),
+    ResolveAbisStep(),
+    PluginPackagingStep(
+      sdkLocator: sdkLocator,
+      pluginDiscovery: discovery,
+      dependencyCache: cache,
+      strictPlugins: strictPlugins,
+    ),
+    HostCodegenStep(deeplinks: overrides.deeplinks, iconConfig: overrides.icon),
+    FlutterAssembleStep(sdkLocator: sdkLocator, assembler: assembler),
+    EngineExtractionStep(sdkLocator),
+    ReleaseAotStep(sdkLocator: sdkLocator, assembler: assembler),
+    DependencyResolveStep(cache),
+    _ExtraDepsStep(overrides.extraDeps, cache, verbose: verbose),
+    _LocalAarsStep(overrides.localAars, verbose: verbose),
+    CompileProtoAndDexStep(sdkLocator),
+    ExtraAssetsStep(overrides.extraAssets),
+    PackageAndSignAabStep(sdkLocator),
+    ValidateAabLayoutStep(),
+  ], verbose: verbose);
+}
+
 /// Resolves user-declared extra Maven coordinates into
 /// [PipelineState.extraRuntimeJars] before compile/dex.
 class _ExtraDepsStep implements BuildStep {

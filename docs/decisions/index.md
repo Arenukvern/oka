@@ -9,3 +9,4 @@ docs live in `README.md` and `DX_FAQ.md`.
 | [0001](0001-no-gradle-default-build-path.md) | No-Gradle default build path; demote cargo-apk hybrid | accepted |
 | [0002](0002-composable-build-pipeline.md) | Composable build pipeline (steps + YAML overrides + Dart composition) | accepted |
 | [0003](0003-vector-first-launcher-icons.md) | Vector-first adaptive launcher icons (no PNG tooling) | accepted |
+| [0004](0004-no-gradle-aab-bundle.md) | No-Gradle AAB via hand-assembled bundle (no bundletool) | accepted |
