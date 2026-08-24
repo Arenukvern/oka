@@ -29,6 +29,20 @@ android:
     - arm64-v8a
     - armeabi-v7a
 
+# Pipeline fast-settings (ADR-0002): extra runtime deps without editing oka.
+pipeline:
+  extra_deps:
+    - "com.squareup.okhttp3:okhttp:4.12.0"
+  extra_assets:
+    - from: assets/hello.txt
+      to: assets/hello.txt
+    - from: build/generated-config.json
+      to: generated-config.json
+  deeplinks:
+    - scheme: https
+      host: oka.example.com
+      pathPrefix: /app
+
 # Cargo-apk specific configuration
 cargo_apk:
   # Build targets (ABIs to build for)

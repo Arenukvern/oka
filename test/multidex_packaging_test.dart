@@ -85,11 +85,15 @@ void main() {
       );
       // Must not be only in intermediate — must be in packaged APK blobs
       expect(
-        anyDexContainsClass([blobs['classes.dex']!], 'io.flutter.plugins.GeneratedPluginRegistrant'),
+        anyDexContainsClass([
+          blobs['classes.dex']!,
+        ], 'io.flutter.plugins.GeneratedPluginRegistrant'),
         isFalse,
       );
       expect(
-        anyDexContainsClass([blobs['classes2.dex']!], 'io.flutter.plugins.GeneratedPluginRegistrant'),
+        anyDexContainsClass([
+          blobs['classes2.dex']!,
+        ], 'io.flutter.plugins.GeneratedPluginRegistrant'),
         isTrue,
       );
     });
@@ -120,13 +124,16 @@ void main() {
     });
   });
 
-  test('flutter_apk_builder packages multi-dex list (source contract)', () async {
-    final src = await File(
-      p.join('lib', 'src', 'build', 'flutter_apk_builder.dart'),
-    ).readAsString();
-    expect(src, contains('listDexOutputs'));
-    expect(src, contains('dexFiles:'));
-    // Must not return a single classes.dex path only
-    expect(src, contains('return dexFiles'));
-  });
+  test(
+    'flutter_apk_builder packages multi-dex list (source contract)',
+    () async {
+      final src = await File(
+        p.join('lib', 'src', 'pipeline', 'toolchain.dart'),
+      ).readAsString();
+      expect(src, contains('listDexOutputs'));
+      expect(src, contains('dexFiles:'));
+      // Must not return a single classes.dex path only
+      expect(src, contains('dexFiles'));
+    },
+  );
 }

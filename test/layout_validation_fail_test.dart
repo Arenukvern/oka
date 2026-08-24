@@ -7,32 +7,26 @@ import 'package:test/test.dart';
 void main() {
   group('incomplete layout must not be treated as success', () {
     test('validatePathSet fails without classes.dex', () {
-      final v = validatePathSet(
-        [
-          'assets/flutter_assets/kernel_blob.bin',
-          'lib/arm64-v8a/libflutter.so',
-        ],
-        spec: const ApkLayoutSpec(abis: ['arm64-v8a']),
-      );
+      final v = validatePathSet([
+        'assets/flutter_assets/kernel_blob.bin',
+        'lib/arm64-v8a/libflutter.so',
+      ], spec: const ApkLayoutSpec(abis: ['arm64-v8a']));
       expect(v.ok, isFalse);
       expect(v.missing, contains('classes.dex'));
     });
 
     test('validatePathSet fails without libflutter.so', () {
-      final v = validatePathSet(
-        [
-          'classes.dex',
-          'assets/flutter_assets/AssetManifest.json',
-        ],
-        spec: const ApkLayoutSpec(abis: ['arm64-v8a']),
-      );
+      final v = validatePathSet([
+        'classes.dex',
+        'assets/flutter_assets/AssetManifest.json',
+      ], spec: const ApkLayoutSpec(abis: ['arm64-v8a']));
       expect(v.ok, isFalse);
       expect(v.missing, contains('lib/arm64-v8a/libflutter.so'));
     });
 
     test('builder throws on incomplete layout (source contract)', () async {
       final text = await File(
-        p.join('lib', 'src', 'build', 'flutter_apk_builder.dart'),
+        p.join('lib', 'src', 'pipeline', 'steps', 'tool_steps.dart'),
       ).readAsString();
       // Must throw / fail — not only warn
       expect(text, contains('APK layout incomplete'));
@@ -40,7 +34,7 @@ void main() {
       // success:true only after validation ok path
       expect(
         text.contains('if (!validation.ok)') &&
-            text.contains('throw Exception'),
+            text.contains('StepResult.failure'),
         isTrue,
       );
     });
@@ -54,10 +48,12 @@ void main() {
       });
 
       final staging = p.join(tmp.path, 'staging');
-      await Directory(p.join(staging, 'assets', 'flutter_assets'))
-          .create(recursive: true);
-      await File(p.join(staging, 'assets', 'flutter_assets', 'x'))
-          .writeAsString('y');
+      await Directory(
+        p.join(staging, 'assets', 'flutter_assets'),
+      ).create(recursive: true);
+      await File(
+        p.join(staging, 'assets', 'flutter_assets', 'x'),
+      ).writeAsString('y');
       // missing dex and libflutter
 
       final apk = p.join(tmp.path, 'bad.apk');

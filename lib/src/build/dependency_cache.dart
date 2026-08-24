@@ -28,6 +28,19 @@ class MavenCoordinate {
 
   String get cacheKey => '$groupId:$artifactId:$version:$packaging';
 
+  /// Parses `group:artifact:version` (packaging auto-detected via KMP
+  /// suffix probing at resolve time).
+  static MavenCoordinate? parse(String coordinate) {
+    final parts = coordinate.split(':');
+    if (parts.length != 3) return null;
+    if (parts.any((p) => p.trim().isEmpty)) return null;
+    return MavenCoordinate(
+      groupId: parts[0].trim(),
+      artifactId: parts[1].trim(),
+      version: parts[2].trim(),
+    );
+  }
+
   @override
   String toString() => '$groupId:$artifactId:$version@$packaging';
 }

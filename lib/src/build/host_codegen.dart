@@ -98,10 +98,9 @@ String generateAndroidManifestXml({
   required String minSdk,
   required String targetSdk,
   String activityName = '.MainActivity',
-  List<String> permissions = const [
-    'android.permission.INTERNET',
-  ],
+  List<String> permissions = const ['android.permission.INTERNET'],
   bool debuggable = true,
+  String extraIntentFilters = '',
 }) {
   final permLines = permissions
       .map((p) => '    <uses-permission android:name="$p" />')
@@ -136,6 +135,7 @@ $permLines
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+$extraIntentFilters
         </activity>
         <meta-data
             android:name="flutterEmbedding"

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../build/android_sdk_installer.dart';
+import '../build/dependency_cache.dart';
 import '../build/sdk_locator.dart';
 import '../build/version_manager.dart';
 
@@ -44,10 +45,48 @@ class GetCommand {
         await _installAndroidSdk();
         await _installAll();
         break;
+      case 'dep':
+      case 'dependency':
+        if (args.length < 2) {
+          print('❌ Please specify a Maven coordinate');
+          print('   Example: oka get dep androidx.window:window:1.3.0');
+          exit(1);
+        }
+        await _installDependency(args[1]);
+        break;
       default:
         print('❌ Unknown dependency: $target');
         _printUsage();
         exit(1);
+    }
+  }
+
+  /// Download a single Maven coordinate into the oka cache and print the
+  /// oka.yaml snippet (ADR-0002 dependency recovery).
+  Future<void> _installDependency(String coordinate) async {
+    final coord = MavenCoordinate.parse(coordinate);
+    if (coord == null) {
+      print(
+        '❌ Invalid coordinate "$coordinate" — expected group:artifact:version',
+      );
+      exit(1);
+    }
+    print('📦 Resolving $coordinate...\n');
+    try {
+      final cache = DependencyCache(verbose: true);
+      final jar = await cache.resolve(coord);
+      print('✅ Cached: ${jar.jarPath}');
+      print('');
+      print('💡 Add to oka.yaml to include it in builds:');
+      print('');
+      print('pipeline:');
+      print('  extra_deps:');
+      print('    - "$coordinate"');
+      print('');
+      print('Then run: oka build apk');
+    } catch (e) {
+      print('❌ Failed to resolve $coordinate: $e');
+      exit(1);
     }
   }
 
@@ -91,11 +130,10 @@ class GetCommand {
         print('🔧 Using Android SDK Manager to install build-tools...\n');
 
         // Install latest build-tools which includes R8
-        final result = await Process.run(
-          sdkmanager,
-          ['--install', 'build-tools;34.0.0'],
-          runInShell: true,
-        );
+        final result = await Process.run(sdkmanager, [
+          '--install',
+          'build-tools;34.0.0',
+        ], runInShell: true);
 
         if (result.exitCode == 0) {
           print('✅ Build tools installed successfully!');
@@ -127,11 +165,10 @@ class GetCommand {
       print('🔧 Using Android SDK Manager...\n');
 
       // Install latest build-tools
-      final result = await Process.run(
-        sdkmanager,
-        ['--install', 'build-tools;34.0.0'],
-        runInShell: true,
-      );
+      final result = await Process.run(sdkmanager, [
+        '--install',
+        'build-tools;34.0.0',
+      ], runInShell: true);
 
       if (result.exitCode == 0) {
         print('✅ Build tools installed successfully!');
@@ -257,7 +294,8 @@ class GetCommand {
     print('Option 1: Using Android Studio');
     print('  1. Open Android Studio');
     print(
-        '  2. Go to Settings > Appearance & Behavior > System Settings > Android SDK');
+      '  2. Go to Settings > Appearance & Behavior > System Settings > Android SDK',
+    );
     print('  3. Click on "SDK Tools" tab');
     print('  4. Check "Android SDK Build-Tools" (install latest version)');
     print('  5. Click "Apply" to install');
@@ -290,7 +328,8 @@ class GetCommand {
       }
 
       // Get oka cache directory
-      final homeDir = Platform.environment['HOME'] ??
+      final homeDir =
+          Platform.environment['HOME'] ??
           Platform.environment['USERPROFILE'] ??
           '';
       if (homeDir.isEmpty) {
@@ -321,11 +360,12 @@ class GetCommand {
 
       // Download using curl
       final tempFile = p.join(okaCacheDir, 'kotlin-compiler.zip');
-      final downloadResult = await Process.run(
-        'curl',
-        ['-L', '-o', tempFile, downloadUrl],
-        runInShell: true,
-      );
+      final downloadResult = await Process.run('curl', [
+        '-L',
+        '-o',
+        tempFile,
+        downloadUrl,
+      ], runInShell: true);
 
       if (downloadResult.exitCode != 0) {
         throw Exception('Failed to download Kotlin: ${downloadResult.stderr}');
@@ -334,11 +374,12 @@ class GetCommand {
       print('📦 Extracting Kotlin compiler...');
 
       // Extract using unzip
-      final extractResult = await Process.run(
-        'unzip',
-        ['-q', tempFile, '-d', okaCacheDir],
-        runInShell: true,
-      );
+      final extractResult = await Process.run('unzip', [
+        '-q',
+        tempFile,
+        '-d',
+        okaCacheDir,
+      ], runInShell: true);
 
       if (extractResult.exitCode != 0) {
         throw Exception('Failed to extract Kotlin: ${extractResult.stderr}');
@@ -364,7 +405,8 @@ class GetCommand {
       print('   Version: $kotlinVersion');
       print('');
       print(
-          '💡 Kotlin compiler will be used automatically by oka during builds');
+        '💡 Kotlin compiler will be used automatically by oka during builds',
+      );
       print('');
       print('To use it system-wide, add to your PATH:');
       if (Platform.isWindows) {
@@ -399,8 +441,8 @@ class GetCommand {
 
     try {
       // Check if already installed
-      final installedVersions =
-          await versionManager.listInstalledJavaVersions();
+      final installedVersions = await versionManager
+          .listInstalledJavaVersions();
       final alreadyInstalled = installedVersions.any(
         (v) =>
             v == version ||

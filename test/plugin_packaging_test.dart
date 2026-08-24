@@ -81,70 +81,83 @@ flutter:
       return root;
     }
 
-    test('packages two plugins and builds registrant with both classes', () async {
-      final p1 = await makeJavaPlugin(
-        name: 'alpha_plugin',
-        packageName: 'com.example.alpha',
-        className: 'AlphaPlugin',
-      );
-      final p2 = await makeJavaPlugin(
-        name: 'beta_plugin',
-        packageName: 'com.example.beta',
-        className: 'BetaPlugin',
-      );
+    test(
+      'packages two plugins and builds registrant with both classes',
+      () async {
+        final p1 = await makeJavaPlugin(
+          name: 'alpha_plugin',
+          packageName: 'com.example.alpha',
+          className: 'AlphaPlugin',
+        );
+        final p2 = await makeJavaPlugin(
+          name: 'beta_plugin',
+          packageName: 'com.example.beta',
+          className: 'BetaPlugin',
+        );
 
-      final discovery = PluginDiscoveryResult(
-        plugins: [
-          DiscoveredPlugin(
-            name: 'alpha_plugin',
-            path: p1,
-            hasAndroid: true,
-            androidPackage: 'com.example.alpha',
-            pluginClass: 'AlphaPlugin',
-          ),
-          DiscoveredPlugin(
-            name: 'beta_plugin',
-            path: p2,
-            hasAndroid: true,
-            androidPackage: 'com.example.beta',
-            pluginClass: 'BetaPlugin',
-          ),
-        ],
-        unsupported: const [],
-      );
+        final discovery = PluginDiscoveryResult(
+          plugins: [
+            DiscoveredPlugin(
+              name: 'alpha_plugin',
+              path: p1,
+              hasAndroid: true,
+              androidPackage: 'com.example.alpha',
+              pluginClass: 'AlphaPlugin',
+            ),
+            DiscoveredPlugin(
+              name: 'beta_plugin',
+              path: p2,
+              hasAndroid: true,
+              androidPackage: 'com.example.beta',
+              pluginClass: 'BetaPlugin',
+            ),
+          ],
+          unsupported: const [],
+        );
 
-      final locator = SdkLocator(androidSdkPath: p.join(tmp.path, 'no_sdk'));
-      // packaging sources does not need real SDK
-      final packager = PluginPackager(
-        dependencyCache: cache,
-        sdkLocator: locator,
-        verbose: false,
-        allowNetwork: false,
-      );
+        final locator = SdkLocator(androidSdkPath: p.join(tmp.path, 'no_sdk'));
+        // packaging sources does not need real SDK
+        final packager = PluginPackager(
+          dependencyCache: cache,
+          sdkLocator: locator,
+          verbose: false,
+          allowNetwork: false,
+        );
 
-      final result = await packager.packageAll(
-        discovery,
-        buildDir: p.join(tmp.path, 'build'),
-        abis: ['arm64-v8a'],
-      );
+        final result = await packager.packageAll(
+          discovery,
+          buildDir: p.join(tmp.path, 'build'),
+          abis: ['arm64-v8a'],
+        );
 
-      expect(result.failed, isEmpty);
-      expect(result.allJavaSources.length, greaterThanOrEqualTo(2));
-      expect(result.registrations.map((r) => r.className), containsAll([
-        'com.example.alpha.AlphaPlugin',
-        'com.example.beta.BetaPlugin',
-      ]));
+        expect(result.failed, isEmpty);
+        expect(result.allJavaSources.length, greaterThanOrEqualTo(2));
+        expect(
+          result.registrations.map((r) => r.className),
+          containsAll([
+            'com.example.alpha.AlphaPlugin',
+            'com.example.beta.BetaPlugin',
+          ]),
+        );
 
-      final registrant = generatePluginRegistrantJava(result.registrations);
-      expect(registrant, contains('AlphaPlugin'));
-      expect(registrant, contains('BetaPlugin'));
-      expect(registrant, isNot(contains('No plugins registered')));
-    });
+        final registrant = generatePluginRegistrantJava(result.registrations);
+        expect(registrant, contains('AlphaPlugin'));
+        expect(registrant, contains('BetaPlugin'));
+        expect(registrant, isNot(contains('No plugins registered')));
+      },
+    );
 
     test('AAR extract path contributes jar dep', () async {
       final root = p.join(tmp.path, 'aar_plugin');
-      final srcDir =
-          p.join(root, 'android', 'src', 'main', 'java', 'com', 'example');
+      final srcDir = p.join(
+        root,
+        'android',
+        'src',
+        'main',
+        'java',
+        'com',
+        'example',
+      );
       await Directory(srcDir).create(recursive: true);
       await File(p.join(srcDir, 'AarPlugin.java')).writeAsString('''
 package com.example;
@@ -217,38 +230,40 @@ dependencies {
       expect(one.javaSources, isNotEmpty);
     });
 
-    test('strict packaging fails clearly when pluginClass has no sources',
-        () async {
-      final root = p.join(tmp.path, 'broken');
-      await Directory(p.join(root, 'android')).create(recursive: true);
-      await File(p.join(root, 'android', 'build.gradle')).writeAsString('');
-      final packager = PluginPackager(
-        dependencyCache: cache,
-        sdkLocator: SdkLocator(androidSdkPath: p.join(tmp.path, 'x')),
-        allowNetwork: false,
-      );
-      final broken = await packager.packageOne(
-        DiscoveredPlugin(
-          name: 'broken',
-          path: root,
-          hasAndroid: true,
-          androidPackage: 'com.example',
-          pluginClass: 'Missing',
-        ),
-        workDir: p.join(tmp.path, 'w2'),
-        abis: ['arm64-v8a'],
-      );
-      expect(broken.packable, isFalse);
-      expect(broken.failureReason, contains('no Java/Kotlin sources'));
-    });
+    test(
+      'strict packaging fails clearly when pluginClass has no sources',
+      () async {
+        final root = p.join(tmp.path, 'broken');
+        await Directory(p.join(root, 'android')).create(recursive: true);
+        await File(p.join(root, 'android', 'build.gradle')).writeAsString('');
+        final packager = PluginPackager(
+          dependencyCache: cache,
+          sdkLocator: SdkLocator(androidSdkPath: p.join(tmp.path, 'x')),
+          allowNetwork: false,
+        );
+        final broken = await packager.packageOne(
+          DiscoveredPlugin(
+            name: 'broken',
+            path: root,
+            hasAndroid: true,
+            androidPackage: 'com.example',
+            pluginClass: 'Missing',
+          ),
+          workDir: p.join(tmp.path, 'w2'),
+          abis: ['arm64-v8a'],
+        );
+        expect(broken.packable, isFalse);
+        expect(broken.failureReason, contains('no Java/Kotlin sources'));
+      },
+    );
   });
 
   test('default build does not empty registrant (source contract)', () async {
     final src = await File(
-      p.join('lib', 'src', 'build', 'flutter_apk_builder.dart'),
+      p.join('lib', 'src', 'pipeline', 'steps', 'host_steps.dart'),
     ).readAsString();
-    expect(src, contains('PluginPackager'));
-    expect(src, contains('packaged.registrations'));
+    expect(src, contains('PluginPackagingStep'));
+    expect(src, contains('registrations'));
     expect(
       src,
       isNot(contains('Soft packaging: omitting all plugin registrations')),

@@ -72,15 +72,17 @@ void main() {
     });
   });
 
-  test('flutter_apk_builder wires compile zip helpers (source contract)',
-      () async {
-    final text = await File(
-      p.join('lib', 'src', 'build', 'flutter_apk_builder.dart'),
-    ).readAsString();
-    expect(text, contains('buildAapt2CompileDirArgs'));
-    expect(text, contains('buildAapt2LinkArgs'));
-    expect(text, contains('compiled_resources.zip'));
-    // Old broken pattern: scan directory for .flat after --dir compile
-    expect(text, isNot(contains("endsWith('.flat')")));
-  });
+  test(
+    'flutter_apk_builder wires compile zip helpers (source contract)',
+    () async {
+      final text = await File(
+        p.join('lib', 'src', 'pipeline', 'toolchain.dart'),
+      ).readAsString();
+      expect(text, contains('buildAapt2CompileDirArgs'));
+      expect(text, contains('buildAapt2LinkArgs'));
+      expect(text, contains('compiled_resources.zip'));
+      // Old broken pattern: scan directory for .flat after --dir compile
+      expect(text, isNot(contains("endsWith('.flat')")));
+    },
+  );
 }

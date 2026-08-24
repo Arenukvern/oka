@@ -24,18 +24,17 @@ void main() {
       expect(body, isNot(contains('findAdb')));
     });
 
-    test('source: FlutterApkBuilder uses validatePackagingTools not adb-required',
-        () async {
-      final text = await File(
-        p.join('lib', 'src', 'build', 'flutter_apk_builder.dart'),
-      ).readAsString();
-      expect(text, contains('validatePackagingTools'));
-      // Must not require full validateTools() for packaging gate
-      expect(
-        text.contains('validatePackagingTools()'),
-        isTrue,
-      );
-    });
+    test(
+      'source: FlutterApkBuilder uses validatePackagingTools not adb-required',
+      () async {
+        final text = await File(
+          p.join('lib', 'src', 'pipeline', 'steps', 'host_steps.dart'),
+        ).readAsString();
+        expect(text, contains('validatePackagingTools'));
+        // Must not require full validateTools() for packaging gate
+        expect(text.contains('validatePackagingTools()'), isTrue);
+      },
+    );
 
     test('validateTools treats adb as optional by default', () async {
       final locatorSrc = await File(
