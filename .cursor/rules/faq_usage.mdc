@@ -1,0 +1,23 @@
+---
+description: Router for oka docs — when to read DESIGN_FAQ vs DX_FAQ vs ADRs
+alwaysApply: true
+---
+
+# FAQ usage — oka
+
+Before answering questions about this repo, route to the right doc:
+
+| Question type | Read |
+|---|---|
+| **Why** is it designed this way? | `DESIGN_FAQ.md`, then `docs/decisions/` |
+| **How** do I run/build/test? | `DX_FAQ.md` |
+| What does oka own / not own? | `docs/NORTH_STAR.md` |
+| Phase status / evidence | `docs/PHASE_CHECKLIST.md` |
+| Behavior of code | The code and tests themselves — docs only link |
+
+Rules:
+
+- Never paraphrase implementation in answers; link to the authoritative file.
+- After changing architecture → add/update a Q&A in `DESIGN_FAQ.md` (or ADR).
+- After changing commands/API usage → update `DX_FAQ.md`.
+- Design forks require a decision checkpoint + ADR before coding.

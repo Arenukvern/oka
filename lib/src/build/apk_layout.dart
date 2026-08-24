@@ -4,12 +4,7 @@ import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
 
 /// Expected native ABI directory names inside an Android APK.
-const kSupportedAbis = [
-  'arm64-v8a',
-  'armeabi-v7a',
-  'x86_64',
-  'x86',
-];
+const kSupportedAbis = ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
 
 /// Maps oka / Flutter ABI names to APK `lib/<abi>/` directory names.
 String normalizeAbi(String abi) {
@@ -205,8 +200,7 @@ Future<List<String>> listDexOutputs(String dexDir) async {
   await for (final e in dir.list(recursive: true, followLinks: false)) {
     if (e is! File) continue;
     final name = p.basename(e.path);
-    if (name == 'classes.dex' ||
-        RegExp(r'^classes\d+\.dex$').hasMatch(name)) {
+    if (name == 'classes.dex' || RegExp(r'^classes\d+\.dex$').hasMatch(name)) {
       files.add(e.path);
     }
   }
@@ -242,10 +236,7 @@ Future<void> stageApkLayout({
   }
   await root.create(recursive: true);
 
-  final allDex = <String>[
-    if (dexFile != null) dexFile,
-    ...dexFiles,
-  ];
+  final allDex = <String>[if (dexFile != null) dexFile, ...dexFiles];
   // Preserve multi-dex names (classes.dex, classes2.dex, …)
   for (final dex in allDex) {
     final src = File(dex);
@@ -253,8 +244,8 @@ Future<void> stageApkLayout({
     final name = p.basename(dex);
     final destName =
         (name == 'classes.dex' || RegExp(r'^classes\d+\.dex$').hasMatch(name))
-            ? name
-            : 'classes.dex';
+        ? name
+        : 'classes.dex';
     await src.copy(p.join(stagingDir, destName));
   }
 
@@ -311,7 +302,11 @@ Future<void> zipStagingToApk(String stagingDir, String apkPath) async {
     if (entity is! File) continue;
     final rel = p.relative(entity.path, from: stagingDir).replaceAll(r'\', '/');
     final data = await entity.readAsBytes();
-    archive.addFile(ArchiveFile(rel, data.length, data));
+    // resources.arsc must be STORED (uncompressed) and 4-byte aligned for
+    // targetSdk >= 30 installs; compression here causes install failure -124.
+    final file = ArchiveFile(rel, data.length, data)
+      ..compress = rel != 'resources.arsc';
+    archive.addFile(file);
   }
   final encoded = ZipEncoder().encode(archive);
   if (encoded == null) {
@@ -338,8 +333,7 @@ List<String> multiDexEntries(Iterable<String> apkPaths) {
       .map((e) => e.replaceAll(r'\', '/'))
       .where(
         (e) =>
-            e == 'classes.dex' ||
-            RegExp(r'(^|/)classes\d+\.dex$').hasMatch(e),
+            e == 'classes.dex' || RegExp(r'(^|/)classes\d+\.dex$').hasMatch(e),
       )
       .map((e) => e.contains('/') ? e.split('/').last : e)
       .toSet()

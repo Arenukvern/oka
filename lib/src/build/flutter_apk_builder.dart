@@ -54,8 +54,8 @@ class FlutterApkBuilder {
     this.allowNetwork = true,
     this.layoutOnly = false,
     this.strictPlugins = true,
-  })  : assembler = assembler ?? FlutterAssembler(verbose: verbose),
-        pluginDiscovery = pluginDiscovery ?? PluginDiscovery(verbose: verbose);
+  }) : assembler = assembler ?? FlutterAssembler(verbose: verbose),
+       pluginDiscovery = pluginDiscovery ?? PluginDiscovery(verbose: verbose);
 
   Future<BuildArtifact> buildApk(BuildContext ctx) async {
     final start = DateTime.now();
@@ -78,10 +78,7 @@ class FlutterApkBuilder {
       // 1. Plugins — full packaging (sources + deps + natives)
       print('🔌 Discovering and packaging Flutter plugins...');
       final discovery = await pluginDiscovery.discover(ctx.projectPath);
-      final support = decidePluginSupport(
-        discovery,
-        strict: strictPlugins,
-      );
+      final support = decidePluginSupport(discovery, strict: strictPlugins);
       if (!support.allowBuild) {
         pluginDiscovery.ensureSupported(discovery, strict: true);
       }
@@ -92,7 +89,8 @@ class FlutterApkBuilder {
         }
       }
 
-      final cache = dependencyCache ??
+      final cache =
+          dependencyCache ??
           DependencyCache(verbose: verbose, allowNetwork: allowNetwork);
       final packager = PluginPackager(
         dependencyCache: cache,
@@ -116,8 +114,10 @@ class FlutterApkBuilder {
       }
       if (packaged.failed.isNotEmpty && !strictPlugins) {
         for (final f in packaged.failed) {
-          print('⚠️  Skipping unpackageable plugin ${f.plugin.name}: '
-              '${f.failureReason}');
+          print(
+            '⚠️  Skipping unpackageable plugin ${f.plugin.name}: '
+            '${f.failureReason}',
+          );
         }
       }
 
@@ -163,7 +163,8 @@ class FlutterApkBuilder {
           '${assembleResult.stderr}\n${assembleResult.stdout}',
         );
       }
-      final assetsDir = assembleResult.flutterAssetsDir ??
+      final assetsDir =
+          assembleResult.flutterAssetsDir ??
           await findFlutterAssetsDir(assembleOut);
       if (assetsDir == null) {
         throw Exception(
@@ -202,7 +203,9 @@ class FlutterApkBuilder {
           }
           final so = await findLibappSo(aotOut);
           if (so == null) {
-            throw Exception('libapp.so/app.so not found for ABI $abi in $aotOut');
+            throw Exception(
+              'libapp.so/app.so not found for ABI $abi in $aotOut',
+            );
           }
           final dest = p.join(libDir, normalizeAbi(abi), 'libapp.so');
           await File(dest).parent.create(recursive: true);
@@ -218,7 +221,9 @@ class FlutterApkBuilder {
         androidxJars = await cache.resolveFlutterAndroidX();
       } catch (e) {
         print('⚠️  AndroidX resolve incomplete: $e');
-        print('   Compile may fail without cached JARs under ~/.oka/cache/maven');
+        print(
+          '   Compile may fail without cached JARs under ~/.oka/cache/maven',
+        );
       }
 
       // Merge plugin natives into lib/
@@ -238,7 +243,9 @@ class FlutterApkBuilder {
         release: ctx.mode.isRelease,
       );
       if (embeddingJarFull == null) {
-        throw Exception('flutter.jar (embedding) not found; run flutter precache');
+        throw Exception(
+          'flutter.jar (embedding) not found; run flutter precache',
+        );
       }
       final embeddingJar = await engine.extractEmbeddingClassesJar(
         flutterJar: embeddingJarFull,
@@ -264,10 +271,7 @@ class FlutterApkBuilder {
         final entries = await listApkEntries(apkPath);
         final validation = validatePathSet(
           entries,
-          spec: ApkLayoutSpec(
-            abis: abis,
-            requireLibapp: ctx.mode.isRelease,
-          ),
+          spec: ApkLayoutSpec(abis: abis, requireLibapp: ctx.mode.isRelease),
         );
         if (!validation.ok) {
           throw Exception(
@@ -317,10 +321,7 @@ class FlutterApkBuilder {
       final entries = await listApkEntries(apkPath);
       final validation = validatePathSet(
         entries,
-        spec: ApkLayoutSpec(
-          abis: abis,
-          requireLibapp: ctx.mode.isRelease,
-        ),
+        spec: ApkLayoutSpec(abis: abis, requireLibapp: ctx.mode.isRelease),
       );
       if (!validation.ok) {
         throw Exception(
@@ -390,11 +391,17 @@ class FlutterApkBuilder {
     await File(mainPath).parent.create(recursive: true);
     await File(mainPath).writeAsString(generateMainActivityJava(packageName));
 
-    final registrantPath =
-        p.join(hostDir, 'io', 'flutter', 'plugins', 'GeneratedPluginRegistrant.java');
+    final registrantPath = p.join(
+      hostDir,
+      'io',
+      'flutter',
+      'plugins',
+      'GeneratedPluginRegistrant.java',
+    );
     await File(registrantPath).parent.create(recursive: true);
-    await File(registrantPath)
-        .writeAsString(generatePluginRegistrantJava(registrations));
+    await File(
+      registrantPath,
+    ).writeAsString(generatePluginRegistrantJava(registrations));
 
     final manifest = generateAndroidManifestXml(
       packageName: packageName,
@@ -407,8 +414,9 @@ class FlutterApkBuilder {
           : ctx.config.android.targetSdk,
       debuggable: ctx.mode.isDebug,
     );
-    await File(p.join(ctx.buildDir, 'AndroidManifest.xml'))
-        .writeAsString(manifest);
+    await File(
+      p.join(ctx.buildDir, 'AndroidManifest.xml'),
+    ).writeAsString(manifest);
 
     // Minimal res for aapt2 — simple values only (no adaptive icons).
     final resDir = p.join(ctx.buildDir, 'res');
@@ -422,9 +430,16 @@ class FlutterApkBuilder {
   }
 
   /// Prefer configured compile SDK platform; fall back to highest installed.
-  Future<String> _resolveAndroidJar(String androidSdk, String compileSdk) async {
-    final preferred =
-        p.join(androidSdk, 'platforms', 'android-$compileSdk', 'android.jar');
+  Future<String> _resolveAndroidJar(
+    String androidSdk,
+    String compileSdk,
+  ) async {
+    final preferred = p.join(
+      androidSdk,
+      'platforms',
+      'android-$compileSdk',
+      'android.jar',
+    );
     if (await File(preferred).exists()) return preferred;
 
     final platformsDir = Directory(p.join(androidSdk, 'platforms'));
@@ -605,8 +620,13 @@ class FlutterApkBuilder {
 
     // jar + d8
     final classesJar = p.join(ctx.buildDir, 'classes.jar');
-    final jarResult =
-        await Process.run('jar', ['cf', classesJar, '-C', classesDir, '.']);
+    final jarResult = await Process.run('jar', [
+      'cf',
+      classesJar,
+      '-C',
+      classesDir,
+      '.',
+    ]);
     if (jarResult.exitCode != 0) {
       throw Exception('jar failed: ${jarResult.stderr}');
     }
@@ -625,8 +645,9 @@ class FlutterApkBuilder {
     final compileOnlyJars = <String>[
       ..._filterCompileOnlyJars([...androidxJars, ...pluginJarDeps]),
     ];
-    final minApi =
-        ctx.config.android.minSdk.isEmpty ? '21' : ctx.config.android.minSdk;
+    final minApi = ctx.config.android.minSdk.isEmpty
+        ? '21'
+        : ctx.config.android.minSdk;
     final d8Args = <String>[
       '--output',
       dexOutDir,
@@ -638,8 +659,10 @@ class FlutterApkBuilder {
       ...programJars,
     ];
     if (verbose) {
-      print('   d8 program jars: ${programJars.length}, '
-          'lib jars: ${compileOnlyJars.length + 1}');
+      print(
+        '   d8 program jars: ${programJars.length}, '
+        'lib jars: ${compileOnlyJars.length + 1}',
+      );
     }
     final d8Result = await Process.run(d8, d8Args);
     if (d8Result.exitCode != 0) {
@@ -663,9 +686,7 @@ class FlutterApkBuilder {
       throw Exception('d8 produced no classes*.dex under $dexOutDir');
     }
     if (verbose) {
-      print(
-        '   d8 multi-dex: ${dexFiles.map(p.basename).join(', ')}',
-      );
+      print('   d8 multi-dex: ${dexFiles.map(p.basename).join(', ')}');
     }
     return dexFiles;
   }
@@ -689,8 +710,7 @@ class FlutterApkBuilder {
       flutterAssetsDir: flutterAssetsDir,
       libflutterByAbi: mergedFlutter,
       libappByAbi: libappByAbi,
-      resourcesApk:
-          await File(resourcesApk).exists() ? resourcesApk : null,
+      resourcesApk: await File(resourcesApk).exists() ? resourcesApk : null,
     );
     for (final entry in extraNativeByAbi.entries) {
       final abi = normalizeAbi(entry.key);
@@ -710,7 +730,15 @@ class FlutterApkBuilder {
     final aligned = p.join(ctx.buildDir, 'app-${ctx.mode.name}-aligned.apk');
     final signed = p.join(ctx.buildDir, 'app-${ctx.mode.name}.apk');
 
-    final za = await Process.run(zipalign, ['-f', '4', unsigned, aligned]);
+    final za = await Process.run(zipalign, [
+      '-f',
+      // -p: page-align uncompressed .so; 4: required for stored resources.arsc
+      // (targetSdk >= 30 rejects compressed/misaligned resources.arsc).
+      '-p',
+      '4',
+      unsigned,
+      aligned,
+    ]);
     if (za.exitCode != 0) {
       throw Exception('zipalign failed: ${za.stderr}');
     }

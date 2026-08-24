@@ -74,6 +74,26 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
       version: '1.13.1',
       packaging: 'aar',
     ),
+    // androidx.core's hard runtime dependency (WindowInsetsControllerCompat
+    // and friends use SimpleArrayMap / SparseArrayCompat).
+    MavenCoordinate(
+      groupId: 'androidx.collection',
+      artifactId: 'collection-jvm',
+      version: '1.4.4',
+      packaging: 'jar',
+    ),
+    MavenCoordinate(
+      groupId: 'androidx.annotation',
+      artifactId: 'annotation-experimental',
+      version: '1.4.1',
+      packaging: 'aar',
+    ),
+    MavenCoordinate(
+      groupId: 'androidx.versionedparcelable',
+      artifactId: 'versionedparcelable',
+      version: '1.1.1',
+      packaging: 'aar',
+    ),
     MavenCoordinate(
       groupId: 'androidx.tracing',
       artifactId: 'tracing',
@@ -86,6 +106,28 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
       artifactId: 'kotlin-stdlib',
       version: '2.0.21',
       packaging: 'jar',
+    ),
+    // Hard runtime dependency of androidx.lifecycle 2.8+
+    // (LifecycleRegistry uses kotlinx.coroutines.flow.StateFlow).
+    MavenCoordinate(
+      groupId: 'org.jetbrains.kotlinx',
+      artifactId: 'kotlinx-coroutines-core-jvm',
+      version: '1.9.0',
+      packaging: 'jar',
+    ),
+    // Used by FlutterLoader to load libflutter.so robustly on old devices.
+    MavenCoordinate(
+      groupId: 'com.getkeepsafe.relinker',
+      artifactId: 'relinker',
+      version: '1.4.5',
+      packaging: 'aar',
+    ),
+    // Flutter's ViewUtils uses WindowMetricsCalculator for display metrics.
+    MavenCoordinate(
+      groupId: 'androidx.window',
+      artifactId: 'window',
+      version: '1.3.0',
+      packaging: 'aar',
     ),
   ];
 }
@@ -155,15 +197,16 @@ class DependencyCache {
     this.verbose = false,
     this.httpClient,
     this.allowNetwork = true,
-  }) : cacheRoot = cacheRoot ??
-            p.join(
-              Platform.environment['HOME'] ??
-                  Platform.environment['USERPROFILE'] ??
-                  '.',
-              '.oka',
-              'cache',
-              'maven',
-            );
+  }) : cacheRoot =
+           cacheRoot ??
+           p.join(
+             Platform.environment['HOME'] ??
+                 Platform.environment['USERPROFILE'] ??
+                 '.',
+             '.oka',
+             'cache',
+             'maven',
+           );
 
   String localPathFor(MavenCoordinate coord) {
     return p.join(
@@ -237,7 +280,9 @@ class DependencyCache {
       final classes = tryExtractClassesJarFromAar(bytes);
       if (classes == null) {
         if (verbose) {
-          print('⚠️  $working has no classes.jar (metadata AAR); using empty jar');
+          print(
+            '⚠️  $working has no classes.jar (metadata AAR); using empty jar',
+          );
         }
         await File(outJar).parent.create(recursive: true);
         await File(outJar).writeAsBytes(minimalJarBytes(), flush: true);
@@ -259,33 +304,41 @@ class DependencyCache {
     if (coord.groupId.startsWith('androidx.') &&
         !coord.artifactId.endsWith('-android') &&
         !coord.artifactId.endsWith('-jvm')) {
-      candidates.add(MavenCoordinate(
-        groupId: coord.groupId,
-        artifactId: '${coord.artifactId}-android',
-        version: coord.version,
-        packaging: 'aar',
-      ));
-      candidates.add(MavenCoordinate(
-        groupId: coord.groupId,
-        artifactId: '${coord.artifactId}-jvm',
-        version: coord.version,
-        packaging: 'jar',
-      ));
+      candidates.add(
+        MavenCoordinate(
+          groupId: coord.groupId,
+          artifactId: '${coord.artifactId}-android',
+          version: coord.version,
+          packaging: 'aar',
+        ),
+      );
+      candidates.add(
+        MavenCoordinate(
+          groupId: coord.groupId,
+          artifactId: '${coord.artifactId}-jvm',
+          version: coord.version,
+          packaging: 'jar',
+        ),
+      );
     }
     if (coord.packaging == 'aar') {
-      candidates.add(MavenCoordinate(
-        groupId: coord.groupId,
-        artifactId: coord.artifactId,
-        version: coord.version,
-        packaging: 'jar',
-      ));
+      candidates.add(
+        MavenCoordinate(
+          groupId: coord.groupId,
+          artifactId: coord.artifactId,
+          version: coord.version,
+          packaging: 'jar',
+        ),
+      );
     } else if (coord.packaging == 'jar') {
-      candidates.add(MavenCoordinate(
-        groupId: coord.groupId,
-        artifactId: coord.artifactId,
-        version: coord.version,
-        packaging: 'aar',
-      ));
+      candidates.add(
+        MavenCoordinate(
+          groupId: coord.groupId,
+          artifactId: coord.artifactId,
+          version: coord.version,
+          packaging: 'aar',
+        ),
+      );
     }
 
     final client = httpClient ?? http.Client();
@@ -317,20 +370,19 @@ class DependencyCache {
 
   /// Repo order: platform-appropriate first (avoid thrashing VK artifactory
   /// for every AndroidX artifact).
-  List<String> _candidateUrls(
-    MavenCoordinate c,
-    List<String> extraRepos,
-  ) {
+  List<String> _candidateUrls(MavenCoordinate c, List<String> extraRepos) {
     final urls = <String>[];
-    final isGoogle = c.groupId.startsWith('androidx.') ||
+    final isGoogle =
+        c.groupId.startsWith('androidx.') ||
         c.groupId.startsWith('com.android.') ||
         c.groupId.startsWith('com.google.android.');
-    final isCentral = c.groupId.startsWith('org.jetbrains') ||
+    final isCentral =
+        c.groupId.startsWith('org.jetbrains') ||
         c.groupId.startsWith('com.squareup') ||
         c.groupId.startsWith('org.slf4j') ||
         c.groupId.startsWith('javax.');
-    final isCustom = c.groupId.startsWith('ru.rustore') ||
-        c.groupId.startsWith('ru.vk');
+    final isCustom =
+        c.groupId.startsWith('ru.rustore') || c.groupId.startsWith('ru.vk');
 
     void add(String u) {
       if (!urls.contains(u)) urls.add(u);
@@ -371,12 +423,7 @@ class DependencyCache {
   }) async {
     final results = <ResolvedJar>[];
     for (final coord in flutterEmbeddingAndroidXDeps()) {
-      results.add(
-        await resolve(
-          coord,
-          fixtureBytes: fixtures[coord.cacheKey],
-        ),
-      );
+      results.add(await resolve(coord, fixtureBytes: fixtures[coord.cacheKey]));
     }
     return results;
   }
@@ -404,10 +451,7 @@ class DependencyCache {
       final key = item.c.cacheKey;
       if (!seen.add(key)) continue;
       try {
-        final resolved = await resolve(
-          item.c,
-          extraRepos: extraRepos,
-        );
+        final resolved = await resolve(item.c, extraRepos: extraRepos);
         final len = await File(resolved.jarPath).length();
         if (len > 200) {
           out.add(resolved);
@@ -417,8 +461,10 @@ class DependencyCache {
 
         // Prefer android/jvm variants when metadata-only (do not expand -ktx)
         if (len <= 200) {
-          final base = item.c.artifactId
-              .replaceAll(RegExp(r'-(android|jvm|ktx)$'), '');
+          final base = item.c.artifactId.replaceAll(
+            RegExp(r'-(android|jvm|ktx)$'),
+            '',
+          );
           for (final alt in [
             MavenCoordinate(
               groupId: item.c.groupId,
@@ -461,12 +507,13 @@ class DependencyCache {
       }
     }
     if (verbose) {
-      print('   resolveWithTransitives: ${out.length} jars '
-          '($iterations iterations)');
+      print(
+        '   resolveWithTransitives: ${out.length} jars '
+        '($iterations iterations)',
+      );
     }
     return out;
   }
-
 
   Future<List<MavenCoordinate>> _fetchPomDependencies(
     MavenCoordinate coord, {
@@ -510,13 +557,13 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
     // skip test/provided
     final scope = RegExp(r'<scope>([^<]+)</scope>').firstMatch(body)?.group(1);
     if (scope == 'test' || scope == 'provided' || scope == 'system') continue;
-    final optional =
-        RegExp(r'<optional>true</optional>').hasMatch(body);
+    final optional = RegExp(r'<optional>true</optional>').hasMatch(body);
     if (optional) continue;
 
     final g = RegExp(r'<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
-    final a =
-        RegExp(r'<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
+    final a = RegExp(
+      r'<artifactId>([^<]+)</artifactId>',
+    ).firstMatch(body)?.group(1);
     var v = RegExp(r'<version>([^<]+)</version>').firstMatch(body)?.group(1);
     if (g == null || a == null || v == null) continue;
     if (v.startsWith('\${')) continue;
@@ -533,18 +580,21 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
         RegExp(r'<type>([^<]+)</type>').firstMatch(body)?.group(1) ?? 'jar';
     final packaging = type == 'aar' ? 'aar' : 'jar';
     // Heuristic: android-ish artifacts often aar
-    final pack = (g.startsWith('androidx.') ||
+    final pack =
+        (g.startsWith('androidx.') ||
             g.startsWith('com.android.') ||
             g.startsWith('com.google.android.') ||
             g.startsWith('ru.rustore.'))
         ? 'aar'
         : packaging;
-    deps.add(MavenCoordinate(
-      groupId: g.trim(),
-      artifactId: a.trim(),
-      version: v.trim(),
-      packaging: pack,
-    ));
+    deps.add(
+      MavenCoordinate(
+        groupId: g.trim(),
+        artifactId: a.trim(),
+        version: v.trim(),
+        packaging: pack,
+      ),
+    );
   }
   return deps;
 }
@@ -553,9 +603,7 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
 List<int> minimalJarBytes({String entryName = 'META-INF/MANIFEST.MF'}) {
   final archive = Archive();
   final manifest = 'Manifest-Version: 1.0\n\n';
-  archive.addFile(
-    ArchiveFile(entryName, manifest.length, manifest.codeUnits),
-  );
+  archive.addFile(ArchiveFile(entryName, manifest.length, manifest.codeUnits));
   return ZipEncoder().encode(archive)!;
 }
 
@@ -563,15 +611,9 @@ List<int> minimalJarBytes({String entryName = 'META-INF/MANIFEST.MF'}) {
 List<int> minimalAarBytes() {
   final classesJar = minimalJarBytes();
   final archive = Archive();
+  archive.addFile(ArchiveFile('classes.jar', classesJar.length, classesJar));
   archive.addFile(
-    ArchiveFile('classes.jar', classesJar.length, classesJar),
-  );
-  archive.addFile(
-    ArchiveFile(
-      'AndroidManifest.xml',
-      11,
-      '<manifest/>'.codeUnits,
-    ),
+    ArchiveFile('AndroidManifest.xml', 11, '<manifest/>'.codeUnits),
   );
   return ZipEncoder().encode(archive)!;
 }
