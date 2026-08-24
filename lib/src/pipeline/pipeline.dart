@@ -89,6 +89,20 @@ class PipelineState {
 
   set extraRuntimeJars(List<String> v) => _values['extra_runtime_jars'] = v;
 
+  /// Native libs from processed AARs (Maven + local): abi → .so paths.
+  Map<String, List<String>> get aarNativeLibsByAbi =>
+      (_values['aar_native_libs_by_abi'] as Map<String, List<String>>?) ??
+      const {};
+
+  set aarNativeLibsByAbi(Map<String, List<String>> v) =>
+      _values['aar_native_libs_by_abi'] = v;
+
+  /// Resource dirs extracted from AARs (values XML trees for aapt2).
+  List<String> get aarResDirs =>
+      _values['aar_res_dirs'] as List<String>? ?? const [];
+
+  set aarResDirs(List<String> v) => _values['aar_res_dirs'] = v;
+
   /// Produced dex files (classes.dex, classes2.dex, …).
   List<String> get dexFiles =>
       _values['dex_files'] as List<String>? ?? const [];

@@ -20,6 +20,9 @@ android:
   package_name: com.example.example
   version_code: 1
   version_name: 1.0.0+1
+  icon:
+    background_color: "#E8F5E9"
+    vector: assets/icon/foreground.xml
   source_dirs:
     - src/main/java
     - src/main/kotlin

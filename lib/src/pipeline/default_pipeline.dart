@@ -6,6 +6,7 @@ import 'package:yaml/yaml.dart';
 import '../build/apk_layout.dart';
 import '../build/dependency_cache.dart';
 import '../build/flutter_assemble.dart';
+import '../build/launcher_icon.dart';
 import '../build/plugin_discovery.dart';
 import '../build/sdk_locator.dart';
 import '../config/build_context.dart';
@@ -31,22 +32,36 @@ class PipelineOverrides {
   /// Deeplink declarations rendered as manifest intent-filters.
   final List<DeeplinkConfig> deeplinks;
 
+  /// Launcher icon configuration (adaptive, vector-first).
+  final IconConfig icon;
+
+  /// Local AAR files (project-relative paths) to package into the APK.
+  final List<String> localAars;
+
   const PipelineOverrides({
     this.extraDeps = const [],
     this.extraAssets = const [],
     this.deeplinks = const [],
+    this.icon = const IconConfig(),
+    this.localAars = const [],
   });
 
   factory PipelineOverrides.fromYamlMap(Map<dynamic, dynamic> map) {
     final deps = map['extra_deps'];
     final assetsRaw = map['extra_assets'];
     final linksRaw = map['deeplinks'];
+    final iconRaw = map['icon'];
+    final aarsRaw = map['local_aars'];
     return PipelineOverrides(
       extraDeps: deps is List ? deps.map((e) => e.toString()).toList() : [],
       extraAssets: assetsRaw is List
           ? ExtraAssetsStep.parse(assetsRaw)
           : const [],
       deeplinks: linksRaw is List ? DeeplinkConfig.parse(linksRaw) : const [],
+      icon: iconRaw is Map ? IconConfig.fromMap(iconRaw) : const IconConfig(),
+      localAars: aarsRaw is List
+          ? aarsRaw.map((e) => e.toString()).toList()
+          : const [],
     );
   }
 
@@ -98,12 +113,13 @@ Future<Pipeline> defaultApkPipeline(
       dependencyCache: cache,
       strictPlugins: strictPlugins,
     ),
-    HostCodegenStep(deeplinks: overrides.deeplinks),
+    HostCodegenStep(deeplinks: overrides.deeplinks, iconConfig: overrides.icon),
     FlutterAssembleStep(sdkLocator: sdkLocator, assembler: assembler),
     EngineExtractionStep(sdkLocator),
     ReleaseAotStep(sdkLocator: sdkLocator, assembler: assembler),
     DependencyResolveStep(cache),
     _ExtraDepsStep(overrides.extraDeps, cache, verbose: verbose),
+    _LocalAarsStep(overrides.localAars, verbose: verbose),
     CompileAndDexStep(sdkLocator),
     ExtraAssetsStep(overrides.extraAssets),
     PackageAndSignStep(sdkLocator),
@@ -148,6 +164,70 @@ class _ExtraDepsStep implements BuildStep {
       }
     }
     state.extraRuntimeJars = jars;
+    return StepResult.success();
+  }
+}
+
+/// Processes local AAR files declared in `pipeline.local_aars`.
+///
+/// Extracts classes.jar (for dexing), jni natives, and res into the build dir;
+/// results land in [PipelineState.extraRuntimeJars], `aarNativeLibsByAbi`, and
+/// `aarResDirs` for downstream compile/package steps.
+class _LocalAarsStep implements BuildStep {
+  final List<String> aarPaths;
+  final bool verbose;
+
+  @override
+  String get name => 'local-aars';
+
+  _LocalAarsStep(this.aarPaths, {this.verbose = false});
+
+  @override
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+    if (aarPaths.isEmpty) return StepResult.success();
+    print('📦 Processing ${aarPaths.length} local AAR file(s)...');
+    final jars = <String>[...state.extraRuntimeJars];
+    final natives = <String, List<String>>{};
+    final resDirs = <String>[];
+
+    for (final rel in aarPaths) {
+      final aarFile = File(p.join(ctx.projectPath, rel));
+      if (!await aarFile.exists()) {
+        return StepResult.failure('local_aars: file not found: $rel');
+      }
+      if (!rel.toLowerCase().endsWith('.aar')) {
+        return StepResult.failure('local_aars: "$rel" is not an .aar file');
+      }
+      final bytes = await aarFile.readAsBytes();
+      final workDir = p.join(
+        ctx.buildDir,
+        'local_aars',
+        p.basename(rel).replaceAll('.aar', ''),
+      );
+
+      // classes.jar → dex input
+      final classes = tryExtractClassesJarFromAar(bytes);
+      if (classes != null) {
+        final jarPath = p.join(workDir, 'classes.jar');
+        await File(jarPath).parent.create(recursive: true);
+        await File(jarPath).writeAsBytes(classes, flush: true);
+        jars.add(jarPath);
+      } else if (verbose) {
+        print('   ⚠️  $rel has no classes.jar (resource-only AAR?)');
+      }
+
+      // natives + res
+      final payload = await extractAarPayload(bytes, workDir, verbose: verbose);
+      payload.nativeLibsByAbi.forEach((abi, paths) {
+        natives.putIfAbsent(abi, () => []).addAll(paths);
+      });
+      resDirs.addAll(payload.resDirs);
+      if (verbose) print('   $rel processed');
+    }
+
+    state.extraRuntimeJars = jars;
+    state.aarNativeLibsByAbi = natives;
+    state.aarResDirs = resDirs;
     return StepResult.success();
   }
 }

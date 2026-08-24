@@ -20,7 +20,9 @@ This file is a **map**, not a manual — follow links.
 | Know **how** to run/build/test | `DX_FAQ.md` |
 | Check phase status & evidence | `docs/PHASE_CHECKLIST.md` |
 | See CLI commands | `bin/oka.dart`, `lib/src/cli/` |
-| Understand the build pipeline | `lib/src/build/` (+ tests in `test/`) |
+| Understand/extend the build pipeline | `lib/src/pipeline/` (steps in `pipeline/steps/`, tool invocations in `pipeline/toolchain.dart`) — see ADR 0002 |
+| Add a dependency / fix missing-class crashes | `DX_FAQ.md` → Dependencies Station; table in `lib/src/build/dependency_suggest.dart` |
+| Icons, deeplinks, extra assets config | `DX_FAQ.md` → Assets & Icon Station |
 
 ## Commands
 

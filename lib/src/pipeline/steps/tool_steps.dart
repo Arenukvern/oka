@@ -1,5 +1,3 @@
-
-
 import '../../build/apk_layout.dart';
 import '../../build/sdk_locator.dart';
 import '../../config/build_context.dart';
@@ -31,7 +29,7 @@ class CompileAndDexStep implements BuildStep {
       pluginJavaSources: packaged?.allJavaSources ?? const [],
       pluginKotlinSources: packaged?.allKotlinSources ?? const [],
       pluginJarDeps: packaged?.allJarDeps ?? const [],
-      pluginResDirs: packaged?.resDirs ?? const [],
+      pluginResDirs: [...state.aarResDirs, ...?packaged?.resDirs],
     );
     if (!result.ok) return StepResult.failure(result.error!);
     state.dexFiles = result.dexFiles;
@@ -51,6 +49,15 @@ class PackageAndSignStep implements BuildStep {
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('📱 Packaging APK...');
+    // Merge AAR natives (Maven-resolved + local) into the plugin natives map.
+    final extraNatives = <String, List<String>>{
+      ...state.packagedPlugins?.nativeLibsByAbi ?? const {},
+    };
+    state.aarNativeLibsByAbi.forEach((abi, paths) {
+      final norm = normalizeAbi(abi);
+      extraNatives.putIfAbsent(norm, () => []).addAll(paths);
+    });
+
     final signed = await packageAndSign(
       ctx: ctx,
       sdkLocator: sdkLocator,
@@ -58,7 +65,7 @@ class PackageAndSignStep implements BuildStep {
       flutterAssetsDir: state.flutterAssetsDir!,
       libflutterByAbi: state.libflutterByAbi,
       libappByAbi: state.libappByAbi,
-      extraNativeByAbi: state.packagedPlugins?.nativeLibsByAbi ?? const {},
+      extraNativeByAbi: extraNatives,
     );
     state.apkPath = signed;
     return StepResult.success();

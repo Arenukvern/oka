@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../build/apk_layout.dart';
 import '../../build/dependency_cache.dart';
 import '../../build/host_codegen.dart';
+import '../../build/launcher_icon.dart';
 import '../../build/plugin_discovery.dart';
 import '../../build/plugin_packager.dart';
 import '../../build/sdk_locator.dart';
@@ -143,10 +144,16 @@ class HostCodegenStep implements BuildStep {
   /// Deeplink declarations rendered as extra intent-filters on MainActivity.
   final List<DeeplinkConfig> deeplinks;
 
+  /// Launcher icon configuration (adaptive, vector-first).
+  final IconConfig iconConfig;
+
   @override
   String get name => 'host-codegen';
 
-  HostCodegenStep({this.deeplinks = const []});
+  HostCodegenStep({
+    this.deeplinks = const [],
+    this.iconConfig = const IconConfig(),
+  });
 
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
@@ -171,6 +178,32 @@ class HostCodegenStep implements BuildStep {
       registrantPath,
     ).writeAsString(generatePluginRegistrantJava(state.registrations));
 
+    // Minimal res for aapt2 — values + launcher icon resources.
+    final resDir = p.join(ctx.buildDir, 'res');
+    await Directory(p.join(resDir, 'values')).create(recursive: true);
+    await File(p.join(resDir, 'values', 'strings.xml')).writeAsString('''
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">${ctx.config.name.isEmpty ? 'App' : ctx.config.name}</string>
+</resources>
+''');
+
+    // Launcher icon (adaptive, vector-first — see launcher_icon.dart).
+    String iconRef = '';
+    try {
+      final icons = await stageLauncherIcons(
+        resDir,
+        iconConfig,
+        projectPath: ctx.projectPath,
+      );
+      iconRef = icons.manifestRef;
+      if (ctx.verbose) {
+        print('   icon resources: ${icons.written.join(', ')}');
+      }
+    } on Exception catch (e) {
+      return StepResult.failure('launcher icon: $e');
+    }
+
     final manifest = generateAndroidManifestXml(
       packageName: packageName,
       label: ctx.config.name.isEmpty ? packageName : ctx.config.name,
@@ -182,20 +215,11 @@ class HostCodegenStep implements BuildStep {
           : ctx.config.android.targetSdk,
       debuggable: ctx.mode.isDebug,
       extraIntentFilters: deeplinks.map((d) => d.intentFilterXml).join('\n'),
+      iconRef: iconRef,
     );
     await File(
       p.join(ctx.buildDir, 'AndroidManifest.xml'),
     ).writeAsString(manifest);
-
-    // Minimal res for aapt2 — simple values only (no adaptive icons).
-    final resDir = p.join(ctx.buildDir, 'res');
-    await Directory(p.join(resDir, 'values')).create(recursive: true);
-    await File(p.join(resDir, 'values', 'strings.xml')).writeAsString('''
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">${ctx.config.name.isEmpty ? 'App' : ctx.config.name}</string>
-</resources>
-''');
 
     state.hostDir = hostDir;
     return StepResult.success();

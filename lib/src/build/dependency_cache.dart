@@ -195,7 +195,72 @@ class ResolvedJar {
   final MavenCoordinate coordinate;
   final String jarPath;
 
-  const ResolvedJar({required this.coordinate, required this.jarPath});
+  /// Native libs extracted from an AAR: abi → .so paths (empty for jars).
+  final Map<String, List<String>> nativeLibsByAbi;
+
+  /// Resource dirs extracted from an AAR (values XML etc.), empty for jars.
+  final List<String> resDirs;
+
+  const ResolvedJar({
+    required this.coordinate,
+    required this.jarPath,
+    this.nativeLibsByAbi = const {},
+    this.resDirs = const [],
+  });
+}
+
+/// Extracts AAR payload beyond classes.jar: jni/<abi>/*.so natives and res/.
+///
+/// Extraction target layout under [destDir]:
+/// - `jni/<abi>/<name>.so`
+/// - `res/<original res tree>`
+/// Returns what was found; callers merge into staging/res compile inputs.
+Future<({Map<String, List<String>> nativeLibsByAbi, List<String> resDirs})>
+extractAarPayload(
+  List<int> aarBytes,
+  String destDir, {
+  bool verbose = false,
+}) async {
+  final archive = ZipDecoder().decodeBytes(aarBytes);
+  final natives = <String, List<String>>{};
+  var hasRes = false;
+
+  for (final file in archive) {
+    if (!file.isFile) continue;
+    final name = file.name.replaceAll('\\', '/');
+
+    // jni/<abi>/lib*.so
+    final jniMatch = RegExp('^jni/([^/]+)/(lib[^/]+[.]so)[+]').firstMatch(name);
+    if (jniMatch != null) {
+      final abi = jniMatch.group(1)!;
+      final out = p.join(destDir, name);
+      await File(out).parent.create(recursive: true);
+      await File(out).writeAsBytes(
+        Uint8List.fromList(file.content as List<int>),
+        flush: true,
+      );
+      natives.putIfAbsent(abi, () => []).add(out);
+      continue;
+    }
+
+    // res/** — only values XML is aapt2-compile-ready as-is; copy the tree.
+    if (name.startsWith('res/') && name.endsWith('.xml')) {
+      hasRes = true;
+      final out = p.join(destDir, name);
+      await File(out).parent.create(recursive: true);
+      await File(out).writeAsBytes(
+        Uint8List.fromList(file.content as List<int>),
+        flush: true,
+      );
+    }
+  }
+
+  final resDirs = hasRes ? [p.join(destDir, 'res')] : const <String>[];
+  if (verbose && (natives.isNotEmpty || resDirs.isNotEmpty)) {
+    final n = natives.values.fold<int>(0, (a, b) => a + b.length);
+    print('   AAR payload: $n natives, ${resDirs.length} res dir(s)');
+  }
+  return (nativeLibsByAbi: natives, resDirs: resDirs);
 }
 
 /// Caches Maven artifacts under `~/.oka/cache/maven` (or custom root).
@@ -303,6 +368,26 @@ class DependencyCache {
         await File(outJar).parent.create(recursive: true);
         await File(outJar).writeAsBytes(classes, flush: true);
       }
+
+      // Extract natives + res alongside the classes jar (ADR: AAR processing).
+      final payloadDir = p.join(
+        cacheRoot,
+        working.groupId.replaceAll('.', '/'),
+        working.artifactId,
+        working.version,
+        'payload',
+      );
+      final payload = await extractAarPayload(
+        bytes,
+        payloadDir,
+        verbose: verbose,
+      );
+      return ResolvedJar(
+        coordinate: working,
+        jarPath: outJar,
+        nativeLibsByAbi: payload.nativeLibsByAbi,
+        resDirs: payload.resDirs,
+      );
     }
 
     return ResolvedJar(coordinate: working, jarPath: outJar);

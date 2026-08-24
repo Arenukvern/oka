@@ -96,13 +96,39 @@ oka clean --ai-cache
 
 ### Default: no-Gradle Flutter APK (`oka build apk`)
 
-This is the **supported** path for Flutter apps/games:
+This is the **supported** path for Flutter apps/games. The pipeline is
+composable (ADR 0002) — steps in `lib/src/pipeline/steps/`:
 
 1. `flutter assemble` (assets / kernel / AOT) — not `flutter build apk`
 2. Extract `libflutter.so` from Flutter engine `flutter.jar`
 3. Generate `MainActivity` + `GeneratedPluginRegistrant`
 4. Resolve minimal AndroidX JARs (Maven cache under `~/.oka/cache/maven`)
-5. `aapt2` / `javac` / `d8` / zip / `zipalign` / `apksigner`
+5. Adaptive launcher icon resources (vector-first, ADR 0003)
+6. `aapt2` / `javac` / `d8` / zip / `zipalign` / `apksigner`
+7. Extra assets + deeplink intent-filters from `oka.yaml`
+
+**Fast settings (`oka.yaml` `pipeline:` section):**
+
+```yaml
+pipeline:
+  extra_deps:                       # runtime Maven deps without editing oka
+    - "com.squareup.okhttp3:okhttp:4.12.0"
+  extra_assets:                     # merge files/dirs into flutter_assets
+    - from: build/generated.json
+      to: generated.json
+  deeplinks:                        # autoVerify intent-filters
+    - scheme: https
+      host: oka.example.com
+      pathPrefix: /app
+
+android:
+  icon:
+    background_color: "#E8F5E9"
+    vector: assets/icon/foreground.xml
+```
+
+Missing a class at runtime? Oka suggests the artifact on build failure, or run
+`oka get dep group:artifact:version`.
 
 **Requirements:**
 
@@ -296,6 +322,10 @@ MIT License - see LICENSE file for details
 - [x] Android App Bundle (AAB) support via cargo-apk
 - [x] Cargo-apk integration with Flutter
 - [x] Rust NativeActivity implementation
+- [x] Composable pipeline (steps + YAML overrides + Dart composition, ADR 0002)
+- [x] Missing-dependency recovery (`oka get dep`, crash-log class mapping)
+- [x] Adaptive launcher icons (vector-first, ADR 0003)
+- [x] Extra assets & deeplink fast-settings
 - [ ] Complete hot reload integration
 - [ ] AAR dependency processing
 - [ ] Plugin system for custom build steps
@@ -303,6 +333,7 @@ MIT License - see LICENSE file for details
 - [ ] Build cache sharing across machines
 - [ ] CI/CD integration examples
 - [ ] Dart 3.10 build hooks integration
+- [ ] Raster icon generation for pre-API-26 (opt-in)
 
 ## Acknowledgments
 

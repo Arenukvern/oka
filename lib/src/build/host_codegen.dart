@@ -101,6 +101,7 @@ String generateAndroidManifestXml({
   List<String> permissions = const ['android.permission.INTERNET'],
   bool debuggable = true,
   String extraIntentFilters = '',
+  String iconRef = '',
 }) {
   final permLines = permissions
       .map((p) => '    <uses-permission android:name="$p" />')
@@ -117,7 +118,7 @@ String generateAndroidManifestXml({
 $permLines
 
     <application
-        android:label="$label"
+        android:label="$label"${iconRef.isEmpty ? '' : '\n        android:icon="$iconRef"'}
         android:debuggable="$debuggable"
         android:extractNativeLibs="true">
         <activity
