@@ -26,6 +26,8 @@ This file is a **map**, not a manual — follow links.
 | Local .aar files / AAR natives & res | Build guide → Assets & Icon Station (`local_aars`); `extractAarPayload` in `dependency_cache.dart` |
 | Compose a custom pipeline in Dart | `example/bin/custom_pipeline.dart`; contracts in `lib/src/pipeline/pipeline.dart` |
 | Icons, deeplinks, extra assets config | Build guide → Assets & Icon Station |
+| Cut a release / version sync | `docs/contributing/contribution_guide.md` → Releases; bundled skill `oka-maintenance` |
+| Install agent skills | `npx skills add Arenukvern/oka --skill oka-maintenance` |
 
 ## Commands
 
@@ -34,6 +36,7 @@ make install   # dart pub get
 make test      # dart test
 make lint      # dart analyze
 make global    # reinstall global oka (clears snapshot cache)
+make check-contracts   # release gates: version sync, docs drift, changelog hygiene
 ```
 
 Behavior SSOT is code + tests. Docs link; they never paraphrase implementation.

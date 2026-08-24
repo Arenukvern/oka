@@ -10,3 +10,4 @@ docs live in `README.md` and `docs/guides/build_and_config.md`.
 | [0002](0002-composable-build-pipeline.md) | Composable build pipeline (steps + YAML overrides + Dart composition) | accepted |
 | [0003](0003-vector-first-launcher-icons.md) | Vector-first adaptive launcher icons (no PNG tooling) | accepted |
 | [0004](0004-no-gradle-aab-bundle.md) | No-Gradle AAB via hand-assembled bundle (no bundletool) | accepted |
+| [0005](0005-release-tooling-and-plugin-distribution.md) | Release tooling: release-please + one-version train; skills via plugin distribution | accepted |

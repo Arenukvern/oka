@@ -8,7 +8,7 @@ description: >-
   FAQs/ADRs after oka changes, or validating builds on an Android device.
 license: MIT
 metadata:
-  version: 1.1.0
+  version: 1.2.0
   author: Arenukvern
 compatibility:
   - android-sdk
@@ -86,6 +86,43 @@ unzip -l app.apk | grep <pattern>                       # entries
 aapt2 dump badging app.apk                              # manifest/icon info
 aapt2 dump xmltree --file AndroidManifest.xml app.apk   # compiled manifest
 ```
+
+## Release train
+
+Releases are automated via release-please; `VERSION` is the single version
+source. Golden path:
+
+1. Merge PRs to `main` with conventional commit titles (`feat:`, `fix:`,
+   `docs:`).
+2. release-please opens a **Release PR** (`chore: release X.Y.Z`). The
+   `release_pr_sync_versions.yml` workflow runs `tool/release/sync_version.sh`
+   and commits drift to pubspec + plugin manifests automatically.
+3. Run `make check-contracts` locally, review, merge.
+4. Tag `vX.Y.Z` is created by release-please → `pub_publish.yml` publishes to
+   pub.dev (asserts tag == VERSION first).
+
+Manual fallback when automation is blocked:
+
+```bash
+bash tool/release/sync_version.sh --version X.Y.Z   # or: make sync-version
+# edit CHANGELOG.md under [X.Y.Z]; bump .release-please-manifest.json
+make check-contracts
+git commit -am "chore: release X.Y.Z" && git tag vX.Y.Z && git push --tags
+```
+
+Version touchpoints that must match `VERSION`: `pubspec.yaml`,
+`plugin/.cursor-plugin/plugin.json`, `plugin/.codex-plugin/plugin.json`,
+`plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`
+(`plugins[0].version`). Adding a new touchpoint = update `sync_version.sh`,
+`check_version_sync.sh`, and `release-please-config.json` `extra-files`
+together.
+
+## Skill distribution
+
+Canonical skills live in `plugin/skills/`; root `skills` symlink exposes them
+to `npx skills add Arenukvern/oka`. When editing a skill, update **both** the
+plugin copy and your installed copy (or reinstall via
+`npx skills add Arenukvern/oka --skill oka-maintenance`).
 
 ## Docs sync rules
 

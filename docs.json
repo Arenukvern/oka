@@ -112,6 +112,10 @@
         {
           "title": "0004 — No-Gradle AAB bundle",
           "href": "/decisions/0004-no-gradle-aab-bundle"
+        },
+        {
+          "title": "0005 — Release tooling + plugin distribution",
+          "href": "/decisions/0005-release-tooling-and-plugin-distribution"
         }
       ]
     },

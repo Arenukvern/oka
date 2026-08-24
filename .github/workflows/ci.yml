@@ -17,6 +17,18 @@ jobs:
       - run: dart analyze --fatal-infos
       - run: dart test
 
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Contract gates (version sync, docs drift, changelog hygiene)
+        env:
+          OKA_ROOT: ${{ github.workspace }}
+        run: bash tool/contracts/check_contracts.sh
+
   validate:
     # pub.dev dry-run; requires a resolvable package. Runs on PRs touching packaging.
     runs-on: ubuntu-latest

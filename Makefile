@@ -1,4 +1,4 @@
-.PHONY: help install global clean test lint logcat
+.PHONY: help install global clean test lint check-contracts sync-version publish-dry-run publish logcat
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -28,6 +28,18 @@ test: ## Run tests
 
 lint: ## Run linter
 	dart analyze
+
+check-contracts: ## Run release contract gates (version sync, docs drift, changelog hygiene)
+	bash tool/contracts/check_contracts.sh
+
+sync-version: ## Sync all version touchpoints from VERSION
+	bash tool/release/sync_version.sh
+
+publish-dry-run: ## Dry-run pub.dev publish
+	dart publish --dry-run
+
+publish: ## Publish to pub.dev (requires publisher auth)
+	dart publish --force
 
 dev: ## Run oka locally without global install
 	dart run bin/oka.dart

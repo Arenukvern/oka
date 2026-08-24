@@ -26,13 +26,20 @@ configuration overhead per build.
 ## Installation
 
 ```bash
+dart pub global activate oka        # pub.dev (after first publish)
+# or from source:
 git clone https://github.com/Arenukvern/oka.git && cd oka
-make install            # dart pub get
-make global             # activate globally (clears snapshot cache)
+make install && make global
 
 # one-time SDK bootstrap (or point at an existing Android SDK)
 oka get android-sdk
 oka doctor              # verify everything
+```
+
+For AI agents, install the bundled skill:
+
+```bash
+npx skills add Arenukvern/oka --skill oka-maintenance
 ```
 
 Requirements: Flutter SDK, JDK 11+, Android build-tools + platforms
@@ -130,6 +137,8 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 
 Contributions welcome! See the
 [contribution guide](https://docs.page/arenukvern/oka/contributing/contribution_guide).
+Releases are automated via release-please — use conventional commits
+(`feat:`, `fix:`, `docs:`); run `make check-contracts` before merging.
 Agents: start from [`AGENTS.md`](AGENTS.md).
 
 ## Security

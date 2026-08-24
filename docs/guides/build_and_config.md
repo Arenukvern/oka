@@ -202,6 +202,20 @@ Developer options → Revoke USB debugging authorizations → replug.
 Kotlin 2.1 rejects JDK 25+; `kotlinJavaEnvironment()` in
 `lib/src/pipeline/toolchain.dart` probes for JDK 17–21 automatically.
 
+## 🚢 Release Station
+
+**Q: How do I cut a release?**
+Merge conventional commits to `main`; release-please opens a Release PR that
+bumps `VERSION` + `CHANGELOG.md`. The sync workflow derives pubspec/plugin
+versions automatically. Merge → tag → pub.dev publish (automated). Full
+runbook: [contribution guide](../contributing/contribution_guide.md).
+
+**Q: How do I verify version consistency locally?**
+```bash
+make check-contracts   # VERSION == pubspec == plugin manifests; docs drift; changelog hygiene
+make sync-version      # fix drift from VERSION
+```
+
 ## 🧪 Source-contract tests note
 
 **Q: What are "source contract" tests?**
