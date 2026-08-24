@@ -1,0 +1,42 @@
+{
+  "name": "oka",
+  "version": "0.1.6",
+  "description": "No-Gradle Flutter Android build system: flutter assemble + direct Android SDK tools for 3-5x faster incremental builds, with plugin packaging, AAB support, and dependency recovery. Bundles agent skills.",
+  "author": {
+    "name": "Arenukvern",
+    "url": "https://github.com/Arenukvern/oka"
+  },
+  "homepage": "https://github.com/Arenukvern/oka",
+  "repository": "https://github.com/Arenukvern/oka",
+  "license": "MIT",
+  "keywords": [
+    "flutter",
+    "android",
+    "build-system",
+    "gradle",
+    "apk",
+    "aab",
+    "dart",
+    "cli"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "Oka",
+    "shortDescription": "No-Gradle Flutter Android builds: flutter assemble + direct SDK tools, plugin packaging, AAB, dependency recovery.",
+    "longDescription": "oka is a Dart CLI that replaces Gradle for Flutter Android builds. It runs flutter assemble and invokes Android SDK tools (aapt2, javac, d8, zipalign, apksigner) directly — no Gradle daemon, no AGP, no 30s+ configuration overhead per build.\n\nBuilt-in surface:\n- No-Gradle APK/AAB pipeline with plugin packaging (Maven/AAR deps, natives, res)\n- Fast settings in oka.yaml: extra deps, extra assets, deeplinks, adaptive vector launcher icons\n- Dependency recovery: runtime missing-class crashes map back to Maven artifacts\n- Composable BuildStep pipeline with a Dart composition API\n\nBundled skills teach agents how to build, configure, and maintain oka projects.",
+    "developerName": "Arenukvern",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Arenukvern/oka",
+    "privacyPolicyURL": "https://github.com/Arenukvern/oka/blob/main/LICENSE",
+    "termsOfServiceURL": "https://github.com/Arenukvern/oka/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Use oka to build my Flutter Android app without Gradle and install the APK on a connected device.",
+      "My app crashes at launch with NoClassDefFoundError — use oka's dependency recovery to fix it."
+    ],
+    "brandColor": "#02569B"
+  }
+}

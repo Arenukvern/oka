@@ -1,0 +1,23 @@
+{
+  "name": "oka",
+  "version": "0.1.6",
+  "description": "No-Gradle Flutter Android build system: flutter assemble + direct Android SDK tools for 3-5x faster incremental builds, with plugin packaging, AAB support, and dependency recovery. Bundles agent skills.",
+  "author": {
+    "name": "Arenukvern",
+    "url": "https://github.com/Arenukvern/oka"
+  },
+  "homepage": "https://github.com/Arenukvern/oka",
+  "repository": "https://github.com/Arenukvern/oka",
+  "license": "MIT",
+  "keywords": [
+    "flutter",
+    "android",
+    "build-system",
+    "gradle",
+    "apk",
+    "aab",
+    "dart",
+    "cli"
+  ],
+  "skills": "./skills"
+}

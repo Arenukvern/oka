@@ -1,5 +1,7 @@
 # Changelog
 
+<!-- markdownlint-disable MD052 -->
+
 All notable changes to the Oka project will be documented in this file.
 
 ## [0.1.6] - 2026-07-29

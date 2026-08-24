@@ -26,4 +26,5 @@ coverage/
 
 # Local configuration
 *.local.yaml
+example/pubspec_overrides.yaml
 
