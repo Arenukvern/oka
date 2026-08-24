@@ -326,8 +326,8 @@ MIT License - see LICENSE file for details
 - [x] Missing-dependency recovery (`oka get dep`, crash-log class mapping)
 - [x] Adaptive launcher icons (vector-first, ADR 0003)
 - [x] Extra assets & deeplink fast-settings
+- [x] AAR dependency processing (Maven + local `.aar`: natives, res, classes)
 - [ ] Complete hot reload integration
-- [ ] AAR dependency processing
 - [ ] Plugin system for custom build steps
 - [ ] Support for popular Flutter plugins
 - [ ] Build cache sharing across machines

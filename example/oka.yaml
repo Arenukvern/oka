@@ -41,6 +41,8 @@ pipeline:
       to: assets/hello.txt
     - from: build/generated-config.json
       to: generated-config.json
+  local_aars:
+    - libs/testnative.aar
   deeplinks:
     - scheme: https
       host: oka.example.com

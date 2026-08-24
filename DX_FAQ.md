@@ -118,6 +118,22 @@ pipeline:
 ```
 Runs after flutter-assemble; sources must exist or the build fails.
 
+**Q: How do I package a local .aar file?**
+```yaml
+pipeline:
+  local_aars:
+    - libs/my-native-lib.aar   # project-relative path
+```
+Oka extracts classes.jar (dex input), `jni/<abi>/*.so` natives (staged to
+`lib/<abi>/`), and `res/**` XML (merged into aapt2 compile). Resource-only
+AARs (no classes.jar) are supported.
+
+**Q: What happens to res/ and jni/ inside Maven AARs?**
+They're extracted automatically. When oka resolves an AAR from Maven it also
+unpacks `jni/<abi>/*.so` and `res/**/*.xml` into the cache (`payload/` dir
+next to classes.jar) and merges them into the build — no config needed.
+Implementation: `extractAarPayload` in `lib/src/build/dependency_cache.dart`.
+
 **Q: How do I set the launcher icon?**
 ```yaml
 android:

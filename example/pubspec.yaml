@@ -34,6 +34,9 @@ dependencies:
   mcp_toolkit:
     path: /Users/anton/mcp/mcp_flutter/mcp_toolkit
 
+  oka:
+    path: /Users/anton/xs/oka
+
 dependency_overrides:
   flutter_mcp_toolkit_core:
     path: /Users/anton/mcp/mcp_flutter/packages/core

@@ -31,7 +31,7 @@ extension type const ManifestMergeResult(Map<String, dynamic> value) {
 
   /// Timestamp of merge operation
   DateTime? get timestamp =>
-      dateTimeFromMilisecondsSinceEpoch(jsonDecodeInt(value['timestamp']));
+      dateTimeFromMillisecondsSinceEpoch(jsonDecodeInt(value['timestamp']));
 
   /// Whether merge result was cached
   bool get fromCache => jsonDecodeBool(value['from_cache']);

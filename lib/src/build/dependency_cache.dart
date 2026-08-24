@@ -230,7 +230,9 @@ extractAarPayload(
     final name = file.name.replaceAll('\\', '/');
 
     // jni/<abi>/lib*.so
-    final jniMatch = RegExp('^jni/([^/]+)/(lib[^/]+[.]so)[+]').firstMatch(name);
+    final jniMatch = RegExp(
+      '^jni/([^/]+)/(lib[^/]+[.]so)' + r'$',
+    ).firstMatch(name);
     if (jniMatch != null) {
       final abi = jniMatch.group(1)!;
       final out = p.join(destDir, name);

@@ -22,6 +22,8 @@ This file is a **map**, not a manual — follow links.
 | See CLI commands | `bin/oka.dart`, `lib/src/cli/` |
 | Understand/extend the build pipeline | `lib/src/pipeline/` (steps in `pipeline/steps/`, tool invocations in `pipeline/toolchain.dart`) — see ADR 0002 |
 | Add a dependency / fix missing-class crashes | `DX_FAQ.md` → Dependencies Station; table in `lib/src/build/dependency_suggest.dart` |
+| Local .aar files / AAR natives & res | `DX_FAQ.md` → Assets & Icon Station (`local_aars`); `extractAarPayload` in `dependency_cache.dart` |
+| Compose a custom pipeline in Dart | `example/bin/custom_pipeline.dart`; contracts in `lib/src/pipeline/pipeline.dart` |
 | Icons, deeplinks, extra assets config | `DX_FAQ.md` → Assets & Icon Station |
 
 ## Commands

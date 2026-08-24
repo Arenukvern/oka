@@ -58,6 +58,13 @@ conflict mediation — a Gradle-sized problem. The fixed embedding set covers
 Flutter hosts; `pipeline.extra_deps` handles gaps. Recovery suggestions
 (`dependency_suggest.dart`) close the loop when the set misses runtime classes.
 
+**Q: Why extract AAR natives/res instead of dexing classes.jar only?**
+A: An AAR is a fat library: classes.jar alone misses `jni/<abi>/*.so` (crash on
+System.loadLibrary) and `res/values` attrs (aapt2 resource mismatches). Since
+extraction is just zip entry copying, the cost is trivial versus the runtime
+failures it prevents; both Maven AARs and local `pipeline.local_aars` share
+the same `extractAarPayload` path.
+
 ## Packaging
 
 **Q: Why must `resources.arsc` be stored uncompressed?**

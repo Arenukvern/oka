@@ -76,5 +76,7 @@ Evidence roots:
 | Composable pipeline | [0002](decisions/0002-composable-build-pipeline.md) | full `dart test` suite; example app built + installed on device | steps in `lib/src/pipeline/` |
 | resources.arsc stored uncompressed + zipalign -p 4 | — | device install verification (Android 11+ rejects otherwise) | `apk_layout.dart` |
 | Dependency recovery (`oka get dep`, crash mapping) | 0002 | `test/dependency_suggest_test.dart` | `dependency_suggest.dart` |
+| AAR processing (natives + res from Maven & local AARs) | 0002 | `test/aar_processing_test.dart`; verified: local AAR natives + res in compiled APK | `dependency_cache.dart` (`extractAarPayload`), `_LocalAarsStep` |
+| Custom pipeline Dart API example | 0002 | `example/bin/custom_pipeline.dart` ran end-to-end with custom steps | — |
 | Extra assets / deeplinks fast-settings | 0002 | `test/asset_steps_test.dart`; verified in APK + on-device deeplink launch | `asset_steps.dart` |
 | Vector-first launcher icons | [0003](decisions/0003-vector-first-launcher-icons.md) | `test/launcher_icon_test.dart`; `aapt2 dump badging` shows icon | `launcher_icon.dart` |

@@ -58,7 +58,7 @@ extension type const BuildContext(Map<String, dynamic> value) {
   String get androidSdkPath => jsonDecodeString(value['android_sdk_path']);
 
   /// Build timestamp
-  DateTime? get buildTimestamp => dateTimeFromMilisecondsSinceEpoch(
+  DateTime? get buildTimestamp => dateTimeFromMillisecondsSinceEpoch(
       jsonDecodeInt(value['build_timestamp']));
 
   /// Whether verbose logging is enabled
@@ -97,7 +97,7 @@ extension type const BuildArtifact(Map<String, dynamic> value) {
 
   /// Build timestamp
   DateTime? get timestamp =>
-      dateTimeFromMilisecondsSinceEpoch(jsonDecodeInt(value['timestamp']));
+      dateTimeFromMillisecondsSinceEpoch(jsonDecodeInt(value['timestamp']));
 
   /// Whether this is a successful build
   bool get success => jsonDecodeBool(value['success']);
