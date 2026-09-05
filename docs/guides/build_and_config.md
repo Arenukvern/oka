@@ -29,6 +29,20 @@ example (`example/bin/custom_pipeline.dart` in the oka repository). Uncomment
 when you want to own the pipeline in Dart; otherwise the YAML fast-settings
 path builds unchanged.
 
+**Q: How do I catch dependency/version resolution problems before building?**
+```bash
+oka explain --deps            # resolve the plugin dependency plan against
+                              # the local ~/.oka maven cache (offline-safe)
+oka explain --deps --network  # full resolution incl. downloads + POM
+                              # transitives; exit 1 on hard failures
+```
+Composes the plan from gradle-parsed plugin deps (post conditional-dedup,
+ADR-0007) + `pipeline.extra_deps` + the flutter-embedding set — the same
+collector and resolver the build uses, so plan and packaging cannot disagree.
+Cache-only misses print `⚠️ not in local maven cache`; with `--network` a
+resolution failure (404, unresolvable POM) prints `❌` and fails the dry-run.
+See [ADR-0008](../decisions/0008-dependency-plan-dry-run.md).
+
 **Q: How do I build the example app?**
 ```bash
 cd example && flutter pub get && oka build apk

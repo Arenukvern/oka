@@ -13,6 +13,10 @@ class ExplainCommand {
   Future<void> run(List<String> args) async {
     final release = args.contains('--release');
     final aab = args.contains('--aab') || args.contains('aab');
+    // ADR-0008: opt-in dependency-plan resolution. Cache-only by default;
+    // --network fetches missing artifacts (hard failures then exit 1).
+    final deps = args.contains('--deps');
+    final network = args.contains('--network') || args.contains('--online');
     final defines = <String, String>{};
     String? target;
     var abi = '';
@@ -119,6 +123,33 @@ class ExplainCommand {
         '  ℹ️  dev-only plugins auto-excluded from release (ADR-0007): '
         '${autoExcluded.join(', ')}',
       );
+    }
+
+    if (deps) {
+      print(
+        '\n── Dependency plan (ADR-0008, ${network ? 'network' : 'cache-only'}) '
+        '────────',
+      );
+      final cache = DependencyCache(allowNetwork: network);
+      final packager = PluginPackager(
+        dependencyCache: cache,
+        sdkLocator: SdkLocator(),
+      );
+      final report = await buildDependencyPlan(
+        plugins: result.androidPlugins,
+        extraDeps: overrides.extraDeps,
+        packager: packager,
+        cache: cache,
+        allowNetwork: network,
+      );
+      print(report.summary());
+      if (report.hasFatal) {
+        print(
+          '\n❌ dependency plan has fatal findings — the build would fail '
+          'at resolution time.',
+        );
+        exit(1);
+      }
     }
 
     print('\n── Java level ──────────────────────────────────');

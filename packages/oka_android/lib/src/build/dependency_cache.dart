@@ -70,11 +70,13 @@ class DependencyCache {
     List<String> extraRepos = const [],
     int maxDepth = 2,
     int maxArtifacts = 250,
+    void Function(MavenCoordinate coord, Object error)? onFailure,
   }) =>
       resolver.resolveWithTransitives(
         roots,
         extraRepos: extraRepos,
         maxDepth: maxDepth,
         maxArtifacts: maxArtifacts,
+        onFailure: onFailure,
       );
 }

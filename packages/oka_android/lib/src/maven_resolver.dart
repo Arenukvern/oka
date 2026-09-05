@@ -615,11 +615,16 @@ class MavenResolver {
   }
 
   /// Resolve [roots] plus limited POM transitive compile dependencies.
+  ///
+  /// [onFailure] observes per-artifact resolution failures (ADR-0008): the
+  /// BFS isolation stays intact (one bad artifact never empties the
+  /// classpath), but failures become observable instead of verbose-only.
   Future<List<ResolvedJar>> resolveWithTransitives(
     List<MavenCoordinate> roots, {
     List<String> extraRepos = const [],
     int maxDepth = 3,
     int maxArtifacts = 250,
+    void Function(MavenCoordinate coord, Object error)? onFailure,
   }) async {
     final seen = <String>{};
     final out = <ResolvedJar>[];
@@ -646,7 +651,16 @@ class MavenResolver {
       if (level.isEmpty) break;
 
       final expansions = await Future.wait(
-        level.map((item) => _resolveAndExpand(item, queue, seen, extraRepos, maxDepth)),
+        level.map(
+          (item) => _resolveAndExpand(
+            item,
+            queue,
+            seen,
+            extraRepos,
+            maxDepth,
+            onFailure: onFailure,
+          ),
+        ),
       );
       for (final e in expansions) {
         if (e.resolved != null && e.length > 200) {
@@ -675,8 +689,9 @@ class MavenResolver {
     List<({MavenCoordinate c, int depth})> queue,
     Set<String> seen,
     List<String> extraRepos,
-    int maxDepth,
-  ) async {
+    int maxDepth, {
+    void Function(MavenCoordinate coord, Object error)? onFailure,
+  }) async {
     try {
       final resolved = await resolve(item.c, extraRepos: extraRepos);
       final len = await File(resolved.jarPath).length();
@@ -728,6 +743,7 @@ class MavenResolver {
       return (resolved: resolved, length: len, next: next);
     } catch (e) {
       if (verbose) print('   resolve skip ${item.c}: $e');
+      onFailure?.call(item.c, e);
       return (resolved: null, length: 0, next: const <({MavenCoordinate c, int depth})>[]);
     }
   }

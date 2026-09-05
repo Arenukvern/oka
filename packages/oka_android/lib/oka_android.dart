@@ -29,6 +29,7 @@ export 'src/build/dependency_cache.dart';
 export 'src/maven_resolver.dart';
 export 'src/build/dependency_suggest.dart';
 export 'src/build/engine_artifacts.dart';
+export 'src/dependency_plan.dart';
 export 'src/build/flutter_android_builder.dart';
 export 'src/build/flutter_apk_builder.dart';
 export 'src/build/flutter_assemble.dart';

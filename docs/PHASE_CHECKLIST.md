@@ -99,6 +99,13 @@ done only when its tests and evidence exist.
       build/gradle_dep_parser.dart` + `plugin_packager.dart`,
       `test/gradle_conditional_dedup_test.dart` over `test/fixtures/gradle/`
 - [x] Q&A blocks for init / compare / debug-step in `docs/guides/build_and_config.md`
+- [x] Dependency-plan dry-run `oka explain --deps` (+ `--network`): shared
+      declared-deps collector on `PluginPackager`, `onFailure` observability on
+      `MavenResolver.resolveWithTransitives`, typed `DependencyPlanReport`;
+      cache-only default, network mode gates with exit 1 — ADR-0008,
+      `packages/oka_android/lib/src/dependency_plan.dart`,
+      `test/dependency_plan_test.dart`; example: 27 roots → 20 cache hits
+      offline / 78 jars with transitives online, 0 findings
 
 ### Open
 

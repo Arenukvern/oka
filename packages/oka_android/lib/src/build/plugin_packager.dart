@@ -9,6 +9,17 @@ import 'host_codegen.dart';
 import 'plugin_discovery.dart';
 import 'sdk_locator.dart';
 
+/// Declared Maven inputs for one plugin (ADR-0008).
+class PluginDeclaredDeps {
+  final List<MavenCoordinate> rootCoords;
+  final List<String> extraRepos;
+
+  const PluginDeclaredDeps({
+    required this.rootCoords,
+    required this.extraRepos,
+  });
+}
+
 /// Result of packaging one Flutter Android plugin for no-Gradle APK builds.
 class PackagedPlugin {
   final DiscoveredPlugin plugin;
@@ -176,36 +187,22 @@ class PluginPackager {
     );
   }
 
-  /// Package a single plugin: sources, deps, res, natives.
-  Future<PackagedPlugin> packageOne(
+  /// Declared Maven inputs for one plugin (ADR-0008): gradle-parsed root
+  /// coordinates after conditional dedup (gradle default branch wins, printed
+  /// notice), plugin-declared repos, and the kotlin/androidx bootstrap set
+  /// (kotlin set gated on [hasKotlinSources]). Shared by [packageOne] and the
+  /// `oka explain --deps` dependency plan so both see identical inputs.
+  Future<PluginDeclaredDeps> collectDeclaredDeps(
     DiscoveredPlugin plugin, {
-    required String workDir,
-    required List<String> abis,
+    required bool hasKotlinSources,
   }) async {
-    await Directory(workDir).create(recursive: true);
     final path = plugin.path;
-    if (path.isEmpty || !await Directory(path).exists()) {
-      return PackagedPlugin(
-        plugin: plugin,
-        packable: false,
-        failureReason: 'plugin path missing: $path',
-      );
-    }
-
-    final javaSources = await _findSources(path, ['.java']);
-    final kotlinSources = await _findSources(path, ['.kt']);
-    // Exclude test sources
-    final javaMain = javaSources.where((s) => !_isTestPath(s)).toList();
-    final ktMain = kotlinSources.where((s) => !_isTestPath(s)).toList();
-
-    final jarDeps = <String>[];
     final gradleFiles = await _findGradleFiles(path);
     final extraRepos = <String>[];
     final rootCoords = <MavenCoordinate>[];
     // Conditional-dep dedup (ADR-0007): collect all parsed deps across the
     // plugin's gradle files, re-mapping per-file if/else group ids so groups
-    // from different files cannot collide, then keep only the first variant
-    // per group (gradle's default branch wins) with a printed notice.
+    // from different files cannot collide.
     final allDeps = <ParsedGradleDep>[];
     const groupIdStride = 100000;
     for (var fi = 0; fi < gradleFiles.length; fi++) {
@@ -242,7 +239,7 @@ class PluginPackager {
       ));
     }
     // Always pull kotlin stdlib + coroutines-core when any Kotlin sources exist
-    if (ktMain.isNotEmpty) {
+    if (hasKotlinSources) {
       rootCoords.add(const MavenCoordinate(
         groupId: 'org.jetbrains.kotlin',
         artifactId: 'kotlin-stdlib',
@@ -296,6 +293,47 @@ class PluginPackager {
         packaging: 'jar',
       ),
     ]);
+    return PluginDeclaredDeps(rootCoords: rootCoords, extraRepos: extraRepos);
+  }
+
+  /// Whether a plugin declares Kotlin host sources (gates the kotlin
+  /// bootstrap dependency set).
+  Future<bool> hasKotlinSources(DiscoveredPlugin plugin) async {
+    final kt = await _findSources(plugin.path, ['.kt']);
+    return kt.isNotEmpty;
+  }
+
+  /// Package a single plugin: sources, deps, res, natives.
+  Future<PackagedPlugin> packageOne(
+    DiscoveredPlugin plugin, {
+    required String workDir,
+    required List<String> abis,
+  }) async {
+    await Directory(workDir).create(recursive: true);
+    final path = plugin.path;
+    if (path.isEmpty || !await Directory(path).exists()) {
+      return PackagedPlugin(
+        plugin: plugin,
+        packable: false,
+        failureReason: 'plugin path missing: $path',
+      );
+    }
+
+    final javaSources = await _findSources(path, ['.java']);
+    final kotlinSources = await _findSources(path, ['.kt']);
+    // Exclude test sources
+    final javaMain = javaSources.where((s) => !_isTestPath(s)).toList();
+    final ktMain = kotlinSources.where((s) => !_isTestPath(s)).toList();
+
+    final jarDeps = <String>[];
+    // Declared Maven inputs (ADR-0008): shared with the `oka explain --deps`
+    // dry-run plan so packaging and the plan cannot disagree.
+    final declared = await collectDeclaredDeps(
+      plugin,
+      hasKotlinSources: ktMain.isNotEmpty,
+    );
+    final extraRepos = declared.extraRepos;
+    final rootCoords = declared.rootCoords;
     if (rootCoords.isNotEmpty) {
       try {
         final resolved = await dependencyCache.resolveWithTransitives(

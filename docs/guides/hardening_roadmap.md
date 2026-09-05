@@ -25,6 +25,11 @@ or a resolver service. No YAML sprawl, no stringly flags.
   version injection, defines, plugin list (discovery is file-only), dependency
   plan — **zero tool invocations**. The single biggest diagnosis lever found in
   practice: full builds were the only diagnosis tool for hours.
+- **Dependency-plan dry-run** (`oka explain --deps`, [ADR-0008](../decisions/0008-dependency-plan-dry-run.md)) —
+  resolves the declared plugin dependency plan through the resolver service:
+  cache-only by default (offline-safe, misses reported `⚠️`); `--network` opts
+  into full resolution where hard failures exit 1. Shares the declared-deps
+  collector with plugin packaging so plan and build cannot disagree.
 - **Post-build lint** (`PostBuildLintStep`, a normal composable step):
   - manifest `versionCode`/`versionName` actually present (badging parse)
   - debug-signed release artifact → hard fail unless `--allow-debug-signing`
