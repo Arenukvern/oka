@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
-import '../build/android_sdk_installer.dart';
+import 'package:oka_android/src/build/android_sdk_installer.dart';
 
 /// Clean command to clear build caches
 class CleanCommand {

@@ -1,12 +1,13 @@
+import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../build/android_sdk_installer.dart';
-import '../build/bundletool.dart';
-import '../build/dependency_cache.dart';
-import '../build/sdk_locator.dart';
-import '../build/version_manager.dart';
+import 'package:oka_android/src/build/android_sdk_installer.dart';
+import 'package:oka_android/src/build/bundletool.dart';
+import 'package:oka_android/src/build/dependency_cache.dart';
+import 'package:oka_android/src/build/sdk_locator.dart';
+import 'package:oka_android/src/build/version_manager.dart';
 
 /// Get command to install missing Android SDK dependencies
 class GetCommand {

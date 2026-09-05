@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:oka/src/build/bundletool.dart';
+import 'package:oka_android/src/build/bundletool.dart';
 import 'package:test/test.dart';
 
 void main() {

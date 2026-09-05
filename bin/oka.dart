@@ -7,6 +7,7 @@ import 'package:oka/src/cli/build_command.dart';
 import 'package:oka/src/cli/clean_command.dart';
 import 'package:oka/src/cli/dev_command.dart';
 import 'package:oka/src/cli/doctor_command.dart';
+import 'package:oka/src/cli/explain_command.dart';
 import 'package:oka/src/cli/get_command.dart';
 import 'package:oka/src/cli/init_command.dart';
 import 'package:oka/src/version.dart';
@@ -56,6 +57,9 @@ void main(List<String> arguments) async {
       case 'get':
         await GetCommand().run(commandArgs);
         break;
+      case 'explain':
+        await ExplainCommand().run(commandArgs);
+        break;
       default:
         print('Unknown command: $command');
         _printUsage(parser);
@@ -78,6 +82,7 @@ Usage: oka <command> [options]
 
 Commands:
   init      Initialize oka.yaml configuration from existing Gradle project
+  explain   Show the validated build plan (no tools invoked)
   build     Build APK or AAB
   dev       Start development mode with hot reload
   doctor    Check system requirements and configuration

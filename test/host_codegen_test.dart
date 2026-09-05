@@ -1,4 +1,4 @@
-import 'package:oka/src/build/host_codegen.dart';
+import 'package:oka_android/src/build/host_codegen.dart';
 import 'package:test/test.dart';
 
 void main() {

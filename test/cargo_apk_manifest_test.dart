@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:oka/src/build/cargo_apk_manifest.dart';
-import 'package:oka/src/config/build_context.dart';
+import 'package:oka_android/src/build/cargo_apk_manifest.dart';
+import 'package:oka_core/src/config/build_context.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

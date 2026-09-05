@@ -56,6 +56,107 @@ make test    # dart test
 make lint    # dart analyze
 ```
 
+## 🪝 Dart entrypoint hooks (ADR-0006)
+
+**Q: How do I customize the pipeline without editing oka?**
+
+Declare a Dart entrypoint in `oka.yaml` (the **only** extensibility key —
+YAML growth is frozen; everything else is Dart):
+
+```yaml
+pipeline:
+  dart_entrypoint: tool/oka_pipeline.dart
+```
+
+`oka build` then delegates to `dart run tool/oka_pipeline.dart` with the same
+args (`--release/--aab/--abi/--target/--dart-define…`). The hook composes a
+declarative, typed `Oka` root — no mutable step surgery, no stringly maps:
+
+```dart
+// tool/oka_pipeline.dart
+import 'package:oka_android/oka_android.dart';
+import 'package:oka_core/oka_core.dart';
+
+Future<void> main(List<String> args) => okaRun(
+  args,
+  oka: Oka(
+    pipelines: [
+      AndroidPipeline(
+        overrides: PipelineOverrides().copyWith(
+          resourceConfigs: ['en', 'ru'],
+        ),
+        steps: [...AndroidPipeline.defaultSteps, MyStep()],
+      ),
+    ],
+  ),
+);
+```
+
+- `okaRun` handles arg parsing, `oka.yaml` merge, SDK/cache dirs.
+- Steps declare `requires`/`provides` artifact sets (`Artifact<T>` typed
+  keys); the runner **validates the whole chain before any tool runs** and
+  fails naming the missing producer.
+- Config is overridden exclusively with `copyWith` on typed values
+  (`PipelineOverrides`, `ManifestSpec`, `SigningConfig`).
+- Reusable logic ships as ordinary Dart packages; depend on `oka_android`
+  (light deps) in the host app, not the `oka` CLI.
+
+Projects without `dart_entrypoint` keep the AOT fast path unchanged.
+See `example/bin/custom_pipeline.dart` for a working hook.
+
+**Q: How do I customize the Android manifest?**
+
+The manifest is a typed `ManifestSpec` rendered by `host-codegen` — no XML
+patching, no per-attribute YAML fields:
+
+```yaml
+android:
+  manifest:
+    permissions: [android.permission.INTERNET, android.permission.CAMERA]
+    cleartext_traffic: true
+    flutter_deeplinking: true
+    application_attributes: {android:icon: "@mipmap/ic_launcher"}
+    activity_attributes: {android:theme: "@style/LaunchTheme"}
+    application_meta_data:
+      - name: io.flutter.embedding.android.NormalTheme
+        resource: "@style/NormalTheme"
+    deeplinks:
+      - {scheme: https, host: example.com}   # autoVerify
+      - {scheme: myapp}                       # scheme-only custom scheme
+```
+
+Hooks override it wholesale via `ManifestSpec.copyWith`. The user `res/`
+tree (themes, splash, mipmaps) merges via `android.res_dirs`.
+
+## ⚡ Incremental build cache
+
+`plugin-packaging`, `flutter-assemble`, `release-aot` and `compile-and-dex`
+are fingerprint-gated (content-hash for sources/manifests/res; size+mtime for
+jars). Unchanged inputs skip Maven resolution, kotlinc and d8 entirely —
+production-app repeat builds drop from minutes to ~25s. Fingerprints live in
+`.oka_cache/build/<mode>/step_cache.json`; `oka clean` or deleting the build
+dir resets. Any input change (sources, deps, defines, tool versions, manifest)
+forces a full re-run of that step only.
+
+## 🔐 Signing & versioning (G2)
+
+```yaml
+android:
+  version_code: 51          # injected via aapt2 --version-code
+  version_name: 3.22.0      # injected via aapt2 --version-name
+  resource_configs: [en, ru]  # aapt2 -c qualifier filter
+  exclude_plugins: [integration_test]  # test-only plugins
+  signing:
+    keystore: keys/release.jks
+    alias: upload
+    store_password_env: OKA_STORE_PASS   # secrets via env, never yaml
+    key_password_env: OKA_KEY_PASS
+```
+
+Signing fallback chain: explicit config → `oka.yaml android.signing` →
+`android/key.properties` (Gradle-compatible) → debug keystore (dev only;
+release builds warn loudly).
+
 ## 🔧 Build Pipeline Station (ADR 0002)
 
 **Q: What are the pipeline steps and where do they live?**

@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
-import '../config/dependency.dart';
-import '../config/manifest_merge_result.dart';
-import '../config/oka_config.dart';
+import 'package:oka_core/src/config/dependency.dart';
+import 'package:oka_core/src/config/manifest_merge_result.dart';
+import 'package:oka_core/src/config/oka_config.dart';
 import 'ai_client.dart';
 import 'prompt_templates.dart';
 

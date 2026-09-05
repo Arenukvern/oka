@@ -39,10 +39,13 @@ pipeline:
   extra_assets:
     - from: assets/hello.txt
       to: assets/hello.txt
-    - from: build/generated-config.json
+    - from: build_generated_config.json
       to: generated-config.json
   local_aars:
     - libs/testnative.aar
+  # ADR-0006: project-declared Dart pipeline entrypoint (hook). `oka build`
+  # delegates to `dart run` on this file, which composes the Oka root.
+  dart_entrypoint: bin/custom_pipeline.dart
   deeplinks:
     - scheme: https
       host: oka.example.com
@@ -76,5 +79,6 @@ cargo_apk:
       required: true
   # Custom manifest entries
   manifest_entries: {}
+
 
 dependencies:

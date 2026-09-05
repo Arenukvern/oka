@@ -1,5 +1,5 @@
-import 'package:oka/src/build/flutter_assemble.dart';
-import 'package:oka/src/config/build_context.dart';
+import 'package:oka_android/src/build/flutter_assemble.dart';
+import 'package:oka_core/src/config/build_context.dart';
 import 'package:test/test.dart';
 
 void main() {

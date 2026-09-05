@@ -1,6 +1,7 @@
+import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
 
-import 'package:oka/src/build/dependency_cache.dart';
+import 'package:oka_android/src/build/dependency_cache.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

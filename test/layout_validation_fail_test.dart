@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:oka/src/build/apk_layout.dart';
+import 'package:oka_android/src/build/apk_layout.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -26,7 +26,7 @@ void main() {
 
     test('builder throws on incomplete layout (source contract)', () async {
       final text = await File(
-        p.join('lib', 'src', 'pipeline', 'steps', 'tool_steps.dart'),
+        p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'steps', 'tool_steps.dart'),
       ).readAsString();
       // Must throw / fail — not only warn
       expect(text, contains('APK layout incomplete'));

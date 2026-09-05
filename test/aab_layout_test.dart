@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:oka/src/build/aab_layout.dart';
-import 'package:oka/src/build/aapt2_commands.dart';
+import 'package:oka_android/src/build/aab_layout.dart';
+import 'package:oka_android/src/build/aapt2_commands.dart';
 import 'package:test/test.dart';
 
 void main() {

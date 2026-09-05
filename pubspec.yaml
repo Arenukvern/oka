@@ -17,6 +17,10 @@ environment:
 
 dependencies:
   args: ^2.5.0
+  oka_android:
+    path: packages/oka_android
+  oka_core:
+    path: packages/oka_core
   path: ^1.9.0
   yaml: ^3.1.2
   process: ^5.0.2

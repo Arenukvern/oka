@@ -1,16 +1,18 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'explain_command.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-import '../build/android_builder.dart';
-import '../build/bundletool.dart';
-import '../build/flutter_apk_builder.dart';
-import '../build/sdk_locator.dart';
-import '../config/build_context.dart';
-import '../config/oka_config.dart';
-import '../pipeline/toolchain.dart' show debugKeystore;
+import 'package:oka_android/src/build/android_builder.dart';
+import 'package:oka_android/src/build/bundletool.dart';
+import 'package:oka_android/src/build/flutter_apk_builder.dart';
+import 'package:oka_android/src/build/sdk_locator.dart';
+import 'package:oka_core/src/config/build_context.dart';
+import 'package:oka_core/src/config/oka_config.dart';
+import 'package:oka_android/src/pipeline/toolchain.dart' show debugKeystore;
 
 /// Recursively converts YamlMap/YamlList to Map/List
 dynamic _yamlToJson(dynamic value) {
@@ -33,6 +35,12 @@ class BuildCommand {
         help: 'Build debug variant (default)',
       )
       ..addFlag('profile', negatable: false, help: 'Build profile variant')
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help:
+            'Show the validated build plan without building (same as oka explain)',
+      )
       ..addFlag(
         'flutter',
         negatable: false,
@@ -71,9 +79,25 @@ class BuildCommand {
         'abi',
         help: 'Single ABI to build (e.g. arm64-v8a)',
         defaultsTo: '',
+      )
+      ..addOption(
+        'target',
+        help: 'Flutter entrypoint (e.g. lib/main_prod.dart)',
+      )
+      ..addMultiOption(
+        'dart-define',
+        help: 'Dart defines passed to flutter assemble (key=value)',
+      )
+      ..addOption(
+        'dart-define-from-file',
+        help: 'JSON file with Dart defines',
       );
 
     final results = parser.parse(args);
+    if (results['dry-run'] as bool) {
+      await ExplainCommand().run(args);
+      return;
+    }
     final verbose = results['verbose'] as bool;
     final useNativeAndroid = results['native-android'] as bool;
     final buildAab = results['aab'] as bool;
@@ -120,6 +144,52 @@ class BuildCommand {
     }
 
     final projectPath = Directory.current.path;
+
+    // ADR-0006: project-declared Dart entrypoint owns the pipeline. `oka
+    // build` delegates (same args/env) — the hook composes the declarative
+    // Oka root. No-entrypoint projects keep the AOT fast path.
+    final dartEntrypoint = config.toJson()['pipeline'] is Map
+        ? (config.toJson()['pipeline'] as Map)['dart_entrypoint']?.toString()
+        : null;
+    if (dartEntrypoint != null && dartEntrypoint.isNotEmpty) {
+      print('🪝 Delegating to Dart entrypoint: $dartEntrypoint\n');
+      final defines = [
+        ...results['dart-define'] as List<String>,
+      ];
+      final defineFile = results['dart-define-from-file'] as String?;
+      final args = [
+        '--platform',
+        'android',
+        if (mode != BuildMode.debug) '--${mode.name}',
+        if (wantsAab) '--aab',
+        if (verbose) '--verbose',
+        if ((results['flavor'] as String?)?.isNotEmpty ?? false)
+          ...['--flavor', results['flavor'] as String],
+        if ((results['abi'] as String).isNotEmpty) ...[
+          '--abi',
+          results['abi'] as String,
+        ],
+        if ((results['target'] as String?)?.isNotEmpty ?? false)
+          ...['--target', results['target'] as String],
+        for (final d in defines) ...['--dart-define', d],
+        if (defineFile != null) ...['--dart-define-from-file', defineFile],
+      ];
+      final proc = await Process.run(
+        'dart',
+        ['run', dartEntrypoint, ...args],
+        workingDirectory: projectPath,
+        environment: {
+          if (verbose) 'OKA_VERBOSE': '1',
+          'OKA_MODE': mode.name,
+          if (wantsAab) 'OKA_AAB': '1',
+        },
+        runInShell: true,
+      );
+      stdout.write(proc.stdout);
+      stderr.write(proc.stderr);
+      exit(proc.exitCode);
+    }
+
     final buildDir = p.join(projectPath, '.oka_cache', 'build', mode.name);
     final cacheDir = p.join(projectPath, '.oka_cache');
     await Directory(buildDir).create(recursive: true);
@@ -139,6 +209,12 @@ class BuildCommand {
       'flavor': results['flavor'] ?? '',
       'target_abi': targetAbi,
       'build_aab': wantsAab,
+      'target_override': (results['target'] as String?) ?? '',
+      'dart_defines': {
+        for (final d in results['dart-define'] as List<String>)
+          ..._parseSingleDefine(d),
+        ..._parseDefineFile(results['dart-define-from-file'] as String?),
+      },
     });
 
     final locator = SdkLocator(verbose: verbose);
@@ -181,6 +257,29 @@ class BuildCommand {
       final ok = await _verifyAab(artifact.apkPath, verbose: verbose);
       if (!ok) exit(1);
     }
+  }
+
+  /// Parses a single `key=value` define; bare key → 'true'.
+  static Map<String, String> _parseSingleDefine(String define) {
+    final i = define.indexOf('=');
+    if (i < 0) return {define: 'true'};
+    return {define.substring(0, i): define.substring(i + 1)};
+  }
+
+  /// Expands --dart-define-from-file (JSON object).
+  static Map<String, String> _parseDefineFile(String? path) {
+    if (path == null || path.isEmpty) return const {};
+    final f = File(path);
+    if (!f.existsSync()) {
+      stderr.writeln('❌ dart-define-from-file not found: $path');
+      exit(1);
+    }
+    final decoded = jsonDecode(f.readAsStringSync());
+    if (decoded is! Map) {
+      stderr.writeln('❌ dart-define-from-file must be a JSON object: $path');
+      exit(1);
+    }
+    return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
   }
 
   /// bundletool verification loop for AABs (ADR-0004).

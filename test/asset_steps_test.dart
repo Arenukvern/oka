@@ -1,12 +1,13 @@
+import 'package:oka_android/oka_android.dart';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-import 'package:oka/src/pipeline/pipeline.dart';
-import 'package:oka/src/pipeline/steps/asset_steps.dart';
-import 'package:oka/src/config/build_context.dart';
-import 'package:oka/src/config/oka_config.dart';
+import 'package:oka_core/src/pipeline/pipeline.dart';
+import 'package:oka_android/src/pipeline/steps/asset_steps.dart';
+import 'package:oka_core/src/config/build_context.dart';
+import 'package:oka_core/src/config/oka_config.dart';
 
 void main() {
   group('ExtraAssetsStep', () {
@@ -108,8 +109,16 @@ void main() {
       expect(c.intentFilterXml, contains('autoVerify="true"'));
     });
 
-    test('rejects missing host', () {
-      expect(DeeplinkConfig.fromMap({'scheme': 'https'}), isNull);
+    test('rejects missing scheme', () {
+      expect(DeeplinkConfig.fromMap({'host': 'example.com'}), isNull);
+    });
+
+    test('allows scheme-only deeplinks (custom schemes, no host)', () {
+      final c = DeeplinkConfig.fromMap({'scheme': 'dev.xsoulspace.lastanswer'});
+      expect(c, isNotNull);
+      expect(c!.host, isEmpty);
+      expect(c.intentFilterXml, contains('android:scheme="dev.xsoulspace.lastanswer"'));
+      expect(c.intentFilterXml, isNot(contains('android:host')));
     });
   });
 }

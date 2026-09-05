@@ -1,4 +1,4 @@
-import 'package:oka/src/build/gradle_dep_parser.dart';
+import 'package:oka_android/src/build/gradle_dep_parser.dart';
 import 'package:test/test.dart';
 
 void main() {

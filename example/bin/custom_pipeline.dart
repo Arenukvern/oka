@@ -1,123 +1,65 @@
-/// Example: composing a custom build pipeline with the oka Dart API (ADR 0002).
+/// Example: composing a custom build pipeline with the oka Dart API
+/// (ADR-0006 declarative composition).
 ///
 /// The default `oka build apk` command already assembles a full pipeline from
-/// `oka.yaml`. This file shows the **full Dart composition** layer for cases
-/// where you need to reorder, replace, or wrap steps.
+/// `oka.yaml`. This entrypoint shows the **Dart composition** layer:
+/// a typed, immutable [Oka] root with the default Android steps plus two
+/// custom steps.
 ///
-/// Run it:
+/// Run it (from the repo root):
 ///
 /// ```bash
-/// cd example
-/// dart run bin/custom_pipeline.dart
+/// dart run example/bin/custom_pipeline.dart
 /// ```
 ///
-/// Precedence reminder: built-in defaults < oka.yaml < this kind of script.
+/// Precedence reminder: built-in defaults < `oka.yaml` < this script.
 library;
 
 import 'dart:io';
 
-import 'package:oka/src/build/dependency_cache.dart';
-import 'package:oka/src/build/flutter_assemble.dart';
-import 'package:oka/src/build/plugin_discovery.dart';
-import 'package:oka/src/build/sdk_locator.dart';
-import 'package:oka/src/config/build_context.dart';
-import 'package:oka/src/pipeline/default_pipeline.dart';
-import 'package:oka/src/pipeline/pipeline.dart';
-import 'package:oka/src/pipeline/steps/flutter_steps.dart';
-import 'package:oka/src/pipeline/steps/host_steps.dart';
-import 'package:oka/src/pipeline/steps/tool_steps.dart';
+import 'package:oka_android/oka_android.dart';
+import 'package:oka_core/oka_core.dart';
 
-Future<void> main() async {
-  // --- 1. Standard context (same shape `oka build apk` builds internally). ---
-  final projectPath = Directory.current.path;
-  final ctx = BuildContext.fromJson({
-    'project_path': projectPath,
-    'build_dir': '$projectPath/.oka_cache/build/debug',
-    'mode': 'debug',
-    'config': await _loadOkaConfig(projectPath),
-    'cache_dir': '$projectPath/.oka_cache/cache',
-    'temp_dir': '$projectPath/.oka_cache/tmp',
-    'flutter_sdk_path': '',
-    'android_sdk_path':
-        Platform.environment['ANDROID_SDK_ROOT'] ??
-        Platform.environment['OKA_ANDROID_SDK'] ??
-        '',
-    'build_timestamp': DateTime.now().millisecondsSinceEpoch,
-    'verbose': Platform.environment['OKA_VERBOSE'] == '1',
-    'flavor': '',
-    'target_abi': '',
-    'build_aab': false,
-  });
-
-  final sdkLocator = SdkLocator();
-  final cache = DependencyCache(verbose: ctx.verbose);
-
-  // --- 2. Compose your pipeline. -------------------------------------------
-  //
-  // This example wraps the DEFAULT steps and inserts two custom ones:
-  //   * a pre-package hook that stamps build time into an asset
-  //   * a post-package hook that prints APK size info
-  final pipeline = Pipeline([
-    // Default steps, in default order (subset shown; see
-    // defaultApkPipeline() for the canonical list).
-    EnsureAndroidSdkStep(sdkLocator),
-    ResolveAbisStep(),
-    PluginPackagingStep(
-      sdkLocator: sdkLocator,
-      pluginDiscovery: PluginDiscovery(verbose: false),
-      dependencyCache: cache,
-    ),
-    HostCodegenStep(),
-    FlutterAssembleStep(
-      sdkLocator: sdkLocator,
-      assembler: FlutterAssembler(verbose: false),
-    ),
-    EngineExtractionStep(sdkLocator),
-    DependencyResolveStep(cache),
-
-    // ↓ Your custom steps can go anywhere in the list.
-
-    // Custom step A: generate a build-info asset before packaging.
-    _BuildInfoStampStep(),
-
-    CompileAndDexStep(sdkLocator),
-    PackageAndSignStep(sdkLocator),
-
-    // Custom step B: observe the packaged artifact without modifying it.
-    _PrintChecksumStep(),
-    ValidateLayoutStep(),
-  ], verbose: ctx.verbose);
-
-  // --- 3. Run. ---------------------------------------------------------------
-  final result = await pipeline.run(ctx);
-  if (!result.ok) {
-    stderr.writeln('❌ ${result.error}');
-    exit(1);
-  }
-  stdout.writeln('✅ Custom pipeline APK: ${result.data['apk_path']}');
-}
-
-Future<Map<String, dynamic>> _loadOkaConfig(String projectPath) async {
-  // Minimal config map; a real script could parse oka.yaml via loadYaml.
-  return {
-    'name': 'example',
-    'android': {
-      'compile_sdk': '34',
-      'min_sdk': '21',
-      'target_sdk': '34',
-      'java_version': '11',
-      'package_name': 'com.example.example',
-      'abis': ['arm64-v8a'],
-    },
-    'flutter': {'entrypoint': 'lib/main.dart'},
-  };
-}
+Future<void> main(List<String> args) => okaRun(
+  args,
+  oka: Oka(
+    pipelines: [
+      AndroidPipeline(
+        overrides: PipelineOverrides(
+          extraDeps: ['com.squareup.okhttp3:okhttp:4.12.0'],
+        ),
+        // Default no-Gradle steps plus two custom ones. To reorder or
+        // replace, spread `AndroidPipeline.defaultSteps` and edit the list.
+        steps: [
+          EnsureAndroidSdkStep(),
+          ResolveAbisStep(),
+          PluginPackagingStep(),
+          HostCodegenStep(),
+          FlutterAssembleStep(),
+          EngineExtractionStep(),
+          ReleaseAotStep(),
+          DependencyResolveStep(),
+          // ↓ Custom step A: generate a build-info asset before packaging.
+          BuildInfoStampStep(),
+          CompileAndDexStep(),
+          PackageAndSignStep(),
+          // Custom step B: observe the packaged artifact.
+          PrintChecksumStep(),
+          ValidateLayoutStep(),
+        ],
+      ),
+    ],
+  ),
+);
 
 /// Custom step example A: writes a build-stamp file into flutter_assets,
-/// demonstrating how steps share state and produce artifacts.
-class _BuildInfoStampStep implements BuildStep {
+/// demonstrating typed artifact reads/writes.
+class BuildInfoStampStep extends BuildStep {
   @override
   String get name => 'build-info-stamp';
+
+  @override
+  Set<Artifact<Object>> get requires => {flutterAssetsDir};
 
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
@@ -133,9 +75,12 @@ class _BuildInfoStampStep implements BuildStep {
 }
 
 /// Custom step example B: observes the packaged artifact without modifying it.
-class _PrintChecksumStep implements BuildStep {
+class PrintChecksumStep extends BuildStep {
   @override
   String get name => 'print-checksum';
+
+  @override
+  Set<Artifact<Object>> get requires => {apkPath};
 
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {

@@ -1,4 +1,4 @@
-import 'package:oka/src/build/plugin_discovery.dart';
+import 'package:oka_android/src/build/plugin_discovery.dart';
 import 'package:test/test.dart';
 
 void main() {

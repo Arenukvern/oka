@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-import 'package:oka/src/build/launcher_icon.dart';
+import 'package:oka_android/src/build/launcher_icon.dart';
 
 void main() {
   group('stageLauncherIcons', () {

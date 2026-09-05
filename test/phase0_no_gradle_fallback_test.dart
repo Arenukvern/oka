@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:oka/src/build/flutter_apk_builder.dart';
-import 'package:oka/src/build/flutter_assemble.dart';
-import 'package:oka/src/build/sdk_locator.dart';
-import 'package:oka/src/config/build_context.dart';
+import 'package:oka_android/src/build/flutter_apk_builder.dart';
+import 'package:oka_android/src/build/flutter_assemble.dart';
+import 'package:oka_android/src/build/sdk_locator.dart';
+import 'package:oka_core/src/config/build_context.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -28,7 +28,7 @@ void main() {
       // Structural: demoted path must not shell out to Gradle / flutter build apk
       final root = Directory.current.path;
       final hybrid = File(
-        p.join(root, 'lib', 'src', 'build', 'flutter_android_builder.dart'),
+        p.join(root, 'packages', 'oka_android', 'lib', 'src', 'build', 'flutter_android_builder.dart'),
       );
       if (await hybrid.exists()) {
         final src = await hybrid.readAsString();
@@ -41,7 +41,7 @@ void main() {
       }
 
       final builderSrc = File(
-        p.join(root, 'lib', 'src', 'build', 'flutter_apk_builder.dart'),
+        p.join(root, 'packages', 'oka_android', 'lib', 'src', 'build', 'flutter_apk_builder.dart'),
       );
       final text = await builderSrc.readAsString();
       expect(text, isNot(contains("'build', 'apk'")));

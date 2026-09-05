@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 void main() {
   test('default pipeline exposes AAB steps', () async {
     final text = await File(
-      p.join('lib', 'src', 'pipeline', 'default_pipeline.dart'),
+      p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'default_pipeline.dart'),
     ).readAsString();
     expect(text, contains('defaultAabPipeline'));
     expect(text, contains('CompileProtoAndDexStep'));
@@ -17,7 +17,7 @@ void main() {
 
   test('toolchain uses proto-format link for AAB', () async {
     final text = await File(
-      p.join('lib', 'src', 'pipeline', 'toolchain.dart'),
+      p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'toolchain.dart'),
     ).readAsString();
     expect(text, contains('buildAapt2LinkProtoFormatArgs'));
     expect(text, contains('resources_proto.ap_'));
@@ -27,7 +27,7 @@ void main() {
 
   test('builder dispatches on ctx.buildAab (no fallback warning)', () async {
     final builder = await File(
-      p.join('lib', 'src', 'build', 'flutter_apk_builder.dart'),
+      p.join('packages', 'oka_android', 'lib', 'src', 'build', 'flutter_apk_builder.dart'),
     ).readAsString();
     expect(builder, contains('ctx.buildAab'));
     expect(builder, contains('defaultAabPipeline'));

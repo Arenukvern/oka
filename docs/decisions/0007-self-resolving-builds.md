@@ -1,0 +1,55 @@
+# 0007 — Self-resolving, self-checking builds
+
+- **Status:** accepted
+- **Date:** 2026-09-05
+- **Decision-makers:** Anton, oka agent
+- **Extends:** 0006 (declarative composition API)
+
+## Context
+
+The first production e2e (`last_answer`, 18 plugins) surfaced a class of
+failures that each cost a full build cycle to diagnose: missing tools (kotlin),
+stale package configs, test-only plugins requiring junit on the compile
+classpath, Java-level mismatches, silently empty version attributes, and
+debug-key signing on release artifacts. Every one of these is detectable
+before or checkable after the expensive steps — and most are mechanically
+resolvable without user input.
+
+## Decision
+
+**Policy: automatic with loud notices; escapes are env/flag, never new YAML
+fields.** All mechanisms are composable (steps, typed values, resolver
+services) per ADR-0006's design law.
+
+1. **Dev-only plugin exclusion.** Plugins contributed solely by
+   `dev_dependencies` (e.g. `integration_test`) are excluded from release
+   builds automatically and included in debug. `pipeline.exclude_plugins`
+   adds names; it never re-includes a dev-only plugin in release.
+2. **Version fallback.** When `oka.yaml` lacks `version_code`/`version_name`,
+   they are read from the app `pubspec.yaml` (`x.y.z+nn`). Explicit yaml wins.
+3. **Java-level auto-bump.** Plugin gradle files declaring
+   `sourceCompatibility JavaVersion.VERSION_NN` raise the effective javac
+   source/target for the compile step to the detected maximum, with a printed
+   notice. Explicit `java_version` is honored when >= detected max.
+4. **Tool auto-install.** Missing kotlinc/bundletool trigger the existing
+   `oka get <tool>` flow mid-build with a printed notice. Escapes:
+   `OKA_NO_AUTO_INSTALL=1`.
+5. **Post-build lint** (`PostBuildLintStep`): manifest version presence,
+   debug-signed release artifact (hard fail unless `--allow-debug-signing`),
+   size budget `pipeline.max_size_mb`, BundleConfig version byte-check,
+   duplicate-class pre-warning.
+6. **`oka build --dry-run`** composes and validates the pipeline — steps,
+   artifact chain, signing resolution, version injection, plugin plan — with
+   zero tool invocations.
+
+## Consequences
+
+Good: builds self-heal; failures that remain are genuine (network, code);
+diagnosis moves from full builds to dry-runs in seconds.
+
+Bad / Neutral: auto-install mutates `~/.oka` mid-build (bounded, opt-out);
+dev-only exclusion changes default behavior for release artifacts (desired);
+lint hard-fails require an escape flag for exotic store flows.
+
+**Authoritative source:** `lib/src/cli/`, `packages/oka_android/lib/src/`,
+`docs/guides/hardening_roadmap.md`.

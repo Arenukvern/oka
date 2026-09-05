@@ -1,11 +1,12 @@
+import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:oka/src/build/dependency_cache.dart';
-import 'package:oka/src/build/host_codegen.dart';
-import 'package:oka/src/build/plugin_discovery.dart';
-import 'package:oka/src/build/plugin_packager.dart';
-import 'package:oka/src/build/sdk_locator.dart';
+import 'package:oka_android/src/build/dependency_cache.dart';
+import 'package:oka_android/src/build/host_codegen.dart';
+import 'package:oka_android/src/build/plugin_discovery.dart';
+import 'package:oka_android/src/build/plugin_packager.dart';
+import 'package:oka_android/src/build/sdk_locator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -260,7 +261,7 @@ dependencies {
 
   test('default build does not empty registrant (source contract)', () async {
     final src = await File(
-      p.join('lib', 'src', 'pipeline', 'steps', 'host_steps.dart'),
+      p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'steps', 'host_steps.dart'),
     ).readAsString();
     expect(src, contains('PluginPackagingStep'));
     expect(src, contains('registrations'));

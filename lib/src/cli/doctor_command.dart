@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-import '../build/sdk_locator.dart';
-import '../build/version_manager.dart';
-import '../config/oka_config.dart';
+import 'package:oka_android/src/build/sdk_locator.dart';
+import 'package:oka_android/src/build/version_manager.dart';
+import 'package:oka_core/src/config/oka_config.dart';
 import '../version.dart';
 
 /// Recursively converts YamlMap/YamlList to Map/List
@@ -235,6 +235,80 @@ class DoctorCommand {
     } else {
       print('  ⚠️  oka.yaml not found');
       print('  💡 Run "oka init" to create it');
+    }
+    print('');
+
+    // ADR-0007: incremental + self-resolution state
+    print('[Build Health (ADR-0007)]');
+
+    // Kotlin compiler (auto-install available)
+    try {
+      final kotlinc = await locator.findKotlinc();
+      print(kotlinc != null
+          ? '  ✅ kotlinc: $kotlinc'
+          : '  ⚠️  kotlinc not found — builds auto-install on demand\n'
+              '     💡 Pre-install: "oka get kotlin"');
+    } catch (_) {
+      print('  ⚠️  kotlinc not found — builds auto-install on demand');
+    }
+
+    // bundletool (AAB verification)
+    final bt = Directory(
+      p.join(
+        Platform.environment['HOME'] ??
+            Platform.environment['USERPROFILE'] ??
+            '.',
+        '.oka',
+        'tools',
+      ),
+    );
+    final hasBundletool = bt.existsSync() &&
+        bt.listSync().any((e) => p.basename(e.path).startsWith('bundletool'));
+    print(
+      hasBundletool
+          ? '  ✅ bundletool: available for AAB verification'
+          : '  ℹ️  bundletool not installed (only needed for --verify-aab) —'
+              ' "oka get bundletool"',
+    );
+
+    // Maven cache state
+    final mavenCache = Directory(
+      p.join(
+        Platform.environment['HOME'] ??
+            Platform.environment['USERPROFILE'] ??
+            '.',
+        '.oka',
+        'cache',
+        'maven',
+      ),
+    );
+    if (mavenCache.existsSync()) {
+      final artifacts = mavenCache
+          .listSync(recursive: true)
+          .whereType<File>()
+          .length;
+      print('  ✅ maven cache: $artifacts artifacts');
+    } else {
+      print('  ℹ️  maven cache empty — first build will download dependencies');
+    }
+
+    // Incremental step cache + package_config staleness
+    final stepCache = File('.oka_cache/build/debug/step_cache.json');
+    print(
+      stepCache.existsSync()
+          ? '  ✅ incremental cache: present (debug)'
+          : '  ℹ️  incremental cache: empty — first build is a cold build',
+    );
+    final packageConfig = File('.dart_tool/package_config.json');
+    final pubspec = File('pubspec.yaml');
+    if (pubspec.existsSync() &&
+        (!packageConfig.existsSync() ||
+            pubspec.lastModifiedSync().isAfter(
+              packageConfig.lastModifiedSync(),
+            ))) {
+      print('  ⚠️  package_config.json is stale — build will run pub get');
+    } else {
+      print('  ✅ package_config.json fresh');
     }
     print('');
 

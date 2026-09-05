@@ -1,4 +1,4 @@
-import '../config/manifest_merge_result.dart';
+import 'package:oka_core/src/config/manifest_merge_result.dart';
 
 /// Prompt templates for AI agent operations
 class PromptTemplates {

@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:oka/src/build/host_codegen.dart';
-import 'package:oka/src/build/plugin_discovery.dart';
+import 'package:oka_android/src/build/host_codegen.dart';
+import 'package:oka_android/src/build/plugin_discovery.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

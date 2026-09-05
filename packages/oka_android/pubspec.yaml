@@ -1,0 +1,17 @@
+name: oka_android
+description: Android platform pipelines for oka — no-Gradle Flutter APK/AAB steps, plugin packaging, toolchain, and typed manifest/spec values (ADR-0006).
+version: 0.1.6
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  archive: ^3.4.10
+  crypto: ^3.0.3
+  http: ^1.2.1
+  oka_core:
+    path: ../oka_core
+  path: ^1.9.0
+  yaml: ^3.1.2

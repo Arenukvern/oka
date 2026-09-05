@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:oka/src/build/apk_layout.dart';
+import 'package:oka_android/src/build/apk_layout.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -128,7 +128,7 @@ void main() {
     'flutter_apk_builder packages multi-dex list (source contract)',
     () async {
       final src = await File(
-        p.join('lib', 'src', 'pipeline', 'toolchain.dart'),
+        p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'toolchain.dart'),
       ).readAsString();
       expect(src, contains('listDexOutputs'));
       expect(src, contains('dexFiles:'));

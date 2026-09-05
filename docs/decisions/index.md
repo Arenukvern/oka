@@ -11,3 +11,5 @@ docs live in `README.md` and `docs/guides/build_and_config.md`.
 | [0003](0003-vector-first-launcher-icons.md) | Vector-first adaptive launcher icons (no PNG tooling) | accepted |
 | [0004](0004-no-gradle-aab-bundle.md) | No-Gradle AAB via hand-assembled bundle (no bundletool) | accepted |
 | [0005](0005-release-tooling-and-plugin-distribution.md) | Release tooling: release-please + one-version train; skills via plugin distribution | accepted |
+| [0006](0006-dart-entrypoint-hooks.md) | Declarative Dart composition API as the single extension surface | accepted |
+| [0007](0007-self-resolving-builds.md) | Self-resolving, self-checking builds | accepted |

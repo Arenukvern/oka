@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:oka/src/build/sdk_locator.dart';
+import 'package:oka_android/src/build/sdk_locator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -8,7 +8,7 @@ void main() {
   group('validatePackagingTools vs adb', () {
     test('source: packaging validation does not call findAdb', () async {
       final locatorSrc = await File(
-        p.join('lib', 'src', 'build', 'sdk_locator.dart'),
+        p.join('packages', 'oka_android', 'lib', 'src', 'build', 'sdk_locator.dart'),
       ).readAsString();
 
       // Extract validatePackagingTools body roughly
@@ -28,7 +28,7 @@ void main() {
       'source: FlutterApkBuilder uses validatePackagingTools not adb-required',
       () async {
         final text = await File(
-          p.join('lib', 'src', 'pipeline', 'steps', 'host_steps.dart'),
+          p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'steps', 'host_steps.dart'),
         ).readAsString();
         expect(text, contains('validatePackagingTools'));
         // Must not require full validateTools() for packaging gate
@@ -38,7 +38,7 @@ void main() {
 
     test('validateTools treats adb as optional by default', () async {
       final locatorSrc = await File(
-        p.join('lib', 'src', 'build', 'sdk_locator.dart'),
+        p.join('packages', 'oka_android', 'lib', 'src', 'build', 'sdk_locator.dart'),
       ).readAsString();
       expect(locatorSrc, contains('requireAdb = false'));
       // optional catch around findAdb
