@@ -28,13 +28,15 @@ agentic workflows, where builds run constantly, that tax dominates.
 - Full Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK).
 - Hot reload (planned; see roadmap).
 - iOS/desktop/web builds.
-- The Rust/cargo-apk hybrid (`rust_wrapper/`) — demoted experiment.
+- ~~The Rust/cargo-apk hybrid~~ — removed entirely (ADR-0001 → ADR-0009); only
+  the no-Gradle path exists.
 
 ## Invariants
 
 1. The default path must **never** shell out to `flutter build apk` /
    Gradle as success (ADR 0001).
-2. Shared `rust_wrapper/Cargo.toml` is never mutated by default builds.
+2. Only one build path exists — the no-Gradle pipeline; the cargo-apk hybrid
+   was removed (ADR-0009).
 3. A phase is done only when tests/evidence exist
    ([PHASE_CHECKLIST](../PHASE_CHECKLIST.md)).
 4. Design forks get a decision checkpoint + ADR before coding

@@ -8,7 +8,7 @@ import 'package:oka_core/src/config/build_context.dart';
 /// Flutter asset bundler that prepares flutter_assets/ directory
 ///
 /// Uses Flutter tools to create the asset bundle that will be packaged
-/// into the APK by cargo-apk.
+/// into the APK by the no-Gradle packager (apk_layout.dart).
 class FlutterAssetBundler {
   final bool _verbose;
 
@@ -31,8 +31,8 @@ class FlutterAssetBundler {
   /// directory that contains all compiled assets, fonts, and metadata
   /// needed by the Flutter engine at runtime.
   ///
-  /// For cargo-apk integration, assets need to be in the APK root directory
-  /// so they're accessible to the Rust NativeActivity.
+  /// Assets land in the APK root directory so they're accessible to the
+  /// Flutter engine at runtime.
   Future<String> bundleAssets(BuildContext ctx) async {
     final flutterAssetsDir = p.join(ctx.buildDir, 'flutter_assets');
 

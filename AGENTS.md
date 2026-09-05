@@ -7,7 +7,7 @@ This file is a **map**, not a manual — follow links.
 ## Non-negotiables
 
 - Default build path must **never** shell out to `flutter build apk` / Gradle as success (Phase 0 invariant).
-- Never mutate/corrupt shared `rust_wrapper/Cargo.toml`; the Rust hybrid is quarantined/demoted.
+- One build path only: the no-Gradle pipeline. The cargo-apk/Rust hybrid was removed (ADR-0009) — do not reintroduce it without a new ADR.
 - Mark a phase done only when its tests/evidence exist (`docs/PHASE_CHECKLIST.md`).
 - Design forks → decision checkpoint + ADR before coding (see `docs/decisions/`).
 

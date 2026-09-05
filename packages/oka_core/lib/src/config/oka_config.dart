@@ -1,7 +1,6 @@
 import 'package:from_json_to_json/from_json_to_json.dart';
 
 import 'android_config.dart';
-import 'cargo_apk_config.dart';
 import 'dependency.dart';
 import 'flutter_config.dart';
 
@@ -31,9 +30,6 @@ extension type const OkaConfig(Map<String, dynamic> value) {
 
   /// Flutter build configuration
   FlutterConfig get flutter => FlutterConfig.fromJson(value['flutter']);
-
-  /// Cargo-apk specific configuration
-  CargoApkConfig get cargoApk => CargoApkConfig.fromJson(value['cargo_apk']);
 
   /// Project name
   String get name => jsonDecodeString(value['name']);

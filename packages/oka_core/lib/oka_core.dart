@@ -7,7 +7,6 @@ library oka_core;
 export 'src/composition.dart';
 export 'src/config/android_config.dart';
 export 'src/config/build_context.dart';
-export 'src/config/cargo_apk_config.dart';
 export 'src/config/dependency.dart';
 export 'src/config/flutter_config.dart';
 export 'src/config/manifest_merge_result.dart';

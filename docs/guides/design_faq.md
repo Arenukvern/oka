@@ -21,10 +21,11 @@ A: A silent fallback would hide gaps in oka's own pipeline and make success
 non-deterministic. Missing-tool failures surface via doctor-oriented errors so
 agents can remediate. Enforced by `test/phase0_no_gradle_fallback_test.dart`.
 
-**Q: Why is the Rust/cargo-apk hybrid demoted?**
+**Q: Why was the Rust/cargo-apk hybrid removed?**
 A: It rewrote the shared `rust_wrapper/Cargo.toml`, corrupting shared state,
-and duplicated packaging logic. It stays as an opt-in experiment; default
-builds never touch its Cargo.toml.
+and duplicated packaging logic, so ADR-0001 demoted it. With zero remaining
+usage and a permanently failing quarantine test, ADR-0009 removed it entirely
+— the no-Gradle pipeline is the only build path.
 
 ## Configuration
 

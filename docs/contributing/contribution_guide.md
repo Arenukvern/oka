@@ -21,7 +21,7 @@ make lint       # dart analyze
 1. **Non-negotiables** (see `AGENTS.md`):
    - The default build path must never shell out to `flutter build apk` /
      Gradle as success.
-   - Never mutate shared `rust_wrapper/Cargo.toml`.
+   - Only the no-Gradle pipeline exists; no cargo/Gradle fallbacks (ADR-0009).
 2. **Behavior SSOT is code + tests.** Docs link to implementation; they never
    paraphrase it.
 3. **Design forks need an ADR first.** If your change settles a trade-off,

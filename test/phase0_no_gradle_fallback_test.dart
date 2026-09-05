@@ -23,22 +23,9 @@ void main() {
       }
     });
 
-    test('FlutterAndroidBuilder delegates to no-Gradle builder (source contract)',
+    test('FlutterApkBuilder never shells out to Gradle (source contract)',
         () async {
-      // Structural: demoted path must not shell out to Gradle / flutter build apk
       final root = Directory.current.path;
-      final hybrid = File(
-        p.join(root, 'packages', 'oka_android', 'lib', 'src', 'build', 'flutter_android_builder.dart'),
-      );
-      if (await hybrid.exists()) {
-        final src = await hybrid.readAsString();
-        // No Process.run of flutter build apk (executable argv form)
-        expect(src, isNot(contains("'build', 'apk'")));
-        expect(src, isNot(contains('"build", "apk"')));
-        expect(src, isNot(contains('gradlew')));
-        expect(src, contains('FlutterApkBuilder'));
-        expect(src.toLowerCase(), contains('demoted'));
-      }
 
       final builderSrc = File(
         p.join(root, 'packages', 'oka_android', 'lib', 'src', 'build', 'flutter_apk_builder.dart'),
@@ -48,10 +35,9 @@ void main() {
       expect(text, isNot(contains('"build", "apk"')));
       expect(text, isNot(contains('gradlew')));
       expect(text, contains('assemble'));
-      // Orchestrator must call FlutterAssembler / assemble, not cargo-apk
+      // Orchestrator must call FlutterAssembler / assemble (the only build path)
       expect(text, contains('FlutterAssembler'));
     });
-
     test('BuildCommand default path uses FlutterApkBuilder', () async {
       final src = await File(
         p.join(
@@ -113,7 +99,6 @@ flutter:
             'build_mode': 'debug',
             'target_platform': 'android-arm64',
           },
-          'cargo_apk': <String, dynamic>{},
         },
         'cache_dir': p.join(tmp.path, '.oka_cache'),
         'temp_dir': p.join(buildDir, 'temp'),

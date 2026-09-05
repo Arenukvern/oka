@@ -1,9 +1,10 @@
 # 0009 — Remove the demoted cargo-apk hybrid completely
 
-- **Status:** proposed (awaiting sign-off)
+- **Status:** accepted
 - **Date:** 2026-09-05
 - **Decision-makers:** Anton
 - **Completes:** 0001 (no-Gradle default build path; demote cargo-apk hybrid)
+- **Executed:** 2026-09-05 — removal applied, `dart test` fully green
 
 ## Context
 
@@ -35,9 +36,9 @@ routing, gradle fixtures, `STORE=rustore` defines) — unrelated, stays.
   it later is `git revert` + a new ADR. Aligns the codebase with ADR-0001's
   actual state: one build path, no hybrid.
 
-## Decision (proposed)
+## Decision (accepted)
 
-Option **C** — remove:
+Option **C** — remove (executed 2026-09-05):
 
 1. `rust_wrapper/` (entire directory)
 2. `test/cargo_apk_manifest_test.dart` (the failing quarantine test)
