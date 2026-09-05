@@ -1,7 +1,7 @@
-# Hot reload / hot restart — executable plan (ADR-0010)
+# Hot reload / hot restart — executable plan (ADR-0011)
 
 This is the task breakdown for implementing `oka dev` per
-[ADR-0010](../decisions/0010-hot-reload-run-loop.md). Agents execute; humans
+[ADR-0011](../decisions/0011-hot-reload-run-loop.md). Agents execute; humans
 steer. A phase is done only when its tests and evidence exist
 ([PHASE_CHECKLIST](../PHASE_CHECKLIST.md)).
 

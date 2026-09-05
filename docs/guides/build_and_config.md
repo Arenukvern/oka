@@ -25,7 +25,7 @@ oka init   # generates oka.yaml from pubspec.yaml (or converts an existing
 ```
 The scaffold includes a **commented** `pipeline.dart_entrypoint` example
 (ADR-0006's declarative Dart hook) and a pointer to the full composition
-example (`example/bin/custom_pipeline.dart` in the oka repository). Uncomment
+example (`example/tool/oka_pipeline.dart` in the oka repository). Uncomment
 when you want to own the pipeline in Dart; otherwise the YAML fast-settings
 path builds unchanged.
 
@@ -81,6 +81,56 @@ make test    # dart test
 make lint    # dart analyze
 ```
 
+## 🎛️ Full-Dart project config (ADR-0010)
+
+**Q: Can I drop oka.yaml and configure everything in Dart?**
+Yes. Create `tool/oka_pipeline.dart` (discovered by convention — no YAML key
+needed) and move the whole config there, strictly typed:
+
+```dart
+// tool/oka_pipeline.dart
+Future<void> main(List<String> args) => okaRun(
+  args,
+  oka: const Oka(
+    pipelines: [
+      AndroidPipeline(
+        config: AndroidBuild(          // was android: + top-level name:
+          name: 'example',
+          packageName: 'com.example.example',
+          minSdk: '23', targetSdk: '36', compileSdk: '36',
+          versionCode: 51, versionName: '3.22.0',
+          abis: ['arm64-v8a'],
+          javaVersion: 17,
+        ),
+        flutterConfig: FlutterBuild(   // was flutter:
+          entrypoint: 'lib/main_prod.dart',
+          treeShakeIcons: true,
+        ),
+        overrides: PipelineOverrides(  // was pipeline: + android.icon/manifest
+          resourceConfigs: ['en', 'ru'],
+          manifest: ManifestSpec(permissions: [...]),
+        ),
+        steps: [...AndroidPipeline.defaultSteps],
+      ),
+    ],
+  ),
+);
+```
+
+- Field mapping: `android:` → `AndroidBuild`, `flutter:` → `FlutterBuild`,
+  `pipeline:` + `android.icon/manifest/res_dirs` → `PipelineOverrides`,
+  top-level `name:` → `AndroidBuild.name`.
+- Precedence: defaults < `oka.yaml` (if kept) < typed Dart config < CLI args.
+- **Migrating an existing project** (e.g. last_answer):
+  ```bash
+  oka init --from-yaml   # converts oka.yaml 1:1 into tool/oka_pipeline.dart
+  oka explain            # verify the plan
+  oka build apk && oka compare old.apk .oka_cache/build/debug/app-debug.apk
+  ```
+- Proven byte-equivalent: same-hook A/B (yaml vs `AndroidBuild`) produced
+  identical badging/manifest/arsc/dex (ADR-0010 evidence). Full example:
+  `example/tool/oka_pipeline.dart`.
+
 ## 🪝 Dart entrypoint hooks (ADR-0006)
 
 **Q: How do I customize the pipeline without editing oka?**
@@ -127,7 +177,7 @@ Future<void> main(List<String> args) => okaRun(
   (light deps) in the host app, not the `oka` CLI.
 
 Projects without `dart_entrypoint` keep the AOT fast path unchanged.
-See `example/bin/custom_pipeline.dart` for a working hook.
+See `example/tool/oka_pipeline.dart` for a working hook.
 
 **Q: How do I customize the Android manifest?**
 

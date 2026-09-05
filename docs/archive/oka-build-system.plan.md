@@ -1,7 +1,7 @@
 # Oka: Modern Flutter Android Build System
 
 > **Superseded in part (2026-09-06):** the hot reload / dev-mode design now
-> lives in [ADR-0010](../decisions/0010-hot-reload-run-loop.md) and
+> lives in [ADR-0011](../decisions/0011-hot-reload-run-loop.md) and
 > [docs/guides/hot_reload_plan.md](../guides/hot_reload_plan.md). Phase 4
 > below is historical; its 4.4 (incremental native deploy) was **rejected**
 > — Android's runtime cannot hot-swap classes in an installed APK — and its
@@ -137,7 +137,7 @@ Implement `HotReloadManager`:
 - Implement hot restart via `_flutter.hotRestart`
   *(historical note: no such RPC exists — hot restart is a full
   non-incremental kernel compile plus app restart, handled by flutter_tools'
-  run/attach session; see ADR-0010)*
+  run/attach session; see ADR-0011)*
 
 **4.2 File Watcher**
 
@@ -156,7 +156,7 @@ Create `ChangeDetector`:
 
 **4.4 Incremental Native Deploy**
 
-> **REJECTED (ADR-0010 §5).** Android's runtime cannot hot-swap classes in an
+> **REJECTED (ADR-0011 §5).** Android's runtime cannot hot-swap classes in an
 > installed APK; there is no supported path to push incremental DEX into a
 > running app. Native, resource, and manifest changes always route to a full
 > rebuild + reinstall. Kept for the historical record only.

@@ -12,6 +12,7 @@ import 'package:oka_android/src/build/flutter_apk_builder.dart';
 import 'package:oka_android/src/build/sdk_locator.dart';
 import 'package:oka_core/src/config/build_context.dart';
 import 'package:oka_core/src/config/oka_config.dart';
+import 'package:oka_core/src/oka_run.dart' show findPipelineEntrypoint;
 import 'package:oka_android/src/pipeline/toolchain.dart' show debugKeystore;
 
 /// Recursively converts YamlMap/YamlList to Map/List
@@ -122,36 +123,15 @@ class BuildCommand {
 
     print('🔨 Building ${mode.name} ${wantsAab ? 'AAB' : 'APK'}...\n');
 
-    // Load oka.yaml
-    final okaYamlFile = File('oka.yaml');
-    if (!await okaYamlFile.exists()) {
-      print('❌ oka.yaml not found');
-      print('   Run "oka init" first to create configuration');
-      exit(1);
-    }
-
-    final okaYamlContent = await okaYamlFile.readAsString();
-    final okaYamlData = loadYaml(okaYamlContent);
-    final config = OkaConfig.fromJson(_yamlToJson(okaYamlData));
-
-    if (verbose) {
-      print('📋 Configuration:');
-      print('   Package: ${config.android.packageName}');
-      print('   Min SDK: ${config.android.minSdk}');
-      print('   Target SDK: ${config.android.targetSdk}');
-      print('   Compile SDK: ${config.android.compileSdk}');
-      print('');
-    }
-
+    // ADR-0006/0010: project-declared Dart entrypoint owns the pipeline.
+    // `oka build` delegates (same args/env) — the hook composes the
+    // declarative Oka root. Resolution order: oka.yaml
+    // `pipeline.dart_entrypoint` → `tool/oka_pipeline.dart` →
+    // `bin/oka_pipeline.dart` (convention, so full-Dart projects need no
+    // oka.yaml at all). No-entrypoint projects keep the AOT fast path.
     final projectPath = Directory.current.path;
-
-    // ADR-0006: project-declared Dart entrypoint owns the pipeline. `oka
-    // build` delegates (same args/env) — the hook composes the declarative
-    // Oka root. No-entrypoint projects keep the AOT fast path.
-    final dartEntrypoint = config.toJson()['pipeline'] is Map
-        ? (config.toJson()['pipeline'] as Map)['dart_entrypoint']?.toString()
-        : null;
-    if (dartEntrypoint != null && dartEntrypoint.isNotEmpty) {
+    final dartEntrypoint = await findPipelineEntrypoint(projectPath);
+    if (dartEntrypoint != null) {
       print('🪝 Delegating to Dart entrypoint: $dartEntrypoint\n');
       final defines = [
         ...results['dart-define'] as List<String>,
@@ -188,6 +168,29 @@ class BuildCommand {
       stdout.write(proc.stdout);
       stderr.write(proc.stderr);
       exit(proc.exitCode);
+    }
+
+    // Load oka.yaml (still required for the AOT yaml-config fast path —
+    // full-Dart projects never reach this line, ADR-0010).
+    final okaYamlFile = File('oka.yaml');
+    if (!await okaYamlFile.exists()) {
+      print('❌ oka.yaml not found (and no Dart pipeline entrypoint at');
+      print('   tool/oka_pipeline.dart or bin/oka_pipeline.dart)');
+      print('   Run "oka init" first to create configuration');
+      exit(1);
+    }
+
+    final okaYamlContent = await okaYamlFile.readAsString();
+    final okaYamlData = loadYaml(okaYamlContent);
+    final config = OkaConfig.fromJson(_yamlToJson(okaYamlData));
+
+    if (verbose) {
+      print('📋 Configuration:');
+      print('   Package: ${config.android.packageName}');
+      print('   Min SDK: ${config.android.minSdk}');
+      print('   Target SDK: ${config.android.targetSdk}');
+      print('   Compile SDK: ${config.android.compileSdk}');
+      print('');
     }
 
     final buildDir = p.join(projectPath, '.oka_cache', 'build', mode.name);

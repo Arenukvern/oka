@@ -6,6 +6,7 @@ import 'package:yaml/yaml.dart';
 import 'package:oka_android/src/build/sdk_locator.dart';
 import 'package:oka_android/src/build/version_manager.dart';
 import 'package:oka_core/src/config/oka_config.dart';
+import 'package:oka_core/src/oka_run.dart' show findPipelineEntrypoint;
 import '../version.dart';
 
 /// Recursively converts YamlMap/YamlList to Map/List
@@ -227,11 +228,14 @@ class DoctorCommand {
     }
     print('');
 
-    // Check oka.yaml
+    // Check oka.yaml / Dart pipeline (ADR-0010: full-Dart projects have no
+    // oka.yaml — a discovered entrypoint is equally valid configuration).
     print('[Project Configuration]');
     final okaYaml = File('oka.yaml');
     if (await okaYaml.exists()) {
       print('  ✅ oka.yaml found');
+    } else if (await findPipelineEntrypoint(Directory.current.path) != null) {
+      print('  ✅ Dart pipeline entrypoint found (full-Dart config, ADR-0010)');
     } else {
       print('  ⚠️  oka.yaml not found');
       print('  💡 Run "oka init" to create it');

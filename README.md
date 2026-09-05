@@ -108,7 +108,7 @@ The default pipeline (composable — ADR 0002) runs:
 7. Layout validation of the produced APK/AAB
 
 Every step is a `BuildStep`; reorder or replace them from Dart
-([example/bin/custom_pipeline.dart](example/bin/custom_pipeline.dart)).
+([example/tool/oka_pipeline.dart](example/tool/oka_pipeline.dart)).
 
 Design rationale: [design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) ·
 decisions: [`docs/decisions/`](docs/decisions/index.md).

@@ -172,12 +172,12 @@ class ExplainCommand {
 
     print('\n── Pipeline ────────────────────────────────────');
     print('  mode: ${aab ? 'AAB' : 'APK'} default no-Gradle pipeline');
-    if (config.toJson()['pipeline'] is Map &&
-        (config.toJson()['pipeline'] as Map)['dart_entrypoint'] != null) {
+    // Hook notice: explicit oka.yaml key or convention discovery (ADR-0010).
+    final entrypoint = await findPipelineEntrypoint(projectPath);
+    if (entrypoint != null) {
       print(
-        '  ⛓️  dart_entrypoint: '
-        '${(config.toJson()['pipeline'] as Map)['dart_entrypoint']} '
-        '— `oka build` delegates there (hook owns the pipeline)',
+        '  ⛓️  dart pipeline: $entrypoint — `oka build` delegates there '
+        '(hook owns the pipeline)',
       );
     }
     for (final step in AndroidPipeline.defaultSteps) {

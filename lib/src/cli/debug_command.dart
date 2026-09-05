@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:oka_android/oka_android.dart';
+import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 /// `oka debug step <name>` — probe runner (ADR-0007 meta-learnings: running a
@@ -72,9 +74,39 @@ class DebugCommand {
     }
 
     final projectPath = p.normalize(results['project'] as String);
-    if (!File(p.join(projectPath, 'oka.yaml')).existsSync()) {
-      print('❌ no oka.yaml in $projectPath (run `oka init` first)');
-      exit(2);
+
+    // Config resolution (ADR-0010): oka.yaml → or, for full-Dart hook
+    // projects, materialize the typed config by asking the hook itself
+    // (`okaRun --print-config` prints the merged map). Single source of truth.
+    OkaConfig config;
+    if (File(p.join(projectPath, 'oka.yaml')).existsSync()) {
+      config = await loadOkaYaml(projectPath);
+    } else {
+      final entrypoint = await findPipelineEntrypoint(projectPath);
+      if (entrypoint == null) {
+        print('❌ no oka.yaml and no Dart pipeline entrypoint in $projectPath');
+        print('   Run `oka init` first, or create tool/oka_pipeline.dart');
+        exit(2);
+      }
+      print('🪝 full-Dart project — materializing config from $entrypoint...');
+      final proc = await Process.run(
+        'dart',
+        ['run', entrypoint, '--print-config'],
+        workingDirectory: projectPath,
+        runInShell: true,
+      );
+      if (proc.exitCode != 0) {
+        print('❌ failed to read config from $entrypoint:\n${proc.stderr}');
+        exit(2);
+      }
+      final decoded = jsonDecode((proc.stdout as String).trim());
+      if (decoded is! Map) {
+        print('❌ $entrypoint --print-config did not emit a JSON object');
+        exit(2);
+      }
+      config = OkaConfig.fromJson(
+        decoded.map((k, v) => MapEntry(k.toString(), v)),
+      );
     }
 
     final mode = results['release'] as bool
@@ -85,9 +117,8 @@ class DebugCommand {
     final buildAab = results['aab'] as bool;
     final buildDirMode = buildAab ? '${mode.name}-aab' : mode.name;
 
-    // Same context building as `okaRun` (ADR-0006): oka.yaml + defines +
-    // `.oka_cache` layout, so probed steps see exactly what a build sees.
-    final config = await loadOkaYaml(projectPath);
+    // Same context building as `okaRun` (ADR-0006): merged config + defines
+    // + `.oka_cache` layout, so probed steps see exactly what a build sees.
     final defines = <String, String>{
       ...parseDartDefineFile(results['dart-define-from-file'] as String?),
       for (final d in results['dart-define'] as List<String>)

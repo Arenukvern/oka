@@ -1,6 +1,8 @@
 # 0010 — Typed per-project config in Dart (oka.yaml becomes optional)
 
-- **Status:** proposed (awaiting sign-off)
+- **Status:** accepted
+- **Executed:** 2026-09-05 — all stages landed; byte-equivalence gate passed
+  (see Consequences)
 - **Date:** 2026-09-05
 - **Decision-makers:** Anton
 - **Extends:** 0006 (declarative Dart composition API), 0007 (self-resolving builds)
@@ -72,12 +74,18 @@ cannot tell whether the map came from YAML or from Dart.
 6. **Staging:**
    - Stage 1 — `oka_core` values + `okaRun`/`AndroidPipeline.config` merge +
      tests (behavior-preserving: no project changes).
-   - Stage 2 — **example app first target**: move all three sections into
-     `bin/custom_pipeline.dart`, delete its `oka.yaml`, verify `oka explain`
-     + debug APK, run `oka compare` old-vs-new APK as the equivalence gate.
-   - Stage 3 — **last_answer second target** (external repo, not here): run
-     `oka init --from-yaml` in that project; verify with `oka explain --deps`
-     + `oka compare` against a YAML-build artifact.
+   - Stage 2 — **example app first target** (executed): all three sections
+     moved into `example/tool/oka_pipeline.dart` (discovery convention),
+     `oka.yaml` deleted. Equivalence gate: same-hook A/B (config from
+     oka.yaml vs from `AndroidBuild`) → badging, `AndroidManifest.xml`,
+     `resources.arsc`, `classes.dex` **byte-identical**; only the example's
+     timestamped `build_info.txt` stamp (custom step) and its signature
+     cascade differ.
+   - Stage 3 (executed here): `oka init --from-yaml` converter landed —
+     run it in the last_answer repo to migrate (`oka explain --deps` +
+     `oka compare` as gates). **Stage 4 (executed):** discovery in `oka
+     build`/`explain`/`doctor`; `oka debug step` materializes hook config
+     via `okaRun --print-config`.
    - Stage 4 — `oka doctor`/`init` discovery support.
 
 ## Consequences

@@ -14,14 +14,18 @@ const _entrypointScaffold = '''
 # Dart instead of YAML fast-settings; the hook composes a typed `Oka` root:
 #
 # pipeline:
-#   dart_entrypoint: bin/oka_pipeline.dart
+#   dart_entrypoint: tool/oka_pipeline.dart
 #
-# Full example (custom steps, overrides, artifact chain):
-#   https://github.com/Arenukvern/oka/blob/main/example/bin/custom_pipeline.dart
-#   (example/bin/custom_pipeline.dart in the oka repository)
+# Or go full-Dart right away (ADR-0010): `oka init --from-yaml` converts this
+# file into tool/oka_pipeline.dart.
 ''';
 
-/// Init command to create oka.yaml from existing Gradle project
+/// Default Dart pipeline entrypoint location (ADR-0010 discovery convention).
+const kDefaultEntrypointPath = 'tool/oka_pipeline.dart';
+
+/// Init command: create oka.yaml from an existing Gradle project, scaffold a
+/// fresh project, or convert oka.yaml into a typed Dart pipeline entrypoint
+/// (ADR-0010: `--from-yaml`; fresh full-Dart scaffold: `--dart`).
 class InitCommand {
   Future<void> run(List<String> args) async {
     print('🚀 Initializing Oka configuration...\n');
@@ -32,6 +36,16 @@ class InitCommand {
       print('❌ Not a Flutter project (pubspec.yaml not found)');
       print('   Run this command from the root of a Flutter project');
       exit(1);
+    }
+
+    // ADR-0010: convert existing oka.yaml into a typed Dart entrypoint.
+    if (args.contains('--from-yaml')) {
+      await _convertFromYaml();
+      return;
+    }
+    if (args.contains('--dart')) {
+      await _scaffoldDart(args);
+      return;
     }
 
     // Check if oka.yaml already exists
@@ -114,6 +128,66 @@ class InitCommand {
     }
   }
 
+  /// ADR-0010: convert an existing oka.yaml into a typed Dart pipeline
+  /// entrypoint at [kDefaultEntrypointPath].
+  Future<void> _convertFromYaml() async {
+    final okaYamlFile = File('oka.yaml');
+    if (!await okaYamlFile.exists()) {
+      print('❌ --from-yaml requires an existing oka.yaml to convert');
+      exit(1);
+    }
+    final doc = loadYaml(await okaYamlFile.readAsString());
+    if (doc is! Map) {
+      print('❌ oka.yaml is not a mapping');
+      exit(1);
+    }
+    await _writeEntrypoint(OkaInitGenerator.entrypointFromYaml(doc).code);
+  }
+
+  /// ADR-0010: scaffold a fresh full-Dart pipeline (no oka.yaml).
+  Future<void> _scaffoldDart(List<String> args) async {
+    final target = File(p.join('tool', 'oka_pipeline.dart'));
+    if (await target.exists() && !args.contains('--force')) {
+      print('⚠️  $kDefaultEntrypointPath already exists (use --force to overwrite)');
+      exit(1);
+    }
+    final pubspec = loadYaml(await File('pubspec.yaml').readAsString())
+        as Map<dynamic, dynamic>;
+    final name = (pubspec['name'] as String?) ?? 'app';
+    final version = (pubspec['version'] as String?) ?? '1.0.0';
+    final versionCode = RegExp(r'\+(\d+)$').firstMatch(version)?.group(1);
+    final code = OkaInitGenerator.entrypointFromYaml({
+      'android': {
+        'package_name': 'com.example.$name',
+        if (versionCode != null) 'version_code': int.parse(versionCode),
+        'version_name': version,
+      },
+    }).code;
+    await _writeEntrypoint(code);
+    print('');
+    print('Next steps:');
+    print('  1. Edit $kDefaultEntrypointPath — fill in the real package name');
+    print('  2. Run "oka explain" to see the validated plan');
+    print('  3. Run "oka build apk" to build (no oka.yaml needed)');
+  }
+
+  Future<void> _writeEntrypoint(String code) async {
+    final target = File(p.join('tool', 'oka_pipeline.dart'));
+    if (await target.exists()) {
+      print('⚠️  $kDefaultEntrypointPath already exists');
+      stdout.write('   Overwrite? (y/N): ');
+      final response = stdin.readLineSync()?.toLowerCase();
+      if (response != 'y' && response != 'yes') {
+        print('   Cancelled');
+        exit(0);
+      }
+    }
+    await target.parent.create(recursive: true);
+    await target.writeAsString(code);
+    print('✅ Typed Dart pipeline written to $kDefaultEntrypointPath');
+    print('   `oka build` discovers it automatically (ADR-0010 convention).');
+  }
+
   Future<void> _createDefaultConfig(String name, String version) async {
     final okaYaml = {
       'name': name,
@@ -174,4 +248,377 @@ class InitCommand {
       }
     }
   }
+}
+
+/// Generates typed Dart pipeline entrypoint code from an oka.yaml document
+/// (ADR-0010). Pure — unit-tested; `oka init --from-yaml` writes its output.
+class OkaInitGenerator {
+  /// Emits a complete `tool/oka_pipeline.dart` mirroring [doc].
+  ///
+  /// Surfaces converted 1:1: `android:` base config → [AndroidBuild],
+  /// `flutter:` → [FlutterBuild], `pipeline:` fast-settings + `android.`
+  /// icon/res_dirs/manifest → [PipelineOverrides]. Anything unsupported
+  /// (e.g. `android.signing` secrets, unknown keys) is reported in the
+  /// returned [OkaInitResult.notices] so projects know what to port by hand.
+  static OkaInitResult entrypointFromYaml(Map<dynamic, dynamic> doc) {
+    final notices = <String>[];
+    final android = doc['android'];
+    final androidMap = android is Map ? android : <dynamic, dynamic>{};
+    final flutter = doc['flutter'];
+    final flutterMap = flutter is Map ? flutter : <dynamic, dynamic>{};
+    final pipeline = doc['pipeline'];
+    final pipelineMap = pipeline is Map ? pipeline : <dynamic, dynamic>{};
+
+    // ── AndroidBuild ────────────────────────────────────────────────────
+    final androidLines = <String>[];
+    if (_yStr(doc['name']).isNotEmpty) {
+      androidLines.add("name: '${_esc(_yStr(doc['name']))}'");
+    }
+    String str(String key) => _yStr(androidMap[key]);
+    if (str('package_name').isNotEmpty) {
+      androidLines.add("packageName: '${_esc(str('package_name'))}'");
+    }
+    if (str('application_id').isNotEmpty) {
+      androidLines.add("applicationId: '${_esc(str('application_id'))}'");
+    }
+    for (final entry in {
+      'compile_sdk': 'compileSdk',
+      'target_sdk': 'targetSdk',
+      'min_sdk': 'minSdk',
+    }.entries) {
+      if (str(entry.key).isNotEmpty) {
+        androidLines.add("${entry.value}: '${_esc(str(entry.key))}'");
+      }
+    }
+    final versionCode = androidMap['version_code'];
+    if (versionCode is int && versionCode != 0) {
+      androidLines.add('versionCode: $versionCode');
+    } else if (versionCode is String && int.tryParse(versionCode) != null) {
+      androidLines.add('versionCode: ${versionCode}');
+    }
+    if (str('version_name').isNotEmpty) {
+      androidLines.add("versionName: '${_esc(str('version_name'))}'");
+    }
+    final sourceDirs = _yStrings(androidMap['source_dirs']);
+    if (sourceDirs.isNotEmpty) {
+      androidLines.add("sourceDirs: ${_strList(sourceDirs)}");
+    }
+    final abis = _yStrings(androidMap['abis']);
+    if (abis.isNotEmpty) androidLines.add('abis: ${_strList(abis)}');
+    final javaVersion = androidMap['java_version'];
+    if (javaVersion is int && javaVersion != 0) {
+      androidLines.add('javaVersion: $javaVersion');
+    }
+    if (str('kotlin_version').isNotEmpty) {
+      androidLines.add("kotlinVersion: '${_esc(str('kotlin_version'))}'");
+    }
+    if (str('required_java_version').isNotEmpty) {
+      androidLines.add(
+        "requiredJavaVersion: '${_esc(str('required_java_version'))}'",
+      );
+    }
+    final enableOpt = androidMap['enable_optimization'];
+    if (enableOpt == true) androidLines.add('enableOptimization: true');
+    final proguard = _yStrings(androidMap['proguard_files']);
+    if (proguard.isNotEmpty) {
+      androidLines.add('proguardFiles: ${_strList(proguard)}');
+    }
+    for (final key in androidMap.keys) {
+      if (!const [
+        'package_name', 'application_id', 'compile_sdk', 'target_sdk',
+        'min_sdk', 'version_code', 'version_name', 'source_dirs', 'abis',
+        'java_version', 'kotlin_version', 'required_java_version',
+        'enable_optimization', 'proguard_files', 'icon', 'res_dirs',
+        'manifest', 'signing',
+      ].contains(key)) {
+        notices.add('android.$key is not auto-converted — port by hand');
+      }
+    }
+
+    // ── FlutterBuild ────────────────────────────────────────────────────
+    final flutterLines = <String>[];
+    String fstr(String key) => _yStr(flutterMap[key]);
+    if (fstr('entrypoint').isNotEmpty) {
+      flutterLines.add("entrypoint: '${_esc(fstr('entrypoint'))}'");
+    }
+    final assets = _yStrings(flutterMap['assets']);
+    if (assets.isNotEmpty) flutterLines.add('assets: ${_strList(assets)}');
+    final buildArgs = _yStrings(flutterMap['build_args']);
+    if (buildArgs.isNotEmpty) {
+      flutterLines.add('buildArgs: ${_strList(buildArgs)}');
+    }
+    if (fstr('build_mode').isNotEmpty) {
+      flutterLines.add("buildMode: '${_esc(fstr('build_mode'))}'");
+    }
+    if (fstr('target_platform').isNotEmpty) {
+      flutterLines.add("targetPlatform: '${_esc(fstr('target_platform'))}'");
+    }
+    if (flutterMap['tree_shake_icons'] == true) {
+      flutterLines.add('treeShakeIcons: true');
+    }
+    if (flutterMap['enable_hot_reload'] == true) {
+      flutterLines.add('enableHotReload: true');
+    }
+    if (flutterMap['deferred_components'] == true) {
+      flutterLines.add('deferredComponents: true');
+    }
+    if (fstr('engine_path').isNotEmpty) {
+      flutterLines.add("enginePath: '${_esc(fstr('engine_path'))}'");
+    }
+    if (fstr('engine_version').isNotEmpty) {
+      flutterLines.add("engineVersion: '${_esc(fstr('engine_version'))}'");
+    }
+    for (final key in flutterMap.keys) {
+      if (!const [
+        'entrypoint', 'assets', 'build_args', 'build_mode',
+        'target_platform', 'tree_shake_icons', 'enable_hot_reload',
+        'deferred_components', 'engine_path', 'engine_version',
+      ].contains(key)) {
+        notices.add('flutter.$key is not auto-converted — port by hand');
+      }
+    }
+
+    // ── PipelineOverrides ───────────────────────────────────────────────
+    final overrideLines = <String>[];
+    final extraDeps = _yStrings(pipelineMap['extra_deps']);
+    if (extraDeps.isNotEmpty) {
+      overrideLines.add('extraDeps: ${_strList(extraDeps)}');
+    }
+    final extraAssets = pipelineMap['extra_assets'];
+    if (extraAssets is List && extraAssets.isNotEmpty) {
+      final pairs = <String>[];
+      for (final e in extraAssets) {
+        if (e is Map) {
+          pairs.add(
+            "(from: '${_esc(e['from']?.toString() ?? '')}', "
+            "to: '${_esc(e['to']?.toString() ?? '')}')",
+          );
+        }
+      }
+      if (pairs.isNotEmpty) {
+        overrideLines.add('extraAssets: [${pairs.join(', ')}]');
+      }
+    }
+    final localAars = _yStrings(pipelineMap['local_aars']);
+    if (localAars.isNotEmpty) {
+      overrideLines.add('localAars: ${_strList(localAars)}');
+    }
+    final resDirs = _yStrings(androidMap['res_dirs']);
+    if (resDirs.isNotEmpty) {
+      overrideLines.add('resDirs: ${_strList(resDirs)}');
+    }
+    final resourceConfigs = _yStrings(pipelineMap['resource_configs']);
+    if (resourceConfigs.isNotEmpty) {
+      overrideLines.add('resourceConfigs: ${_strList(resourceConfigs)}');
+    }
+    final excludePlugins = _yStrings(pipelineMap['exclude_plugins']);
+    if (excludePlugins.isNotEmpty) {
+      overrideLines.add('excludePlugins: ${_strList(excludePlugins)}');
+    }
+    if (pipelineMap['max_size_mb'] is int) {
+      overrideLines.add('maxSizeMb: ${pipelineMap['max_size_mb']}');
+    }
+    final icon = androidMap['icon'];
+    if (icon is Map) {
+      final iconLines = <String>[];
+      if (_yStr(icon['background_color']).isNotEmpty) {
+        iconLines.add(
+          "backgroundColor: '${_esc(_yStr(icon['background_color']))}'",
+        );
+      }
+      if (_yStr(icon['vector']).isNotEmpty) {
+        iconLines.add("vector: '${_esc(_yStr(icon['vector']))}'");
+      }
+      if (_yStr(icon['monochrome']).isNotEmpty) {
+        iconLines.add("monochrome: '${_esc(_yStr(icon['monochrome']))}'");
+      }
+      if (iconLines.isNotEmpty) {
+        overrideLines.add('icon: const IconConfig(${iconLines.join(', ')})');
+      }
+    }
+    final pipelineDeeplinks = _deeplinks(pipelineMap['deeplinks']);
+    if (pipelineDeeplinks.isNotEmpty) {
+      overrideLines.add('deeplinks: [${pipelineDeeplinks.join(', ')}]');
+    }
+    final manifest = androidMap['manifest'];
+    if (manifest is Map) {
+      final m = _manifestLines(manifest, notices);
+      if (m.isNotEmpty) {
+        overrideLines.add('manifest: const ManifestSpec(${m.join(', ')})');
+      }
+    }
+    if (androidMap['signing'] != null) {
+      notices.add(
+        'android.signing holds secrets — keep it in oka.yaml (or '
+        'android/key.properties); do not delete the yaml until migrated',
+      );
+    }
+    for (final key in pipelineMap.keys) {
+      if (!const [
+        'extra_deps', 'extra_assets', 'local_aars', 'resource_configs',
+        'exclude_plugins', 'max_size_mb', 'deeplinks', 'dart_entrypoint',
+      ].contains(key)) {
+        notices.add('pipeline.$key is not auto-converted — port by hand');
+      }
+    }
+
+    // ── Assemble the file ───────────────────────────────────────────────
+    final b = StringBuffer();
+    b.writeln('// Generated by `oka init --from-yaml` (ADR-0010).');
+    b.writeln('//');
+    b.writeln('// Typed, programmable project config: oka.yaml is no longer');
+    b.writeln('// required. Precedence: defaults < oka.yaml (if kept) < this');
+    b.writeln('// file < CLI args (--release/--abi/--dart-define/...).');
+    if (doc['name'] != null || doc['version'] != null) {
+      b.writeln(
+        "// Project: ${doc['name'] ?? ''} ${doc['version'] ?? ''} (from oka.yaml)",
+      );
+    }
+    b.writeln("import 'package:oka_android/oka_android.dart';");
+    b.writeln("import 'package:oka_core/oka_core.dart';");
+    b.writeln();
+    b.writeln('Future<void> main(List<String> args) => okaRun(');
+    b.writeln('  args,');
+    b.writeln('  oka: const Oka(');
+    b.writeln('    pipelines: [');
+    b.writeln('      AndroidPipeline(');
+    if (androidLines.isNotEmpty) {
+      b.writeln('        config: AndroidBuild(');
+      for (final l in androidLines) {
+        b.writeln('          $l,');
+      }
+      b.writeln('        ),');
+    }
+    if (flutterLines.isNotEmpty) {
+      b.writeln('        flutterConfig: FlutterBuild(');
+      for (final l in flutterLines) {
+        b.writeln('          $l,');
+      }
+      b.writeln('        ),');
+    }
+    if (overrideLines.isNotEmpty) {
+      b.writeln('        overrides: PipelineOverrides(');
+      for (final l in overrideLines) {
+        b.writeln('          $l,');
+      }
+      b.writeln('        ),');
+    }
+    b.writeln('        steps: [...AndroidPipeline.defaultSteps],');
+    b.writeln('      ),');
+    b.writeln('    ],');
+    b.writeln('  ),');
+    b.writeln(');');
+    for (final n in notices) {
+      b.writeln();
+      b.writeln('// ⚠️  NOT AUTO-CONVERTED: $n');
+    }
+    return OkaInitResult(code: b.toString(), notices: notices);
+  }
+
+  static List<String> _manifestLines(
+    Map<dynamic, dynamic> manifest,
+    List<String> notices,
+  ) {
+    final lines = <String>[];
+    final permissions = _yStrings(manifest['permissions']);
+    if (permissions.isNotEmpty) {
+      lines.add('permissions: ${_strList(permissions)}');
+    }
+    if (manifest['cleartext_traffic'] == true) {
+      lines.add('cleartextTraffic: true');
+    }
+    if (manifest['flutter_deeplinking'] == true) {
+      lines.add('flutterDeeplinking: true');
+    }
+    if (manifest['debuggable'] == false) lines.add('debuggable: false');
+    if (manifest['extract_native_libs'] == false) {
+      lines.add('extractNativeLibs: false');
+    }
+    final appAttrs = manifest['application_attributes'];
+    if (appAttrs is Map && appAttrs.isNotEmpty) {
+      lines.add('applicationAttributes: ${_strMap(appAttrs)}');
+    }
+    final actAttrs = manifest['activity_attributes'];
+    if (actAttrs is Map && actAttrs.isNotEmpty) {
+      lines.add('activityAttributes: ${_strMap(actAttrs)}');
+    }
+    final metaData = manifest['application_meta_data'];
+    if (metaData is List && metaData.isNotEmpty) {
+      final entries = <String>[];
+      for (final e in metaData) {
+        if (e is Map && e['name'] != null) {
+          final value = e['value'];
+          final resource = e['resource'];
+          if (value != null) {
+            entries.add(
+              "MetaDataSpec(name: '${_esc(e['name'].toString())}', "
+              "value: '${_esc(value.toString())}')",
+            );
+          } else if (resource != null) {
+            entries.add(
+              "MetaDataSpec(name: '${_esc(e['name'].toString())}', "
+              "resource: '${_esc(resource.toString())}')",
+            );
+          }
+        }
+      }
+      if (entries.isNotEmpty) {
+        lines.add('applicationMetaData: [${entries.join(', ')}]');
+      }
+    }
+    final manifestDeeplinks = _deeplinks(manifest['deeplinks']);
+    if (manifestDeeplinks.isNotEmpty) {
+      lines.add('deeplinks: [${manifestDeeplinks.join(', ')}]');
+    }
+    for (final key in manifest.keys) {
+      if (!const [
+        'permissions', 'cleartext_traffic', 'flutter_deeplinking',
+        'debuggable', 'extract_native_libs', 'application_attributes',
+        'activity_attributes', 'application_meta_data', 'deeplinks',
+      ].contains(key)) {
+        notices.add('android.manifest.$key is not auto-converted');
+      }
+    }
+    return lines;
+  }
+
+  static List<String> _deeplinks(dynamic raw) {
+    final links = <String>[];
+    if (raw is! List) return links;
+    for (final e in raw) {
+      if (e is Map && e['scheme'] != null) {
+        final host = e['host'] == null ? '' : _esc(e['host'].toString());
+        final prefix =
+            e['pathPrefix'] == null ? '' : _esc(e['pathPrefix'].toString());
+        links.add(
+          "DeeplinkConfig(scheme: '${_esc(e['scheme'].toString())}', "
+          "host: '$host', pathPrefix: '$prefix')",
+        );
+      }
+    }
+    return links;
+  }
+
+  static String _esc(String s) =>
+      s.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+
+  static String _yStr(dynamic raw) => raw?.toString() ?? '';
+
+  static List<String> _yStrings(dynamic raw) =>
+      raw is List ? raw.map((e) => e.toString()).toList() : const [];
+
+  static String _strList(List<String> items) =>
+      '[${items.map((e) => "'${_esc(e)}'").join(', ')}]';
+
+  static String _strMap(Map<dynamic, dynamic> map) => 'const {'
+      '${map.entries.map((e) => "'${_esc(e.key.toString())}': '${_esc(e.value.toString())}'").join(', ')}'
+      '}';
+}
+
+/// Generated entrypoint code + anything the converter could not port.
+class OkaInitResult {
+  final String code;
+  final List<String> notices;
+
+  const OkaInitResult({required this.code, required this.notices});
 }

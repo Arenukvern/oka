@@ -1,18 +1,21 @@
-/// Example: composing a custom build pipeline with the oka Dart API
-/// (ADR-0006 declarative composition).
+/// Example: full-Dart project config (ADR-0010) — no oka.yaml at all.
 ///
-/// The default `oka build apk` command already assembles a full pipeline from
-/// `oka.yaml`. This entrypoint shows the **Dart composition** layer:
-/// a typed, immutable [Oka] root with the default Android steps plus two
-/// custom steps.
+/// This file IS the project configuration: strictly typed, const-constructible,
+/// programmable (flavor logic, shared bases, compile-time typos instead of
+/// silent YAML key typos). `oka build` discovers it by convention
+/// (`tool/oka_pipeline.dart`) and delegates here; `okaRun` performs the
+/// boilerplate (arg parsing, dart-defines, SDK/cache dirs, pipeline run).
 ///
-/// Run it (from the repo root):
+/// Run it (from the example project root):
 ///
 /// ```bash
-/// dart run example/bin/custom_pipeline.dart
+/// dart run tool/oka_pipeline.dart            # debug build
+/// dart run tool/oka_pipeline.dart --print-config   # merged config JSON
+/// oka explain                                 # validated plan (no tools)
 /// ```
 ///
-/// Precedence reminder: built-in defaults < `oka.yaml` < this script.
+/// Precedence reminder: built-in defaults < oka.yaml (if kept) < this file
+/// < CLI args (--release/--aab/--abi/--target/--dart-define).
 library;
 
 import 'dart:io';
@@ -25,8 +28,50 @@ Future<void> main(List<String> args) => okaRun(
   oka: Oka(
     pipelines: [
       AndroidPipeline(
+        // The old `android:` oka.yaml section — strictly typed.
+        config: AndroidBuild(
+          name: 'example',
+          packageName: 'com.example.example',
+          compileSdk: '34',
+          minSdk: '21',
+          targetSdk: '34',
+          javaVersion: 11,
+          versionCode: 1,
+          versionName: '1.0.0+1',
+          sourceDirs: ['src/main/java', 'src/main/kotlin'],
+          abis: ['arm64-v8a', 'armeabi-v7a'],
+        ),
+        // The old `flutter:` oka.yaml section.
+        flutterConfig: FlutterBuild(
+          entrypoint: 'lib/main.dart',
+          assets: ['assets/'],
+          buildMode: 'debug',
+          targetPlatform: 'android-arm64',
+          treeShakeIcons: true,
+          enableHotReload: true,
+        ),
+        // The old `pipeline:` fast-settings + android.icon/res_dirs.
         overrides: PipelineOverrides(
           extraDeps: ['com.squareup.okhttp3:okhttp:4.12.0'],
+          extraAssets: [
+            (from: 'assets/hello.txt', to: 'assets/hello.txt'),
+            (
+              from: 'build_generated_config.json',
+              to: 'generated-config.json',
+            ),
+          ],
+          localAars: ['libs/testnative.aar'],
+          icon: IconConfig(
+            backgroundColor: '#E8F5E9',
+            vector: 'assets/icon/foreground.xml',
+          ),
+          deeplinks: [
+            DeeplinkConfig(
+              scheme: 'https',
+              host: 'oka.example.com',
+              pathPrefix: '/app',
+            ),
+          ],
         ),
         // Default no-Gradle steps plus two custom ones. To reorder or
         // replace, spread `AndroidPipeline.defaultSteps` and edit the list.

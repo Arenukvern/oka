@@ -1,4 +1,4 @@
-# 0010 — Agent-first dev loop: hot reload/hot restart via the flutter_tools daemon protocol
+# 0011 — Agent-first dev loop: hot reload/hot restart via the flutter_tools daemon protocol
 
 - **Status:** accepted
 - **Date:** 2026-09-06

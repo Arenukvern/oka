@@ -9,7 +9,6 @@ import 'pipeline/steps/flutter_steps.dart';
 import 'pipeline/steps/host_steps.dart';
 import 'pipeline/steps/tool_steps.dart';
 import 'signing_config.dart';
-
 /// Declarative Android platform pipeline (ADR-0006).
 ///
 /// Immutable configuration value: [overrides] (typed, [copyWith]-able) plus an
@@ -32,23 +31,45 @@ class AndroidPipeline implements PlatformPipeline {
   /// Whether unsupported plugins abort the build (strict) or warn (soft).
   final bool strictPlugins;
 
+  /// Typed base config (ADR-0010): the `android:` section, strictly typed.
+  /// Deep-merged over oka.yaml by `okaRun`; steps keep reading `ctx.config`.
+  final AndroidBuild? config;
+
+  /// Typed Flutter build settings (ADR-0010): the `flutter:` section.
+  final FlutterBuild? flutterConfig;
+
   @override
   String get platform => 'android';
+
+  @override
+  Map<String, dynamic> get configOverrides => {
+    // Project display name lives at doc level (was top-level `name:` in
+    // oka.yaml) — feeds the app_name resource + label fallback.
+    if (config != null && config!.name.isNotEmpty) 'name': config!.name,
+    if (config != null) 'android': config!.toConfigMap(),
+    if (flutterConfig != null) 'flutter': flutterConfig!.toConfigMap(),
+  };
 
   const AndroidPipeline({
     this.overrides = const PipelineOverrides(),
     this.steps,
     this.strictPlugins = true,
+    this.config,
+    this.flutterConfig,
   });
 
   AndroidPipeline copyWith({
     PipelineOverrides? overrides,
     List<BuildStep>? steps,
     bool? strictPlugins,
+    AndroidBuild? config,
+    FlutterBuild? flutterConfig,
   }) => AndroidPipeline(
     overrides: overrides ?? this.overrides,
     steps: steps ?? this.steps,
     strictPlugins: strictPlugins ?? this.strictPlugins,
+    config: config ?? this.config,
+    flutterConfig: flutterConfig ?? this.flutterConfig,
   );
 
   /// The default step sequence (fresh instances; services resolve lazily).
