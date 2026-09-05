@@ -16,6 +16,9 @@ done only when its tests and evidence exist.
 - [x] Composition-time artifact-chain validation in `Pipeline.run` (fails before any tool runs)
 - [x] `Oka` / `PlatformPipeline` composition root + `okaRun` entrypoint
 - [x] `oka build` delegation via `pipeline.dart_entrypoint` (ADR-0006)
+- [x] `oka init` generates `dart_entrypoint`-aware scaffold (commented
+      `pipeline.dart_entrypoint` example + pointer to
+      `example/bin/custom_pipeline.dart`) — `test/init_command_test.dart`
 - [x] `ManifestSpec` typed manifest value rendered by host-codegen (byte-compat with legacy)
 - [x] Dart-define plumbing: `--dart-define`, `--dart-define-from-file`, `--target` (G1/G3)
 - [x] Signing config: `SigningConfig` (yaml env-indirection + `android/key.properties`) (G2)
@@ -24,7 +27,7 @@ done only when its tests and evidence exist.
       parallel BFS, per-artifact failure isolation, per-run memoization (G6)
 - [x] Incremental step cache: `plugin-packaging`, `flutter-assemble`, `release-aot`,
       `compile-and-dex` fingerprinted (content-hash for small files)
-- [x] Tests: 145 passing (1 pre-existing rust_wrapper quarantine failure, unchanged baseline)
+- [x] Tests: 173 passing (1 pre-existing rust_wrapper quarantine failure, unchanged baseline)
 - [x] E2E #1: `example/` app — debug APK via default pipeline (188s cold)
 - [x] E2E #2: `example/` app — declarative hook (`bin/custom_pipeline.dart` via
       `dart_entrypoint`) with custom steps interleaved
@@ -52,7 +55,6 @@ done only when its tests and evidence exist.
 
 ### Open
 
-- [ ] `oka init` generates `dart_entrypoint`-aware scaffold
 - [ ] Multi-dex determinism: d8 part-file count can vary between runs (stale parts
       now cleaned; consider fixed part count)
 
@@ -64,9 +66,6 @@ done only when its tests and evidence exist.
 ### Done
 
 - [x] Roadmap doc + ADR-0007 accepted
-
-### Done
-
 - [x] `MavenResolver` + `MavenRepoRegistry` (declarative repo routing) + single
       `MavenCoordinate` in `oka_core` (duplicate removed)
 - [x] `PipelineEvent`s (StepStarted/Finished, CacheEvent, BuildWarning, Log) +
@@ -83,10 +82,25 @@ done only when its tests and evidence exist.
       incremental cache, package_config staleness)
 - [x] E2E re-verified after refactor: last_answer explain ✅, incremental
       build **22.3s** ✅
+- [x] `oka compare <apk1> <apk2>` formal byte-equivalence gate: `aapt2 dump
+      badging` diff (package, versionCode/Name, permissions, intent-filter
+      metadata) + zip entry diff (only-in / crc32-changed); exit 1 on
+      differences, `--quiet` escape — `packages/oka_android/lib/src/compare.dart`,
+      `lib/src/cli/compare_command.dart`, `test/compare_test.dart`
+- [x] `oka debug step <name>` single-step probe runner: default-pipeline prefix
+      (upstream artifact providers) against the project's `.oka_cache`,
+      okaRun-identical context, `--list` discovery from
+      `AndroidPipeline.defaultSteps` — `lib/src/cli/debug_command.dart`,
+      `test/debug_command_test.dart`
+- [x] Conditional-dep dedup: `inConditional`/`conditionalGroup` on
+      `ParsedGradleDep` (if/else scope tracking in the parser); if/else variants
+      collapse to gradle's default branch (first variant) with a printed notice
+      (mobile_scanner ML Kit bundled/unbundled) — `packages/oka_android/lib/src/
+      build/gradle_dep_parser.dart` + `plugin_packager.dart`,
+      `test/gradle_conditional_dedup_test.dart` over `test/fixtures/gradle/`
+- [x] Q&A blocks for init / compare / debug-step in `docs/guides/build_and_config.md`
 
 ### Open
 
-- [ ] `oka init` generates `dart_entrypoint`-aware scaffold
-- [ ] `oka compare <apk1> <apk2>` (formal byte-equivalence gate)
-- [ ] `oka debug step <name>` single-step runner
-- [ ] Conditional-dep dedup (ML Kit bundled/unbundled both resolved today)
+- [ ] Multi-dex determinism: d8 part-file count can vary between runs (tracked
+      under the ADR-0006 phase)

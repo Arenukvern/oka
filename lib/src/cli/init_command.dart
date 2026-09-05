@@ -6,6 +6,21 @@ import 'package:yaml/yaml.dart';
 import '../ai/ai_agent.dart';
 import '../ai/ai_client.dart';
 
+/// Commented scaffold appended to generated oka.yaml: the ADR-0006
+/// declarative Dart hook (`pipeline.dart_entrypoint` — the last YAML key oka
+/// gains) with a pointer to the full composition example.
+const _entrypointScaffold = '''
+# Declarative Dart pipeline hook (ADR-0006). Uncomment to own the pipeline in
+# Dart instead of YAML fast-settings; the hook composes a typed `Oka` root:
+#
+# pipeline:
+#   dart_entrypoint: bin/oka_pipeline.dart
+#
+# Full example (custom steps, overrides, artifact chain):
+#   https://github.com/Arenukvern/oka/blob/main/example/bin/custom_pipeline.dart
+#   (example/bin/custom_pipeline.dart in the oka repository)
+''';
+
 /// Init command to create oka.yaml from existing Gradle project
 class InitCommand {
   Future<void> run(List<String> args) async {
@@ -71,7 +86,9 @@ class InitCommand {
         };
 
         // Write oka.yaml
-        await okaYamlFile.writeAsString(_toYamlString(okaYaml));
+        await okaYamlFile.writeAsString(
+          '${_toYamlString(okaYaml)}\n$_entrypointScaffold',
+        );
 
         print('✅ oka.yaml created successfully!');
         print('');
@@ -116,7 +133,9 @@ class InitCommand {
     };
 
     final okaYamlFile = File('oka.yaml');
-    await okaYamlFile.writeAsString(_toYamlString(okaYaml));
+    await okaYamlFile.writeAsString(
+      '${_toYamlString(okaYaml)}\n$_entrypointScaffold',
+    );
 
     print('✅ Default oka.yaml created!');
     print('');

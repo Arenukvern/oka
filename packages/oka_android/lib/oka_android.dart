@@ -22,6 +22,7 @@ export 'src/build/aapt2_commands.dart';
 export 'src/build/android_builder.dart';
 export 'src/build/android_sdk_installer.dart';
 export 'src/build/apk_layout.dart';
+export 'src/compare.dart';
 export 'src/build/bundletool.dart';
 export 'src/build/cargo_apk_manifest.dart';
 export 'src/build/dependency_cache.dart';

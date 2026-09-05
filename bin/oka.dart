@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:oka/src/cli/build_command.dart';
 import 'package:oka/src/cli/clean_command.dart';
+import 'package:oka/src/cli/compare_command.dart';
+import 'package:oka/src/cli/debug_command.dart';
 import 'package:oka/src/cli/dev_command.dart';
 import 'package:oka/src/cli/doctor_command.dart';
 import 'package:oka/src/cli/explain_command.dart';
@@ -60,6 +62,12 @@ void main(List<String> arguments) async {
       case 'explain':
         await ExplainCommand().run(commandArgs);
         break;
+      case 'compare':
+        await CompareCommand().run(commandArgs);
+        break;
+      case 'debug':
+        await DebugCommand().run(commandArgs);
+        break;
       default:
         print('Unknown command: $command');
         _printUsage(parser);
@@ -84,6 +92,8 @@ Commands:
   init      Initialize oka.yaml configuration from existing Gradle project
   explain   Show the validated build plan (no tools invoked)
   build     Build APK or AAB
+  compare   Diff two APK/AAB artifacts (badging + zip entries; byte-equivalence gate)
+  debug     Probe a single pipeline step (oka debug step <name>)
   dev       Start development mode with hot reload
   doctor    Check system requirements and configuration
   get       Install missing Android SDK dependencies
@@ -96,6 +106,8 @@ Examples:
   oka init                    # Initialize oka.yaml
   oka build apk               # No-Gradle Flutter debug APK (full plugins)
   oka build apk --release     # Release (AOT / libapp.so)
+  oka compare old.apk new.apk # Diff artifacts (exit 1 on differences)
+  oka debug step compile-and-dex  # Re-run one pipeline step on .oka_cache
   oka get android-sdk         # Bootstrap packaging SDK
   oka doctor                  # Check system setup
 

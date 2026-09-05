@@ -202,18 +202,44 @@ class PluginPackager {
     final gradleFiles = await _findGradleFiles(path);
     final extraRepos = <String>[];
     final rootCoords = <MavenCoordinate>[];
-    for (final gf in gradleFiles) {
+    // Conditional-dep dedup (ADR-0007): collect all parsed deps across the
+    // plugin's gradle files, re-mapping per-file if/else group ids so groups
+    // from different files cannot collide, then keep only the first variant
+    // per group (gradle's default branch wins) with a printed notice.
+    final allDeps = <ParsedGradleDep>[];
+    const groupIdStride = 100000;
+    for (var fi = 0; fi < gradleFiles.length; fi++) {
+      final gf = gradleFiles[fi];
       final text = await File(gf).readAsString();
       extraRepos.addAll(parseMavenRepositoryUrls(text));
       for (final dep in parseGradleDependencies(text)) {
-        final packaging = await _guessPackaging(dep);
-        rootCoords.add(MavenCoordinate(
-          groupId: dep.groupId,
-          artifactId: dep.artifactId,
-          version: dep.version,
-          packaging: packaging,
-        ));
+        allDeps.add(
+          dep.conditionalGroup > 0
+              ? ParsedGradleDep(
+                  groupId: dep.groupId,
+                  artifactId: dep.artifactId,
+                  version: dep.version,
+                  configuration: dep.configuration,
+                  inConditional: true,
+                  conditionalGroup: fi * groupIdStride + dep.conditionalGroup,
+                )
+              : dep,
+        );
       }
+    }
+    final keptDeps = dedupeConditionalDeps(
+      allDeps,
+      pluginName: plugin.name,
+      onNotice: (notice) => print(notice),
+    );
+    for (final dep in keptDeps) {
+      final packaging = await _guessPackaging(dep);
+      rootCoords.add(MavenCoordinate(
+        groupId: dep.groupId,
+        artifactId: dep.artifactId,
+        version: dep.version,
+        packaging: packaging,
+      ));
     }
     // Always pull kotlin stdlib + coroutines-core when any Kotlin sources exist
     if (ktMain.isNotEmpty) {

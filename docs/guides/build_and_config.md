@@ -18,6 +18,17 @@ oka get android-sdk   # bootstrap SDK into ~/.oka/android-sdk
 oka doctor            # verify everything
 ```
 
+**Q: How do I start a new project?**
+```bash
+oka init   # generates oka.yaml from pubspec.yaml (or converts an existing
+           # android/app/build.gradle with AI assist)
+```
+The scaffold includes a **commented** `pipeline.dart_entrypoint` example
+(ADR-0006's declarative Dart hook) and a pointer to the full composition
+example (`example/bin/custom_pipeline.dart` in the oka repository). Uncomment
+when you want to own the pipeline in Dart; otherwise the YAML fast-settings
+path builds unchanged.
+
 **Q: How do I build the example app?**
 ```bash
 cd example && flutter pub get && oka build apk
@@ -137,6 +148,19 @@ production-app repeat builds drop from minutes to ~25s. Fingerprints live in
 `.oka_cache/build/<mode>/step_cache.json`; `oka clean` or deleting the build
 dir resets. Any input change (sources, deps, defines, tool versions, manifest)
 forces a full re-run of that step only.
+
+**Q: How do I re-run a single pipeline step against the existing cache?**
+```bash
+oka debug step compile-and-dex              # run one step (plus its upstream
+                                            # prefix, cache-hit cheap) with
+                                            # verbose output
+oka debug step --list                       # discover available steps
+oka debug step plugin-packaging --project /path/to/app
+```
+Uses the same context building as `okaRun` (oka.yaml + dart-defines +
+`.oka_cache` layout), so the probe sees exactly what a build sees. A single
+step cannot run alone — its upstream artifact providers run first; the
+incremental step cache keeps the prefix fast on a warm cache.
 
 ## 🔐 Signing & versioning (G2)
 
@@ -316,6 +340,18 @@ runbook: [contribution guide](../contributing/contribution_guide.md).
 make check-contracts   # VERSION == pubspec == plugin manifests; docs drift; changelog hygiene
 make sync-version      # fix drift from VERSION
 ```
+
+**Q: How do I prove a refactor produced a byte-equivalent artifact?**
+```bash
+oka compare old.apk new.apk          # exit 1 on differences
+oka compare old.aab new.aab --quiet  # differences don't fail (CI-friendly)
+oka compare a.apk b.apk --skip-badging   # zip entries only
+```
+Diffs `aapt2 dump badging` (package, versionCode/Name, permissions,
+intent-filter/launchable metadata) and the zip entry lists (entries only in
+one artifact + common entries whose content changed, via crc32). This is the
+formal byte-equivalence gate for pipeline refactors (ADR-0007) — a claim is a
+command, not a PR description.
 
 ## 🧪 Source-contract tests note
 
