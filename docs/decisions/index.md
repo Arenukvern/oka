@@ -14,3 +14,4 @@ docs live in `README.md` and `docs/guides/build_and_config.md`.
 | [0006](0006-dart-entrypoint-hooks.md) | Declarative Dart composition API as the single extension surface | accepted |
 | [0007](0007-self-resolving-builds.md) | Self-resolving, self-checking builds | accepted |
 | [0008](0008-dependency-plan-dry-run.md) | Dependency-plan dry-run (`oka explain --deps`) | accepted |
+| [0009](0009-remove-cargo-apk-hybrid.md) | Remove the demoted cargo-apk hybrid completely | proposed |
