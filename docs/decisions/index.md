@@ -15,3 +15,5 @@ docs live in `README.md` and `docs/guides/build_and_config.md`.
 | [0007](0007-self-resolving-builds.md) | Self-resolving, self-checking builds | accepted |
 | [0008](0008-dependency-plan-dry-run.md) | Dependency-plan dry-run (`oka explain --deps`) | accepted |
 | [0009](0009-remove-cargo-apk-hybrid.md) | Remove the demoted cargo-apk hybrid completely | accepted |
+| [0010](0010-typed-dart-project-config.md) | Typed per-project config in Dart (oka.yaml becomes optional) | proposed |
+| [0010](0010-hot-reload-run-loop.md) | Agent-first dev loop: hot reload via the flutter_tools daemon protocol | accepted |

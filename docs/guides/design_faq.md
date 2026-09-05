@@ -103,6 +103,25 @@ a curated prefix table resolves them instantly offline with high confidence.
 Cache-scan fallback covers unknown packages using already-downloaded artifacts.
 Network search would add latency and nondeterminism to error paths.
 
+## Dev loop (ADR 0010)
+
+**Q: Why does `oka dev` delegate the reload machinery to flutter_tools?**
+A: The boundary is contract type, not brand loyalty. `flutter assemble` (the
+build delegate) is a stable batch CLI; the resident kernel compiler behind hot
+reload is an internal flutter_tools contract that changes with the engine.
+Reimplementing it buys near-zero user-facing value today and permanent
+version-lock cost. ADR-0010 delegates the Dart VM session over the
+machine-readable daemon protocol (`--machine`) while oka owns build →
+install → launch and the entire event/UX surface — including the headless,
+agent-usable control path a TUI cannot provide.
+
+**Q: Why not just exec `flutter attach`?**
+A: Its default interface is a human TUI keystroke loop — unusable by agents,
+which is oka's primary audience (see [why this repo matters](../start_here/why_this_repo_matters.md)).
+Machine mode gives agents a first-class path; the TUI remains available as a
+human escape hatch (`oka dev --tui`). Owning the compiler instead is gated
+behind a new ADR with measured evidence (ADR-0010 §6).
+
 ## AI conversion
 
 **Q: Why send Gradle files to an LLM as text instead of parsing them?**

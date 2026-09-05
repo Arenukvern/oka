@@ -22,11 +22,14 @@ agentic workflows, where builds run constantly, that tax dominates.
   icons — all declarative in `oka.yaml`.
 - **Dependency recovery**: runtime missing-class crashes map back to Maven
   artifacts automatically.
+- **Dev loop (`oka dev`)**: build → install → launch → hot reload/restart
+  session, agent-first (headless, structured events) via the flutter_tools
+  daemon protocol — [ADR 0010](decisions/0010-hot-reload-run-loop.md),
+  [plan](guides/hot_reload_plan.md).
 
 ## What oka does not own
 
 - Full Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK).
-- Hot reload (planned; see roadmap).
 - iOS/desktop/web builds.
 - ~~The Rust/cargo-apk hybrid~~ — removed entirely (ADR-0001 → ADR-0009); only
   the no-Gradle path exists.
