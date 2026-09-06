@@ -72,6 +72,24 @@ publish tail. Targets live in separate packages (`oka_play`, `oka_huawei`,
 …) over the same pipeline kernel; store APIs and credential handling are
 deferred to their own ADR (0014).
 
+## CLI (ADR 0015)
+
+**Q: Why doesn't `oka --help` grow with every platform and store?**
+A: The CLI splits into two axes: static **verbs** (core-owned, stable,
+platform-agnostic — `build`, `explain`, `doctor`, `compare`) and discovered
+**targets** (project-declared, compiled to pipelines — `oka run device`,
+`oka run publish-play`). Platforms and stores arrive as target packages, so
+the core CLI never grows for them. Law: verbs never know platforms; `launch`
+and `debug dex` are legacy leaks being folded behind the boundary.
+
+**Q: Why are targets typed values instead of command functions?**
+A: A target is a const-constructible value that compiles to a `Pipeline`, so
+it gets the same composition-time validation, `oka explain` step chains, and
+no-execution-before-plan guarantees as builds. Arbitrary
+`(List<String>) -> Future` commands (melos-script style) would fork the CLI
+into "oka verbs" vs "whatever the project hacked up" and destroy the stable
+agent surface.
+
 ## Configuration
 
 **Q: Why extension types for config models?**

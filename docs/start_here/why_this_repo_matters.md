@@ -71,6 +71,11 @@ Dart file and running one command.
   content-addressed artifact store for shared inputs — inspectable,
   purgeable, replaceable — instead of scattered hidden caches
   ([ADR 0013](decisions/0013-toolchain-provisioning-artifact-store.md)).
+- **One stable CLI**: platform-agnostic verbs (`build`, `explain`,
+  `doctor`, …) plus project-declared targets (`oka run <target>`) discovered
+  from the composition root — typed values that compile to pipelines, so
+  custom flows (device, publish, test loops) stay explainable and valid
+  ([ADR 0015](decisions/0015-cli-verb-target-split.md)).
 
 ## What oka does not own
 
@@ -104,15 +109,19 @@ One platform proves the model; the model is built for many. Expansion is
    Play/Huawei/RuStore are *one application on one platform* composed as
    target packages, not platform forks. Toolchains and device layers are
    platform-scoped; the artifact store is the cross-platform primitive.
-4. **Second platform candidate: iOS.** Strongest case — full CLI toolchain
+4. **CLI verbs never know platforms** (ADR-0015). Platform behavior is
+   reachable only through pipelines and targets, never inside a verb
+   implementation; the core CLI stops growing when new platforms or stores
+   arrive as target packages.
+5. **Second platform candidate: iOS.** Strongest case — full CLI toolchain
    (`xcodebuild`, `plutil`, `security`, `altool`), highest Flutter demand
    after Android, and signing/provisioning is exactly the friction agents
    handle worst. Gated on an ADR proving the pipeline model maps
    (assemble → compile → codesign → validate) plus real demand signal.
-5. **Cheap third: desktop** (e.g. Windows MSIX — production projects already
+6. **Cheap third: desktop** (e.g. Windows MSIX — production projects already
    use it). **Web needs nothing oka-shaped** — `flutter build web` is
    already declarative and fast; oka adds no value there.
-6. **Stay in the wedge.** Oka is not a general build orchestrator (that's
+7. **Stay in the wedge.** Oka is not a general build orchestrator (that's
    bazel/just/melos territory). The wedge is Flutter + agent-native +
    no-Gradle. Every expansion should tighten that wedge, not dilute it.
 

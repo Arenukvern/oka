@@ -9,6 +9,23 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
 
 ## Open
 
+- [ ] **C0 — `Target` contract + `oka run` dispatcher (ADR-0015).**
+      Typed, const-constructible `Target` (compiles to `Pipeline`) in
+      `oka_core`; `Oka(targets: [...])` in the composition root; `oka run
+      <target>` dispatch (core verbs reserved, targets cannot shadow);
+      unknown-verb errors name available targets; snapshot cache keyed on
+      entrypoint content hash. Tests: dispatch, collision rejection,
+      target→pipeline validation via existing artifact checker.
+- [ ] **C1 — Fold platform leakage behind the boundary (ADR-0015).**
+      `oka launch` → alias of `oka run device` (`DeviceTarget` shipped by
+      `oka_android`); `oka get` nouns route through ADR-0013 tool
+      providers; `oka debug dex` moves behind the Android package. Gate:
+      `bin/` + verb implementations contain no platform logic (grep gate
+      or import-lint test); `oka compare` byte-equivalence preserved.
+- [ ] **C2 — `oka explain --targets` (ADR-0015).** Discovered targets
+      listed with their step chains via the validated-plan surface;
+      `oka --help` stays static (core verbs + pointer). Evidence: explain
+      output for a project declaring a custom target.
 - [ ] **T0 — ArtifactStore contract + cache unification (ADR-0013).**
       `ArtifactStore`/`ContentKey` in `oka_core`; plain-directory
       `LocalArtifactStore` with human-decodable layout; unify
