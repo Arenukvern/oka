@@ -21,7 +21,7 @@ analyzer:
 
 linter:
   rules:
-    # oka is a CLI build tool: stdout progress reporting is part of the UX.
+    # Build steps report progress on stdout; oka is a CLI build tool.
     avoid_print: false
     always_declare_return_types: true
     always_put_control_body_on_new_line: true

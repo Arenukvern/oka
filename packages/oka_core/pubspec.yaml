@@ -1,8 +1,21 @@
 name: oka_core
-description: Core contracts for oka — typed build context, composable pipeline (BuildStep, Artifact, Pipeline), and the declarative Oka composition root (ADR-0006).
+description: >-
+  Core contracts for oka: typed build context, composable pipeline
+  (BuildStep, Artifact, Pipeline), the declarative Oka composition root, and
+  typed oka.yaml config values.
 version: 0.1.6
 homepage: https://github.com/Arenukvern/oka
-repository: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_core
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - build-system
+  - cli
+  - configuration
+  - dart
+  - pipeline
+
+resolution: workspace
 
 environment:
   sdk: ^3.12.0
@@ -11,5 +24,8 @@ dependencies:
   args: ^2.5.0
   from_json_to_json: ^0.5.0
   meta: ^1.14.0
-  path: ^1.9.0
   yaml: ^3.1.2
+
+dev_dependencies:
+  lints: ^6.1.0
+  xsoulspace_lints: ^0.1.2

@@ -26,7 +26,7 @@ the same is true of every platform's build system:
   permissions, deeplinks, dependency quirks. The configs **repeat and drift**,
   and unifying them across projects is impossible — they don't even share a
   format.
-- You don't operate the build; you *negotiate* with it. The toolchain is
+- You don't operate the build; you _negotiate_ with it. The toolchain is
   locked behind plugin DSLs and hidden defaults, and when it breaks, the fix
   lives somewhere you can't read or control.
 
@@ -43,8 +43,8 @@ pipeline in Dart that you own end to end:
   package implementing the same contract. You can build any pipeline.
 - **AI-native** — self-describing plans (`oka explain`), machine-checkable
   gates (`oka compare`), single-step probes (`oka debug step`), deterministic
-  byte-reproducible artifacts, and failures that name the fix. The goal: *an
-  agent can set up and fix a platform build from oka's messages alone.*
+  byte-reproducible artifacts, and failures that name the fix. The goal: _an
+  agent can set up and fix a platform build from oka's messages alone._
 
 Speed is a consequence, not the pitch: with the build as one readable code
 path and no Gradle, incremental builds drop to ~23s — but the reason oka
@@ -77,7 +77,7 @@ Not yet (by design, see [the long game](#the-long-game)): iOS, desktop, web.
 dart pub global activate oka        # pub.dev
 # or from source:
 git clone https://github.com/Arenukvern/oka.git && cd oka
-make install && make global
+just install && just global
 
 # one-time SDK bootstrap (or point at an existing Android SDK)
 oka get android-sdk
@@ -114,6 +114,7 @@ the typed Dart entrypoint.
 Every operation is checkable and scriptable — this is what "AI-native" means
 here, not a chat wrapper:
 
+```
 | Command | What an agent gets |
 |---|---|
 | `oka explain` / `oka build --dry-run` | The validated plan: steps, artifact chain, signing, versions — zero tools invoked |
@@ -122,6 +123,7 @@ here, not a chat wrapper:
 | `oka compare a.apk b.apk` | Byte-equivalence gate (badging + zip entries) — refactors prove, not claim |
 | `oka doctor` | Full environment + build-health audit |
 | `oka dev` *(in progress)* | install → launch → hot reload/restart with structured `--json` events |
+```
 
 ## Configuration
 
@@ -175,11 +177,13 @@ pipelines: [example/tool/oka_pipeline.dart](example/tool/oka_pipeline.dart).
 
 ## Packages
 
+```
 | Package | Pub | Purpose |
 |---|---|---|
 | [`oka`](https://pub.dev/packages/oka) | CLI + agent surface (this repo) |
 | [`oka_core`](https://pub.dev/packages/oka_core) | Platform-agnostic contracts: pipeline, artifacts, composition root, typed config |
 | [`oka_android`](https://pub.dev/packages/oka_android) | Android pipelines, toolchain, plugin packaging |
+```
 
 ## The long game
 
@@ -215,19 +219,21 @@ Run `oka doctor` to verify your environment.
 
 Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukvern/oka)**
 
+```
 | I want to… | Read |
 |---|---|
 | Run/build/test | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
 | Understand boundaries & the north star | [Why this repo matters](https://docs.page/arenukvern/oka/start_here/why_this_repo_matters) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
 | Check phase status | [`docs/PHASE_CHECKLIST.md`](docs/PHASE_CHECKLIST.md) |
+```
 
 ## Contributing
 
 Contributions welcome! See the
 [contribution guide](https://docs.page/arenukvern/oka/contributing/contribution_guide).
 Releases are automated via release-please — use conventional commits
-(`feat:`, `fix:`, `docs:`); run `make check-contracts` before merging.
+(`feat:`, `fix:`, `docs:`); run `just check-contracts` before merging.
 Agents: start from [`AGENTS.md`](AGENTS.md).
 
 ## Security

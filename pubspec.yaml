@@ -1,5 +1,8 @@
 name: oka
-description: No-Gradle build system for Flutter Android. Runs flutter assemble + direct Android SDK tools (aapt2, d8, apksigner) instead of Gradle, with plugin packaging, AAB support, and dependency recovery.
+description: >-
+  No-Gradle build system for Flutter Android. Runs `flutter assemble` with
+  direct Android SDK tools (aapt2, d8, apksigner) — no Gradle daemon — with
+  plugin packaging, AAB support, and dependency recovery.
 version: 0.1.6
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka
@@ -12,36 +15,26 @@ topics:
   - cli
   - gradle
 
+workspace:
+  - packages/*
+
 environment:
   sdk: ^3.12.0
 
 dependencies:
   args: ^2.5.0
+  archive: ^4.0.9
+  crypto: ^3.0.3
+  http: ^1.2.1
   oka_android: ^0.1.6
   oka_core: ^0.1.6
   path: ^1.9.0
   yaml: ^3.1.2
-  process: ^5.0.2
-  watcher: ^1.1.0
-  from_json_to_json: ^0.5.0
-  http: ^1.2.1
-  crypto: ^3.0.3
-  archive: ^4.0.9
-  io: ^1.0.4
-  cli_util: ^0.4.1
 
 dev_dependencies:
-  lints: ^4.0.0
   test: ^1.25.0
-
-# Local development: resolve the sibling packages from this checkout.
-# `dart pub publish` ignores this section (packages publish against hosted
-# oka_core/oka_android).
-dependency_overrides:
-  oka_android:
-    path: packages/oka_android
-  oka_core:
-    path: packages/oka_core
+  lints: ^6.1.0
+  xsoulspace_lints: ^0.1.2
 
 executables:
   oka:
