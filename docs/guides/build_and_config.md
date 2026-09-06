@@ -91,9 +91,27 @@ split APKs. Verify locally (bundletool exercises the same parsing path as Play):
 ```bash
 oka get bundletool          # one-time download into ~/.oka/tools
 oka build aab --verify-aab  # runs bundletool build-apks --mode=universal
-adb install -r .oka_cache/build/<mode>/universal/app-universal.apk
+                            # (works for oka.yaml and Dart-entrypoint projects)
+adb install -r .oka_cache/build/<mode>/aab/universal/app-universal.apk
 adb shell am start -n com.example.example/.MainActivity
 ```
+
+**Q: How do I build a release APK?**
+```bash
+oka build apk --release
+# output: .oka_cache/build/release/app-release.apk
+```
+Release mode AOT-compiles Dart to native `libapp.so` (no JIT snapshot),
+applies tree-shaking, and signs with the release keystore: `android/key.properties`
+(Gradle-compatible: `storeFile`, `keyAlias`, `storePassword`, `keyPassword`)
+→ `oka.yaml` `android.signing:` → debug keystore fallback (a ⚠️ warning is
+printed when a release build falls back to the debug keystore — store uploads
+will be rejected). For store upload combine both:
+```bash
+oka build aab --release --verify-aab
+```
+Same plugins, deps, icons and deeplinks as debug; incremental caches are
+shared per-step and keyed by mode.
 
 **Q: How do I install & launch on a device?**
 ```bash
@@ -381,9 +399,19 @@ android:
     background_color: "#E8F5E9"         # or @color/ref
     vector: assets/icon/foreground.xml  # VectorDrawable XML (108dp viewport)
     monochrome: assets/icon/mono.xml    # optional, Android 13+ themed icons
+    name: my_launcher                   # optional, base resource name
+    manifest_ref: "@mipmap/my_launcher" # optional, full override — generate nothing
 ```
-Vector-first: no PNG tooling needed; works on API 26+. Implementation:
-`lib/src/build/launcher_icon.dart`.
+Vector-first: no PNG tooling needed; works on API 26+. Generated resources
+(`mipmap-anydpi-v26/<name>.xml` + foreground/background/monochrome companions)
+use `name` (default `ic_launcher`). Two user-owned paths:
+- ship your own icons (any density PNGs or XMLs) via `pipeline.res_dirs` —
+  when the merged res tree already defines the icon under `name` and no
+  generation settings are set, oka skips generation and references it as-is;
+- set `manifest_ref` to any existing resource reference to fully opt out of
+  icon generation.
+
+Implementation: `lib/src/build/launcher_icon.dart`.
 
 **Q: How do I add deeplinks?**
 ```yaml
@@ -409,6 +437,12 @@ if regressed, device installs on Android 11+ fail.
 **Q: App crashes at launch with missing classes but tests pass?**
 Runtime link errors don't surface at compile time. Reproduce with adb, read
 `adb logcat -d -b crash`, then follow the dependency-recovery flow above.
+A `NoClassDefFoundError` in a plugin class followed by ALL plugins failing to
+register usually means a dependency that only Gradle module metadata declares
+(`.module`, not the POM) — e.g. `androidx.camera` needs `kotlinx-atomicfu`.
+oka parses `.module` runtime deps (`parseModuleRuntimeDependencies` in
+`lib/src/maven_resolver.dart`); if a new case surfaces, check the parsed
+variant output with `oka explain --deps --network`.
 
 **Q: Device shows `unauthorized` in adb?**
 Accept the USB debugging dialog on the phone (unlock first). If stale:

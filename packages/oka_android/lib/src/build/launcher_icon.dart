@@ -10,18 +10,28 @@ import 'package:path/path.dart' as p;
 ///     background_color: "#4CAF50"   # adaptive-icon background (color)
 ///     vector: assets/icon/fg.xml    # optional custom VectorDrawable foreground
 ///     monochrome: assets/icon/mono.xml  # optional Android 13+ themed icon
+///     name: my_launcher             # base resource name (default ic_launcher)
+///     manifest_ref: "@mipmap/my_launcher"  # full override — generate nothing
 /// ```
+///
+/// With `manifest_ref` set, oka generates no icon resources at all and uses
+/// the reference verbatim — the icon resource must already exist in the
+/// merged res tree (e.g. shipped via `res_dirs`) under any name you choose.
 class IconConfig {
   const IconConfig({
     this.backgroundColor = '#FFFFFF',
     this.vector = '',
     this.monochrome = '',
+    this.name = 'ic_launcher',
+    this.manifestRef = '',
   });
 
   factory IconConfig.fromMap(final Map<dynamic, dynamic> map) => IconConfig(
       backgroundColor: map['background_color']?.toString() ?? '#FFFFFF',
       vector: map['vector']?.toString() ?? '',
       monochrome: map['monochrome']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'ic_launcher',
+      manifestRef: map['manifest_ref']?.toString() ?? '',
     );
 
   /// Background as a color literal (`#RRGGBB` / `#AARRGGBB`) or resource ref.
@@ -34,6 +44,25 @@ class IconConfig {
   /// Optional project-relative path to a monochrome VectorDrawable
   /// (Android 13+ themed icons).
   final String monochrome;
+
+  /// Base resource name for generated icon resources: the adaptive icon at
+  /// `mipmap-anydpi-v26/<name>.xml`, the foreground/background/monochrome
+  /// companions, and the manifest reference `@mipmap/<name>`. Change it when
+  /// your project already ships an icon under a different name.
+  final String name;
+
+  /// Full manifest icon reference (e.g. `@mipmap/my_launcher`). When set,
+  /// oka generates nothing — the icon resource must already exist in the
+  /// merged res tree (e.g. via `res_dirs`), under any name you choose.
+  final String manifestRef;
+
+  /// True when no icon fast-settings are configured (all defaults).
+  bool get isDefault =>
+      vector.isEmpty &&
+      monochrome.isEmpty &&
+      manifestRef.isEmpty &&
+      name == 'ic_launcher' &&
+      backgroundColor == '#FFFFFF';
 }
 
 /// Result of staging launcher icon resources.
@@ -61,6 +90,7 @@ Future<IconResources> stageLauncherIcons(
   required final String projectPath,
 }) async {
   final written = <String>[];
+  final name = config.name;
 
   // Foreground drawable: user-supplied vector or oka default glyph.
   final fgResDir = p.join(resDir, 'drawable');
@@ -70,13 +100,13 @@ Future<IconResources> stageLauncherIcons(
     if (!await src.exists()) {
       throw Exception('icon.vector not found: ${config.vector}');
     }
-    await src.copy(p.join(fgResDir, 'ic_launcher_foreground.xml'));
+    await src.copy(p.join(fgResDir, '${name}_foreground.xml'));
   } else {
     await File(
-      p.join(fgResDir, 'ic_launcher_foreground.xml'),
+      p.join(fgResDir, '${name}_foreground.xml'),
     ).writeAsString(defaultForegroundVector());
   }
-  written.add('drawable/ic_launcher_foreground.xml');
+  written.add('drawable/${name}_foreground.xml');
 
   // Monochrome layer (Android 13+ themed icons), optional.
   var monoRef = '';
@@ -85,21 +115,21 @@ Future<IconResources> stageLauncherIcons(
     if (!await src.exists()) {
       throw Exception('icon.monochrome not found: ${config.monochrome}');
     }
-    await src.copy(p.join(fgResDir, 'ic_launcher_monochrome.xml'));
-    monoRef = '@drawable/ic_launcher_monochrome';
-    written.add('drawable/ic_launcher_monochrome.xml');
+    await src.copy(p.join(fgResDir, '${name}_monochrome.xml'));
+    monoRef = '@drawable/${name}_monochrome';
+    written.add('drawable/${name}_monochrome.xml');
   }
 
   // Background color resource.
   final valuesDir = p.join(resDir, 'values');
   await Directory(valuesDir).create(recursive: true);
-  await File(p.join(valuesDir, 'ic_launcher_background.xml')).writeAsString(
+  await File(p.join(valuesDir, '${name}_background.xml')).writeAsString(
     '<?xml version="1.0" encoding="utf-8"?>\n'
     '<resources>\n'
-    '    <color name="ic_launcher_background">${_escapeColor(config.backgroundColor)}</color>\n'
+    '    <color name="${name}_background">${_escapeColor(config.backgroundColor)}</color>\n'
     '</resources>\n',
   );
-  written.add('values/ic_launcher_background.xml');
+  written.add('values/${name}_background.xml');
 
   // Adaptive icon definition (API 26+; minSdk of modern Flutter apps).
   final anyDpiDir = p.join(resDir, 'mipmap-anydpi-v26');
@@ -107,17 +137,17 @@ Future<IconResources> stageLauncherIcons(
   final monoLine = monoRef.isEmpty
       ? ''
       : '\n    <monochrome android:drawable="$monoRef"/>';
-  await File(p.join(anyDpiDir, 'ic_launcher.xml')).writeAsString(
+  await File(p.join(anyDpiDir, '$name.xml')).writeAsString(
     '<?xml version="1.0" encoding="utf-8"?>\n'
     '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
-    '    <background android:drawable="@color/ic_launcher_background"/>'
+    '    <background android:drawable="@color/${name}_background"/>'
     '${monoLine.isEmpty ? '' : monoLine}\n'
-    '    <foreground android:drawable="@drawable/ic_launcher_foreground"/>\n'
+    '    <foreground android:drawable="@drawable/${name}_foreground"/>\n'
     '</adaptive-icon>\n',
   );
-  written.add('mipmap-anydpi-v26/ic_launcher.xml');
+  written.add('mipmap-anydpi-v26/$name.xml');
 
-  return IconResources(written: written, manifestRef: '@mipmap/ic_launcher');
+  return IconResources(written: written, manifestRef: '@mipmap/$name');
 }
 
 /// Default oka glyph: rounded "O" ring centered in the adaptive-icon safe

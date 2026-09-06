@@ -699,6 +699,9 @@ Future<String> resolveAndroidJar(final String androidSdk, final String compileSd
 ///
 /// Dedupes by Maven artifact identity (group:artifact), keeping the highest
 /// version so d8 does not see duplicate types (e.g. kotlin-stdlib 1.9 vs 2.0).
+/// On version ties the platform-suffixed variant (`-jvm` / `-android`) wins
+/// over the KMP root artifact, whose jar is a multiplatform bundle with no
+/// JVM classes (e.g. `atomicfu` vs `atomicfu-jvm`).
 List<String> filterRuntimeJars(final List<String> jars) {
   final best = <String, ({String path, String version})>{};
   for (final j in jars) {
@@ -712,11 +715,30 @@ List<String> filterRuntimeJars(final List<String> jars) {
     final id = _artifactKey(j);
     final ver = _artifactVersion(j);
     final prev = best[id];
-    if (prev == null || _compareVersions(ver, prev.version) > 0) {
+    if (prev == null) {
       best[id] = (path: j, version: ver);
+    } else {
+      final cmp = _compareVersions(ver, prev.version);
+      if (cmp > 0 || (cmp == 0 && _prefersPlatformVariant(j, prev.path))) {
+        best[id] = (path: j, version: ver);
+      }
     }
   }
   return best.values.map((final e) => e.path).toList();
+}
+
+/// True when [candidate] should replace [current] on a version tie: the
+/// candidate's artifact is a platform-suffixed variant while the current is
+/// the KMP root (whose jar carries no JVM classes).
+bool _prefersPlatformVariant(final String candidate, final String current) {
+  bool suffixed(final String jarPath) {
+    final parts = p.split(jarPath);
+    if (parts.length < 3) return false;
+    final artifact = parts[parts.length - 3];
+    return artifact.endsWith('-jvm') || artifact.endsWith('-android');
+  }
+
+  return suffixed(candidate) && !suffixed(current);
 }
 
 /// `.../group/path/artifact/version/file.jar` → `group.path:baseArtifact`

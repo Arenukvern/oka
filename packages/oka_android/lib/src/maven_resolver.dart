@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -726,12 +727,63 @@ class MavenResolver {
           }
         }
       }
+      // Gradle module metadata (`*.module`) may declare runtime deps the
+      // POM omits (e.g. androidx.camera → kotlinx-atomicfu). Added even at
+      // max depth: companions resolve, their own expansion is depth-bounded.
+      for (final d in await _fetchModuleDependencies(
+        resolved.coordinate,
+        extraRepos: extraRepos,
+      )) {
+        if (!seen.contains(d.cacheKey)) {
+          next.add((c: d, depth: item.depth + 1));
+        }
+      }
       return (resolved: resolved, length: len, next: next);
     } catch (e) {
       if (verbose) print('   resolve skip ${item.c}: $e');
       onFailure?.call(item.c, e);
       return (resolved: null, length: 0, next: const <({MavenCoordinate c, int depth})>[]);
     }
+  }
+
+  /// Fetches runtime dependencies declared only in Gradle module metadata
+  /// (`<artifact>-<version>.module`), which POM-based transitive resolution
+  /// cannot see.
+  ///
+  /// Motivating case: `androidx.camera` declares `kotlinx-atomicfu` as a
+  /// runtime dependency in `.module` metadata only — its POM omits it, and
+  /// kotlinx-coroutines 1.10+ no longer shades those classes. Without this,
+  /// camera-based plugins (e.g. mobile_scanner) crash at startup with
+  /// `NoClassDefFoundError: Lkotlinx/atomicfu/AtomicFU;`, which kills
+  /// GeneratedPluginRegistrant and silently unregisters ALL plugins.
+  Future<List<MavenCoordinate>> _fetchModuleDependencies(
+    final MavenCoordinate coord, {
+    final List<String> extraRepos = const [],
+  }) async {
+    final moduleCoord = MavenCoordinate(
+      groupId: coord.groupId,
+      artifactId: coord.artifactId,
+      version: coord.version,
+      packaging: 'module',
+    );
+    final modulePath = localPathFor(moduleCoord);
+    List<int> bytes;
+    if (await File(modulePath).exists()) {
+      bytes = await File(modulePath).readAsBytes();
+    } else if (!allowNetwork) {
+      return const [];
+    } else {
+      try {
+        final dl = await _downloadArtifact(moduleCoord, extraRepos: extraRepos);
+        bytes = dl.bytes;
+        await File(modulePath).parent.create(recursive: true);
+        await File(modulePath).writeAsBytes(bytes);
+      } catch (_) {
+        // No `.module` published — POM-only artifact.
+        return const [];
+      }
+    }
+    return parseModuleRuntimeDependencies(String.fromCharCodes(bytes));
   }
 
   Future<List<MavenCoordinate>> _fetchPomDependencies(
@@ -947,6 +999,78 @@ Map<String, String> parsePomProperties(final String pomXml) {
       in RegExp(r'<([a-zA-Z0-9._\-]+)>([^<]*)</([a-zA-Z0-9._\-]+)>')
           .allMatches(section)) {
     out[m.group(1)!] = m.group(2)!.trim();
+  }
+  return out;
+}
+
+/// Variant-name markers of non-Android/JVM platforms in Gradle module
+/// metadata — dependencies of such variants are irrelevant for Android
+/// builds and would otherwise pollute the resolution graph.
+const _moduleOtherPlatformMarkers = [
+  'ios',
+  'macos',
+  'tvos',
+  'watchos',
+  'linux',
+  'mingw',
+  'js',
+  'wasm',
+  'androidnative',
+];
+
+/// Parses runtime dependencies from Gradle module metadata JSON
+/// (`<artifact>-<version>.module`).
+///
+/// Gradle publishes richer dependency info than the POM: AndroidX/KMP
+/// artifacts regularly declare runtime-only dependencies (e.g.
+/// `androidx.camera` → `kotlinx-atomicfu`) that the POM omits entirely.
+///
+/// Variant selection: only variants whose name contains `runtime` (case-
+/// insensitive) and no non-Android/JVM platform marker contribute — api
+/// elements, sources, and iOS/JS/native runtime variants are irrelevant
+/// for Android builds. Versions come from `requires` / `prefers` /
+/// `strictly`, in that order; entries without a resolvable version are
+/// skipped. Malformed JSON yields an empty list (best-effort by design —
+/// the POM graph remains the baseline).
+List<MavenCoordinate> parseModuleRuntimeDependencies(final String jsonText) {
+  final Object? root;
+  try {
+    root = jsonDecode(jsonText);
+  } on FormatException {
+    return const [];
+  }
+  if (root is! Map<String, dynamic>) return const [];
+  final variants = root['variants'];
+  if (variants is! List) return const [];
+  final out = <MavenCoordinate>[];
+  for (final v in variants) {
+    if (v is! Map<String, dynamic>) continue;
+    final name = (v['name'] as String? ?? '').toLowerCase();
+    if (!name.contains('runtime')) continue;
+    if (_moduleOtherPlatformMarkers.any(name.contains)) continue;
+    final deps = v['dependencies'];
+    if (deps is! List) continue;
+    for (final d in deps) {
+      if (d is! Map<String, dynamic>) continue;
+      final group = d['group'] as String? ?? '';
+      final module = d['module'] as String? ?? '';
+      if (group.isEmpty || module.isEmpty) continue;
+      final version = d['version'];
+      var versionStr = '';
+      if (version is Map) {
+        versionStr = (version['requires'] ??
+                version['prefers'] ??
+                version['strictly'] ??
+                '')
+            .toString();
+      } else if (version is String) {
+        versionStr = version;
+      }
+      if (versionStr.isEmpty || versionStr.startsWith(r'${')) continue;
+      out.add(
+        MavenCoordinate(groupId: group, artifactId: module, version: versionStr),
+      );
+    }
   }
   return out;
 }
