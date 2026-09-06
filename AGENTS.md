@@ -34,6 +34,20 @@ follow links.
 | Cut a release / version sync | `docs/contributing/contribution_guide.md` → Releases; bundled skill `oka-maintenance` |
 | Install agent skills | `npx skills add Arenukvern/oka --skill oka-maintenance` |
 
+## Skill Steward
+
+Oka is under [Skill Steward](https://github.com/Arenukvern/skill_steward)
+stewardship (`steward.yaml`, archetype `cli_tool`). Agent workflow:
+
+1. Start with `steward doctor --json`, then `steward actions list --json`.
+2. Inspect any intended action before execution:
+   `steward action inspect <id> --json`.
+3. Contract smoke scenario (all four release gates):
+   `steward benchmark --scenario oka.contract-status-smoke --strict --json`.
+4. Build benchmarks: `make bench` (evidence in `.steward/benchmark-summaries`,
+   gitignored; summarized in `docs/evidence/`).
+5. `steward validate skills/` when touching `skills/`.
+
 ## Commands
 
 ```bash

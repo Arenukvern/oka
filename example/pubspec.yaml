@@ -33,16 +33,18 @@ dependencies:
 
   oka:
     path: ..
-  oka_android:
-    path: ../packages/oka_android
-  oka_core:
-    path: ../packages/oka_core
   mcp_toolkit: ^5.0.4
 
 dependency_overrides:
   # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
   # your sibling checkouts via pubspec_overrides.yaml (git-ignored).
   cupertino_icons: ^1.0.8
+  # Local development: split packages from the oka checkout (ADR-0010).
+  # Remove once oka_core/oka_android are published to pub.dev.
+  oka_android:
+    path: ../packages/oka_android
+  oka_core:
+    path: ../packages/oka_core
 
 dev_dependencies:
   flutter_test:

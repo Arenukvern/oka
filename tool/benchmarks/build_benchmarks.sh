@@ -17,7 +17,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROJECT_DIR="${1:-$ROOT_DIR/example}"
+PROJECT_DIR="$(cd "${1:-$ROOT_DIR/example}" && pwd)"
 COLD=false
 [[ "${2:-}" == "--cold" ]] && COLD=true
 
@@ -27,14 +27,13 @@ if [[ ! -f "$PROJECT_DIR/pubspec.yaml" ]]; then
 fi
 
 # Runner: prefer the globally installed snapshot; fall back to dart run.
+# oka resolves the project from its cwd — always run inside the project.
 RUNNER_LABEL="dart-run"
-OKA_ARGS=()
 if command -v oka >/dev/null 2>&1 && oka --version >/dev/null 2>&1; then
   RUNNER_LABEL="global-snapshot"
-  OKA_ARGS=()
-  run_oka() { oka "$@"; }
+  run_oka() { (cd "$PROJECT_DIR" && oka "$@"); }
 else
-  run_oka() { (cd "$ROOT_DIR" && dart run bin/oka.dart "$@"); }
+  run_oka() { (cd "$PROJECT_DIR" && dart run "$ROOT_DIR/bin/oka.dart" "$@"); }
 fi
 
 mkdir -p "$ROOT_DIR/.steward/benchmark-summaries"
