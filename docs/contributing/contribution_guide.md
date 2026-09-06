@@ -11,9 +11,9 @@ humans steer. That shapes how contributions work.
 
 ```bash
 git clone https://github.com/Arenukvern/oka.git && cd oka
-make install    # dart pub get
-make test       # dart test
-make lint       # dart analyze
+just install    # dart pub get
+just test       # dart test
+just lint       # dart analyze
 ```
 
 ## Ground rules
@@ -63,7 +63,7 @@ Releases are automated on `main` via **release-please**:
    [`.github/workflows/release_pr_sync_versions.yml`](../../.github/workflows/release_pr_sync_versions.yml)
    derives `pubspec.yaml`, plugin manifests, and the marketplace catalog from
    that one version and commits any drift.
-3. Review the Release PR, run `make check-contracts`, then merge it.
+3. Review the Release PR, run `just check-contracts`, then merge it.
 4. release-please creates the `vX.Y.Z` tag and GitHub release **with changelog
    notes**.
 5. [`.github/workflows/pub_publish.yml`](../../.github/workflows/pub_publish.yml)
@@ -78,15 +78,15 @@ Releases are automated on `main` via **release-please**:
 Manual fallback (when automation is blocked):
 
 ```bash
-bash tool/release/sync_version.sh --version 0.1.7   # or: make sync-version
+bash tool/release/sync_version.sh --version 0.1.7   # or: just sync-version
 # edit CHANGELOG.md, bump .release-please-manifest.json
-make check-contracts
+just check-contracts
 git commit -am "chore: release 0.1.7" && git tag v0.1.7 && git push --tags
 ```
 
 ## Contract gates
 
-Run before every merge (`make check-contracts`):
+Run before every merge (`just check-contracts`):
 
 | Gate | Checks |
 |---|---|
@@ -99,4 +99,4 @@ Run before every merge (`make check-contracts`):
 
 - Keep changes minimal and focused; match existing style.
 - Add/adjust tests for anything that changes packaging or pipeline behavior.
-- Run `make lint && make test && make check-contracts` before pushing.
+- Run `just lint && just test && just check-contracts` before pushing.

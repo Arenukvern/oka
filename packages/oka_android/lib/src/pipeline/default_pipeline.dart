@@ -10,7 +10,6 @@ import 'package:path/path.dart' as p;
 import '../build/apk_layout.dart';
 import '../build/dependency_cache.dart';
 import '../build/flutter_assemble.dart';
-import '../build/launcher_icon.dart';
 import '../build/plugin_discovery.dart';
 import '../build/sdk_locator.dart';
 import 'package:oka_core/src/config/build_context.dart';
@@ -18,9 +17,7 @@ import 'package:oka_core/src/pipeline/pipeline.dart';
 
 import '../android_artifacts.dart';
 import '../android_state.dart';
-import '../manifest_spec.dart';
 import '../post_build_lint.dart';
-import '../signing_config.dart';
 import 'steps/asset_steps.dart';
 import 'steps/flutter_steps.dart';
 import 'steps/host_steps.dart';

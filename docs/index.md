@@ -28,7 +28,7 @@ configuration tax on every build.
   artifacts automatically.
 
 ```bash
-dart pub global activate --source path .   # or: make global
+dart pub global activate --source path .   # or: just global
 oka get android-sdk && oka doctor
 cd example && oka build apk
 ```

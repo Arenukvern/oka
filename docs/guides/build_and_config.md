@@ -38,8 +38,8 @@ Publish order (release train, see `.github/workflows/pub_publish.yml`):
 
 **Q: How do I install oka and its Android SDK?**
 ```bash
-make install          # dart pub get
-make global           # activate globally (clears snapshot cache)
+just install          # dart pub get
+just global           # activate globally (clears snapshot cache)
 oka get android-sdk   # bootstrap SDK into ~/.oka/android-sdk
 oka doctor            # verify everything
 ```
@@ -103,8 +103,8 @@ adb logcat -d -b crash | grep com.example   # check for crashes
 
 **Q: How do I run tests?**
 ```bash
-make test    # dart test
-make lint    # dart analyze
+just test    # dart test
+just lint    # dart analyze
 ```
 
 ## 🎛️ Full-Dart project config (ADR-0010)
@@ -427,8 +427,8 @@ runbook: [contribution guide](../contributing/contribution_guide.md).
 
 **Q: How do I verify version consistency locally?**
 ```bash
-make check-contracts   # VERSION == pubspec == plugin manifests; docs drift; changelog hygiene
-make sync-version      # fix drift from VERSION
+just check-contracts   # VERSION == pubspec == plugin manifests; docs drift; changelog hygiene
+just sync-version      # fix drift from VERSION
 ```
 
 **Q: How do I prove a refactor produced a byte-equivalent artifact?**

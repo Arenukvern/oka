@@ -382,7 +382,7 @@ Future<CompileDexOutcome> compileAndDexProto({
       );
     }
 
-    return _compileJavaAndDex(
+    return await _compileJavaAndDex(
       ctx: ctx,
       javaVersionOverride: javaVersionOverride,
       sdkLocator: sdkLocator,

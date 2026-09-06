@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import '../../android_artifacts.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:oka_core/src/config/build_context.dart';

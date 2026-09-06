@@ -4,7 +4,6 @@ import 'package:oka_core/oka_core.dart';
 
 // ignore: implementation_imports
 import 'auto_resolve.dart';
-import 'build/sdk_locator.dart';
 
 import 'android_artifacts.dart';
 import 'android_state.dart';

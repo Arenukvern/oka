@@ -35,7 +35,7 @@ Gradle debugging (oka has none).
 1. **Locate** the change surface (see Map below).
 2. **Check invariants** before coding (Non-negotiables).
 3. **Implement** following existing step/toolchain patterns.
-4. **Test**: `make test` (dart test) + `make lint` (dart analyze).
+4. **Test**: `just test` (dart test) + `just lint` (dart analyze).
 5. **Validate on device** when behavior changes packaging or runtime deps.
 6. **Sync docs** per the rules below — why → design FAQ / ADR, how → build guide.
 
@@ -97,16 +97,16 @@ source. Golden path:
 2. release-please opens a **Release PR** (`chore: release X.Y.Z`). The
    `release_pr_sync_versions.yml` workflow runs `tool/release/sync_version.sh`
    and commits drift to pubspec + plugin manifests automatically.
-3. Run `make check-contracts` locally, review, merge.
+3. Run `just check-contracts` locally, review, merge.
 4. Tag `vX.Y.Z` is created by release-please → `pub_publish.yml` publishes to
    pub.dev (asserts tag == VERSION first).
 
 Manual fallback when automation is blocked:
 
 ```bash
-bash tool/release/sync_version.sh --version X.Y.Z   # or: make sync-version
+bash tool/release/sync_version.sh --version X.Y.Z   # or: just sync-version
 # edit CHANGELOG.md under [X.Y.Z]; bump .release-please-manifest.json
-make check-contracts
+just check-contracts
 git commit -am "chore: release X.Y.Z" && git tag vX.Y.Z && git push --tags
 ```
 

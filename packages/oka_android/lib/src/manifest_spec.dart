@@ -1,4 +1,3 @@
-import 'package:oka_core/oka_core.dart';
 
 import 'pipeline/steps/asset_steps.dart' show DeeplinkConfig;
 
@@ -98,14 +97,14 @@ class ManifestSpec {
       permissions: perms is List
           ? perms.map((e) => e.toString()).toList(growable: false)
           : const [],
-      applicationAttributes: appAttrs is Map
+      applicationAttributes: appAttrs is Map<dynamic, dynamic>
           ? appAttrs.map((k, v) => MapEntry(k.toString(), v.toString()))
           : const {},
-      activityAttributes: actAttrs is Map
+      activityAttributes: actAttrs is Map<dynamic, dynamic>
           ? actAttrs.map((k, v) => MapEntry(k.toString(), v.toString()))
           : const {},
       applicationMetaData: metaData is List
-          ? metaData.whereType<Map>().map(MetaDataSpec.fromMap).toList(
+          ? metaData.whereType<Map<dynamic, dynamic>>().map(MetaDataSpec.fromMap).toList(
               growable: false,
             )
           : const [],

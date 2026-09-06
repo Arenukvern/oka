@@ -29,7 +29,7 @@ Result: **pass** (4/4 actions, `--strict` durability on committed artifacts).
 
 ## Build benchmarks (`oka.bench.build`, example project)
 
-Run: `make bench` → `tool/benchmarks/build_benchmarks.sh example`
+Run: `just bench` → `tool/benchmarks/build_benchmarks.sh example`
 (runner: `dart run`, machine-local — see the summary JSON for the
 environment block; comparable only against similar setups).
 
@@ -41,10 +41,10 @@ environment block; comparable only against similar setups).
 | `oka debug step resolve-abis` (single-step probe) | **2.76s** |
 
 Note: `dart run` adds ~1–2s startup over the global snapshot; the global
-runner (`make global`) measures lower.
+runner (`just global`) measures lower.
 
 ## Follow-ups
 
-- Run `make bench` before/after dev-loop work (ADR-0011 H-series) to keep
+- Run `just bench` before/after dev-loop work (ADR-0011 H-series) to keep
   regressions visible.
 - Re-record the smoke benchmark whenever a gate script changes.

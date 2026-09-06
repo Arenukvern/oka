@@ -53,7 +53,7 @@ plugin distribution**.
    them installable via `npx skills add Arenukvern/oka --skill oka-maintenance`;
    `.claude-plugin/marketplace.json` enables `/plugin marketplace add Arenukvern/oka`.
 4. Mechanical gates in `tool/contracts/check_contracts.sh` (version sync, docs
-   drift, no personal paths, changelog hygiene), wired into CI and the Makefile.
+   drift, no personal paths, changelog hygiene), wired into CI and the justfile.
 
 ## Consequences
 

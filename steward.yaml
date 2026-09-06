@@ -33,7 +33,7 @@ stewardship:
     installable_skills: true
     registry: skills.sh.json
   quality:
-    validate: make check-contracts
+    validate: just check-contracts
     evidence: .steward/benchmark-summaries
   harness:
     enabled: false

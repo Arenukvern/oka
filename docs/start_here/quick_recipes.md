@@ -7,8 +7,8 @@ Copy-paste commands for the common loops. Full context in the
 
 ```bash
 git clone https://github.com/Arenukvern/oka.git && cd oka
-make install            # dart pub get
-make global             # activate oka globally
+just install            # dart pub get
+just global             # activate oka globally
 oka get android-sdk     # bootstrap SDK into ~/.oka/android-sdk (or use existing)
 oka doctor              # verify everything
 ```
@@ -33,8 +33,8 @@ oka build aab --verify-aab      # bundle + bundletool universal-APK verification
 ## Tests & lint
 
 ```bash
-make test       # dart test
-make lint       # dart analyze
+just test       # dart test
+just lint       # dart analyze
 ```
 
 ## Dependency recovery

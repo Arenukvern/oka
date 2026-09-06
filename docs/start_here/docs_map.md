@@ -16,5 +16,5 @@ never paraphrase implementation.
 
 - **New user** → README → [build guide Setup Hub](../guides/build_and_config.md)
 - **New contributor** → [why this repo matters](why_this_repo_matters.md) →
-  ADR index → `make test`
+  ADR index → `just test`
 - **AI agent** → `AGENTS.md` → follow its links; do not read everything.

@@ -7,7 +7,6 @@ library;
 
 import 'dart:io';
 
-import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 

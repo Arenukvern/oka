@@ -41,10 +41,10 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       `test/adr0010_typed_config_test.dart` incl. end-to-end
       `--print-config`; `dart test` all green.
 - [x] **Skill Steward adoption + benchmarks.** `steward.yaml` (archetype
-      `cli_tool`; governance AGENTS.md, validate `make check-contracts`,
+      `cli_tool`; governance AGENTS.md, validate `just check-contracts`,
       registry `skills.sh.json`); four typed contract actions + smoke
       scenario `oka.contract-status-smoke` — all pass under `--strict`
-      (32–747ms per gate); build benchmarks via `make bench`
+      (32–747ms per gate); build benchmarks via `just bench`
       (`tool/benchmarks/build_benchmarks.sh`): explain 1.18s, incremental
       build 20.41s, compare 1.35s, debug step 2.76s (example project,
       machine-local evidence in `docs/evidence/`).

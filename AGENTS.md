@@ -44,18 +44,18 @@ stewardship (`steward.yaml`, archetype `cli_tool`). Agent workflow:
    `steward action inspect <id> --json`.
 3. Contract smoke scenario (all four release gates):
    `steward benchmark --scenario oka.contract-status-smoke --strict --json`.
-4. Build benchmarks: `make bench` (evidence in `.steward/benchmark-summaries`,
+4. Build benchmarks: `just bench` (evidence in `.steward/benchmark-summaries`,
    gitignored; summarized in `docs/evidence/`).
 5. `steward validate skills/` when touching `skills/`.
 
 ## Commands
 
 ```bash
-make install   # dart pub get
-make test      # dart test
-make lint      # dart analyze
-make global    # reinstall global oka (clears snapshot cache)
-make check-contracts   # release gates: version sync, docs drift, changelog hygiene
+just install   # dart pub get
+just test      # dart test
+just lint      # dart analyze
+just global    # reinstall global oka (clears snapshot cache)
+just check-contracts   # release gates: version sync, docs drift, changelog hygiene
 ```
 
 Behavior SSOT is code + tests. Docs link; they never paraphrase implementation.
