@@ -1,0 +1,121 @@
+---
+title: Migrating from Gradle
+---
+
+# Migrating an existing Flutter Android app from Gradle to oka
+
+Oka replaces the Gradle Android build with `flutter assemble` + direct Android
+SDK tools. This guide is the honest map: what transfers, what needs explicit
+configuration, what oka does not do — and how to verify each step.
+
+Worked example: a real production app (Last Answer, `dev.xsoulspace.lastanswer`,
+17 plugins, camera + billing + storage) migrated with zero code changes and
+in-place install updates preserving user data.
+
+## What works out of the box
+
+- **Plugin discovery & registration** — plugins are found from the pub
+  resolution, host sources + `GeneratedPluginRegistrant` are generated, and
+  Maven deps declared in each plugin's `build.gradle` are resolved
+  automatically (including Gradle **module metadata** (`.module`) runtime
+  deps that the POM omits — e.g. `androidx.camera` → `kotlinx-atomicfu`).
+- **Signing** — `android/key.properties` is read as-is (Gradle-compatible
+  keys: `storeFile`, `keyAlias`, `storePassword`, `keyPassword`). Signing with
+  the same key as Gradle allows in-place installs that preserve user data.
+- **res/ trees** — your existing `android/app/src/main/res` (mipmap PNGs,
+  adaptive icons, splash themes, values-night) merges wholesale via
+  `pipeline.res_dirs`, and user resources win over generated ones.
+- **Manifest surface** — permissions, `usesCleartextTraffic`, deeplink
+  intent-filters (`autoVerify`), activity/application attributes and
+  meta-data, plus raw manifest-level XML (`<queries>`, `<uses-feature>`)
+  via `manifest_elements`.
+- **Versioning** — `version`/build number come from `pubspec.yaml`.
+- **APK + AAB, debug + release (AOT)**, bundletool verification.
+
+## Configuration mapping (Gradle → oka)
+
+| Gradle (`android/app/build.gradle.kts` + manifest) | oka |
+|---|---|
+| `applicationId` | `android.package_name` |
+| `minSdk` / `targetSdk` / `compileSdk` | `android.min_sdk` / `target_sdk` / `compile_sdk` (set explicitly — Gradle's `flutter.*` defaults are not inferred) |
+| `versionCode` / `versionName` | from `pubspec.yaml` `version: X.Y.Z+N` |
+| `resourceConfigurations += listOf("en","ru")` | `pipeline.resource_configs: [en, ru]` |
+| `sourceCompatibility`/`jvmTarget` | `android.java_version` |
+| `resValue`/`app_name`/`android:label` | top-level `name:` (feeds `app_name` + label) |
+| `AndroidManifest.xml` `<uses-permission>` | `android.manifest.permissions` |
+| manifest `<intent-filter>` data schemes/hosts | `pipeline.deeplinks` |
+| manifest `<application>`/`<activity>` attributes | `android.manifest.application_attributes` / `activity_attributes` (typed fields like `cleartext_traffic`, `flutter_deeplinking` preferred) |
+| manifest activity `<meta-data>` (e.g. `NormalTheme`) | `android.manifest.activity_meta_data` |
+| manifest `<queries>` / `<uses-feature>` | `android.manifest.manifest_elements` (raw XML fragments) |
+| `signingConfigs` + `key.properties` | `android/key.properties` works unchanged |
+| app-level `dependencies { implementation … }` | `pipeline.extra_deps` |
+| launcher icon resources | ship via `res_dirs` (any name), or `android.icon.name` / `android.icon.manifest_ref` |
+
+Config lives in `tool/oka_pipeline.dart` (typed, recommended — ADR-0010),
+`oka.yaml`, or a top-level `oka:` section in `pubspec.yaml`. Precedence:
+defaults < `pubspec.yaml` `oka:` < `oka.yaml` < typed Dart config < CLI flags.
+
+## What oka does NOT do (and what to do instead)
+
+| Not supported | Why | What to do |
+|---|---|---|
+| `google-services` plugin | Gradle-only resource injection | Use `flutterfire configure` → `Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)` from `firebase_options.dart` (dart-only, no gradle) — or drop Firebase |
+| Crashlytics gradle tasks (mapping upload) | tied to the plugin | Android NDK/JNI symbol needs are nil without R8; web/desktop crash reporting unaffected |
+| Product flavors | flavor matrices are a Gradle concept | Separate entrypoints (`lib/main_prod.dart`, `--target`) + `--dart-define`, or multiple pipelines in the Dart entrypoint |
+| R8/ProGuard minification | no bytecode shrinker in the no-Gradle path | Not needed for correctness; larger DEX/output is the trade-off |
+| Dynamic feature modules / Play Feature Delivery | single `base/` module AABs | Ship a single-module bundle (most apps don't use this) |
+| NDK/CMake builds of plugin native sources | oka packages prebuilt `.so` from AARs/jni dirs | Plugins that compile natives at build time must ship prebuilt artifacts |
+| `build.gradle` custom logic (tasks, dynamic versions) | no Gradle | Port to `tool/oka_pipeline.dart` — Dart composition is strictly more programmable (ADR-0010) |
+
+## Migration checklist
+
+1. **Inventory** the Gradle config: `build.gradle.kts`, `AndroidManifest.xml`,
+   `key.properties`, res trees, flavors, custom tasks. Everything found goes
+   through the mapping table above.
+2. **Scaffold** the entrypoint: `oka init` (or hand-write
+   `tool/oka_pipeline.dart` per the example repo's `tool/oka_pipeline.dart`).
+3. **Wire res**: `pipeline.res_dirs: ['android/app/src/main/res']` keeps
+   icons/themes/splash working under their existing names.
+4. **Manifest parity**: translate every manifest element (see mapping table).
+   `manifest_elements` is the escape hatch for anything not modeled.
+5. **Signing**: keep `android/key.properties`; verify with the SAME key Gradle
+   used so the device accepts an in-place update.
+6. **Build**: `oka build apk`.
+7. **Verify** (next section) — do not skip this.
+8. **Delete** `android/` Gradle files only after release-verified builds.
+
+## Verification loop
+
+```bash
+oka build apk
+# 1. Manifest/badging diff against the last Gradle-built APK:
+oka compare gradle-built.apk .oka_cache/build/debug/app-debug.apk
+#    Expected diffs: debuggable flag, signing scheme, zip entry names.
+#    UNEXPECTED diffs (missing permissions, icon ref, label) = migration gap.
+# 2. Deep-dive when needed:
+aapt2 dump badging .oka_cache/build/debug/app-debug.apk
+aapt2 dump xmltree --file AndroidManifest.xml <apk>
+# 3. Static runtime-dependency check (before installing):
+oka debug dex .oka_cache/build/debug/app-debug.apk --find <dotted.Class>
+# 4. Device smoke test: install + launch + logcat failure scan:
+oka launch
+# 5. Visual: name, launcher icon, splash (LaunchTheme) on the device.
+```
+
+## Diagnosis table
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Signing-key mismatch with the installed app | Sign with the same key (`android/key.properties`). **Never uninstall** an app with user data |
+| Device `unauthorized` in adb | USB debugging prompt pending | Accept the dialog on the phone (unlock first) |
+| App stuck on loading; `channel-error` / `Unable to establish connection on channel` | Plugin not registered at runtime | `adb logcat -d` → look for `NoClassDefFoundError` or `could not find or invoke the GeneratedPluginRegistrant`; then `oka debug dex --find <missing.Class>` |
+| `NoClassDefFoundError` at startup, ALL plugins unregistered | Runtime dependency declared only in Gradle `.module` metadata (e.g. camera → `kotlinx-atomicfu`) | Auto-resolved since the `.module` parsing fix; for anything else use `pipeline.extra_deps` (`oka explain --deps --network` to inspect) |
+| Wrong icon (oka glyph instead of your logo) on API 26+ | Stale generated `mipmap-anydpi-v26/ic_launcher.xml` in the build dir shadows your PNGs | Clean `.oka_cache/build/<mode>` and rebuild; set `android.icon.manifest_ref` if your icon has a custom name |
+| Wrong app label | `name:` unset or conflicting `application_attributes` passthrough | Set top-level `name:`; passthrough `application_attributes` wins over it — use one source |
+| `resources.arsc` install error on Android 11+ | arsc must be stored uncompressed + zipalign `-p 4` | Regressed packager — see `zipStagingToApk` in `lib/src/build/apk_layout.dart` |
+
+## See also
+
+- [Build & configuration guide](build_and_config.md) — full config reference
+- [Design FAQ](design_faq.md) — why the build path is shaped this way
+- Example composition: `example/tool/oka_pipeline.dart` in the oka repo

@@ -56,6 +56,11 @@ example (`example/tool/oka_pipeline.dart` in the oka repository). Uncomment
 when you want to own the pipeline in Dart; otherwise the YAML fast-settings
 path builds unchanged.
 
+**Q: How do I migrate an existing Gradle app to oka?**
+Read the [Gradle migration guide](gradle_migration.md) — what transfers
+automatically, what needs explicit config, what oka does not do, and the
+verification loop (`oka compare`, `oka launch`, `oka debug dex`).
+
 **Q: How do I catch dependency/version resolution problems before building?**
 ```bash
 oka explain --deps            # resolve the plugin dependency plan against
@@ -125,6 +130,14 @@ adb logcat -d -b crash | grep com.example   # check for crashes
 just test    # dart test
 just lint    # dart analyze
 ```
+
+**Q: Where does configuration live?**
+Three sources, merged in precedence order (later wins):
+1. `oka.yaml` or a top-level `oka:` section in `pubspec.yaml` (one manifest
+   for app + build config — convenient for apps),
+2. typed Dart config in `tool/oka_pipeline.dart` (ADR-0010 — deep-merges over
+   the YAML baseline),
+3. CLI flags (`--release/--aab/--abi/--target/--dart-define`).
 
 ## 🎛️ Full-Dart project config (ADR-0010)
 

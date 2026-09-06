@@ -22,6 +22,7 @@ follow links.
 | Understand what oka owns / boundaries | `docs/start_here/why_this_repo_matters.md` |
 | Know **why** a design choice was made | `docs/guides/design_faq.md`, `docs/decisions/` |
 | Know **how** to run/build/test | `docs/guides/build_and_config.md`, `docs/start_here/quick_recipes.md` |
+| Migrate an existing Gradle app | `docs/guides/gradle_migration.md` (works / needs config / unsupported + verification loop) |
 | Check phase status & evidence | `docs/PHASE_CHECKLIST.md` |
 | Browse the docs site | `docs/` (published via docs.page) |
 | See CLI commands | `bin/oka.dart`, `lib/src/cli/` |

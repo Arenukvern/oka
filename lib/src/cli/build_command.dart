@@ -4,21 +4,8 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
-import 'package:yaml/yaml.dart';
 
 import 'explain_command.dart';
-
-/// Recursively converts YamlMap/YamlList to Map/List
-dynamic _yamlToJson(final Object? value) {
-  if (value is YamlMap) {
-    return value.map(
-      (final k, final v) => MapEntry(k.toString(), _yamlToJson(v)),
-    );
-  } else if (value is YamlList) {
-    return value.map(_yamlToJson).toList();
-  }
-  return value;
-}
 
 /// Build command to compile APK or AAB
 class BuildCommand {
@@ -166,19 +153,16 @@ class BuildCommand {
       exit(proc.exitCode);
     }
 
-    // Load oka.yaml (still required for the AOT yaml-config fast path —
-    // full-Dart projects never reach this line, ADR-0010).
-    final okaYamlFile = File('oka.yaml');
-    if (!await okaYamlFile.exists()) {
-      print('❌ oka.yaml not found (and no Dart pipeline entrypoint at');
-      print('   tool/oka_pipeline.dart or bin/oka_pipeline.dart)');
-      print('   Run "oka init" first to create configuration');
+    // Load project config for the AOT fast path (full-Dart projects never
+    // reach this line, ADR-0010). Sources: oka.yaml, else pubspec.yaml `oka:`.
+    final config = await loadOkaYaml(Directory.current.path);
+    if (config.value.isEmpty) {
+      print('❌ No configuration found (and no Dart pipeline entrypoint at');
+      print('   tool/oka_pipeline.dart or bin/oka_pipeline.dart).');
+      print('   Expected oka.yaml — or a top-level "oka:" section in');
+      print('   pubspec.yaml. Run "oka init" to create one.');
       exit(1);
     }
-
-    final okaYamlContent = await okaYamlFile.readAsString();
-    final okaYamlData = loadYaml(okaYamlContent);
-    final config = OkaConfig.fromJson(_yamlToJson(okaYamlData));
 
     if (verbose) {
       print('📋 Configuration:');

@@ -195,8 +195,19 @@ PlatformPipeline _selectPipeline(final Oka oka, final String platform) {
 /// Loads and parses `oka.yaml` from [projectPath]. Missing file → [OkaConfig.empty].
 Future<OkaConfig> loadOkaYaml(final String projectPath) async {
   final file = File('$projectPath/oka.yaml');
-  if (!await file.exists()) return OkaConfig.empty;
-  return OkaConfig.fromJson(_yamlToJson(await _loadYamlAny(file)));
+  if (await file.exists()) {
+    return OkaConfig.fromJson(_yamlToJson(await _loadYamlAny(file)));
+  }
+  // Convenience fallback: a top-level `oka:` section inside pubspec.yaml —
+  // one manifest for app + build config. oka.yaml wins when both exist.
+  final pubspec = File('$projectPath/pubspec.yaml');
+  if (await pubspec.exists()) {
+    final doc = await _loadYamlAny(pubspec);
+    if (doc is Map && doc['oka'] != null) {
+      return OkaConfig.fromJson(_yamlToJson(doc['oka']));
+    }
+  }
+  return OkaConfig.empty;
 }
 
 Future<dynamic> _loadYamlAny(final File file) async =>

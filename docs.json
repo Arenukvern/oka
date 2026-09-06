@@ -81,6 +81,10 @@
           "href": "/guides/build_and_config"
         },
         {
+          "title": "Gradle Migration",
+          "href": "/guides/gradle_migration"
+        },
+        {
           "title": "Design FAQ",
           "href": "/guides/design_faq"
         }

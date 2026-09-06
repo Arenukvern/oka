@@ -8,7 +8,7 @@ description: >-
   FAQs/ADRs after oka changes, or validating builds on an Android device.
 license: MIT
 metadata:
-  version: 1.2.0
+  version: 1.3.0
   author: Arenukvern
 compatibility:
   - android-sdk
@@ -58,6 +58,13 @@ Gradle debugging (oka has none).
 | Dependency set + Maven cache | `lib/src/build/dependency_cache.dart` |
 | AAR payload extraction (natives/res) | `extractAarPayload` in `dependency_cache.dart`; local AARs via `_LocalAarsStep` in `default_pipeline.dart` |
 | Crash-class → artifact mapping | `lib/src/build/dependency_suggest.dart` |
+| Gradle `.module` metadata parsing (metadata-only runtime deps, e.g. camera → atomicfu) | `parseModuleRuntimeDependencies` in `lib/src/maven_resolver.dart` |
+| Manifest spec (typed surface + `manifest_elements` escape hatch) | `lib/src/manifest_spec.dart`, rendering in `lib/src/build/host_codegen.dart` |
+| Launcher icons (name/manifest_ref, user-icon precedence) | `lib/src/build/launcher_icon.dart`, skip logic in `pipeline/steps/host_steps.dart` |
+| Config sources (oka.yaml / pubspec `oka:` / Dart entrypoint) | `loadOkaYaml` in `packages/oka_core/lib/src/oka_run.dart` |
+| Artifact diff gate | `lib/src/compare.dart` + `oka compare` |
+| Device smoke test | `oka launch` (`lib/src/cli/launch_command.dart`) |
+| DEX symbol check | `oka debug dex <apk> --find <Class>` |
 | Launcher icons | `lib/src/build/launcher_icon.dart` |
 | Extra assets / deeplinks | `lib/src/pipeline/steps/asset_steps.dart` |
 | Manifest/host codegen | `lib/src/build/host_codegen.dart` |
@@ -68,14 +75,21 @@ Gradle debugging (oka has none).
 ```bash
 export ANDROID_SDK_ROOT=~/.oka/android-sdk
 cd example && dart ../bin/oka.dart build apk
-adb install -r .oka_cache/build/debug/app-debug.apk
-adb shell am start -n com.example.example/.MainActivity
-adb logcat -d -b crash | grep com.example
+oka launch                                   # install newest APK + launch + logcat scan
+oka debug dex .oka_cache/build/debug/app-debug.apk --find some.pkg.Class
+oka compare gradle-built.apk .oka_cache/build/debug/app-debug.apk
 ```
+
+`oka launch` clears logcat, installs, launches, waits, then scans for failure
+signatures (FATAL EXCEPTION, NoClassDefFoundError, GeneratedPluginRegistrant
+failure, `Error registering plugin`, channel-error). Exit 1 + signature list =
+regression. `oka debug dex` catches missing runtime classes BEFORE installing.
 
 Missing class at runtime → add to `kKnownClassArtifacts`
 (`dependency_suggest.dart`) if generally useful; project-specific deps go in
-the project's `oka.yaml` `pipeline.extra_deps`.
+the project's `pipeline.extra_deps`. Metadata-only Gradle module deps
+(`.module`) parse automatically — extend `parseModuleRuntimeDependencies`
+tests if a new variant shape appears.
 
 AAR payload not landing in APK → check `payload/` dir next to the cached
 classes.jar; local AARs extract under `<build_dir>/local_aars/<name>/`.
@@ -155,6 +169,21 @@ add it to the sidebar in `docs.json` too.
 - **Signing assumptions**: APKs sign with apksigner; AABs sign with jarsigner
   v1 (apksigner does not sign bundles). Debug keystore by default — never
   commit release keystores.
+- **Hardcoding app-specific knowledge in oka**: dependency companions,
+  icon resource names, manifest entries — all must stay configurable
+  (IconConfig `name`/`manifest_ref`, `manifest_elements`, `extra_deps`).
+  A fix that only works for one app is not fixed (see
+  `docs/guides/gradle_migration.md` for the general mapping).
+- **`filterRuntimeJars` version ties**: KMP root jars (`atomicfu`) carry no
+  JVM classes — the platform-suffixed variant (`-jvm`/`-android`) must win
+  ties or d8 silently drops the classes.
+- **Stale generated res**: icon/theme artifacts from earlier builds survive
+  in `.oka_cache/build/<mode>/res` — cleanup logic lives in host-steps icon
+  staging; clean the build dir when changing generation logic.
+- **Device-side**: `unauthorized` = accept the USB prompt;
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` = signing mismatch — sign with the
+  same key, NEVER uninstall an app holding user data;
+  `adb: no devices` mid-session = flaky USB, retry with `adb kill-server`.
 
 ## Install
 

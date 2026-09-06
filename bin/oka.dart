@@ -12,6 +12,7 @@ import 'package:oka/src/cli/doctor_command.dart';
 import 'package:oka/src/cli/explain_command.dart';
 import 'package:oka/src/cli/get_command.dart';
 import 'package:oka/src/cli/init_command.dart';
+import 'package:oka/src/cli/launch_command.dart';
 import 'package:oka/src/version.dart';
 
 void main(List<String> arguments) async {
@@ -59,6 +60,8 @@ void main(List<String> arguments) async {
         await CompareCommand().run(commandArgs);
       case 'debug':
         await DebugCommand().run(commandArgs);
+      case 'launch':
+        await LaunchCommand().run(commandArgs);
       default:
         print('Unknown command: $command');
         _printUsage(parser);
@@ -84,7 +87,9 @@ Commands:
   explain   Show the validated build plan (no tools invoked)
   build     Build APK or AAB
   compare   Diff two APK/AAB artifacts (badging + zip entries; byte-equivalence gate)
-  debug     Probe a single pipeline step (oka debug step <name>)
+  debug     Probe a single pipeline step (oka debug step <name>) or check
+            DEX symbols (oka debug dex <apk> --find <class>)
+  launch    Install + launch on device and scan logcat for failure signatures
   dev       Start development mode with hot reload
   doctor    Check system requirements and configuration
   get       Install missing Android SDK dependencies
@@ -99,6 +104,8 @@ Examples:
   oka build apk --release     # Release (AOT / libapp.so)
   oka compare old.apk new.apk # Diff artifacts (exit 1 on differences)
   oka debug step compile-and-dex  # Re-run one pipeline step on .oka_cache
+  oka debug dex app.apk --find kotlinx.atomicfu.AtomicFU  # DEX symbol check
+  oka launch                  # Install newest APK, launch, scan logcat
   oka get android-sdk         # Bootstrap packaging SDK
   oka doctor                  # Check system setup
 
