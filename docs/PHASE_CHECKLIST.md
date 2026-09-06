@@ -9,6 +9,29 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
 
 ## Open
 
+- [ ] **T0 — ArtifactStore contract + cache unification (ADR-0013).**
+      `ArtifactStore`/`ContentKey` in `oka_core`; plain-directory
+      `LocalArtifactStore` with human-decodable layout; unify
+      `~/.oka/cache/androidx`, `~/.oka/tools`, and dependency caches behind
+      it; `oka cache list/gc/why` as interface views. Inputs shared,
+      outputs per-project. Tests: key-function + store round-trip; cache
+      listing evidence.
+- [ ] **T1 — Toolchain resolution as data (ADR-0013).** `Toolchain`/
+      `ToolProvider` contract; dissolve `SdkLocator` into an ordered,
+      printable resolution policy injected as a `ResolvedToolchain`
+      artifact; provisioning goes through the store; **stdin prompts
+      removed** from all build paths. Tests: precedence-policy unit tests;
+      `oka doctor` prints resolved policy; `oka compare` byte-equivalence
+      preserved across the refactor.
+- [ ] **T2 — Device layer through the store (ADR-0013, with H2).**
+      adb/emulator provisioning as platform-scoped tool providers;
+      install/launch steps consume `ResolvedToolchain`. Evidence: emulator
+      e2e already required by H2 — extend with store-backed provisioning.
+- [ ] **T3 — Distribution-target ADR (ADR-0014).** Checkpoint for
+      `PublishTarget` contract, secrets/auth handling, and target packages
+      (`oka_play`, `oka_huawei`, …). Gated on T0/T1. Conformance suite
+      (dry-run without credentials, no stdin, no secrets in state) defined
+      there.
 - [ ] **H0 — Hot-reload prerequisite audit (ADR-0011).** Prove the oka-built
       debug APK is hot-reload-capable (kernel_blob.bin, VM service reachable,
       attach probe) and record evidence in

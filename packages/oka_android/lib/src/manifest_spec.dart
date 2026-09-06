@@ -16,11 +16,13 @@ class ManifestSpec {
     this.applicationAttributes = const {},
     this.applicationMetaData = const [],
     this.activityAttributes = const {},
+    this.activityMetaData = const [],
     this.deeplinks = const [],
     this.debuggable = true,
     this.extractNativeLibs = true,
     this.flutterDeeplinking = false,
     this.cleartextTraffic,
+    this.manifestElements = const [],
   });
 
   /// Parses `oka.yaml` `android.manifest:` section.
@@ -41,7 +43,9 @@ class ManifestSpec {
     final appAttrs = map['application_attributes'];
     final actAttrs = map['activity_attributes'];
     final metaData = map['meta_data'];
+    final actMetaData = map['activity_meta_data'];
     final links = map['deeplinks'];
+    final rawElements = map['manifest_elements'];
     return ManifestSpec(
       permissions: perms is List
           ? perms.map((final e) => e.toString()).toList(growable: false)
@@ -56,6 +60,14 @@ class ManifestSpec {
           ? metaData.whereType<Map<dynamic, dynamic>>().map(MetaDataSpec.fromMap).toList(
               growable: false,
             )
+          : const [],
+      activityMetaData: actMetaData is List
+          ? actMetaData.whereType<Map<dynamic, dynamic>>().map(MetaDataSpec.fromMap).toList(
+              growable: false,
+            )
+          : const [],
+      manifestElements: rawElements is List
+          ? rawElements.map((final e) => e.toString()).toList(growable: false)
           : const [],
       deeplinks: links is List ? DeeplinkConfig.parse(links) : const [],
       cleartextTraffic:
@@ -81,6 +93,16 @@ class ManifestSpec {
   /// `{'android:launchMode': 'singleTask'}`.
   final Map<String, String> activityAttributes;
 
+  /// `<meta-data>` entries under `<activity>` (e.g. the Flutter embedding
+  /// `io.flutter.embedding.android.NormalTheme` → `@style/NormalTheme` for
+  /// project-defined launch themes).
+  final List<MetaDataSpec> activityMetaData;
+
+  /// Raw XML fragments injected verbatim at `<manifest>` level (after
+  /// `uses-permission`). Escape hatch for surface the typed spec does not
+  /// model yet — `<queries>`, `<uses-feature>`, etc.
+  final List<String> manifestElements;
+
   /// Deeplink intent-filters rendered with `autoVerify` where applicable.
   final List<DeeplinkConfig> deeplinks;
 
@@ -101,21 +123,25 @@ class ManifestSpec {
     final Map<String, String>? applicationAttributes,
     final List<MetaDataSpec>? applicationMetaData,
     final Map<String, String>? activityAttributes,
+    final List<MetaDataSpec>? activityMetaData,
     final List<DeeplinkConfig>? deeplinks,
     final bool? debuggable,
     final bool? extractNativeLibs,
     final bool? flutterDeeplinking,
     final bool? cleartextTraffic,
+    final List<String>? manifestElements,
   }) => ManifestSpec(
     permissions: permissions ?? this.permissions,
     applicationAttributes: applicationAttributes ?? this.applicationAttributes,
     applicationMetaData: applicationMetaData ?? this.applicationMetaData,
     activityAttributes: activityAttributes ?? this.activityAttributes,
+    activityMetaData: activityMetaData ?? this.activityMetaData,
     deeplinks: deeplinks ?? this.deeplinks,
     debuggable: debuggable ?? this.debuggable,
     extractNativeLibs: extractNativeLibs ?? this.extractNativeLibs,
     flutterDeeplinking: flutterDeeplinking ?? this.flutterDeeplinking,
     cleartextTraffic: cleartextTraffic ?? this.cleartextTraffic,
+    manifestElements: manifestElements ?? this.manifestElements,
   );
 }
 

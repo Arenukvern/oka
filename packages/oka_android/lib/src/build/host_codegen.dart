@@ -168,6 +168,33 @@ String generateAndroidManifestFromSpec({
       .map((final e) => '            ${e.key}="${e.value}"')
       .join('\n');
 
+  // Activity-level meta-data; a spec-provided NormalTheme replaces the
+  // hardcoded `@android:style` fallback (project launch themes).
+  final hasNormalTheme = spec.activityMetaData.any(
+    (final m) => m.name == 'io.flutter.embedding.android.NormalTheme',
+  );
+  final actMetaDataLines = spec.activityMetaData
+      .map(
+        (final m) => m.resource != null
+            ? '            <meta-data android:name="${m.name}" '
+                'android:resource="${m.resource}" />'
+            : '            <meta-data android:name="${m.name}" '
+                'android:value="${m.value}" />',
+      )
+      .join('\n');
+
+  // Hardcoded embedding fallback only when the spec does not define its own
+  // NormalTheme (project launch themes, e.g. @style/NormalTheme).
+  final normalThemeMetaData = hasNormalTheme
+      ? ''
+      : '''
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@android:style/Theme.Light.NoTitleBar" />''';
+
+  // Raw manifest-level elements (queries, uses-feature, ...).
+  final rawElements = spec.manifestElements.join('\n');
+
   final filters = <String>[
     if (spec.deeplinks.isNotEmpty) renderDeeplinkIntentFilters(spec.deeplinks),
     if (extraIntentFilters.isNotEmpty) extraIntentFilters,
@@ -183,6 +210,7 @@ String generateAndroidManifestFromSpec({
         android:targetSdkVersion="$targetSdk" />
 
 $permLines
+$rawElements
 
     <application
 $appAttrLines>
@@ -195,9 +223,7 @@ $appAttrLines>
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 $actAttrLines
-            <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@android:style/Theme.Light.NoTitleBar" />
+$actMetaDataLines$normalThemeMetaData
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

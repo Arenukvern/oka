@@ -18,7 +18,9 @@ Three words carry the whole design:
 - **Compositional** — every capability is a `BuildStep`, a typed value, or a
   resolver service (ADR-0007's design law). Steps declare typed artifacts
   (`requires`/`provides`); the whole chain validates before any tool runs.
-  A platform is just another `PlatformPipeline` selected by `--platform`.
+  A platform is just another `PlatformPipeline` selected by `--platform`;
+  toolchains, provisioning, and caches are contracts with replaceable
+  defaults, not baked-in behavior (ADR-0013).
 - **AI-native** — the system is operable end-to-end from its own output:
   validated plans (`oka explain`), single-step probes (`oka debug step`),
   byte-equivalence gates (`oka compare`), environment audits (`oka doctor`),
@@ -64,12 +66,21 @@ Dart file and running one command.
   session, agent-first (headless, structured events) via the flutter_tools
   daemon protocol — [ADR 0011](decisions/0011-hot-reload-run-loop.md),
   [plan](guides/hot_reload_plan.md).
+- **Composable environment**: toolchain resolution and provisioning (SDK,
+  JDK, build-tools, adb, emulator images) as typed providers, and one
+  content-addressed artifact store for shared inputs — inspectable,
+  purgeable, replaceable — instead of scattered hidden caches
+  ([ADR 0013](decisions/0013-toolchain-provisioning-artifact-store.md)).
 
 ## What oka does not own
 
 - Full Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK).
 - iOS/desktop/web builds — **not yet, and criteria-gated** (below); the core
   contracts are already platform-agnostic (ADR-0006 package split).
+- **Store API clients and credentials** — publishing targets (Play,
+  AppGallery, RuStore) are separate packages composed on top of a platform
+  build, with their own ADR (ADR-0013's two-axis law: distribution targets
+  are not platforms).
 - ~~The Rust/cargo-apk hybrid~~ — removed entirely (ADR-0001 → ADR-0009); only
   the no-Gradle path exists.
 
@@ -88,15 +99,20 @@ One platform proves the model; the model is built for many. Expansion is
    before shipping it. (`oka explain`, `oka compare`, `oka doctor`,
    `oka debug step` are already platform-agnostic surfaces — they compose
    whatever pipelines exist.)
-3. **Second platform candidate: iOS.** Strongest case — full CLI toolchain
+3. **Two axes, never confused** (ADR-0013). Platforms (`PlatformPipeline`)
+   and distribution targets (store uploads, build variants) are orthogonal:
+   Play/Huawei/RuStore are *one application on one platform* composed as
+   target packages, not platform forks. Toolchains and device layers are
+   platform-scoped; the artifact store is the cross-platform primitive.
+4. **Second platform candidate: iOS.** Strongest case — full CLI toolchain
    (`xcodebuild`, `plutil`, `security`, `altool`), highest Flutter demand
    after Android, and signing/provisioning is exactly the friction agents
    handle worst. Gated on an ADR proving the pipeline model maps
    (assemble → compile → codesign → validate) plus real demand signal.
-4. **Cheap third: desktop** (e.g. Windows MSIX — production projects already
+5. **Cheap third: desktop** (e.g. Windows MSIX — production projects already
    use it). **Web needs nothing oka-shaped** — `flutter build web` is
    already declarative and fast; oka adds no value there.
-5. **Stay in the wedge.** Oka is not a general build orchestrator (that's
+6. **Stay in the wedge.** Oka is not a general build orchestrator (that's
    bazel/just/melos territory). The wedge is Flutter + agent-native +
    no-Gradle. Every expansion should tighten that wedge, not dilute it.
 

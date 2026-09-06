@@ -378,18 +378,40 @@ class HostCodegenStep extends BuildStep {
 
     // Launcher icon (adaptive, vector-first — see launcher_icon.dart).
     String iconRef = '';
-    try {
-      final icons = await stageLauncherIcons(
-        resDir,
-        host.iconConfig,
-        projectPath: ctx.projectPath,
-      );
-      iconRef = icons.manifestRef;
-      if (ctx.verbose) {
-        print('   icon resources: ${icons.written.join(', ')}');
+    final hasUserIcon = await _hasUserLauncherIcon(resDir);
+    if (hasUserIcon && _isDefaultIconConfig(host.iconConfig)) {
+      // User res dirs already provide the launcher icon (e.g. migrated
+      // projects shipping real mipmap PNGs). Generating oka's default
+      // adaptive icon would override them on API 26+ (anydpi-v26 wins).
+      iconRef = '@mipmap/ic_launcher';
+      // Remove any oka-generated icon artifacts from earlier builds — they
+      // would otherwise shadow the user's icon (anydpi-v26 wins on API 26+).
+      for (final rel in const [
+        'drawable/ic_launcher_foreground.xml',
+        'drawable/ic_launcher_monochrome.xml',
+        'values/ic_launcher_background.xml',
+        'mipmap-anydpi-v26/ic_launcher.xml',
+      ]) {
+        final stale = File(p.join(resDir, rel));
+        if (await stale.exists()) await stale.delete();
       }
-    } on Exception catch (e) {
-      return StepResult.failure('launcher icon: $e');
+      if (ctx.verbose) {
+        print('   icon: using user-supplied launcher icon from res dirs');
+      }
+    } else {
+      try {
+        final icons = await stageLauncherIcons(
+          resDir,
+          host.iconConfig,
+          projectPath: ctx.projectPath,
+        );
+        iconRef = icons.manifestRef;
+        if (ctx.verbose) {
+          print('   icon resources: ${icons.written.join(', ')}');
+        }
+      } on Exception catch (e) {
+        return StepResult.failure('launcher icon: $e');
+      }
     }
 
     // Typed manifest spec: YAML `android.manifest:` is the declarative
@@ -432,3 +454,25 @@ class HostCodegenStep extends BuildStep {
     return StepResult.success();
   }
 }
+
+/// Whether the merged res tree already defines a launcher icon (any
+/// `mipmap*/ic_launcher.*`, e.g. migrated projects shipping real PNGs).
+Future<bool> _hasUserLauncherIcon(final String resDir) async {
+  final dir = Directory(resDir);
+  if (!await dir.exists()) return false;
+  await for (final e in dir.list()) {
+    if (e is! Directory) continue;
+    if (!p.basename(e.path).startsWith('mipmap')) continue;
+    await for (final f in e.list()) {
+      if (p.basename(f.path).startsWith('ic_launcher')) return true;
+    }
+  }
+  return false;
+}
+
+/// True when no icon fast-settings are configured (all defaults) — used to
+/// let user-supplied launcher icons win over oka's generated glyph.
+bool _isDefaultIconConfig(final IconConfig c) =>
+    c.vector.isEmpty &&
+    c.monochrome.isEmpty &&
+    c.backgroundColor == '#FFFFFF';

@@ -862,6 +862,18 @@ Future<String> packageAndSignAab({
   );
 
   final bundleRoot = p.dirname(baseDir);
+  // Clean stale bundle outputs first: previous `.aab`/`.apks` artifacts or
+  // extraction dirs in the output directory would otherwise be zipped INTO
+  // the bundle (recursive bloat) and break bundletool validation — any
+  // top-level directory is treated as a module and must have a manifest.
+  final bundleDir = Directory(bundleRoot);
+  if (await bundleDir.exists()) {
+    await for (final e in bundleDir.list()) {
+      if (p.basename(e.path) != 'base') {
+        await e.delete(recursive: true);
+      }
+    }
+  }
   // Bundle-level metadata required by the App Bundle format spec.
   await File(
     p.join(bundleRoot, 'BundleConfig.pb'),

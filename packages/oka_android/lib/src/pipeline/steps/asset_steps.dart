@@ -112,7 +112,7 @@ class DeeplinkConfig {
 
   const DeeplinkConfig({
     required this.scheme,
-    required this.host,
+    this.host = '',
     this.pathPrefix = '',
   });
   final String scheme;

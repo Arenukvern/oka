@@ -18,3 +18,4 @@ docs live in `README.md` and `docs/guides/build_and_config.md`.
 | [0010](0010-typed-dart-project-config.md) | Typed per-project config in Dart (oka.yaml becomes optional) | accepted |
 | [0011](0011-hot-reload-run-loop.md) | Agent-first dev loop: hot reload via the flutter_tools daemon protocol | accepted |
 | [0012](0012-remove-embedded-ai-client.md) | Remove the embedded AI client; oka is agent-driven, not LLM-embedding | accepted |
+| [0013](0013-toolchain-provisioning-artifact-store.md) | Toolchain, provisioning, and artifact store as composable surfaces; distribution targets are not platforms | accepted |

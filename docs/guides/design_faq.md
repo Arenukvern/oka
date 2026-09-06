@@ -44,6 +44,34 @@ and duplicated packaging logic, so ADR-0001 demoted it. With zero remaining
 usage and a permanently failing quarantine test, ADR-0009 removed it entirely
 — the no-Gradle pipeline is the only build path.
 
+## Toolchain & caching (ADR 0013)
+
+**Q: Why is the cache a contract instead of oka behavior?**
+A: Because "oka has a cache" is how caches become black boxes — opaque keys,
+undocumented layout, no way to purge or share. ADR-0013 makes the store a
+small interface (`ArtifactStore` + `ContentKey`) with a boring default: a
+plain directory with human-decodable layout (`~/.oka/store/aapt2/8.0.2-<hash>/`)
+inspectable with `ls` and `find`. Sharing rule: **inputs** (SDKs, Maven
+artifacts, emulator images) are shared and `OKA_CACHE`-pointable; **outputs**
+(dex, APKs) stay per-project in `buildDir/` — cross-machine output caches are
+where nondeterminism lives.
+
+**Q: Why is env-var precedence resolution *data*?**
+A: Precedence used to be encoded in `SdkLocator` control flow — invisible,
+untestable, and unprintable. As an ordered resolution policy (explicit
+config → env vars → oka-managed roots → system) it becomes a value: `oka
+doctor` prints it, tests assert it, and a project can override the order
+without editing oka. Related law: **no stdin in any build path** —
+interactive prompts are agent-hostile; steps fail with a named fix instead.
+
+**Q: Are Google Play and Huawei separate platforms?**
+A: No — distribution targets are not platforms (ADR-0013). Play, AppGallery,
+and RuStore builds are one Android application composed differently: a
+target = a build-variant composition (e.g. no GMS deps for Huawei) plus a
+publish tail. Targets live in separate packages (`oka_play`, `oka_huawei`,
+…) over the same pipeline kernel; store APIs and credential handling are
+deferred to their own ADR (0014).
+
 ## Configuration
 
 **Q: Why extension types for config models?**
