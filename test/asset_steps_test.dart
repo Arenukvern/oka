@@ -1,6 +1,6 @@
-import 'package:oka_android/oka_android.dart';
 import 'dart:io';
 
+import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

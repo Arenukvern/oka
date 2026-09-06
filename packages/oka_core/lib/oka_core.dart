@@ -10,7 +10,6 @@ export 'src/config/android_config.dart';
 export 'src/config/build_context.dart';
 export 'src/config/dependency.dart';
 export 'src/config/flutter_config.dart';
-export 'src/config/manifest_merge_result.dart';
 export 'src/config/maven_coordinate.dart';
 export 'src/config/oka_config.dart';
 export 'src/config/plugin_metadata.dart';

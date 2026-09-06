@@ -1,6 +1,5 @@
-import 'package:test/test.dart';
-
 import 'package:oka_android/src/build/dependency_suggest.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('extractMissingClass', () {

@@ -85,7 +85,6 @@ void main() {
 
       final validation = await validateStagingLayout(
         staging,
-        spec: const ApkLayoutSpec(abis: ['arm64-v8a']),
       );
       expect(validation.ok, isTrue, reason: 'missing: ${validation.missing}');
       expect(validation.present, contains('classes.dex'));
@@ -99,7 +98,6 @@ void main() {
       final entries = await listApkEntries(apkPath);
       final zipValidation = validatePathSet(
         entries,
-        spec: const ApkLayoutSpec(abis: ['arm64-v8a']),
       );
       expect(zipValidation.ok, isTrue, reason: 'missing: ${zipValidation.missing}');
     });
@@ -115,7 +113,6 @@ void main() {
       final v = await validateStagingLayout(
         staging,
         spec: const ApkLayoutSpec(
-          abis: ['arm64-v8a'],
           requireLibapp: true,
         ),
       );

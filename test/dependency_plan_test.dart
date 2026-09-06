@@ -41,7 +41,7 @@ void main() {
   group('collectDeclaredDeps (shared with packaging)', () {
     test('collects deduped gradle coords; no kotlin bootstrap without kotlin',
         () async {
-      final pluginDir = await _makePlugin(tmp, name: "p_");
+      final pluginDir = await _makePlugin(tmp, name: 'p_');
       final packager = PluginPackager(
         dependencyCache: DependencyCache(cacheRoot: p.join(tmp.path, 'cache')),
         sdkLocator: SdkLocator(),
@@ -79,7 +79,7 @@ void main() {
     });
 
     test('kotlin bootstrap gated on kotlin sources', () async {
-      final pluginDir = await _makePlugin(tmp, name: "p_kt", withKotlin: true);
+      final pluginDir = await _makePlugin(tmp, name: 'p_kt', withKotlin: true);
       final packager = PluginPackager(
         dependencyCache: DependencyCache(cacheRoot: p.join(tmp.path, 'cache')),
         sdkLocator: SdkLocator(),
@@ -96,7 +96,7 @@ void main() {
     });
 
     test('hasKotlinSources detects plugin kotlin trees', () async {
-      final plain = await _makePlugin(tmp, name: "plain");
+      final plain = await _makePlugin(tmp, name: 'plain');
       final withKt = await _makePlugin(tmp, name: 'withkt', withKotlin: true);
       final packager = PluginPackager(
         dependencyCache: DependencyCache(cacheRoot: p.join(tmp.path, 'cache')),
@@ -114,7 +114,7 @@ void main() {
         );
 
     test('cache-only: missing artifacts are non-fatal findings', () async {
-      final pluginDir = await _makePlugin(tmp, name: "p_");
+      final pluginDir = await _makePlugin(tmp, name: 'p_');
       final cache = offlineCache();
       final report = await buildDependencyPlan(
         plugins: [_plugin(pluginDir)],
@@ -140,14 +140,13 @@ void main() {
     });
 
     test('offline cache hits resolve and are finding-free', () async {
-      final pluginDir = await _makePlugin(tmp, name: "p_");
+      final pluginDir = await _makePlugin(tmp, name: 'p_');
       final cache = offlineCache();
       // Seed the androidx.annotation bootstrap root as a cache hit.
-      final coord = MavenCoordinate(
+      const coord = MavenCoordinate(
         groupId: 'androidx.annotation',
         artifactId: 'annotation-jvm',
         version: '1.9.1',
-        packaging: 'jar',
       );
       final jar = File(cache.jarPathFor(coord));
       await jar.parent.create(recursive: true);
@@ -205,7 +204,7 @@ void main() {
     });
 
     test('failure findings attribute back to their source entry', () async {
-      final pluginDir = await _makePlugin(tmp, name: "p_");
+      final pluginDir = await _makePlugin(tmp, name: 'p_');
       final cache = offlineCache();
       final report = await buildDependencyPlan(
         plugins: [_plugin(pluginDir)],

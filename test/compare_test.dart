@@ -102,7 +102,7 @@ void main() {
       final cmp = await compareArtifacts(
         a.path,
         b.path,
-        dumpBadging: (_, __) async => _badgingA,
+        dumpBadging: (_, _) async => _badgingA,
       );
       expect(cmp.hasDifferences, isFalse);
       expect(cmp.badgingSkippedReason, isNull);
@@ -119,7 +119,7 @@ void main() {
       final cmp = await compareArtifacts(
         a.path,
         b.path,
-        dumpBadging: (__, artifact) async =>
+        dumpBadging: (_, artifact) async =>
             artifact == a.path ? _badgingA : _badgingB,
       );
       expect(cmp.hasDifferences, isTrue);
@@ -140,7 +140,7 @@ void main() {
       final cmp = await compareArtifacts(
         a.path,
         b.path,
-        dumpBadging: (__, artifact) async => artifact == a.path
+        dumpBadging: (_, artifact) async => artifact == a.path
             ? _badgingA
             : _badgingA.replaceFirst("versionCode='51'", "versionCode='52'"),
       );
@@ -155,7 +155,7 @@ void main() {
         'classes.dex': [1],
       });
       final b = _writeZip(p.join(tmp.path, 'b.apk'), {});
-      final cmp = await compareArtifacts(a.path, b.path, aapt2Path: null);
+      final cmp = await compareArtifacts(a.path, b.path);
       expect(cmp.badgingSkippedReason, isNotNull);
       expect(cmp.badgingA, isNull);
       expect(cmp.zipDiff.onlyInA, ['classes.dex']);
@@ -170,7 +170,7 @@ void main() {
         a.path,
         a.path,
         aapt2Path: '/does/not/matter',
-        dumpBadging: (_, __) async => throw Exception('boom'),
+        dumpBadging: (_, _) async => throw Exception('boom'),
       );
       expect(cmp.badgingSkippedReason, contains('boom'));
     });

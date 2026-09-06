@@ -1,9 +1,8 @@
 import 'dart:io';
 
+import 'package:oka_android/src/build/launcher_icon.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-
-import 'package:oka_android/src/build/launcher_icon.dart';
 
 void main() {
   group('stageLauncherIcons', () {
@@ -48,7 +47,7 @@ void main() {
         ..writeAsStringSync('<vector/>');
       final icons = await stageLauncherIcons(
         resDir,
-        IconConfig(monochrome: 'mono.xml'),
+        const IconConfig(monochrome: 'mono.xml'),
         projectPath: tmp.path,
       );
 
@@ -77,7 +76,7 @@ void main() {
       expect(fg, contains('custom'));
     });
 
-    test('fails on missing vector source', () async {
+    test('fails on missing vector source', () {
       expect(
         () => stageLauncherIcons(
           resDir,
@@ -88,7 +87,7 @@ void main() {
       );
     });
 
-    test('rejects invalid background color', () async {
+    test('rejects invalid background color', () {
       expect(
         () => stageLauncherIcons(
           resDir,

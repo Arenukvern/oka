@@ -1,4 +1,3 @@
-import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -7,6 +6,7 @@ import 'package:oka_android/src/build/host_codegen.dart';
 import 'package:oka_android/src/build/plugin_discovery.dart';
 import 'package:oka_android/src/build/plugin_packager.dart';
 import 'package:oka_android/src/build/sdk_locator.dart';
+import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -20,7 +20,6 @@ void main() {
       cache = DependencyCache(
         cacheRoot: p.join(tmp.path, 'maven'),
         allowNetwork: false,
-        verbose: false,
       );
     });
 
@@ -56,7 +55,6 @@ dependencies {
           groupId: 'androidx.annotation',
           artifactId: 'annotation-jvm',
           version: '1.9.1',
-          packaging: 'jar',
         ),
         fixtureBytes: minimalJarBytes(),
       );
@@ -66,7 +64,6 @@ dependencies {
           groupId: 'androidx.annotation',
           artifactId: 'annotation',
           version: '1.9.1',
-          packaging: 'jar',
         ),
         fixtureBytes: minimalJarBytes(),
       );
@@ -121,7 +118,6 @@ flutter:
         final packager = PluginPackager(
           dependencyCache: cache,
           sdkLocator: locator,
-          verbose: false,
           allowNetwork: false,
         );
 
@@ -196,7 +192,6 @@ dependencies {
           groupId: 'androidx.annotation',
           artifactId: 'annotation-jvm',
           version: '1.9.1',
-          packaging: 'jar',
         ),
         fixtureBytes: classes,
       );
@@ -205,7 +200,6 @@ dependencies {
           groupId: 'org.jetbrains',
           artifactId: 'annotations',
           version: '24.1.0',
-          packaging: 'jar',
         ),
         fixtureBytes: classes,
       );

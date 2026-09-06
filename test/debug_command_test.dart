@@ -1,5 +1,5 @@
-import 'package:oka_android/oka_android.dart';
 import 'package:oka/src/cli/debug_command.dart';
+import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
 void main() {

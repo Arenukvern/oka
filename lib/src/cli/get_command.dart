@@ -1,13 +1,7 @@
-import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
 
+import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
-
-import 'package:oka_android/src/build/android_sdk_installer.dart';
-import 'package:oka_android/src/build/bundletool.dart';
-import 'package:oka_android/src/build/dependency_cache.dart';
-import 'package:oka_android/src/build/sdk_locator.dart';
-import 'package:oka_android/src/build/version_manager.dart';
 
 /// Get command to install missing Android SDK dependencies
 class GetCommand {
@@ -25,19 +19,14 @@ class GetCommand {
       case 'packaging-sdk':
       case 'sdk':
         await _installAndroidSdk();
-        break;
       case 'r8':
         await _installR8();
-        break;
       case 'build-tools':
         await _installBuildTools();
-        break;
       case 'kotlin':
         await _installKotlin();
-        break;
       case 'bundletool':
         await _installBundletool();
-        break;
       case 'java':
         if (args.length < 2) {
           print('❌ Please specify Java version');
@@ -45,11 +34,9 @@ class GetCommand {
           exit(1);
         }
         await _installJava(args[1]);
-        break;
       case 'all':
         await _installAndroidSdk();
         await _installAll();
-        break;
       case 'dep':
       case 'dependency':
         if (args.length < 2) {
@@ -58,7 +45,6 @@ class GetCommand {
           exit(1);
         }
         await _installDependency(args[1]);
-        break;
       default:
         print('❌ Unknown dependency: $target');
         _printUsage();
@@ -328,12 +314,12 @@ class GetCommand {
     print('Option 2: Using Command Line Tools');
     print('  1. Install Android Command Line Tools from:');
     print('     https://developer.android.com/studio#command-tools');
-    print('  2. Extract to: \$ANDROID_SDK/cmdline-tools/latest/');
+    print(r'  2. Extract to: $ANDROID_SDK/cmdline-tools/latest/');
     print('  3. Run: sdkmanager "build-tools;34.0.0"');
     print('');
     print('Option 3: Using sdkmanager directly');
     print('  If you have sdkmanager installed, run:');
-    print('  \$ sdkmanager "build-tools;34.0.0"');
+    print(r'  $ sdkmanager "build-tools;34.0.0"');
     print('');
     print('After installation, run "oka doctor" to verify.');
     print('═══════════════════════════════════════════════════════════');

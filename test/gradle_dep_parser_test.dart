@@ -26,7 +26,7 @@ dependencies {
     });
 
     test('skips version variables', () {
-      const src = 'implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:\$kotlinVersion")';
+      const src = r'implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlinVersion")';
       expect(parseGradleDependencies(src), isEmpty);
     });
   });

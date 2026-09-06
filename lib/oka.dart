@@ -2,15 +2,14 @@
 ///
 /// - `oka_core` — contracts: typed context, [BuildStep]/[Artifact], `Oka` root
 /// - `oka_android` — Android pipelines, steps, toolchain, specs
-/// - this package — the `oka` CLI (bin/), AI assist, doctor/get commands
+/// - this package — the `oka` CLI (bin/), doctor/get commands
 ///
 /// Hook authors should depend on `oka_android` (which transitively provides
 /// `oka_core`), not this CLI package, to keep host-app dependency surface
 /// minimal.
-library oka;
+library;
 
 export 'package:oka_android/oka_android.dart';
 export 'package:oka_core/oka_core.dart';
 
-export 'src/ai/ai_agent.dart';
 export 'src/version.dart';

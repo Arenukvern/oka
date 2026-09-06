@@ -110,9 +110,8 @@ flutter:
       // Point SdkLocator at non-existent SDK
       final locator = SdkLocator(
         androidSdkPath: p.join(tmp.path, 'no_android_sdk'),
-        verbose: false,
       );
-      final builder = FlutterApkBuilder(locator, verbose: false);
+      final builder = FlutterApkBuilder(locator);
       final artifact = await builder.buildApk(ctx);
 
       expect(artifact.success, isFalse);

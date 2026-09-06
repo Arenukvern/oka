@@ -1,18 +1,17 @@
 import 'dart:io';
 
+import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-import 'package:oka_android/src/build/sdk_locator.dart';
-import 'package:oka_android/src/build/version_manager.dart';
-import 'package:oka_core/src/config/oka_config.dart';
-import 'package:oka_core/src/oka_run.dart' show findPipelineEntrypoint;
 import '../version.dart';
 
 /// Recursively converts YamlMap/YamlList to Map/List
-dynamic _yamlToJson(dynamic value) {
+dynamic _yamlToJson(final Object? value) {
   if (value is YamlMap) {
-    return value.map((k, v) => MapEntry(k.toString(), _yamlToJson(v)));
+    return value.map(
+      (final k, final v) => MapEntry(k.toString(), _yamlToJson(v)),
+    );
   } else if (value is YamlList) {
     return value.map(_yamlToJson).toList();
   }
@@ -318,7 +317,7 @@ class DoctorCommand {
 
     // Summary
     if (allGood) {
-      print('✅ All checks passed! You\'re ready to use Oka.');
+      print("✅ All checks passed! You're ready to use Oka.");
     } else {
       print('⚠️  Some checks failed. Please fix the issues above.');
       print('   Run "oka doctor" again after fixing.');

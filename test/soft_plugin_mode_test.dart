@@ -18,8 +18,8 @@ void main() {
   });
 
   group('decidePluginSupport', () {
-    final unsupported = PluginDiscoveryResult(
-      plugins: const [
+    const unsupported = PluginDiscoveryResult(
+      plugins: [
         DiscoveredPlugin(
           name: 'heavy_native',
           path: '/cache/heavy',
@@ -35,7 +35,7 @@ void main() {
           pluginClass: 'PathProviderPlugin',
         ),
       ],
-      unsupported: const [
+      unsupported: [
         DiscoveredPlugin(
           name: 'heavy_native',
           path: '/cache/heavy',
@@ -47,7 +47,7 @@ void main() {
     );
 
     test('strict mode disallows build when unsupported present', () {
-      final d = decidePluginSupport(unsupported, strict: true);
+      final d = decidePluginSupport(unsupported);
       expect(d.allowBuild, isFalse);
       expect(d.softMode, isFalse);
       expect(d.skipped.map((p) => p.name), contains('heavy_native'));
@@ -64,7 +64,7 @@ void main() {
     test('PluginDiscovery.ensureSupported throws only when strict', () {
       final discovery = PluginDiscovery();
       expect(
-        () => discovery.ensureSupported(unsupported, strict: true),
+        () => discovery.ensureSupported(unsupported),
         throwsA(isA<Exception>().having(
           (e) => e.toString(),
           'msg',

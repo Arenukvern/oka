@@ -52,7 +52,7 @@ no wrapper objects in hot build paths.
 
 **Q: Why YAML (`oka.yaml`) rather than reusing `build.gradle`?**
 A: One declarative, pub-style file covers both Flutter and Android settings;
-Gradle files are read as text only during AI conversion, never parsed.
+Gradle files are never parsed — oka does not read them at all (ADR-0012).
 
 ## Pipeline architecture (ADR 0002)
 
@@ -139,13 +139,19 @@ Machine mode gives agents a first-class path; the TUI remains available as a
 human escape hatch (`oka dev --tui`). Owning the compiler instead is gated
 behind a new ADR with measured evidence (ADR-0010 §6).
 
-## AI conversion
+## Gradle conversion (ADR 0012)
 
-**Q: Why send Gradle files to an LLM as text instead of parsing them?**
-A: Gradle is a programming language with plugins and conditionals; a parser
-would be a maintenance sink. The AI extracts the common-case subset, results
-are cached for offline reuse, and output lands in reviewable `oka.yaml`.
+**Q: Why doesn't `oka init` convert `build.gradle` automatically?**
+A: Converting Gradle means understanding plugins, conditionals, and custom
+logic — a judgement task, not a parsing task. oka's primary user is an AI
+agent driving the build; that agent converts `build.gradle` → `oka.yaml`
+itself, with full repo context and in reviewable diff space. Embedding an
+LLM client inside the build tool would add API keys, network calls, and
+non-determinism to a build system — the opposite of what oka stands for.
 
-**Q: Which AI providers?**
-A: Apple Foundation Models on macOS with Gemini fallback — swappable behind
-the conversion service in `lib/src/ai/`.
+**Q: What does `oka init --yaml` do with an existing Gradle config?**
+A: It prints a precise porting checklist (package id, SDK levels, ABIs,
+dependencies, signing) and scaffolds a default `oka.yaml`. Validate with
+`oka explain`; missing classes are diagnosed by `oka build apk` with a
+ready-to-paste dependency suggestion (see Dependencies Station in the build
+guide).

@@ -10,7 +10,7 @@ void main() {
       final v = validatePathSet([
         'assets/flutter_assets/kernel_blob.bin',
         'lib/arm64-v8a/libflutter.so',
-      ], spec: const ApkLayoutSpec(abis: ['arm64-v8a']));
+      ]);
       expect(v.ok, isFalse);
       expect(v.missing, contains('classes.dex'));
     });
@@ -19,7 +19,7 @@ void main() {
       final v = validatePathSet([
         'classes.dex',
         'assets/flutter_assets/AssetManifest.json',
-      ], spec: const ApkLayoutSpec(abis: ['arm64-v8a']));
+      ]);
       expect(v.ok, isFalse);
       expect(v.missing, contains('lib/arm64-v8a/libflutter.so'));
     });
@@ -61,7 +61,6 @@ void main() {
       final entries = await listApkEntries(apk);
       final v = validatePathSet(
         entries,
-        spec: const ApkLayoutSpec(abis: ['arm64-v8a']),
       );
       expect(v.ok, isFalse);
       expect(v.missing, isNotEmpty);

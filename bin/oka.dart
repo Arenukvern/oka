@@ -43,31 +43,22 @@ void main(List<String> arguments) async {
     switch (command) {
       case 'init':
         await InitCommand().run(commandArgs);
-        break;
       case 'build':
         await BuildCommand().run(commandArgs);
-        break;
       case 'dev':
         await DevCommand().run(commandArgs);
-        break;
       case 'doctor':
         await DoctorCommand().run(commandArgs);
-        break;
       case 'clean':
         await CleanCommand().run(commandArgs);
-        break;
       case 'get':
         await GetCommand().run(commandArgs);
-        break;
       case 'explain':
         await ExplainCommand().run(commandArgs);
-        break;
       case 'compare':
         await CompareCommand().run(commandArgs);
-        break;
       case 'debug':
         await DebugCommand().run(commandArgs);
-        break;
       default:
         print('Unknown command: $command');
         _printUsage(parser);

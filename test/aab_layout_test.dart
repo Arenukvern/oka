@@ -75,7 +75,7 @@ void main() {
       ];
       final release = validateAabPathSet(
         entries,
-        spec: const AabLayoutSpec(abis: ['arm64-v8a'], requireLibapp: true),
+        spec: const AabLayoutSpec(requireLibapp: true),
       );
       expect(release.ok, isFalse);
       expect(release.missing, contains('base/lib/arm64-v8a/libapp.so'));
@@ -83,7 +83,7 @@ void main() {
       final withLibapp = validateAabPathSet([
         ...entries,
         'base/lib/arm64-v8a/libapp.so',
-      ], spec: const AabLayoutSpec(abis: ['arm64-v8a'], requireLibapp: true));
+      ], spec: const AabLayoutSpec(requireLibapp: true));
       expect(withLibapp.ok, isTrue);
     });
 

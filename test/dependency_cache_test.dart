@@ -1,7 +1,7 @@
-import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
 
 import 'package:oka_android/src/build/dependency_cache.dart';
+import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -12,7 +12,6 @@ void main() {
         groupId: 'androidx.annotation',
         artifactId: 'annotation-jvm',
         version: '1.9.1',
-        packaging: 'jar',
       );
       expect(
         googleMavenUrl(c),
@@ -57,7 +56,6 @@ void main() {
         groupId: 'androidx.annotation',
         artifactId: 'annotation-jvm',
         version: '1.9.1',
-        packaging: 'jar',
       );
       final resolved = await cache.resolve(
         coord,
@@ -113,7 +111,7 @@ void main() {
       }
     });
 
-    test('offline missing dep throws clearly', () async {
+    test('offline missing dep throws clearly', () {
       final cache = DependencyCache(
         cacheRoot: p.join(tmp.path, 'empty'),
         allowNetwork: false,

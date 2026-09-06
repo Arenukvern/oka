@@ -13,7 +13,7 @@ void main() {
     });
 
     test('packaging packages include build-tools and platform', () {
-      final pkgs = packagingSdkPackages(buildTools: '35.0.0', platformApi: '34');
+      final pkgs = packagingSdkPackages();
       expect(pkgs, contains('build-tools;35.0.0'));
       expect(pkgs, contains('platforms;android-34'));
       expect(pkgs, contains('platforms;android-36'));

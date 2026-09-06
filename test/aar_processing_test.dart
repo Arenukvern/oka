@@ -1,11 +1,10 @@
-import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:oka_android/src/build/dependency_cache.dart';
+import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-
-import 'package:oka_android/src/build/dependency_cache.dart';
 
 /// Builds a minimal in-memory AAR (zip) with the given entries.
 List<int> buildTestAar(Map<String, List<int>> entries) {
@@ -104,7 +103,7 @@ void main() {
         'res/values/values.xml': '<resources/>'.codeUnits,
       });
       final cache = DependencyCache(cacheRoot: tmp.path, allowNetwork: false);
-      final coord = MavenCoordinate(
+      const coord = MavenCoordinate(
         groupId: 'com.example',
         artifactId: 'native-lib',
         version: '1.0.0',
@@ -123,11 +122,10 @@ void main() {
       addTearDown(() => tmp.delete(recursive: true));
 
       final cache = DependencyCache(cacheRoot: tmp.path, allowNetwork: false);
-      final coord = MavenCoordinate(
+      const coord = MavenCoordinate(
         groupId: 'com.example',
         artifactId: 'plain',
         version: '1.0.0',
-        packaging: 'jar',
       );
 
       final resolved = await cache.resolve(coord, fixtureBytes: [1, 2, 3, 4]);

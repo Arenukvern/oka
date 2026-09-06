@@ -111,11 +111,10 @@ void main() {
 class _RecordingStep extends BuildStep {
   _RecordingStep(
     String name, {
-    List<String>? sink,
+    this._sink,
     this.requires = const {},
     this.provides = const {},
-  }) : _name = name,
-       _sink = sink;
+  }) : _name = name;
   final String _name;
   final List<String>? _sink;
   @override

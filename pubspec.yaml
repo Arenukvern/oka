@@ -23,17 +23,16 @@ environment:
 
 dependencies:
   args: ^2.5.0
-  archive: ^4.0.9
-  crypto: ^3.0.3
-  http: ^1.2.1
   oka_android: ^0.1.6
   oka_core: ^0.1.6
   path: ^1.9.0
   yaml: ^3.1.2
 
 dev_dependencies:
-  test: ^1.25.0
+  # Test fixtures exercise AAR/zip processing exported from oka_android.
+  archive: ^4.0.9
   lints: ^6.1.0
+  test: ^1.25.0
   xsoulspace_lints: ^0.1.2
 
 executables:

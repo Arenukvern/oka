@@ -7,12 +7,18 @@ analyzer:
     strict-raw-types: true
 
   errors:
+    # xsoulspace_lints 0.1.2 enables prefer_final_parameters, deprecated in
+    # Dart 3.13; we disable the rule below and silence the deprecation
+    # diagnostic until the lint set is updated.
+    deprecated_lint: ignore
     missing_required_param: error
     missing_return: error
     todo: ignore
 
 linter:
   rules:
+    # Deprecated upstream (Dart 3.13); house style keeps parameters
+    # non-final — silencing avoids ~150 mechanical rewrites.
     prefer_final_parameters: false
     # Build steps report progress on stdout; oka is a CLI build tool.
     avoid_print: false

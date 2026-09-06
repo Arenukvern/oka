@@ -107,8 +107,8 @@ flutter:
 
     test('ensureSupported throws on unsupported', () {
       final d = PluginDiscovery();
-      final result = PluginDiscoveryResult(
-        plugins: const [
+      const result = PluginDiscoveryResult(
+        plugins: [
           DiscoveredPlugin(
             name: 'firebase_core',
             path: '/x',
@@ -117,7 +117,7 @@ flutter:
             unsupportedReason: 'uses google-services',
           ),
         ],
-        unsupported: const [
+        unsupported: [
           DiscoveredPlugin(
             name: 'firebase_core',
             path: '/x',
@@ -128,7 +128,7 @@ flutter:
         ],
       );
       expect(
-        () => d.ensureSupported(result, strict: true),
+        () => d.ensureSupported(result),
         throwsA(isA<Exception>().having(
           (e) => e.toString(),
           'msg',

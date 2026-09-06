@@ -14,8 +14,9 @@ How to run, build, and extend oka. Why-rationale lives in the
 ```bash
 oka init               # full-Dart config: scaffolds tool/oka_pipeline.dart
                        # (typed AndroidBuild/FlutterBuild) — no oka.yaml
-oka init --yaml        # legacy YAML-first scaffold (with AI gradle conversion
-                       # when android/app/build.gradle exists)
+oka init --yaml        # legacy YAML-first scaffold (suggests a Gradle
+                       # conversion checklist when android/app/build.gradle
+                       # exists — ADR-0012: no embedded LLM)
 oka init --from-yaml   # converts an existing oka.yaml 1:1 into the typed
                        # Dart entrypoint (ADR-0010)
 ```
@@ -46,8 +47,8 @@ oka doctor            # verify everything
 
 **Q: How do I start a new project?**
 ```bash
-oka init   # generates oka.yaml from pubspec.yaml (or converts an existing
-           # android/app/build.gradle with AI assist)
+oka init   # generates oka.yaml from pubspec.yaml (prints a Gradle
+           # conversion checklist when android/app/build.gradle exists)
 ```
 The scaffold includes a **commented** `pipeline.dart_entrypoint` example
 (ADR-0006's declarative Dart hook) and a pointer to the full composition

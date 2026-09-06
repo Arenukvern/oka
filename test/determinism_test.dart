@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:oka_android/src/build/apk_layout.dart';
-import 'package:oka_android/src/build/aab_layout.dart' show zipBundle;
-import 'package:oka_android/src/build/sdk_locator.dart';
 import 'package:archive/archive.dart';
+import 'package:oka_android/src/build/aab_layout.dart' show zipBundle;
+import 'package:oka_android/src/build/apk_layout.dart';
+import 'package:oka_android/src/build/sdk_locator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
