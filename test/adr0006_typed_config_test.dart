@@ -1,5 +1,4 @@
 import 'package:oka_android/oka_android.dart';
-import 'package:oka_core/oka_core.dart';
 import 'package:test/test.dart';
 
 void main() {

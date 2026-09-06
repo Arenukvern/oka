@@ -1,23 +1,21 @@
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
-import 'package:oka_core/src/config/build_context.dart';
 import 'java_environment.dart';
 
 /// Locates Android SDK tools and validates their availability
 class SdkLocator {
+
+  SdkLocator({
+    this._androidSdkPath,
+    this._flutterSdkPath,
+    this._verbose = false,
+  });
   final String? _androidSdkPath;
   final String? _flutterSdkPath;
   final bool _verbose;
-
-  SdkLocator({
-    String? androidSdkPath,
-    String? flutterSdkPath,
-    bool verbose = false,
-  })  : _androidSdkPath = androidSdkPath,
-        _flutterSdkPath = flutterSdkPath,
-        _verbose = verbose;
 
   /// Find Android SDK path
   Future<String> findAndroidSdk() async {
@@ -122,15 +120,15 @@ class SdkLocator {
     // Find latest build-tools version
     final versions = await buildToolsDir
         .list()
-        .where((e) => e is Directory)
-        .map((e) => p.basename(e.path))
+        .where((final e) => e is Directory)
+        .map((final e) => p.basename(e.path))
         .toList();
 
     if (versions.isEmpty) {
       throw Exception('No build-tools version found in Android SDK');
     }
 
-    versions.sort((a, b) => b.compareTo(a)); // Reverse sort for latest
+    versions.sort((final a, final b) => b.compareTo(a)); // Reverse sort for latest
 
     for (final version in versions) {
       final aapt2Path = p.join(androidSdk, 'build-tools', version, 'aapt2');
@@ -149,11 +147,11 @@ class SdkLocator {
 
     final versions = await buildToolsDir
         .list()
-        .where((e) => e is Directory)
-        .map((e) => p.basename(e.path))
+        .where((final e) => e is Directory)
+        .map((final e) => p.basename(e.path))
         .toList();
 
-    versions.sort((a, b) => b.compareTo(a));
+    versions.sort((final a, final b) => b.compareTo(a));
 
     for (final version in versions) {
       final d8Path = p.join(androidSdk, 'build-tools', version, 'd8');
@@ -175,11 +173,11 @@ class SdkLocator {
     if (await buildToolsDir.exists()) {
       final versions = await buildToolsDir
           .list()
-          .where((e) => e is Directory)
-          .map((e) => p.basename(e.path))
+          .where((final e) => e is Directory)
+          .map((final e) => p.basename(e.path))
           .toList();
 
-      versions.sort((a, b) => b.compareTo(a));
+      versions.sort((final a, final b) => b.compareTo(a));
 
       for (final version in versions) {
         final r8Path = p.join(androidSdk, 'build-tools', version, 'r8');
@@ -214,11 +212,11 @@ class SdkLocator {
 
     final versions = await buildToolsDir
         .list()
-        .where((e) => e is Directory)
-        .map((e) => p.basename(e.path))
+        .where((final e) => e is Directory)
+        .map((final e) => p.basename(e.path))
         .toList();
 
-    versions.sort((a, b) => b.compareTo(a));
+    versions.sort((final a, final b) => b.compareTo(a));
 
     for (final version in versions) {
       final zipalignPath =
@@ -238,11 +236,11 @@ class SdkLocator {
 
     final versions = await buildToolsDir
         .list()
-        .where((e) => e is Directory)
-        .map((e) => p.basename(e.path))
+        .where((final e) => e is Directory)
+        .map((final e) => p.basename(e.path))
         .toList();
 
-    versions.sort((a, b) => b.compareTo(a));
+    versions.sort((final a, final b) => b.compareTo(a));
 
     for (final version in versions) {
       final apksignerPath =
@@ -480,7 +478,7 @@ class SdkLocator {
   }
 
   /// Prompt user for permission to download a package
-  bool _promptUserForDownload(String packageName) {
+  bool _promptUserForDownload(final String packageName) {
     stdout.write('\n⚠️  $packageName not found locally.\n'
         '📦 Download from Google Maven? (y/n): ');
     final response = stdin.readLineSync()?.trim().toLowerCase();
@@ -488,7 +486,7 @@ class SdkLocator {
   }
 
   /// Download AndroidX annotation JAR from Google Maven repository
-  Future<String> _downloadAndroidXAnnotations(String version) async {
+  Future<String> _downloadAndroidXAnnotations(final String version) async {
     final home = Platform.environment['HOME'] ?? '';
     final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
     await Directory(cacheDir).create(recursive: true);
@@ -558,7 +556,7 @@ class SdkLocator {
   }
 
   /// Download AndroidX lifecycle-common JAR from Google Maven repository
-  Future<String> _downloadAndroidXLifecycle(String version) async {
+  Future<String> _downloadAndroidXLifecycle(final String version) async {
     final home = Platform.environment['HOME'] ?? '';
     final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
     await Directory(cacheDir).create(recursive: true);
@@ -631,7 +629,7 @@ class SdkLocator {
   ///
   /// Downloads the AAR and extracts classes.jar from it since the Android
   /// classes are packaged in AAR format, not as standalone JARs
-  Future<String> _downloadAndroidXLifecycleRuntime(String version) async {
+  Future<String> _downloadAndroidXLifecycleRuntime(final String version) async {
     final home = Platform.environment['HOME'] ?? '';
     final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
     await Directory(cacheDir).create(recursive: true);
@@ -733,7 +731,7 @@ class SdkLocator {
   ///
   /// Returns environment variables map to use for Process.run calls,
   /// or null if system default Java should be used
-  Future<Map<String, String>?> resolveJavaForKotlin(BuildContext ctx) async {
+  Future<Map<String, String>?> resolveJavaForKotlin(final BuildContext ctx) async {
     final requiredJavaVersion = ctx.config.android.requiredJavaVersion;
 
     final javaEnv = JavaEnvironment(verbose: _verbose);
@@ -741,7 +739,6 @@ class SdkLocator {
     try {
       final env = await javaEnv.resolveJavaEnvironment(
         requiredJavaVersion,
-        autoInstall: true,
       );
 
       return env;
@@ -783,7 +780,7 @@ class SdkLocator {
   ///
   /// Includes optional `adb` when present; packaging validation is
   /// [validatePackagingTools].
-  Future<Map<String, String>> validateTools({bool requireAdb = false}) async {
+  Future<Map<String, String>> validateTools({final bool requireAdb = false}) async {
     final tools = await validatePackagingTools();
 
     try {

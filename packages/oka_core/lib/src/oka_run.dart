@@ -35,10 +35,10 @@ final _okaRunParser = ArgParser()
 /// loading, dart-define merging, build directory layout, pipeline selection by
 /// `--platform`, and execution.
 Future<void> okaRun(
-  List<String> args, {
-  required Oka oka,
-  String? projectPath,
-  ArgParser? extraArgs,
+  final List<String> args, {
+  required final Oka oka,
+  final String? projectPath,
+  final ArgParser? extraArgs,
 }) async {
   final parser = _okaRunParser;
   final results = parser.parse(args);
@@ -110,8 +110,8 @@ Future<void> okaRun(
 /// are preserved; keys in [override] win. Pure — used for the ADR-0010
 /// typed-Dart-config-over-yaml precedence.
 Map<String, dynamic> mergeConfigMaps(
-  Map<String, dynamic> base,
-  Map<String, dynamic> override,
+  final Map<String, dynamic> base,
+  final Map<String, dynamic> override,
 ) {
   if (override.isEmpty) return base;
   final out = Map<String, dynamic>.of(base);
@@ -127,8 +127,8 @@ Map<String, dynamic> mergeConfigMaps(
   return out;
 }
 
-Map<String, dynamic> _stringKeyed(Map<dynamic, dynamic> m) =>
-    m.map((k, v) => MapEntry(k.toString(), v));
+Map<String, dynamic> _stringKeyed(final Map<dynamic, dynamic> m) =>
+    m.map((final k, final v) => MapEntry(k.toString(), v));
 
 /// Resolves the project's Dart pipeline entrypoint (ADR-0006/0010):
 ///
@@ -139,7 +139,7 @@ Map<String, dynamic> _stringKeyed(Map<dynamic, dynamic> m) =>
 /// Returns a project-relative path, or null when the project has no hook
 /// (full-YAML project or fresh project). Full-Dart projects (ADR-0010) have
 /// no oka.yaml at all — discovery makes them work without any YAML key.
-Future<String?> findPipelineEntrypoint(String projectPath) async {
+Future<String?> findPipelineEntrypoint(final String projectPath) async {
   final config = await loadOkaYaml(projectPath);
   final pipelineSection = config.toJson()['pipeline'];
   final explicit = pipelineSection is Map
@@ -152,29 +152,29 @@ Future<String?> findPipelineEntrypoint(String projectPath) async {
   return null;
 }
 
-PlatformPipeline _selectPipeline(Oka oka, String platform) {
+PlatformPipeline _selectPipeline(final Oka oka, final String platform) {
   for (final p in oka.pipelines) {
     if (p.platform == platform) return p;
   }
   throw ArgumentError(
     'No pipeline for platform "$platform". Declared: '
-    '${oka.pipelines.map((p) => p.platform).join(', ')}',
+    '${oka.pipelines.map((final p) => p.platform).join(', ')}',
   );
 }
 
 /// Loads and parses `oka.yaml` from [projectPath]. Missing file → [OkaConfig.empty].
-Future<OkaConfig> loadOkaYaml(String projectPath) async {
+Future<OkaConfig> loadOkaYaml(final String projectPath) async {
   final file = File('$projectPath/oka.yaml');
   if (!await file.exists()) return OkaConfig.empty;
   return OkaConfig.fromJson(_yamlToJson(await _loadYamlAny(file)));
 }
 
-Future<dynamic> _loadYamlAny(File file) async =>
+Future<dynamic> _loadYamlAny(final File file) async =>
     loadYaml(await file.readAsString());
 
-dynamic _yamlToJson(dynamic value) {
+dynamic _yamlToJson(final Object? value) {
   if (value is YamlMap) {
-    return value.map((k, v) => MapEntry(k.toString(), _yamlToJson(v)));
+    return value.map((final k, final v) => MapEntry(k.toString(), _yamlToJson(v)));
   } else if (value is YamlList) {
     return value.map(_yamlToJson).toList();
   }
@@ -182,7 +182,7 @@ dynamic _yamlToJson(dynamic value) {
 }
 
 /// Expands `--dart-define-from-file` (JSON object of string values).
-Map<String, String> parseDartDefineFile(String? path) {
+Map<String, String> parseDartDefineFile(final String? path) {
   if (path == null || path.isEmpty) return const {};
   final file = File(path);
   if (!file.existsSync()) {
@@ -192,12 +192,12 @@ Map<String, String> parseDartDefineFile(String? path) {
   if (decoded is! Map) {
     throw FormatException('dart-define-from-file must be a JSON object', path);
   }
-  return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+  return decoded.map((final k, final v) => MapEntry(k.toString(), v.toString()));
 }
 
 /// Parses a single `key=value` define; a bare key maps to `'true'`
 /// (matching the Flutter tool convention).
-Map<String, String> _parseSingleDefine(String define) {
+Map<String, String> _parseSingleDefine(final String define) {
   final i = define.indexOf('=');
   if (i < 0) return {define: 'true'};
   return {define.substring(0, i): define.substring(i + 1)};

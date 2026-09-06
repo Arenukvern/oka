@@ -10,21 +10,25 @@ analyzer:
     missing_required_param: error
     missing_return: error
     todo: ignore
-  exclude:
-    - build/**
-    - android/**
-    - ios/**
-    - web/**
-    - windows/**
-    - macos/**
-    - linux/**
 
 linter:
   rules:
     # Build steps report progress on stdout; oka is a CLI build tool.
     avoid_print: false
+    # The build pipeline deliberately uses synchronous dart:io for small,
+    # deterministic file operations inside build steps.
+    avoid_slow_async_io: false
+    # Build steps report tool failures as build errors; broad catch clauses
+    # are intentional at tool boundaries.
+    avoid_catches_without_on_clauses: false
+    # Retrofitting ~200 one-line `if` bodies would churn history without
+    # safety value; keep the existing house style.
+    always_put_control_body_on_new_line: false
+    # Doc comments contain long URLs and tool output verbatim.
+    lines_longer_than_80_chars: false
+    # Sequential builder calls read clearer than cascades in pipeline code.
+    cascade_invocations: false
     always_declare_return_types: true
-    always_put_control_body_on_new_line: true
     prefer_const_constructors: true
     prefer_const_declarations: true
     prefer_final_fields: true

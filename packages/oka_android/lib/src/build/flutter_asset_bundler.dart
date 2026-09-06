@@ -1,18 +1,17 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
-
-import 'package:oka_core/src/config/build_context.dart';
 
 /// Flutter asset bundler that prepares flutter_assets/ directory
 ///
 /// Uses Flutter tools to create the asset bundle that will be packaged
 /// into the APK by the no-Gradle packager (apk_layout.dart).
 class FlutterAssetBundler {
-  final bool _verbose;
 
-  FlutterAssetBundler({bool verbose = false}) : _verbose = verbose;
+  FlutterAssetBundler({this._verbose = false});
+  final bool _verbose;
 
   /// Get environment variables needed for Android builds
   Future<Map<String, String>> _getAndroidEnvironment() async {
@@ -33,7 +32,7 @@ class FlutterAssetBundler {
   ///
   /// Assets land in the APK root directory so they're accessible to the
   /// Flutter engine at runtime.
-  Future<String> bundleAssets(BuildContext ctx) async {
+  Future<String> bundleAssets(final BuildContext ctx) async {
     final flutterAssetsDir = p.join(ctx.buildDir, 'flutter_assets');
 
     if (_verbose) {
@@ -56,7 +55,6 @@ class FlutterAssetBundler {
     switch (ctx.config.flutter.targetPlatform.toLowerCase()) {
       case 'android':
         flutterTargetPlatform = 'android-arm64'; // Use arm64 for modern Android
-        break;
       default:
         flutterTargetPlatform = ctx.config.flutter.targetPlatform;
     }
@@ -115,7 +113,7 @@ class FlutterAssetBundler {
   ///
   /// For release builds, we need to compile Dart code to native code
   /// that can be loaded by the Flutter engine.
-  Future<String> bundleAotSnapshot(BuildContext ctx) async {
+  Future<String> bundleAotSnapshot(final BuildContext ctx) async {
     if (ctx.config.flutter.buildMode != 'release') {
       if (_verbose) {
         print('⏭️  Skipping AOT compilation (not release mode)');
@@ -142,7 +140,6 @@ class FlutterAssetBundler {
     switch (ctx.config.flutter.targetPlatform.toLowerCase()) {
       case 'android':
         flutterTargetPlatform = 'android-arm'; // Default to ARM for Android
-        break;
       default:
         flutterTargetPlatform = ctx.config.flutter.targetPlatform;
     }
@@ -205,7 +202,7 @@ class FlutterAssetBundler {
   /// Prepare Flutter engine artifacts
   ///
   /// Copies necessary Flutter engine files (ICU data, etc.) to the build directory
-  Future<void> prepareEngineArtifacts(BuildContext ctx) async {
+  Future<void> prepareEngineArtifacts(final BuildContext ctx) async {
     if (_verbose) {
       print('🔧 Preparing Flutter engine artifacts...');
     }
@@ -237,7 +234,7 @@ class FlutterAssetBundler {
       final result = await Process.run('flutter', ['--version', '--machine']);
       if (result.exitCode == 0) {
         final output = result.stdout as String;
-        final json = jsonDecode(output);
+        final json = jsonDecode(output) as Map<String, dynamic>;
         return json['flutterRoot'] as String;
       }
     } catch (_) {}

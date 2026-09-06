@@ -11,17 +11,6 @@ import 'package:path/path.dart' as p;
 /// 3. `android/key.properties` convention (Gradle-compatible)
 /// 4. fallback: oka's debug keystore (development only)
 class SigningConfig {
-  /// Keystore file path (project-relative or absolute).
-  final String keystorePath;
-
-  /// Key alias inside the keystore.
-  final String keyAlias;
-
-  /// Keystore password.
-  final String storePassword;
-
-  /// Key password (defaults to [storePassword] when empty).
-  final String keyPassword;
 
   const SigningConfig({
     this.keystorePath = '',
@@ -29,23 +18,6 @@ class SigningConfig {
     this.storePassword = '',
     this.keyPassword = '',
   });
-
-  bool get isConfigured =>
-      keystorePath.isNotEmpty &&
-      keyAlias.isNotEmpty &&
-      storePassword.isNotEmpty;
-
-  SigningConfig copyWith({
-    String? keystorePath,
-    String? keyAlias,
-    String? storePassword,
-    String? keyPassword,
-  }) => SigningConfig(
-    keystorePath: keystorePath ?? this.keystorePath,
-    keyAlias: keyAlias ?? this.keyAlias,
-    storePassword: storePassword ?? this.storePassword,
-    keyPassword: keyPassword ?? this.keyPassword,
-  );
 
   /// `oka.yaml`:
   /// ```yaml
@@ -58,7 +30,7 @@ class SigningConfig {
   /// ```
   /// Passwords read from environment variables referenced by `*_env` keys —
   /// secrets never belong in yaml.
-  factory SigningConfig.fromYamlMap(Map<dynamic, dynamic> map) {
+  factory SigningConfig.fromYamlMap(final Map<dynamic, dynamic> map) {
     final storeEnv = map['store_password_env']?.toString() ?? '';
     final keyEnv = map['key_password_env']?.toString() ?? '';
     final storePass =
@@ -74,11 +46,39 @@ class SigningConfig {
       keyPassword: keyPass,
     );
   }
+  /// Keystore file path (project-relative or absolute).
+  final String keystorePath;
+
+  /// Key alias inside the keystore.
+  final String keyAlias;
+
+  /// Keystore password.
+  final String storePassword;
+
+  /// Key password (defaults to [storePassword] when empty).
+  final String keyPassword;
+
+  bool get isConfigured =>
+      keystorePath.isNotEmpty &&
+      keyAlias.isNotEmpty &&
+      storePassword.isNotEmpty;
+
+  SigningConfig copyWith({
+    final String? keystorePath,
+    final String? keyAlias,
+    final String? storePassword,
+    final String? keyPassword,
+  }) => SigningConfig(
+    keystorePath: keystorePath ?? this.keystorePath,
+    keyAlias: keyAlias ?? this.keyAlias,
+    storePassword: storePassword ?? this.storePassword,
+    keyPassword: keyPassword ?? this.keyPassword,
+  );
 
   /// Gradle-compatible `android/key.properties`:
   /// `storeFile`, `keyAlias`, `storePassword`, `keyPassword`.
   static Future<SigningConfig?> fromKeyProperties(
-    String projectPath,
+    final String projectPath,
   ) async {
     final file = File(p.join(projectPath, 'android', 'key.properties'));
     if (!await file.exists()) return null;
@@ -108,7 +108,7 @@ class SigningConfig {
 
   /// Resolution chain: explicit Dart config → oka.yaml `android.signing` →
   /// `android/key.properties` → null (debug keystore fallback).
-  static Future<SigningConfig?> autoResolve(BuildContext ctx) async {
+  static Future<SigningConfig?> autoResolve(final BuildContext ctx) async {
     final androidYaml = ctx.config.toJson()['android'];
     if (androidYaml is Map && androidYaml['signing'] is Map) {
       final fromYaml = SigningConfig.fromYamlMap(

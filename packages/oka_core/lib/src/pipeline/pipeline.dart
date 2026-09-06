@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 
-import '../pipeline_events.dart';
 import '../config/build_context.dart';
+import '../pipeline_events.dart';
 
 /// Typed artifact key exchanged between pipeline steps (ADR-0006).
 ///
@@ -13,20 +13,21 @@ import '../config/build_context.dart';
 /// Steps declare artifacts via [BuildStep.requires] / [BuildStep.provides];
 /// the runner validates the whole chain at composition time — before any tool
 /// runs — and fails naming the missing artifact and the step that needs it.
+@immutable
 class Artifact<T> {
+
+  const Artifact(this.id, {this.description});
   /// Stable identifier, e.g. `'apk-path'`.
   final String id;
 
   /// Optional human-readable description for diagnostics.
   final String? description;
 
-  const Artifact(this.id, {this.description});
-
   @override
   String toString() => 'Artifact<$T>($id)';
 
   @override
-  bool operator ==(Object other) => other is Artifact<T> && other.id == id;
+  bool operator ==(final Object other) => other is Artifact<T> && other.id == id;
 
   @override
   int get hashCode => Object.hash(id, T);
@@ -40,8 +41,8 @@ class Artifact<T> {
 class PipelineState {
   final Map<String, Object?> _values = {};
 
-  Object? operator [](String key) => _values[key];
-  void operator []=(String key, Object? value) => _values[key] = value;
+  Object? operator [](final String key) => _values[key];
+  void operator []=(final String key, final Object? value) => _values[key] = value;
 
   /// All values currently in the store (for diagnostics).
   Map<String, Object?> get snapshot => Map.unmodifiable(_values);
@@ -49,17 +50,17 @@ class PipelineState {
 
 /// Result of a single pipeline step.
 class StepResult {
-  final bool ok;
-  final String? error;
-  final Map<String, Object?> data;
 
   const StepResult({required this.ok, this.error, this.data = const {}});
 
-  factory StepResult.success([Map<String, Object?> data = const {}]) =>
+  factory StepResult.success([final Map<String, Object?> data = const {}]) =>
       StepResult(ok: true, data: data);
 
-  factory StepResult.failure(String error) =>
+  factory StepResult.failure(final String error) =>
       StepResult(ok: false, error: error);
+  final bool ok;
+  final String? error;
+  final Map<String, Object?> data;
 }
 
 /// A composable unit of the build pipeline (ADR-0006).
@@ -78,7 +79,7 @@ abstract class BuildStep {
   /// Artifacts this step makes available to downstream steps.
   Set<Artifact<Object>> get provides => const {};
 
-  Future<StepResult> run(BuildContext ctx, PipelineState state);
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state);
 }
 
 /// Runs a list of steps in order, stopping at the first failure.
@@ -88,13 +89,13 @@ abstract class BuildStep {
 /// [BuildStep.provides]. A violation fails the build immediately with an
 /// actionable message — no tool is invoked.
 class Pipeline {
+
+  Pipeline(this.steps, {this.verbose = false, this.onEvent});
   final List<BuildStep> steps;
   final bool verbose;
 
   /// Optional structured event sink (ADR-0007).
   final void Function(PipelineEvent event)? onEvent;
-
-  Pipeline(this.steps, {this.verbose = false, this.onEvent});
 
   /// Validates the artifact chain. Returns an error message, or null.
   String? validate() {
@@ -120,14 +121,14 @@ class Pipeline {
     return null;
   }
 
-  Future<StepResult> run(BuildContext ctx, {PipelineState? initialState}) async {
+  Future<StepResult> run(final BuildContext ctx, {final PipelineState? initialState}) async {
     final validationError = validate();
     if (validationError != null) return StepResult.failure(validationError);
 
     // ADR-0010: platform pipelines may seed the runtime scope (e.g. the
     // merged pipeline-level overrides) — it is the single mutable layer.
     final state = initialState ?? PipelineState();
-    void emit(PipelineEvent e) => onEvent?.call(e);
+    void emit(final PipelineEvent e) => onEvent?.call(e);
     for (final step in steps) {
       if (verbose) print('▶ step: ${step.name}');
       emit(StepStarted(step.name));
@@ -135,7 +136,12 @@ class Pipeline {
       try {
         final result = await step.run(ctx, state);
         emit(
-          StepFinished(step.name, result.ok, result.error, sw.elapsed),
+          StepFinished(
+            step.name,
+            ok: result.ok,
+            error: result.error,
+            duration: sw.elapsed,
+          ),
         );
         if (!result.ok) {
           return StepResult.failure(
@@ -143,7 +149,14 @@ class Pipeline {
           );
         }
       } on Exception catch (e) {
-        emit(StepFinished(step.name, false, e.toString(), sw.elapsed));
+        emit(
+          StepFinished(
+            step.name,
+            ok: false,
+            error: e.toString(),
+            duration: sw.elapsed,
+          ),
+        );
         return StepResult.failure('step "${step.name}" threw: $e');
       }
     }
@@ -153,5 +166,5 @@ class Pipeline {
 
 /// Shared helper for diagnostics.
 @visibleForTesting
-String describeArtifacts(Iterable<Artifact<Object>> artifacts) =>
-    artifacts.map((a) => a.id).join(', ');
+String describeArtifacts(final Iterable<Artifact<Object>> artifacts) =>
+    artifacts.map((final a) => a.id).join(', ');

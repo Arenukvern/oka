@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
+import '../../android_artifacts.dart';
+import '../../android_state.dart';
+import '../../auto_resolve.dart';
 import '../../build/apk_layout.dart';
 import '../../build/dependency_cache.dart';
 import '../../build/host_codegen.dart';
@@ -9,29 +13,24 @@ import '../../build/launcher_icon.dart';
 import '../../build/plugin_discovery.dart';
 import '../../build/plugin_packager.dart';
 import '../../build/sdk_locator.dart';
-import '../../auto_resolve.dart';
 import '../../build_cache.dart';
-import '../toolchain.dart' show copyDirectory;
-import '../../android_artifacts.dart';
 import '../../manifest_spec.dart';
+import '../toolchain.dart' show copyDirectory;
 import 'asset_steps.dart' show DeeplinkConfig;
-import 'package:oka_core/src/config/build_context.dart';
-import 'package:oka_core/src/pipeline/pipeline.dart';
-import '../../android_state.dart';
 
 /// Ensures Android SDK packaging tools exist; fails loudly otherwise.
 ///
 /// Preserves ADR-0001: never fall back to Gradle / `flutter build apk`.
 class EnsureAndroidSdkStep extends BuildStep {
+
+  EnsureAndroidSdkStep({final SdkLocator? sdkLocator})
+    : sdkLocator = sdkLocator ?? SdkLocator();
   final SdkLocator sdkLocator;
   @override
   String get name => 'ensure-android-sdk';
 
-  EnsureAndroidSdkStep({SdkLocator? sdkLocator})
-    : sdkLocator = sdkLocator ?? SdkLocator();
-
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     try {
       await sdkLocator.validatePackagingTools();
       return StepResult.success();
@@ -56,7 +55,7 @@ class ResolveAbisStep extends BuildStep {
   Set<Artifact<Object>> get provides => {abis};
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     state.abis = resolveAbis(
       configAbis: ctx.config.android.abis,
       targetAbi: ctx.targetAbi,
@@ -69,6 +68,16 @@ class ResolveAbisStep extends BuildStep {
 
 /// Discovers plugins and packages them (sources, jars, natives).
 class PluginPackagingStep extends BuildStep {
+
+  PluginPackagingStep({
+    final SdkLocator? sdkLocator,
+    final PluginDiscovery? pluginDiscovery,
+    final DependencyCache? dependencyCache,
+    this.strictPlugins = true,
+    this.excludePlugins = const [],
+  }) : sdkLocator = sdkLocator ?? SdkLocator(),
+       pluginDiscovery = pluginDiscovery ?? PluginDiscovery(),
+       dependencyCache = dependencyCache ?? DependencyCache();
   @override
   Set<Artifact<Object>> get provides => {packagedPlugins, registrations};
 
@@ -83,18 +92,8 @@ class PluginPackagingStep extends BuildStep {
   @override
   String get name => 'plugin-packaging';
 
-  PluginPackagingStep({
-    SdkLocator? sdkLocator,
-    PluginDiscovery? pluginDiscovery,
-    DependencyCache? dependencyCache,
-    this.strictPlugins = true,
-    this.excludePlugins = const [],
-  }) : sdkLocator = sdkLocator ?? SdkLocator(),
-       pluginDiscovery = pluginDiscovery ?? PluginDiscovery(),
-       dependencyCache = dependencyCache ?? DependencyCache();
-
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     print('🔌 Discovering and packaging Flutter plugins...');
     var discovery = await pluginDiscovery.discover(ctx.projectPath);
     // ADR-0007: plugins contributed solely by dev_dependencies (e.g.
@@ -126,7 +125,7 @@ class PluginPackagingStep extends BuildStep {
     await cache.load();
     final pluginFp = await fingerprintInputs([
       ...discovery.androidPlugins.expand(
-        (pl) => [
+        (final pl) => [
           ...filesUnder(pl.path, extension: '.kt'),
           ...filesUnder(pl.path, extension: '.java'),
           ...filesUnder(pl.path, extension: '.gradle'),
@@ -140,7 +139,7 @@ class PluginPackagingStep extends BuildStep {
           .existsSync())
         '${ctx.projectPath}/.dart_tool/package_config.json',
     ], extras: [
-      'plugins:${discovery.androidPlugins.map((p) => '${p.name}:${p.pluginClass}').join(',')}',
+      'plugins:${discovery.androidPlugins.map((final p) => '${p.name}:${p.pluginClass}').join(',')}',
       'abis:${state.abis.join(',')}',
       'strict:$strictPlugins',
     ]);
@@ -153,7 +152,7 @@ class PluginPackagingStep extends BuildStep {
         for (final p in discovery.androidPlugins) p.name: p,
       };
       if (names.every(byName.containsKey)) {
-        final plugins = names.map((n) {
+        final plugins = names.map((final n) {
           final pl = byName[n]!;
           return PackagedPlugin(
             plugin: pl,
@@ -165,7 +164,6 @@ class PluginPackagingStep extends BuildStep {
             resDirs: ((cached['res_$n'] as List?) ?? const []).cast<String>(),
             manifestPaths:
                 ((cached['man_$n'] as List?) ?? const []).cast<String>(),
-            packable: true,
           );
         }).toList();
         final natives = ((cached['natives'] as Map?) ?? const {})
@@ -174,17 +172,17 @@ class PluginPackagingStep extends BuildStep {
           plugins: plugins,
           failed: const [],
           registrations: (cached['registrations'] as List)
-              .map((e) => PluginRegistration(
+              .map((final e) => PluginRegistration(
                     className: (e as Map)['className'] as String,
                     name: e['name'] as String,
                   ))
               .toList(),
-          allJavaSources: plugins.expand((p) => p.javaSources).toList(),
-          allKotlinSources: plugins.expand((p) => p.kotlinSources).toList(),
-          allJarDeps: plugins.expand((p) => p.jarDeps).toSet().toList(),
+          allJavaSources: plugins.expand((final p) => p.javaSources).toList(),
+          allKotlinSources: plugins.expand((final p) => p.kotlinSources).toList(),
+          allJarDeps: plugins.expand((final p) => p.jarDeps).toSet().toList(),
           nativeLibsByAbi: natives,
-          resDirs: plugins.expand((p) => p.resDirs).toList(),
-          manifestPaths: plugins.expand((p) => p.manifestPaths).toList(),
+          resDirs: plugins.expand((final p) => p.resDirs).toList(),
+          manifestPaths: plugins.expand((final p) => p.manifestPaths).toList(),
         );
         state.pluginDiscovery = discovery;
         state.packagedPlugins = result;
@@ -195,7 +193,7 @@ class PluginPackagingStep extends BuildStep {
     }
     final support = decidePluginSupport(discovery, strict: strictPlugins);
     if (!support.allowBuild) {
-      pluginDiscovery.ensureSupported(discovery, strict: true);
+      pluginDiscovery.ensureSupported(discovery);
     }
     if (support.softMode && support.warnings.isNotEmpty) {
       print('⚠️  Soft plugin mode — skipping unsupported plugins:');
@@ -217,7 +215,7 @@ class PluginPackagingStep extends BuildStep {
     );
     if (packaged.failed.isNotEmpty && strictPlugins) {
       final msg = packaged.failed
-          .map((f) => '${f.plugin.name}: ${f.failureReason}')
+          .map((final f) => '${f.plugin.name}: ${f.failureReason}')
           .join('\n  - ');
       return StepResult.failure(
         'Failed to package required plugins for no-Gradle APK:\n  - $msg',
@@ -234,7 +232,7 @@ class PluginPackagingStep extends BuildStep {
 
     final registrations = packaged.registrations;
     if (registrations.isEmpty &&
-        discovery.androidPlugins.any((p) => p.pluginClass != null)) {
+        discovery.androidPlugins.any((final p) => p.pluginClass != null)) {
       return StepResult.failure(
         'GeneratedPluginRegistrant would be empty but Android plugins with '
         'pluginClass were discovered. Plugin packaging failed to produce '
@@ -253,9 +251,9 @@ class PluginPackagingStep extends BuildStep {
     // Persist for incremental reuse (per-plugin lists + aggregate natives).
     final persisted = <String, dynamic>{
       'registrations': registrations
-          .map((r) => {'className': r.className, 'name': r.name})
+          .map((final r) => {'className': r.className, 'name': r.name})
           .toList(),
-      'plugin_names': packaged.plugins.map((p) => p.plugin.name).toList(),
+      'plugin_names': packaged.plugins.map((final p) => p.plugin.name).toList(),
       'natives': packaged.nativeLibsByAbi,
     };
     for (final p in packaged.plugins) {
@@ -279,6 +277,13 @@ class PluginPackagingStep extends BuildStep {
 /// 2. oka.yaml `android.manifest:` (typed surface)
 /// 3. [manifestOverride] from Dart-composed pipelines wins over both
 class HostCodegenStep extends BuildStep {
+
+  HostCodegenStep({
+    this.manifestOverride,
+    this.yamlDeeplinks = const [],
+    this.resDirs = const [],
+    final IconConfig? iconConfig,
+  }) : iconConfig = iconConfig ?? const IconConfig();
   @override
   Set<Artifact<Object>> get requires => {registrations};
 
@@ -305,13 +310,6 @@ class HostCodegenStep extends BuildStep {
   /// its own).
   final List<DeeplinkConfig> yamlDeeplinks;
 
-  HostCodegenStep({
-    this.manifestOverride,
-    this.yamlDeeplinks = const [],
-    this.resDirs = const [],
-    IconConfig? iconConfig,
-  }) : iconConfig = iconConfig ?? const IconConfig();
-
   /// ADR-0010: values left at constructor defaults fall back to the
   /// pipeline-level overrides seeded into the runtime scope.
   ({
@@ -319,7 +317,7 @@ class HostCodegenStep extends BuildStep {
     IconConfig iconConfig,
     ManifestSpec? manifestOverride,
     List<String> resDirs,
-  }) _resolveHostOverrides(PipelineState state) {
+  }) _resolveHostOverrides(final PipelineState state) {
     final ov = state.pipelineOverrides;
     return (
       deeplinks: yamlDeeplinks.isNotEmpty
@@ -334,7 +332,7 @@ class HostCodegenStep extends BuildStep {
   }
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     print('📝 Generating Android host sources...');
     final host = _resolveHostOverrides(state);
     final hostDir = p.join(ctx.buildDir, 'host_java');

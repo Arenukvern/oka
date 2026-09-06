@@ -16,9 +16,9 @@ const kOkaSdkMarkerName = '.oka_managed_sdk';
 /// Packages required for no-Gradle APK packaging (adb optional).
 List<String> packagingSdkPackages({
   // 35+ recommended: d8 34 NPE on Flutter embedding under modern JDKs
-  String buildTools = '35.0.0',
-  String platformApi = '34',
-  List<String> extraPlatformApis = const ['35', '36'],
+  final String buildTools = '35.0.0',
+  final String platformApi = '34',
+  final List<String> extraPlatformApis = const ['35', '36'],
 }) {
   final platforms = <String>{
     'platforms;android-$platformApi',
@@ -35,8 +35,8 @@ List<String> packagingSdkPackages({
 
 /// Command-line tools zip URL for the current host OS/arch.
 String commandLineToolsDownloadUrl({
-  String? osOverride,
-  String version = '11076708',
+  final String? osOverride,
+  final String version = '11076708',
 }) {
   final os = osOverride ??
       (Platform.isMacOS
@@ -51,10 +51,6 @@ String commandLineToolsDownloadUrl({
 
 /// Result of an install or cleanup operation.
 class AndroidSdkInstallResult {
-  final bool success;
-  final String sdkRoot;
-  final String message;
-  final List<String> packages;
 
   const AndroidSdkInstallResult({
     required this.success,
@@ -62,10 +58,26 @@ class AndroidSdkInstallResult {
     required this.message,
     this.packages = const [],
   });
+  final bool success;
+  final String sdkRoot;
+  final String message;
+  final List<String> packages;
 }
 
 /// Installs / cleans a minimal packaging Android SDK under an oka-owned root.
 class AndroidSdkInstaller {
+
+  AndroidSdkInstaller({
+    final String? sdkRoot,
+    this.verbose = false,
+    final Future<ProcessResult> Function(
+      String executable,
+      List<String> arguments, {
+      String? workingDirectory,
+      Map<String, String>? environment,
+    })? runProcess,
+  })  : sdkRoot = sdkRoot ?? defaultOkaAndroidSdkRoot(),
+        runProcess = runProcess ?? Process.run;
   final String sdkRoot;
   final bool verbose;
   final Future<ProcessResult> Function(
@@ -75,23 +87,9 @@ class AndroidSdkInstaller {
     Map<String, String>? environment,
   }) runProcess;
 
-  AndroidSdkInstaller({
-    String? sdkRoot,
-    this.verbose = false,
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments, {
-      String? workingDirectory,
-      Map<String, String>? environment,
-    })? runProcess,
-  })  : sdkRoot = sdkRoot ?? defaultOkaAndroidSdkRoot(),
-        runProcess = runProcess ?? Process.run;
-
   String get markerPath => p.join(sdkRoot, kOkaSdkMarkerName);
 
-  bool get isOkaManaged {
-    return File(markerPath).existsSync();
-  }
+  bool get isOkaManaged => File(markerPath).existsSync();
 
   /// Path to sdkmanager if present under [sdkRoot].
   Future<String?> findSdkManager() async {
@@ -108,9 +106,9 @@ class AndroidSdkInstaller {
 
   /// Bootstrap cmdline-tools + packaging packages.
   Future<AndroidSdkInstallResult> installPackagingSdk({
-    String buildTools = '35.0.0',
-    String platformApi = '34',
-    bool acceptLicenses = true,
+    final String buildTools = '35.0.0',
+    final String platformApi = '34',
+    final bool acceptLicenses = true,
   }) async {
     final packages = packagingSdkPackages(
       buildTools: buildTools,
@@ -197,7 +195,7 @@ class AndroidSdkInstaller {
   }
 
   /// Remove oka-managed SDK root. Refuses if marker missing.
-  Future<AndroidSdkInstallResult> cleanup({bool force = false}) async {
+  Future<AndroidSdkInstallResult> cleanup({final bool force = false}) async {
     final dir = Directory(sdkRoot);
     if (!await dir.exists()) {
       return AndroidSdkInstallResult(
@@ -286,7 +284,7 @@ class AndroidSdkInstaller {
     }
   }
 
-  Future<void> _acceptLicenses(String sdkmanager) async {
+  Future<void> _acceptLicenses(final String sdkmanager) async {
     // Pipe "y" repeatedly into sdkmanager --licenses
     final result = await runProcess(
       'bash',
@@ -301,13 +299,13 @@ class AndroidSdkInstaller {
   }
 }
 
-String shellQuote(String s) {
+String shellQuote(final String s) {
   if (!s.contains("'")) return "'$s'";
-  return "'${s.replaceAll("'", "'\\''")}'";
+  return "'${s.replaceAll("'", r"'\''")}'";
 }
 
 /// True when aapt2, d8, zipalign, apksigner exist under [sdkRoot].
-Future<bool> packagingToolsPresent(String sdkRoot) async {
+Future<bool> packagingToolsPresent(final String sdkRoot) async {
   final buildTools = Directory(p.join(sdkRoot, 'build-tools'));
   if (!await buildTools.exists()) return false;
 

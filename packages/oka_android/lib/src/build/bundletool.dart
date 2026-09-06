@@ -23,7 +23,7 @@ const kBundletoolDownloadUrl =
 
 /// Locate a usable bundletool jar: explicit path, OKA env var, oka tools dir,
 /// then PATH lookup for a `bundletool` wrapper.
-Future<String?> findBundletool({String? explicitPath}) async {
+Future<String?> findBundletool({final String? explicitPath}) async {
   final candidates = [
     if (explicitPath != null && explicitPath.isNotEmpty) explicitPath,
     Platform.environment['OKA_BUNDLETOOL_JAR'],
@@ -46,8 +46,8 @@ Future<String?> findBundletool({String? explicitPath}) async {
 ///
 /// Requires `curl` on PATH (same bootstrap pattern as cmdline-tools).
 Future<String> downloadBundletool({
-  String? destPath,
-  bool verbose = false,
+  final String? destPath,
+  final bool verbose = false,
 }) async {
   final dest = destPath ?? defaultBundletoolJarPath();
   await File(dest).parent.create(recursive: true);
@@ -70,15 +70,15 @@ Future<String> downloadBundletool({
 
 /// Result of a bundletool verification run.
 class BundletoolVerifyResult {
-  final bool ok;
-  final String? error;
-  final String apksPath;
 
   const BundletoolVerifyResult({
     required this.ok,
     required this.apksPath,
     this.error,
   });
+  final bool ok;
+  final String? error;
+  final String apksPath;
 }
 
 /// Verify an `.aab` by building universal APKs with bundletool.
@@ -86,13 +86,13 @@ class BundletoolVerifyResult {
 /// This exercises the same parsing/generation path Google Play uses, so a
 /// structurally invalid bundle fails here before upload.
 Future<BundletoolVerifyResult> verifyAabWithBundletool({
-  required String aabPath,
-  required String outputApksPath,
-  required String keystorePath,
-  required String keyAlias,
-  required String keyPass,
-  String? bundletoolPath,
-  bool verbose = false,
+  required final String aabPath,
+  required final String outputApksPath,
+  required final String keystorePath,
+  required final String keyAlias,
+  required final String keyPass,
+  final String? bundletoolPath,
+  final bool verbose = false,
 }) async {
   final tool = await findBundletool(explicitPath: bundletoolPath);
   if (tool == null) {
@@ -141,7 +141,7 @@ Future<BundletoolVerifyResult> verifyAabWithBundletool({
 
 /// Extract the universal APK from a `.apks` archive (it is a zip with
 /// `splits/universal.apk`).
-Future<String> extractUniversalApk(String apksPath, String destApkPath) async {
+Future<String> extractUniversalApk(final String apksPath, final String destApkPath) async {
   final bytes = await File(apksPath).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
   ArchiveFile? universal;

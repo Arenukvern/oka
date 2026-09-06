@@ -1,8 +1,8 @@
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
-import 'package:oka_core/src/config/build_context.dart';
+
 import '../pipeline/default_pipeline.dart';
-import 'package:oka_core/src/pipeline/pipeline.dart';
 import 'dependency_cache.dart';
 import 'dependency_suggest.dart';
 import 'flutter_assemble.dart';
@@ -11,8 +11,8 @@ import 'sdk_locator.dart';
 
 /// Error thrown when required Android SDK build-tools are missing.
 class AndroidSdkMissingException implements Exception {
-  final String message;
   AndroidSdkMissingException(this.message);
+  final String message;
 
   @override
   String toString() => message;
@@ -27,6 +27,18 @@ class AndroidSdkMissingException implements Exception {
 /// 4. Resolve AndroidX JARs
 /// 5. aapt2 / javac / d8 / package / sign (requires Android SDK)
 class FlutterApkBuilder {
+
+  FlutterApkBuilder(
+    this.sdkLocator, {
+    this.verbose = false,
+    final FlutterAssembler? assembler,
+    final PluginDiscovery? pluginDiscovery,
+    this.dependencyCache,
+    this.allowNetwork = true,
+    this.layoutOnly = false,
+    this.strictPlugins = true,
+  }) : assembler = assembler ?? FlutterAssembler(verbose: verbose),
+       pluginDiscovery = pluginDiscovery ?? PluginDiscovery(verbose: verbose);
   final SdkLocator sdkLocator;
   final bool verbose;
   final FlutterAssembler assembler;
@@ -41,19 +53,7 @@ class FlutterApkBuilder {
   /// When true (default strict), unsupported plugins abort the build.
   final bool strictPlugins;
 
-  FlutterApkBuilder(
-    this.sdkLocator, {
-    this.verbose = false,
-    FlutterAssembler? assembler,
-    PluginDiscovery? pluginDiscovery,
-    this.dependencyCache,
-    this.allowNetwork = true,
-    this.layoutOnly = false,
-    this.strictPlugins = true,
-  }) : assembler = assembler ?? FlutterAssembler(verbose: verbose),
-       pluginDiscovery = pluginDiscovery ?? PluginDiscovery(verbose: verbose);
-
-  Future<BuildArtifact> buildApk(BuildContext ctx) async {
+  Future<BuildArtifact> buildApk(final BuildContext ctx) async {
     final start = DateTime.now();
     final isAab = ctx.buildAab;
     try {
@@ -137,7 +137,7 @@ class FlutterApkBuilder {
 
   /// When a failure mentions a missing class, suggest the Maven artifact
   /// (ADR-0002 dependency recovery).
-  static Future<void> _printDependencyHint(String errorText) async {
+  static Future<void> _printDependencyHint(final String errorText) async {
     final missing = extractMissingClass(errorText);
     if (missing == null) return;
     try {

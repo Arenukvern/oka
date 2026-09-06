@@ -7,6 +7,7 @@
 /// Policy (ADR-0007/0008): cache-only by default (`allowNetwork: false`) so
 /// `oka explain --deps` stays fast and side-effect-free; `--network` opts in
 /// to full resolution, where a hard failure makes the dry-run exit non-zero.
+library;
 import 'package:oka_core/oka_core.dart';
 
 import 'build/dependency_cache.dart';
@@ -16,19 +17,24 @@ import 'build/plugin_packager.dart';
 /// One source of declared dependencies: a plugin, `pipeline.extra_deps`, or
 /// the flutter-embedding AndroidX set.
 class DependencyPlanEntry {
-  final String source;
-  final List<MavenCoordinate> rootCoords;
-  final List<String> extraRepos;
 
   const DependencyPlanEntry({
     required this.source,
     required this.rootCoords,
     this.extraRepos = const [],
   });
+  final String source;
+  final List<MavenCoordinate> rootCoords;
+  final List<String> extraRepos;
 }
 
 /// One resolution finding.
 class DependencyPlanFinding {
+
+  const DependencyPlanFinding({
+    required this.source,
+    required this.message, required this.fatal, this.coordinate,
+  });
   final String source;
   final MavenCoordinate? coordinate;
   final String message;
@@ -37,13 +43,6 @@ class DependencyPlanFinding {
   /// with network on, or a malformed declared coordinate).
   final bool fatal;
 
-  const DependencyPlanFinding({
-    required this.source,
-    this.coordinate,
-    required this.message,
-    required this.fatal,
-  });
-
   @override
   String toString() =>
       '${fatal ? '❌' : '⚠️ '} ${coordinate?.toString() ?? source}: $message';
@@ -51,6 +50,13 @@ class DependencyPlanFinding {
 
 /// Composed + resolved dependency plan.
 class DependencyPlanReport {
+
+  const DependencyPlanReport({
+    required this.entries,
+    required this.resolved,
+    required this.findings,
+    required this.cacheOnly,
+  });
   final List<DependencyPlanEntry> entries;
   final List<ResolvedJar> resolved;
   final List<DependencyPlanFinding> findings;
@@ -59,23 +65,16 @@ class DependencyPlanReport {
   /// POM transitives are not expanded offline.
   final bool cacheOnly;
 
-  const DependencyPlanReport({
-    required this.entries,
-    required this.resolved,
-    required this.findings,
-    required this.cacheOnly,
-  });
-
-  bool get hasFatal => findings.any((f) => f.fatal);
+  bool get hasFatal => findings.any((final f) => f.fatal);
 
   int get rootCount =>
-      entries.fold(0, (sum, e) => sum + e.rootCoords.length);
+      entries.fold(0, (final sum, final e) => sum + e.rootCoords.length);
 
   /// Multi-line printable summary (without the section header).
   String summary() {
     final b = StringBuffer();
     b.writeln(
-      '  sources: ${entries.map((e) => '${e.source} (${e.rootCoords.length})').join(', ')}',
+      '  sources: ${entries.map((final e) => '${e.source} (${e.rootCoords.length})').join(', ')}',
     );
     b.writeln(
       '  roots: $rootCount, resolved: ${resolved.length}'
@@ -87,7 +86,7 @@ class DependencyPlanReport {
     for (final f in findings) {
       b.writeln('  $f');
     }
-    if (cacheOnly && findings.any((f) => !f.fatal)) {
+    if (cacheOnly && findings.any((final f) => !f.fatal)) {
       b.writeln(
         '  ℹ️  cache-only run: re-run with `oka explain --deps --network` '
         'to fetch missing artifacts and expand transitives',
@@ -103,11 +102,8 @@ class DependencyPlanReport {
 /// path so plan and packaging cannot disagree); [cache] performs resolution
 /// with `allowNetwork` set by the caller (cache-only default, ADR-0008).
 Future<DependencyPlanReport> buildDependencyPlan({
-  required List<DiscoveredPlugin> plugins,
-  List<String> extraDeps = const [],
-  required PluginPackager packager,
-  required DependencyCache cache,
-  required bool allowNetwork,
+  required final List<DiscoveredPlugin> plugins,
+  required final PluginPackager packager, required final DependencyCache cache, required final bool allowNetwork, final List<String> extraDeps = const [],
 }) async {
   final entries = <DependencyPlanEntry>[];
   final collectionFindings = <DependencyPlanFinding>[];
@@ -177,9 +173,9 @@ Future<DependencyPlanReport> buildDependencyPlan({
     for (final e in entries) ...e.extraRepos,
   }.toList();
 
-  String sourceFor(MavenCoordinate c) {
+  String sourceFor(final MavenCoordinate c) {
     for (final e in entries) {
-      if (e.rootCoords.any((r) => r.cacheKey == c.cacheKey)) return e.source;
+      if (e.rootCoords.any((final r) => r.cacheKey == c.cacheKey)) return e.source;
     }
     return 'plan';
   }
@@ -190,7 +186,7 @@ Future<DependencyPlanReport> buildDependencyPlan({
       : await cache.resolveWithTransitives(
           allRoots,
           extraRepos: extraRepos,
-          onFailure: (coord, error) => failures.add((coord, error)),
+          onFailure: (final coord, final error) => failures.add((coord, error)),
         );
 
   final findings = [...collectionFindings];

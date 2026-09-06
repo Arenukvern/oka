@@ -1,19 +1,19 @@
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
-import 'package:oka_core/src/config/build_context.dart';
 import 'sdk_locator.dart';
 
 /// Android APK builder that orchestrates the build pipeline
 class AndroidBuilder {
+
+  AndroidBuilder(this._sdkLocator, {this._verbose = false});
   final SdkLocator _sdkLocator;
   final bool _verbose;
 
-  AndroidBuilder(this._sdkLocator, {bool verbose = false}) : _verbose = verbose;
-
   /// Build APK from build context
-  Future<BuildArtifact> buildApk(BuildContext ctx) async {
+  Future<BuildArtifact> buildApk(final BuildContext ctx) async {
     final startTime = DateTime.now();
 
     try {
@@ -85,7 +85,7 @@ class AndroidBuilder {
   }
 
   /// Compile Android resources using aapt2
-  Future<void> compileResources(BuildContext ctx) async {
+  Future<void> compileResources(final BuildContext ctx) async {
     final aapt2 = await _sdkLocator.findAapt2();
     final androidSdk = await _sdkLocator.findAndroidSdk();
 
@@ -154,7 +154,7 @@ class AndroidBuilder {
   }
 
   /// Compile Kotlin and Java sources
-  Future<void> compileKotlin(BuildContext ctx) async {
+  Future<void> compileKotlin(final BuildContext ctx) async {
     // Resolve Java environment first
     final javaEnvironment = await _sdkLocator.resolveJavaForKotlin(ctx);
     final env = javaEnvironment ?? Platform.environment;
@@ -338,7 +338,7 @@ class AndroidBuilder {
   }
 
   /// Convert compiled classes to DEX format
-  Future<void> convertToDex(BuildContext ctx) async {
+  Future<void> convertToDex(final BuildContext ctx) async {
     final classesDir = p.join(ctx.buildDir, 'classes');
     final classesJar = p.join(ctx.buildDir, 'classes.jar');
     final dexFile = p.join(ctx.buildDir, 'classes.dex');
@@ -370,7 +370,7 @@ class AndroidBuilder {
       androidxAnnotationJar,
       androidxLifecycleJar,
       androidxLifecycleRuntimeJar,
-      if (kotlinStdlib != null) kotlinStdlib,
+      ?kotlinStdlib,
     ];
 
     if (_verbose) {
@@ -462,7 +462,7 @@ class AndroidBuilder {
   }
 
   /// Package APK with all resources and DEX files
-  Future<void> packageApk(BuildContext ctx) async {
+  Future<void> packageApk(final BuildContext ctx) async {
     final apkPath = p.join(ctx.buildDir, 'app-${ctx.mode.name}-unsigned.apk');
     final resourcesApk = p.join(ctx.buildDir, 'resources.ap_');
     final dexFile = p.join(ctx.buildDir, 'classes.dex');
@@ -487,7 +487,7 @@ class AndroidBuilder {
   }
 
   /// Sign APK with debug or release keystore
-  Future<void> signApk(BuildContext ctx) async {
+  Future<void> signApk(final BuildContext ctx) async {
     final zipalign = await _sdkLocator.findZipalign();
     final apksigner = await _sdkLocator.findApksigner();
 
@@ -535,7 +535,7 @@ class AndroidBuilder {
 
   // Private helper methods
 
-  Future<void> _createBuildDirectories(BuildContext ctx) async {
+  Future<void> _createBuildDirectories(final BuildContext ctx) async {
     final dirs = [
       ctx.buildDir,
       p.join(ctx.buildDir, 'compiled_res'),
@@ -548,7 +548,7 @@ class AndroidBuilder {
     }
   }
 
-  Future<List<String>> _findSourceFiles(String dir, String extension) async {
+  Future<List<String>> _findSourceFiles(final String dir, final String extension) async {
     final directory = Directory(dir);
     if (!await directory.exists()) {
       return [];

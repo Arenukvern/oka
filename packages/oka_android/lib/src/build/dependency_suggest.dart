@@ -8,8 +8,12 @@ class DependencySuggestion {
   final String artifactId;
   final String version;
   final String missingClass;
-  final double confidence; // 0..1
-  final String source; // 'known-class' | 'cache-scan'
+
+  /// Confidence 0..1.
+  final double confidence;
+
+  /// Provenance: 'known-class' | 'cache-scan'.
+  final String source;
 
   const DependencySuggestion({
     required this.groupId,
@@ -224,11 +228,11 @@ kKnownClassArtifacts = {
 /// - `NoClassDefFoundError: Failed resolution of: Lfoo/Bar;`
 /// - `NoClassDefFoundError: Lfoo/Bar;`
 /// - `ClassNotFoundException: Didn't find class "foo.Bar" on path: …`
-String? extractMissingClass(String logText) {
+String? extractMissingClass(final String logText) {
   final patterns = <RegExp>[
     RegExp(r'Failed resolution of:\s*(L[\w/$]+;)'),
-    RegExp(r"NoClassDefFoundError:\s*(L[\w/$]+;)"),
-    RegExp('Didn.t find class\\s*"([\\w.\$]+)"'),
+    RegExp(r'NoClassDefFoundError:\s*(L[\w/$]+;)'),
+    RegExp(r'Didn.t find class\s*"([\w.$]+)"'),
     RegExp(r'ClassNotFoundException:\s*([\w.$]+)'),
   ];
   for (final re in patterns) {
@@ -241,7 +245,7 @@ String? extractMissingClass(String logText) {
   return null;
 }
 
-String _descriptorToClassName(String raw) {
+String _descriptorToClassName(final String raw) {
   var s = raw.trim();
   if (s.startsWith('L') && s.endsWith(';')) {
     s = s.substring(1, s.length - 1);
@@ -251,12 +255,12 @@ String _descriptorToClassName(String raw) {
 
 /// Maps a missing class to dependency suggestions.
 class MissingDependencyResolver {
-  final String cacheRoot;
 
-  MissingDependencyResolver({String? cacheRoot})
+  MissingDependencyResolver({final String? cacheRoot})
     : cacheRoot =
           cacheRoot ??
           p.join(Platform.environment['HOME'] ?? '.', '.oka', 'cache', 'maven');
+  final String cacheRoot;
 
   /// Suggest dependencies for [missingClass] (e.g. `androidx.collection.SimpleArrayMap`).
   ///
@@ -265,7 +269,7 @@ class MissingDependencyResolver {
   ///    prefixes (longest match wins).
   /// 2. Cache scan: search cached jars under [cacheRoot] whose path matches
   ///    the package segments of the missing class.
-  Future<List<DependencySuggestion>> suggest(String missingClass) async {
+  Future<List<DependencySuggestion>> suggest(final String missingClass) async {
     final results = <DependencySuggestion>[];
 
     // 1. Longest-prefix known-class match.
@@ -294,17 +298,15 @@ class MissingDependencyResolver {
     if (results.isEmpty && parts.length >= 2) {
       final pkgPath = parts.sublist(0, parts.length - 1).join('/');
       final hits = await _scanCache(pkgPath);
-      for (final hit in hits) {
-        results.add(hit);
-      }
+      hits.forEach(results.add);
     }
 
     // Highest confidence first.
-    results.sort((a, b) => b.confidence.compareTo(a.confidence));
+    results.sort((final a, final b) => b.confidence.compareTo(a.confidence));
     return results;
   }
 
-  Future<List<DependencySuggestion>> _scanCache(String pkgPath) async {
+  Future<List<DependencySuggestion>> _scanCache(final String pkgPath) async {
     final out = <DependencySuggestion>[];
     final root = Directory(cacheRoot);
     if (!await root.exists()) return out;
@@ -322,7 +324,7 @@ class MissingDependencyResolver {
           if (v is Directory) versions.add(p.basename(v.path));
         }
         if (versions.isEmpty) continue;
-        versions.sort((a, b) {
+        versions.sort((final a, final b) {
           final pa = a.split('.').map(int.tryParse).toList();
           final pb = b.split('.').map(int.tryParse).toList();
           for (
@@ -355,8 +357,8 @@ class MissingDependencyResolver {
 
 /// Formats suggestions into user-facing guidance with copy-pasteable fixes.
 String formatSuggestions(
-  String missingClass,
-  List<DependencySuggestion> suggestions,
+  final String missingClass,
+  final List<DependencySuggestion> suggestions,
 ) {
   if (suggestions.isEmpty) {
     return 'No known Maven artifact found for "$missingClass".\n'

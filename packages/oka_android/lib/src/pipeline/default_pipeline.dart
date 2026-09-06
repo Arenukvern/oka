@@ -1,32 +1,30 @@
-export '../pipeline_overrides.dart';
-
-import '../pipeline_overrides.dart';
-
-import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
+import '../android_artifacts.dart';
+import '../android_state.dart';
 import '../build/apk_layout.dart';
 import '../build/dependency_cache.dart';
 import '../build/flutter_assemble.dart';
 import '../build/plugin_discovery.dart';
 import '../build/sdk_locator.dart';
-import 'package:oka_core/src/config/build_context.dart';
-import 'package:oka_core/src/pipeline/pipeline.dart';
-
-import '../android_artifacts.dart';
-import '../android_state.dart';
+import '../pipeline_overrides.dart';
 import '../post_build_lint.dart';
 import 'steps/asset_steps.dart';
 import 'steps/flutter_steps.dart';
 import 'steps/host_steps.dart';
 import 'steps/tool_steps.dart';
 
+export '../pipeline_overrides.dart';
+
 
 /// Resolves user-declared extra Maven coordinates into
 /// [PipelineState.extraRuntimeJars] before compile/dex.
 class ExtraDepsStep extends BuildStep {
+
+  ExtraDepsStep(this.coordinates, this.cache, {this.verbose = false});
   @override
   Set<Artifact<Object>> get provides => {extraRuntimeJars};
 
@@ -37,10 +35,8 @@ class ExtraDepsStep extends BuildStep {
   @override
   String get name => 'extra-deps';
 
-  ExtraDepsStep(this.coordinates, this.cache, {this.verbose = false});
-
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     // ADR-0010: constructor coordinates win; pipeline-level overrides fill in.
     final effective = coordinates.isNotEmpty
         ? coordinates
@@ -78,6 +74,8 @@ class ExtraDepsStep extends BuildStep {
 /// results land in [PipelineState.extraRuntimeJars], `aarNativeLibsByAbi`, and
 /// `aarResDirs` for downstream compile/package steps.
 class LocalAarsStep extends BuildStep {
+
+  LocalAarsStep(this.aarPaths, {this.verbose = false});
   @override
   Set<Artifact<Object>> get provides => {aarNativeLibsByAbi, aarResDirs};
 
@@ -87,10 +85,8 @@ class LocalAarsStep extends BuildStep {
   @override
   String get name => 'local-aars';
 
-  LocalAarsStep(this.aarPaths, {this.verbose = false});
-
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     // ADR-0010: constructor paths win; pipeline-level overrides fill in.
     final effective = aarPaths.isNotEmpty
         ? aarPaths
@@ -129,7 +125,7 @@ class LocalAarsStep extends BuildStep {
 
       // natives + res
       final payload = await extractAarPayload(bytes, workDir, verbose: verbose);
-      payload.nativeLibsByAbi.forEach((abi, paths) {
+      payload.nativeLibsByAbi.forEach((final abi, final paths) {
         natives.putIfAbsent(abi, () => []).addAll(paths);
       });
       resDirs.addAll(payload.resDirs);
@@ -145,6 +141,8 @@ class LocalAarsStep extends BuildStep {
 
 /// Layout-only staging used by unit tests (no external tools invoked).
 class _LayoutOnlyStep extends BuildStep {
+
+  _LayoutOnlyStep(this.sdkLocator);
   @override
   Set<Artifact<Object>> get provides => {abis, apkPath};
 
@@ -153,10 +151,8 @@ class _LayoutOnlyStep extends BuildStep {
   @override
   String get name => 'layout-only';
 
-  _LayoutOnlyStep(this.sdkLocator);
-
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final abis = resolveAbis(
       configAbis: ctx.config.android.abis,
       targetAbi: ctx.targetAbi,
@@ -193,13 +189,13 @@ class _LayoutOnlyStep extends BuildStep {
 /// Step order mirrors the historical FlutterApkBuilder.build() exactly —
 /// this is a behavior-preserving composition.
 Future<Pipeline> defaultApkPipeline(
-  SdkLocator sdkLocator, {
-  bool verbose = false,
-  bool layoutOnly = false,
-  bool strictPlugins = true,
-  bool allowNetwork = true,
-  DependencyCache? dependencyCache,
-  PipelineOverrides overrides = const PipelineOverrides(),
+  final SdkLocator sdkLocator, {
+  final bool verbose = false,
+  final bool layoutOnly = false,
+  final bool strictPlugins = true,
+  final bool allowNetwork = true,
+  final DependencyCache? dependencyCache,
+  final PipelineOverrides overrides = const PipelineOverrides(),
 }) async {
   final cache =
       dependencyCache ??
@@ -248,12 +244,12 @@ Future<Pipeline> defaultApkPipeline(
 /// (`--proto-format`), packaging (`base/` module + jarsigner v1) and layout
 /// validation.
 Future<Pipeline> defaultAabPipeline(
-  SdkLocator sdkLocator, {
-  bool verbose = false,
-  bool strictPlugins = true,
-  bool allowNetwork = true,
-  DependencyCache? dependencyCache,
-  PipelineOverrides overrides = const PipelineOverrides(),
+  final SdkLocator sdkLocator, {
+  final bool verbose = false,
+  final bool strictPlugins = true,
+  final bool allowNetwork = true,
+  final DependencyCache? dependencyCache,
+  final PipelineOverrides overrides = const PipelineOverrides(),
 }) async {
   final cache =
       dependencyCache ??
@@ -290,4 +286,3 @@ Future<Pipeline> defaultAabPipeline(
     PostBuildLintStep(maxSizeMb: overrides.maxSizeMb),
   ], verbose: verbose);
 }
-

@@ -1,12 +1,17 @@
+import 'package:meta/meta.dart';
+
 /// A Maven coordinate — the single canonical typed value (ADR-0006/0007).
 ///
 /// Previously duplicated as a map extension type (oka_core) and a typed class
 /// (oka_android); consolidated here.
+@immutable
 class MavenCoordinate {
   final String groupId;
   final String artifactId;
   final String version;
-  final String packaging; // jar | aar | pom
+
+  /// Artifact packaging: jar | aar | pom.
+  final String packaging;
 
   const MavenCoordinate({
     required this.groupId,
@@ -15,8 +20,10 @@ class MavenCoordinate {
     this.packaging = 'jar',
   });
 
-  factory MavenCoordinate.fromJson(dynamic json) {
-    final map = (json as Map).cast<String, dynamic>();
+  factory MavenCoordinate.fromJson(final Object? json) {
+    final map = json is Map
+        ? json.cast<String, dynamic>()
+        : <String, dynamic>{};
     return MavenCoordinate(
       groupId: map['groupId'] as String? ?? map['group'] as String? ?? '',
       artifactId:
@@ -30,10 +37,10 @@ class MavenCoordinate {
 
   /// Parses `group:artifact:version` (packaging auto-detected via KMP
   /// suffix probing at resolve time). Returns null for malformed input.
-  static MavenCoordinate? parse(String coordinate) {
+  static MavenCoordinate? parse(final String coordinate) {
     final parts = coordinate.split(':');
     if (parts.length != 3) return null;
-    if (parts.any((p) => p.trim().isEmpty)) return null;
+    if (parts.any((final p) => p.trim().isEmpty)) return null;
     return MavenCoordinate(
       groupId: parts[0].trim(),
       artifactId: parts[1].trim(),
@@ -64,7 +71,7 @@ class MavenCoordinate {
   String toString() => '$groupId:$artifactId:$version@$packaging';
 
   @override
-  bool operator ==(Object other) =>
+  bool operator ==(final Object other) =>
       other is MavenCoordinate && other.cacheKey == cacheKey;
 
   @override

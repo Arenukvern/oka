@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
-/// Abstract AI client interface
+/// Abstract AI client interface.
+//
+// ignore: one_member_abstracts
 abstract class AiClient {
   Future<String> complete(String prompt);
 }

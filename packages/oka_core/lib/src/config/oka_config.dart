@@ -11,9 +11,9 @@ import 'flutter_config.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const OkaConfig(Map<String, dynamic> value) {
-  static const empty = OkaConfig({});
 
-  factory OkaConfig.fromJson(dynamic json) => OkaConfig(jsonDecodeMap(json));
+  factory OkaConfig.fromJson(final Object? json) => OkaConfig(jsonDecodeMap(json));
+  static const empty = OkaConfig({});
 
   /// Android build configuration
   AndroidConfig get android => AndroidConfig.fromJson(value['android']);
@@ -25,7 +25,7 @@ extension type const OkaConfig(Map<String, dynamic> value) {
   /// List of dependencies (Maven artifacts, local AARs, etc.)
   List<Dependency> get dependencies {
     final deps = jsonDecodeList(value['dependencies']);
-    return deps.map((dynamic e) => Dependency.fromJson(e)).toList();
+    return deps.map(Dependency.fromJson).toList();
   }
 
   /// Flutter build configuration

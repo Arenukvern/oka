@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 
 /// Fingerprint-based step cache (ADR-0006: incremental builds).
 ///
@@ -12,10 +12,10 @@ import 'package:crypto/crypto.dart';
 /// sources, dependencies, defines, tool versions — forces a full re-run.
 /// Deleting the build dir (or `oka clean`) resets everything.
 class StepCache {
-  final String buildDir;
-  final bool verbose;
 
   StepCache(this.buildDir, {this.verbose = false});
+  final String buildDir;
+  final bool verbose;
 
   File get _file => File(p.join(buildDir, 'step_cache.json'));
 
@@ -36,10 +36,10 @@ class StepCache {
   /// [requiredOutputs] (file paths) still exist, and [validate] passes
   /// (used for list-valued outputs such as dex file lists); null otherwise.
   Map<String, dynamic>? hit(
-    String step,
-    String fingerprint, {
-    List<String> requiredOutputs = const [],
-    bool Function(Map<String, dynamic> outputs)? validate,
+    final String step,
+    final String fingerprint, {
+    final List<String> requiredOutputs = const [],
+    final bool Function(Map<String, dynamic> outputs)? validate,
   }) {
     final entry = _data[step] as Map<String, dynamic>?;
     if (entry == null) {
@@ -65,9 +65,9 @@ class StepCache {
   }
 
   Future<void> store(
-    String step,
-    String fingerprint,
-    Map<String, dynamic> outputs,
+    final String step,
+    final String fingerprint,
+    final Map<String, dynamic> outputs,
   ) async {
     _data[step] = {'fingerprint': fingerprint, ...outputs};
     final f = _file;
@@ -77,7 +77,7 @@ class StepCache {
 
   /// Drops a step's entry (e.g. after a failed downstream step that may have
   /// consumed its outputs).
-  Future<void> invalidate(String step) async {
+  Future<void> invalidate(final String step) async {
     _data.remove(step);
     final f = _file;
     if (await f.exists()) {
@@ -90,8 +90,8 @@ class StepCache {
 /// extras (mode, defines, tool versions, …). Missing files hash as misses —
 /// never silently reuse.
 Future<String> fingerprintInputs(
-  Iterable<String> paths, {
-  Iterable<String> extras = const [],
+  final Iterable<String> paths, {
+  final Iterable<String> extras = const [],
 }) async {
   final sink = _HashSink();
   for (final extra in extras) {
@@ -120,20 +120,20 @@ Future<String> fingerprintInputs(
 
 class _HashSink {
   final _output = _StringSink();
-  void add(String s) => _output.write(s);
+  void add(final String s) => _output.write(s);
   String get digest => sha256.convert(utf8.encode(_output.toString())).toString();
 }
 
 class _StringSink {
   final _sb = StringBuffer();
-  void write(String s) => _sb.write(s);
+  void write(final String s) => _sb.write(s);
   @override
   String toString() => _sb.toString();
 }
 
 /// Collects all files under [dir] (recursively), or returns empty when the
 /// dir does not exist.
-List<String> filesUnder(String dir, {String? extension}) {
+List<String> filesUnder(final String dir, {final String? extension}) {
   final d = Directory(dir);
   if (!d.existsSync()) return const [];
   final out = <String>[];

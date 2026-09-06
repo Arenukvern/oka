@@ -16,10 +16,10 @@ import 'pipeline/pipeline.dart';
 /// );
 /// ```
 class Oka {
-  /// Platform pipelines to compose. One is selected per build target.
-  final List<PlatformPipeline> pipelines;
 
   const Oka({required this.pipelines});
+  /// Platform pipelines to compose. One is selected per build target.
+  final List<PlatformPipeline> pipelines;
 }
 
 /// A platform-specific pipeline (e.g. `AndroidPipeline` from oka_android).
@@ -38,5 +38,5 @@ abstract class PlatformPipeline {
   Map<String, dynamic> get configOverrides => const {};
 
   /// Composes and runs this pipeline for [ctx].
-  Future<StepResult> run(BuildContext ctx);
+  Future<StepResult> run(final BuildContext ctx);
 }

@@ -1,20 +1,23 @@
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
+
+import 'package:path/path.dart' as p;
 
 import '../../android_artifacts.dart';
+import '../../android_state.dart';
+import '../../auto_resolve.dart';
 import '../../build/aab_layout.dart';
 import '../../build/apk_layout.dart';
 import '../../build/sdk_locator.dart';
-import 'package:path/path.dart' as p;
-import 'package:oka_core/src/config/build_context.dart';
-import 'package:oka_core/src/pipeline/pipeline.dart';
-import '../../android_state.dart';
-import '../toolchain.dart';
-import '../../auto_resolve.dart';
 import '../../build_cache.dart';
 import '../../signing_config.dart';
+import '../toolchain.dart';
 
 /// aapt2 compile/link + kotlinc/javac + d8 → dex files.
 class CompileAndDexStep extends BuildStep {
+
+  CompileAndDexStep({final SdkLocator? sdkLocator, this.resourceConfigs = const []})
+    : sdkLocator = sdkLocator ?? SdkLocator();
   @override
   Set<Artifact<Object>> get requires => {hostDir, embeddingJar, packagedPlugins};
 
@@ -27,7 +30,7 @@ class CompileAndDexStep extends BuildStep {
   final List<String> resourceConfigs;
 
   /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
-  List<String> _effectiveResourceConfigs(PipelineState state) =>
+  List<String> _effectiveResourceConfigs(final PipelineState state) =>
       resourceConfigs.isNotEmpty
           ? resourceConfigs
           : (state.pipelineOverrides?.resourceConfigs ?? const []);
@@ -35,11 +38,8 @@ class CompileAndDexStep extends BuildStep {
   @override
   String get name => 'compile-and-dex';
 
-  CompileAndDexStep({SdkLocator? sdkLocator, this.resourceConfigs = const []})
-    : sdkLocator = sdkLocator ?? SdkLocator();
-
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
     if ((packaged?.allKotlinSources ?? const []).isNotEmpty) {
@@ -52,9 +52,9 @@ class CompileAndDexStep extends BuildStep {
       }
     }
     final gradleFiles = (packaged?.plugins ?? const [])
-        .map((p) => p.plugin.path)
+        .map((final p) => p.plugin.path)
         .expand(
-          (path) => [
+          (final path) => [
             '$path/android/build.gradle',
             '$path/android/build.gradle.kts',
           ],
@@ -63,7 +63,7 @@ class CompileAndDexStep extends BuildStep {
     final javaLevel = effectiveJavaLevel(
       configVersion: ctx.config.android.javaVersion,
       pluginGradleFiles: gradleFiles,
-      onBump: (m) => ctx.warn(m),
+      onBump: ctx.warn,
     );
     final version = resolveAndroidVersion(
       ctx.projectPath,
@@ -81,7 +81,7 @@ class CompileAndDexStep extends BuildStep {
       ...(packaged?.allKotlinSources ?? const []),
       ...(packaged?.resDirs ?? const []).expand(filesUnder),
       ...state.aarResDirs.expand(filesUnder),
-      ...state.androidxJars.map((j) => j.jarPath),
+      ...state.androidxJars.map((final j) => j.jarPath),
       ...state.extraRuntimeJars,
     ], extras: [
       'abis:${state.abis.join(',')}',
@@ -96,8 +96,8 @@ class CompileAndDexStep extends BuildStep {
     final cached = cache.hit(
       'compile-and-dex',
       compileFp,
-      validate: (o) => (o['dex_files'] as List?)?.cast<String>().every(
-            (f) => File(f).existsSync(),
+      validate: (final o) => (o['dex_files'] as List?)?.cast<String>().every(
+            (final f) => File(f).existsSync(),
           ) ??
           false,
     );
@@ -113,7 +113,7 @@ class CompileAndDexStep extends BuildStep {
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
-        ...state.androidxJars.map((j) => j.jarPath),
+        ...state.androidxJars.map((final j) => j.jarPath),
         ...state.extraRuntimeJars,
       ],
       pluginJavaSources: packaged?.allJavaSources ?? const [],
@@ -136,6 +136,9 @@ class CompileAndDexStep extends BuildStep {
 
 /// Stages the APK layout, zips, zipaligns and signs.
 class PackageAndSignStep extends BuildStep {
+
+  PackageAndSignStep({final SdkLocator? sdkLocator, this.signing})
+    : sdkLocator = sdkLocator ?? SdkLocator();
   @override
   Set<Artifact<Object>> get requires =>
       {dexFiles, flutterAssetsDir, libflutterByAbi};
@@ -151,21 +154,18 @@ class PackageAndSignStep extends BuildStep {
   @override
   String get name => 'package-and-sign';
 
-  PackageAndSignStep({SdkLocator? sdkLocator, this.signing})
-    : sdkLocator = sdkLocator ?? SdkLocator();
-
   /// ADR-0010: constructor signing wins; pipeline-level overrides fill in.
-  SigningConfig? _effectiveSigning(PipelineState state) =>
+  SigningConfig? _effectiveSigning(final PipelineState state) =>
       signing ?? state.pipelineOverrides?.signing;
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     print('📱 Packaging APK...');
     // Merge AAR natives (Maven-resolved + local) into the plugin natives map.
     final extraNatives = <String, List<String>>{
       ...state.packagedPlugins?.nativeLibsByAbi ?? const {},
     };
-    state.aarNativeLibsByAbi.forEach((abi, paths) {
+    state.aarNativeLibsByAbi.forEach((final abi, final paths) {
       final norm = normalizeAbi(abi);
       extraNatives.putIfAbsent(norm, () => []).addAll(paths);
     });
@@ -187,6 +187,11 @@ class PackageAndSignStep extends BuildStep {
 
 /// aapt2 compile + proto-format link + javac/kotlinc + d8 (AAB, ADR-0004).
 class CompileProtoAndDexStep extends BuildStep {
+
+  CompileProtoAndDexStep({
+    final SdkLocator? sdkLocator,
+    this.resourceConfigs = const [],
+  }) : sdkLocator = sdkLocator ?? SdkLocator();
   @override
   Set<Artifact<Object>> get requires => {hostDir, embeddingJar, packagedPlugins};
 
@@ -201,19 +206,14 @@ class CompileProtoAndDexStep extends BuildStep {
   @override
   String get name => 'compile-proto-and-dex';
 
-  CompileProtoAndDexStep({
-    SdkLocator? sdkLocator,
-    this.resourceConfigs = const [],
-  }) : sdkLocator = sdkLocator ?? SdkLocator();
-
   /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
-  List<String> _effectiveResourceConfigs(PipelineState state) =>
+  List<String> _effectiveResourceConfigs(final PipelineState state) =>
       resourceConfigs.isNotEmpty
           ? resourceConfigs
           : (state.pipelineOverrides?.resourceConfigs ?? const []);
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
     if ((packaged?.allKotlinSources ?? const []).isNotEmpty) {
@@ -226,9 +226,9 @@ class CompileProtoAndDexStep extends BuildStep {
       }
     }
     final gradleFiles = (packaged?.plugins ?? const [])
-        .map((p) => p.plugin.path)
+        .map((final p) => p.plugin.path)
         .expand(
-          (path) => [
+          (final path) => [
             '$path/android/build.gradle',
             '$path/android/build.gradle.kts',
           ],
@@ -237,7 +237,7 @@ class CompileProtoAndDexStep extends BuildStep {
     final javaLevel = effectiveJavaLevel(
       configVersion: ctx.config.android.javaVersion,
       pluginGradleFiles: gradleFiles,
-      onBump: (m) => ctx.warn(m),
+      onBump: ctx.warn,
     );
     final version = resolveAndroidVersion(
       ctx.projectPath,
@@ -255,7 +255,7 @@ class CompileProtoAndDexStep extends BuildStep {
       ...(packaged?.allKotlinSources ?? const []),
       ...(packaged?.resDirs ?? const []).expand(filesUnder),
       ...state.aarResDirs.expand(filesUnder),
-      ...state.androidxJars.map((j) => j.jarPath),
+      ...state.androidxJars.map((final j) => j.jarPath),
       ...state.extraRuntimeJars,
     ], extras: [
       'proto:true',
@@ -270,8 +270,8 @@ class CompileProtoAndDexStep extends BuildStep {
     final cached = cache.hit(
       'compile-proto-and-dex',
       compileFp,
-      validate: (o) => (o['dex_files'] as List?)?.cast<String>().every(
-            (f) => File(f).existsSync(),
+      validate: (final o) => (o['dex_files'] as List?)?.cast<String>().every(
+            (final f) => File(f).existsSync(),
           ) ??
           false,
     );
@@ -288,7 +288,7 @@ class CompileProtoAndDexStep extends BuildStep {
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
-        ...state.androidxJars.map((j) => j.jarPath),
+        ...state.androidxJars.map((final j) => j.jarPath),
         ...state.extraRuntimeJars,
       ],
       pluginJavaSources: packaged?.allJavaSources ?? const [],
@@ -311,6 +311,9 @@ class CompileProtoAndDexStep extends BuildStep {
 
 /// Stages the AAB `base/` module, zips and signs with jarsigner (v1).
 class PackageAndSignAabStep extends BuildStep {
+
+  PackageAndSignAabStep({final SdkLocator? sdkLocator, this.signing})
+    : sdkLocator = sdkLocator ?? SdkLocator();
   @override
   Set<Artifact<Object>> get requires =>
       {dexFiles, flutterAssetsDir, libflutterByAbi};
@@ -326,20 +329,17 @@ class PackageAndSignAabStep extends BuildStep {
   @override
   String get name => 'package-and-sign-aab';
 
-  PackageAndSignAabStep({SdkLocator? sdkLocator, this.signing})
-    : sdkLocator = sdkLocator ?? SdkLocator();
-
   /// ADR-0010: constructor signing wins; pipeline-level overrides fill in.
-  SigningConfig? _effectiveSigningAab(PipelineState state) =>
+  SigningConfig? _effectiveSigningAab(final PipelineState state) =>
       signing ?? state.pipelineOverrides?.signing;
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     print('📦 Packaging App Bundle...');
     final extraNatives = <String, List<String>>{
       ...state.packagedPlugins?.nativeLibsByAbi ?? const {},
     };
-    state.aarNativeLibsByAbi.forEach((abi, paths) {
+    state.aarNativeLibsByAbi.forEach((final abi, final paths) {
       final norm = normalizeBundleAbi(abi);
       extraNatives.putIfAbsent(norm, () => []).addAll(paths);
     });
@@ -372,7 +372,7 @@ class ValidateAabLayoutStep extends BuildStep {
   String get name => 'validate-aab-layout';
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final entries = await listAabEntries(state.apkPath!);
     final validation = validateAabPathSet(
       entries,
@@ -389,7 +389,7 @@ class ValidateAabLayoutStep extends BuildStep {
   }
 }
 
-/// Validates the produced APK layout (dex + flutter_assets + lib/<abi>).
+/// Validates the produced APK layout (dex + `flutter_assets` + `lib/<abi>`).
 class ValidateLayoutStep extends BuildStep {
   @override
   Set<Artifact<Object>> get requires => {apkPath, abis};
@@ -398,7 +398,7 @@ class ValidateLayoutStep extends BuildStep {
   String get name => 'validate-layout';
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final entries = await listApkEntries(state.apkPath!);
     final validation = validatePathSet(
       entries,

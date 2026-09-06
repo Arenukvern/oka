@@ -10,6 +10,62 @@ import 'pipeline/steps/asset_steps.dart' show DeeplinkConfig;
 ///
 /// Rendering is deterministic (pure function in `host_codegen.dart`).
 class ManifestSpec {
+
+  const ManifestSpec({
+    this.permissions = const ['android.permission.INTERNET'],
+    this.applicationAttributes = const {},
+    this.applicationMetaData = const [],
+    this.activityAttributes = const {},
+    this.deeplinks = const [],
+    this.debuggable = true,
+    this.extractNativeLibs = true,
+    this.flutterDeeplinking = false,
+    this.cleartextTraffic,
+  });
+
+  /// Parses `oka.yaml` `android.manifest:` section.
+  ///
+  /// ```yaml
+  /// android:
+  ///   manifest:
+  ///     permissions: [android.permission.INTERNET, android.permission.CAMERA]
+  ///     cleartext_traffic: true
+  ///     application_attributes: {android:hardwareAccelerated: "true"}
+  ///     activity_attributes: {android:launchMode: singleTask}
+  ///     meta_data:
+  ///       - name: flutter_deeplinking_enabled
+  ///         value: "true"
+  /// ```
+  factory ManifestSpec.fromYamlMap(final Map<dynamic, dynamic> map) {
+    final perms = map['permissions'];
+    final appAttrs = map['application_attributes'];
+    final actAttrs = map['activity_attributes'];
+    final metaData = map['meta_data'];
+    final links = map['deeplinks'];
+    return ManifestSpec(
+      permissions: perms is List
+          ? perms.map((final e) => e.toString()).toList(growable: false)
+          : const [],
+      applicationAttributes: appAttrs is Map<dynamic, dynamic>
+          ? appAttrs.map((final k, final v) => MapEntry(k.toString(), v.toString()))
+          : const {},
+      activityAttributes: actAttrs is Map<dynamic, dynamic>
+          ? actAttrs.map((final k, final v) => MapEntry(k.toString(), v.toString()))
+          : const {},
+      applicationMetaData: metaData is List
+          ? metaData.whereType<Map<dynamic, dynamic>>().map(MetaDataSpec.fromMap).toList(
+              growable: false,
+            )
+          : const [],
+      deeplinks: links is List ? DeeplinkConfig.parse(links) : const [],
+      cleartextTraffic:
+          map['cleartext_traffic'] is bool
+          ? map['cleartext_traffic'] as bool
+          : null,
+      debuggable: map['debuggable'] is! bool || map['debuggable'] as bool,
+      extractNativeLibs: map['extract_native_libs'] is! bool || map['extract_native_libs'] as bool,
+    );
+  }
   /// `uses-permission` entries (full names, e.g.
   /// `android.permission.CAMERA`).
   final List<String> permissions;
@@ -40,28 +96,16 @@ class ManifestSpec {
   /// `android:usesCleartextTraffic` (null = attribute omitted).
   final bool? cleartextTraffic;
 
-  const ManifestSpec({
-    this.permissions = const ['android.permission.INTERNET'],
-    this.applicationAttributes = const {},
-    this.applicationMetaData = const [],
-    this.activityAttributes = const {},
-    this.deeplinks = const [],
-    this.debuggable = true,
-    this.extractNativeLibs = true,
-    this.flutterDeeplinking = false,
-    this.cleartextTraffic,
-  });
-
   ManifestSpec copyWith({
-    List<String>? permissions,
-    Map<String, String>? applicationAttributes,
-    List<MetaDataSpec>? applicationMetaData,
-    Map<String, String>? activityAttributes,
-    List<DeeplinkConfig>? deeplinks,
-    bool? debuggable,
-    bool? extractNativeLibs,
-    bool? flutterDeeplinking,
-    bool? cleartextTraffic,
+    final List<String>? permissions,
+    final Map<String, String>? applicationAttributes,
+    final List<MetaDataSpec>? applicationMetaData,
+    final Map<String, String>? activityAttributes,
+    final List<DeeplinkConfig>? deeplinks,
+    final bool? debuggable,
+    final bool? extractNativeLibs,
+    final bool? flutterDeeplinking,
+    final bool? cleartextTraffic,
   }) => ManifestSpec(
     permissions: permissions ?? this.permissions,
     applicationAttributes: applicationAttributes ?? this.applicationAttributes,
@@ -73,59 +117,19 @@ class ManifestSpec {
     flutterDeeplinking: flutterDeeplinking ?? this.flutterDeeplinking,
     cleartextTraffic: cleartextTraffic ?? this.cleartextTraffic,
   );
-
-  /// Parses `oka.yaml` `android.manifest:` section.
-  ///
-  /// ```yaml
-  /// android:
-  ///   manifest:
-  ///     permissions: [android.permission.INTERNET, android.permission.CAMERA]
-  ///     cleartext_traffic: true
-  ///     application_attributes: {android:hardwareAccelerated: "true"}
-  ///     activity_attributes: {android:launchMode: singleTask}
-  ///     meta_data:
-  ///       - name: flutter_deeplinking_enabled
-  ///         value: "true"
-  /// ```
-  factory ManifestSpec.fromYamlMap(Map<dynamic, dynamic> map) {
-    final perms = map['permissions'];
-    final appAttrs = map['application_attributes'];
-    final actAttrs = map['activity_attributes'];
-    final metaData = map['meta_data'];
-    final links = map['deeplinks'];
-    return ManifestSpec(
-      permissions: perms is List
-          ? perms.map((e) => e.toString()).toList(growable: false)
-          : const [],
-      applicationAttributes: appAttrs is Map<dynamic, dynamic>
-          ? appAttrs.map((k, v) => MapEntry(k.toString(), v.toString()))
-          : const {},
-      activityAttributes: actAttrs is Map<dynamic, dynamic>
-          ? actAttrs.map((k, v) => MapEntry(k.toString(), v.toString()))
-          : const {},
-      applicationMetaData: metaData is List
-          ? metaData.whereType<Map<dynamic, dynamic>>().map(MetaDataSpec.fromMap).toList(
-              growable: false,
-            )
-          : const [],
-      deeplinks: links is List ? DeeplinkConfig.parse(links) : const [],
-      cleartextTraffic:
-          map['cleartext_traffic'] is bool
-          ? map['cleartext_traffic'] as bool
-          : null,
-      debuggable: map['debuggable'] is bool
-          ? map['debuggable'] as bool
-          : true,
-      extractNativeLibs: map['extract_native_libs'] is bool
-          ? map['extract_native_libs'] as bool
-          : true,
-    );
-  }
 }
 
 /// A `<meta-data android:name="…">` entry: either `android:value` or
 /// `android:resource`.
 class MetaDataSpec {
+
+  const MetaDataSpec({required this.name, this.value, this.resource});
+
+  factory MetaDataSpec.fromMap(final Map<dynamic, dynamic> map) => MetaDataSpec(
+    name: map['name'].toString(),
+    value: map['value']?.toString(),
+    resource: map['resource']?.toString(),
+  );
   final String name;
 
   /// Literal value → `android:value="…"`.
@@ -133,14 +137,6 @@ class MetaDataSpec {
 
   /// Resource reference → `android:resource="…"` (e.g. `@style/NormalTheme`).
   final String? resource;
-
-  const MetaDataSpec({required this.name, this.value, this.resource});
-
-  factory MetaDataSpec.fromMap(Map<dynamic, dynamic> map) => MetaDataSpec(
-    name: map['name'].toString(),
-    value: map['value']?.toString(),
-    resource: map['resource']?.toString(),
-  );
 }
 
 /// Common permission name constants for typed composition.

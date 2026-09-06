@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:path/path.dart' as p;
 
 import 'apk_layout.dart' show listRelativePaths;
-import 'package:path/path.dart' as p;
 
 /// App Bundle layout helpers (ADR-0004).
 ///
@@ -67,13 +67,13 @@ List<int> minimalBundleConfigPb() {
 /// - [flutterAssetsDir] → `base/assets/flutter_assets/`.
 /// - [libflutterByAbi] / [libappByAbi] / [extraNativeByAbi] → `base/lib/<abi>/`.
 Future<void> stageAabBaseModule({
-  required String baseDir,
-  required String protoResourcesAp,
-  List<String> dexFiles = const [],
-  String? flutterAssetsDir,
-  Map<String, String> libflutterByAbi = const {},
-  Map<String, String> libappByAbi = const {},
-  Map<String, List<String>> extraNativeByAbi = const {},
+  required final String baseDir,
+  required final String protoResourcesAp,
+  final List<String> dexFiles = const [],
+  final String? flutterAssetsDir,
+  final Map<String, String> libflutterByAbi = const {},
+  final Map<String, String> libappByAbi = const {},
+  final Map<String, List<String>> extraNativeByAbi = const {},
 }) async {
   final root = Directory(baseDir);
   if (await root.exists()) {
@@ -119,7 +119,7 @@ Future<void> stageAabBaseModule({
     }
   }
 
-  Future<void> stageNative(Map<String, String> byAbi, String soName) async {
+  Future<void> stageNative(final Map<String, String> byAbi, final String soName) async {
     for (final entry in byAbi.entries) {
       final abi = normalizeBundleAbi(entry.key);
       final src = File(entry.value);
@@ -146,7 +146,7 @@ Future<void> stageAabBaseModule({
 }
 
 /// Zip a bundle root ([bundleRoot] containing `base/`) into [aabPath].
-Future<void> zipBundle(String bundleRoot, String aabPath) async {
+Future<void> zipBundle(final String bundleRoot, final String aabPath) async {
   final archive = Archive();
   // Deterministic artifact bytes (ADR-0007): sorted entry order.
   final entries = await listRelativePaths(Directory(bundleRoot));
@@ -165,12 +165,12 @@ Future<void> zipBundle(String bundleRoot, String aabPath) async {
 /// Returns the signed output path. [jarsignerPath] defaults to `jarsigner`
 /// on PATH; oka resolves it next to javac when possible.
 Future<String> signAab({
-  required String unsignedAabPath,
-  required String keystorePath,
-  required String keyAlias,
-  required String storePass,
-  required String signedAabPath,
-  String? jarsignerPath,
+  required final String unsignedAabPath,
+  required final String keystorePath,
+  required final String keyAlias,
+  required final String storePass,
+  required final String signedAabPath,
+  final String? jarsignerPath,
 }) async {
   final tool = jarsignerPath ?? 'jarsigner';
   final result = await Process.run(tool, [
@@ -191,12 +191,6 @@ Future<String> signAab({
 
 /// Describes files that must appear in a complete Flutter AAB `base/` module.
 class AabLayoutSpec {
-  final bool requireDex;
-  final bool requireFlutterAssets;
-  final bool requireProtoResources;
-  final bool requireBundleConfig;
-  final List<String> abis;
-  final bool requireLibapp;
 
   const AabLayoutSpec({
     this.requireDex = true,
@@ -206,31 +200,37 @@ class AabLayoutSpec {
     this.abis = const ['arm64-v8a'],
     this.requireLibapp = false,
   });
+  final bool requireDex;
+  final bool requireFlutterAssets;
+  final bool requireProtoResources;
+  final bool requireBundleConfig;
+  final List<String> abis;
+  final bool requireLibapp;
 }
 
 /// Result of validating an AAB layout.
 class AabLayoutValidation {
-  final bool ok;
-  final List<String> missing;
-  final List<String> present;
 
   const AabLayoutValidation({
     required this.ok,
     required this.missing,
     required this.present,
   });
+  final bool ok;
+  final List<String> missing;
+  final List<String> present;
 }
 
 /// Validate paths already listed from an `.aab` zip (module-relative).
 AabLayoutValidation validateAabPathSet(
-  Iterable<String> paths, {
-  AabLayoutSpec spec = const AabLayoutSpec(),
+  final Iterable<String> paths, {
+  final AabLayoutSpec spec = const AabLayoutSpec(),
 }) {
-  final normalized = paths.map((e) => e.replaceAll(r'\', '/')).toSet().toList();
+  final normalized = paths.map((final e) => e.replaceAll(r'\', '/')).toSet().toList();
   final missing = <String>[];
   final present = <String>[];
 
-  void check(String label, bool Function() ok) {
+  void check(final String label, final bool Function() ok) {
     if (ok()) {
       present.add(label);
     } else {
@@ -238,7 +238,7 @@ AabLayoutValidation validateAabPathSet(
     }
   }
 
-  bool has(String entry) => normalized.contains('base/$entry');
+  bool has(final String entry) => normalized.contains('base/$entry');
 
   if (spec.requireBundleConfig) {
     check('BundleConfig.pb', () => normalized.contains('BundleConfig.pb'));
@@ -257,14 +257,14 @@ AabLayoutValidation validateAabPathSet(
       () =>
           has('dex/classes.dex') ||
           normalized.any(
-            (e) => RegExp(r'^base/dex/classes\d*\.dex$').hasMatch(e),
+            (final e) => RegExp(r'^base/dex/classes\d*\.dex$').hasMatch(e),
           ),
     );
   }
   if (spec.requireFlutterAssets) {
     check(
       'base/assets/flutter_assets/',
-      () => normalized.any((e) => e.startsWith('base/assets/flutter_assets')),
+      () => normalized.any((final e) => e.startsWith('base/assets/flutter_assets')),
     );
   }
   for (final abi in spec.abis.map(normalizeBundleAbi)) {
@@ -286,17 +286,17 @@ AabLayoutValidation validateAabPathSet(
 }
 
 /// Read entry names from an `.aab` zip.
-Future<List<String>> listAabEntries(String aabPath) async {
+Future<List<String>> listAabEntries(final String aabPath) async {
   final bytes = await File(aabPath).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
   return archive
-      .where((f) => f.isFile)
-      .map((f) => f.name.replaceAll(r'\', '/'))
+      .where((final f) => f.isFile)
+      .map((final f) => f.name.replaceAll(r'\', '/'))
       .toList();
 }
 
 /// ABI normalization shared with the APK path (delegates to the same rules).
-String normalizeBundleAbi(String abi) {
+String normalizeBundleAbi(final String abi) {
   switch (abi.toLowerCase().trim()) {
     case 'android-arm64':
     case 'arm64':
@@ -320,7 +320,7 @@ String normalizeBundleAbi(String abi) {
   }
 }
 
-Future<void> copyDirectoryTree(Directory source, Directory dest) async {
+Future<void> copyDirectoryTree(final Directory source, final Directory dest) async {
   await dest.create(recursive: true);
   await for (final e in source.list(recursive: true, followLinks: false)) {
     final rel = p.relative(e.path, from: source.path);

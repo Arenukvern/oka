@@ -7,7 +7,7 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const AndroidConfig(Map<String, dynamic> value) {
-  factory AndroidConfig.fromJson(dynamic json) =>
+  factory AndroidConfig.fromJson(final Object? json) =>
       AndroidConfig(jsonDecodeMap(json));
 
   /// Compile SDK version (e.g., "34")
@@ -75,7 +75,7 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
   static const empty = AndroidConfig({});
 
   /// Accepts YAML ints or strings for SDK API levels.
-  static String _sdkString(dynamic raw) {
+  static String _sdkString(final Object? raw) {
     if (raw == null) return '';
     if (raw is int) return '$raw';
     if (raw is num) return '${raw.toInt()}';

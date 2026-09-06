@@ -1,5 +1,5 @@
-import 'package:oka_core/src/config/maven_coordinate.dart';
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
@@ -11,27 +11,17 @@ import 'sdk_locator.dart';
 
 /// Declared Maven inputs for one plugin (ADR-0008).
 class PluginDeclaredDeps {
-  final List<MavenCoordinate> rootCoords;
-  final List<String> extraRepos;
 
   const PluginDeclaredDeps({
     required this.rootCoords,
     required this.extraRepos,
   });
+  final List<MavenCoordinate> rootCoords;
+  final List<String> extraRepos;
 }
 
 /// Result of packaging one Flutter Android plugin for no-Gradle APK builds.
 class PackagedPlugin {
-  final DiscoveredPlugin plugin;
-  final List<String> javaSources;
-  final List<String> kotlinSources;
-  final List<String> jarDeps;
-  final List<String> nativeLibs; // paths to .so files (any abi; staged later)
-  final Map<String, List<String>> nativeLibsByAbi; // abi -> .so paths
-  final List<String> resDirs;
-  final List<String> manifestPaths;
-  final bool packable;
-  final String? failureReason;
 
   const PackagedPlugin({
     required this.plugin,
@@ -45,6 +35,16 @@ class PackagedPlugin {
     this.packable = true,
     this.failureReason,
   });
+  final DiscoveredPlugin plugin;
+  final List<String> javaSources;
+  final List<String> kotlinSources;
+  final List<String> jarDeps;
+  final List<String> nativeLibs; // paths to .so files (any abi; staged later)
+  final Map<String, List<String>> nativeLibsByAbi; // abi -> .so paths
+  final List<String> resDirs;
+  final List<String> manifestPaths;
+  final bool packable;
+  final String? failureReason;
 
   bool get hasSources => javaSources.isNotEmpty || kotlinSources.isNotEmpty;
   bool get hasNative => nativeLibsByAbi.isNotEmpty || nativeLibs.isNotEmpty;
@@ -58,15 +58,6 @@ class PackagedPlugin {
 
 /// Aggregate packaging result for all plugins in a project.
 class PluginPackagingResult {
-  final List<PackagedPlugin> plugins;
-  final List<PackagedPlugin> failed;
-  final List<PluginRegistration> registrations;
-  final List<String> allJavaSources;
-  final List<String> allKotlinSources;
-  final List<String> allJarDeps;
-  final Map<String, List<String>> nativeLibsByAbi;
-  final List<String> resDirs;
-  final List<String> manifestPaths;
 
   const PluginPackagingResult({
     required this.plugins,
@@ -79,16 +70,21 @@ class PluginPackagingResult {
     required this.resDirs,
     required this.manifestPaths,
   });
+  final List<PackagedPlugin> plugins;
+  final List<PackagedPlugin> failed;
+  final List<PluginRegistration> registrations;
+  final List<String> allJavaSources;
+  final List<String> allKotlinSources;
+  final List<String> allJarDeps;
+  final Map<String, List<String>> nativeLibsByAbi;
+  final List<String> resDirs;
+  final List<String> manifestPaths;
 
   bool get allSucceeded => failed.isEmpty;
 }
 
 /// Collects sources, Maven deps, resources, and native libs for Flutter plugins.
 class PluginPackager {
-  final DependencyCache dependencyCache;
-  final SdkLocator sdkLocator;
-  final bool verbose;
-  final bool allowNetwork;
 
   PluginPackager({
     required this.dependencyCache,
@@ -96,16 +92,20 @@ class PluginPackager {
     this.verbose = false,
     this.allowNetwork = true,
   });
+  final DependencyCache dependencyCache;
+  final SdkLocator sdkLocator;
+  final bool verbose;
+  final bool allowNetwork;
 
   /// Package all Android plugins from [discovery].
   ///
   /// When [requireAll] is true (default strict), any packable-required plugin
   /// that cannot be prepared is listed in [PluginPackagingResult.failed].
   Future<PluginPackagingResult> packageAll(
-    PluginDiscoveryResult discovery, {
-    required String buildDir,
-    required List<String> abis,
-    bool requireAll = true,
+    final PluginDiscoveryResult discovery, {
+    required final String buildDir,
+    required final List<String> abis,
+    final bool requireAll = true,
   }) async {
     final packaged = <PackagedPlugin>[];
     final failed = <PackagedPlugin>[];
@@ -167,7 +167,7 @@ class PluginPackager {
       jars.addAll(result.jarDeps);
       resDirs.addAll(result.resDirs);
       manifests.addAll(result.manifestPaths);
-      result.nativeLibsByAbi.forEach((abi, paths) {
+      result.nativeLibsByAbi.forEach((final abi, final paths) {
         natives.putIfAbsent(abi, () => []).addAll(paths);
       });
       final reg = result.registration;
@@ -193,8 +193,8 @@ class PluginPackager {
   /// (kotlin set gated on [hasKotlinSources]). Shared by [packageOne] and the
   /// `oka explain --deps` dependency plan so both see identical inputs.
   Future<PluginDeclaredDeps> collectDeclaredDeps(
-    DiscoveredPlugin plugin, {
-    required bool hasKotlinSources,
+    final DiscoveredPlugin plugin, {
+    required final bool hasKotlinSources,
   }) async {
     final path = plugin.path;
     final gradleFiles = await _findGradleFiles(path);
@@ -227,7 +227,7 @@ class PluginPackager {
     final keptDeps = dedupeConditionalDeps(
       allDeps,
       pluginName: plugin.name,
-      onNotice: (notice) => print(notice),
+      onNotice: print,
     );
     for (final dep in keptDeps) {
       final packaging = await _guessPackaging(dep);
@@ -244,19 +244,16 @@ class PluginPackager {
         groupId: 'org.jetbrains.kotlin',
         artifactId: 'kotlin-stdlib',
         version: '2.0.21',
-        packaging: 'jar',
       ));
       rootCoords.add(const MavenCoordinate(
         groupId: 'org.jetbrains.kotlinx',
         artifactId: 'kotlinx-coroutines-core-jvm',
         version: '1.10.2',
-        packaging: 'jar',
       ));
       rootCoords.add(const MavenCoordinate(
         groupId: 'org.jetbrains.kotlinx',
         artifactId: 'kotlinx-coroutines-android',
         version: '1.10.2',
-        packaging: 'jar',
       ));
       // Common AndroidX KMP shells → ensure android variants are pulled
       rootCoords.add(const MavenCoordinate(
@@ -278,7 +275,6 @@ class PluginPackager {
         groupId: 'androidx.annotation',
         artifactId: 'annotation-jvm',
         version: '1.9.1',
-        packaging: 'jar',
       ),
       MavenCoordinate(
         groupId: 'androidx.core',
@@ -290,7 +286,6 @@ class PluginPackager {
         groupId: 'org.jetbrains',
         artifactId: 'annotations',
         version: '24.1.0',
-        packaging: 'jar',
       ),
     ]);
     return PluginDeclaredDeps(rootCoords: rootCoords, extraRepos: extraRepos);
@@ -298,16 +293,16 @@ class PluginPackager {
 
   /// Whether a plugin declares Kotlin host sources (gates the kotlin
   /// bootstrap dependency set).
-  Future<bool> hasKotlinSources(DiscoveredPlugin plugin) async {
+  Future<bool> hasKotlinSources(final DiscoveredPlugin plugin) async {
     final kt = await _findSources(plugin.path, ['.kt']);
     return kt.isNotEmpty;
   }
 
   /// Package a single plugin: sources, deps, res, natives.
   Future<PackagedPlugin> packageOne(
-    DiscoveredPlugin plugin, {
-    required String workDir,
-    required List<String> abis,
+    final DiscoveredPlugin plugin, {
+    required final String workDir,
+    required final List<String> abis,
   }) async {
     await Directory(workDir).create(recursive: true);
     final path = plugin.path;
@@ -322,8 +317,8 @@ class PluginPackager {
     final javaSources = await _findSources(path, ['.java']);
     final kotlinSources = await _findSources(path, ['.kt']);
     // Exclude test sources
-    final javaMain = javaSources.where((s) => !_isTestPath(s)).toList();
-    final ktMain = kotlinSources.where((s) => !_isTestPath(s)).toList();
+    final javaMain = javaSources.where((final s) => !_isTestPath(s)).toList();
+    final ktMain = kotlinSources.where((final s) => !_isTestPath(s)).toList();
 
     final jarDeps = <String>[];
     // Declared Maven inputs (ADR-0008): shared with the `oka explain --deps`
@@ -340,7 +335,7 @@ class PluginPackager {
           rootCoords,
           extraRepos: extraRepos,
         );
-        jarDeps.addAll(resolved.map((r) => r.jarPath));
+        jarDeps.addAll(resolved.map((final r) => r.jarPath));
       } catch (e) {
         if (verbose) {
           print('   ⚠️  ${plugin.name}: dependency resolve issues: $e');
@@ -372,7 +367,7 @@ class PluginPackager {
           workDir: p.join(workDir, 'native'),
           abis: abis,
         );
-        built.forEach((abi, soPath) {
+        built.forEach((final abi, final soPath) {
           nativesByAbi.putIfAbsent(abi, () => []).add(soPath);
         });
       } catch (e) {
@@ -396,7 +391,6 @@ class PluginPackager {
         nativesByAbi.isEmpty) {
       return PackagedPlugin(
         plugin: plugin,
-        packable: true,
       );
     }
 
@@ -425,7 +419,7 @@ class PluginPackager {
     if (verbose) {
       print(
         '   ${plugin.name}: java=${javaMain.length} kt=${ktMain.length} '
-        'jars=${jarDeps.length} natives=${nativesByAbi.values.fold<int>(0, (a, b) => a + b.length)}',
+        'jars=${jarDeps.length} natives=${nativesByAbi.values.fold<int>(0, (final a, final b) => a + b.length)}',
       );
     }
 
@@ -437,15 +431,14 @@ class PluginPackager {
       nativeLibsByAbi: nativesByAbi,
       resDirs: resDirs,
       manifestPaths: manifests,
-      packable: true,
     );
   }
 
   /// Minimal AGP-compatible BuildConfig for plugin sources that reference it.
   Future<String> _writeBuildConfig({
-    required String workDir,
-    required String packageName,
-    required bool debuggable,
+    required final String workDir,
+    required final String packageName,
+    required final bool debuggable,
   }) async {
     final rel = packageName.replaceAll('.', '/');
     final path = p.join(workDir, 'gen', rel, 'BuildConfig.java');
@@ -463,7 +456,7 @@ public final class BuildConfig {
     return path;
   }
 
-  Future<List<String>> _findSources(String pluginPath, List<String> exts) async {
+  Future<List<String>> _findSources(final String pluginPath, final List<String> exts) async {
     // Scan entire main trees — Java files often live under kotlin/ (Pigeon).
     final roots = [
       p.join(pluginPath, 'android', 'src', 'main'),
@@ -477,7 +470,7 @@ public final class BuildConfig {
       await for (final e in dir.list(recursive: true, followLinks: false)) {
         if (e is! File) continue;
         if (_isTestPath(e.path)) continue;
-        if (exts.any((x) => e.path.endsWith(x))) {
+        if (exts.any((final x) => e.path.endsWith(x))) {
           files.add(e.path);
         }
       }
@@ -485,14 +478,14 @@ public final class BuildConfig {
     return files.toSet().toList();
   }
 
-  bool _isTestPath(String path) {
+  bool _isTestPath(final String path) {
     final n = path.replaceAll(r'\', '/');
     return n.contains('/test/') ||
         n.contains('/androidTest/') ||
         n.contains('/src/test/');
   }
 
-  Future<List<String>> _findGradleFiles(String pluginPath) async {
+  Future<List<String>> _findGradleFiles(final String pluginPath) async {
     final candidates = [
       p.join(pluginPath, 'android', 'build.gradle'),
       p.join(pluginPath, 'android', 'build.gradle.kts'),
@@ -504,7 +497,7 @@ public final class BuildConfig {
     return out;
   }
 
-  Future<bool> _gradleHasExternalNativeBuild(String pluginPath) async {
+  Future<bool> _gradleHasExternalNativeBuild(final String pluginPath) async {
     for (final gf in await _findGradleFiles(pluginPath)) {
       final t = await File(gf).readAsString();
       if (t.contains('externalNativeBuild') || t.contains('cmake')) {
@@ -515,8 +508,8 @@ public final class BuildConfig {
   }
 
   Future<void> _collectPrebuiltNatives(
-    String pluginPath,
-    Map<String, List<String>> out,
+    final String pluginPath,
+    final Map<String, List<String>> out,
   ) async {
     final searchRoots = [
       p.join(pluginPath, 'android', 'src', 'main', 'jniLibs'),
@@ -542,7 +535,7 @@ public final class BuildConfig {
     }
   }
 
-  Future<String> _guessPackaging(ParsedGradleDep dep) async {
+  Future<String> _guessPackaging(final ParsedGradleDep dep) async {
     // Heuristic: androidx / com.google.android often AAR
     if (dep.groupId.startsWith('androidx.') ||
         dep.groupId.startsWith('com.google.android.') ||
@@ -563,9 +556,9 @@ public final class BuildConfig {
 
   /// Build CMake shared library for a plugin (e.g. jni → libdartjni.so).
   Future<Map<String, String>> buildCmakeNative({
-    required String pluginPath,
-    required String workDir,
-    required List<String> abis,
+    required final String pluginPath,
+    required final String workDir,
+    required final List<String> abis,
   }) async {
     final cmakeLists = File(p.join(pluginPath, 'src', 'CMakeLists.txt'));
     if (!await cmakeLists.exists()) {
@@ -668,7 +661,7 @@ public final class BuildConfig {
   }
 }
 
-String _ndkAbiTriple(String abi) {
+String _ndkAbiTriple(final String abi) {
   switch (abi) {
     case 'arm64-v8a':
       return 'aarch64-linux-android';
@@ -684,7 +677,7 @@ String _ndkAbiTriple(String abi) {
 }
 
 /// Locate NDK under Android SDK.
-Future<String?> findNdkHome(String androidSdk) async {
+Future<String?> findNdkHome(final String androidSdk) async {
   final env = Platform.environment['ANDROID_NDK_HOME'] ??
       Platform.environment['NDK_HOME'];
   if (env != null && await Directory(env).exists()) return env;
@@ -706,7 +699,7 @@ Future<String?> findNdkHome(String androidSdk) async {
 }
 
 /// Locate cmake binary (SDK side-by-side or system).
-Future<String?> findCmake(String androidSdk) async {
+Future<String?> findCmake(final String androidSdk) async {
   final cmakeRoot = Directory(p.join(androidSdk, 'cmake'));
   if (await cmakeRoot.exists()) {
     final versions = <String>[];

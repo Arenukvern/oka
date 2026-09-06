@@ -2,20 +2,19 @@ import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
 
-// ignore: implementation_imports
-import 'auto_resolve.dart';
-
 import 'android_artifacts.dart';
 import 'android_state.dart';
+// ignore: implementation_imports
+import 'auto_resolve.dart';
 import 'signing_config.dart';
 
 /// Result of one lint rule.
 class LintFinding {
+
+  const LintFinding(this.rule, this.severity, this.message);
   final String rule;
   final Severity severity;
   final String message;
-
-  const LintFinding(this.rule, this.severity, this.message);
 
   @override
   String toString() => '[$severity] $rule: $message';
@@ -34,12 +33,19 @@ typedef LintRule = Future<List<LintFinding>> Function(
 
 /// Resolved signing info for lint rules: whether a real keystore backs the
 /// build and the keystore path when known.
-Future<SigningConfig?> resolvedSigning(BuildContext ctx) =>
+Future<SigningConfig?> resolvedSigning(final BuildContext ctx) =>
     SigningConfig.autoResolve(ctx);
 
 /// Post-build lint (ADR-0007): runs after packaging, checks the artifact is
 /// actually releasable. Errors fail the build.
 class PostBuildLintStep extends BuildStep {
+
+  PostBuildLintStep({
+    this.maxSizeMb,
+    this.strictSigning = true,
+    this.showBadging = false,
+    this.extraRules = const [],
+  });
   /// File size budget in MB (null = no check).
   final int? maxSizeMb;
 
@@ -58,13 +64,6 @@ class PostBuildLintStep extends BuildStep {
   @override
   Set<Artifact<Object>> get requires => {apkPath};
 
-  PostBuildLintStep({
-    this.maxSizeMb,
-    this.strictSigning = true,
-    this.showBadging = false,
-    this.extraRules = const [],
-  });
-
   List<LintRule> get defaultRules => [
     _manifestVersionRule,
     _debugSigningRule,
@@ -72,7 +71,7 @@ class PostBuildLintStep extends BuildStep {
   ];
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final rules = [...defaultRules, ...extraRules];
     final findings = <LintFinding>[];
     // ADR-0010: constructor budget wins; pipeline-level overrides fill in.
@@ -84,7 +83,7 @@ class PostBuildLintStep extends BuildStep {
       findings.addAll(await _sizeBudgetRule(this, ctx, state, effectiveMaxSizeMb));
     }
 
-    final errors = findings.where((f) => f.severity == Severity.error);
+    final errors = findings.where((final f) => f.severity == Severity.error);
     for (final f in findings) {
       switch (f.severity) {
         case Severity.error:
@@ -98,7 +97,7 @@ class PostBuildLintStep extends BuildStep {
     if (errors.isNotEmpty) {
       return StepResult.failure(
         'post-build lint failed:\n'
-        '${errors.map((e) => '  - [${e.rule}] ${e.message}').join('\n')}',
+        '${errors.map((final e) => '  - [${e.rule}] ${e.message}').join('\n')}',
       );
     }
     return StepResult.success();
@@ -107,9 +106,9 @@ class PostBuildLintStep extends BuildStep {
 
 /// Manifest version attributes actually present in the packaged APK/AAB.
 Future<List<LintFinding>> _manifestVersionRule(
-  PostBuildLintStep step,
-  BuildContext ctx,
-  PipelineState state,
+  final PostBuildLintStep step,
+  final BuildContext ctx,
+  final PipelineState state,
 ) async {
   final findings = <LintFinding>[];
   final apk = state.apkPath;
@@ -136,9 +135,9 @@ Future<List<LintFinding>> _manifestVersionRule(
 
 /// Debug-signed release artifact gate.
 Future<List<LintFinding>> _debugSigningRule(
-  PostBuildLintStep step,
-  BuildContext ctx,
-  PipelineState state,
+  final PostBuildLintStep step,
+  final BuildContext ctx,
+  final PipelineState state,
 ) async {
   if (!ctx.mode.isRelease) return const [];
   final configured = await resolvedSigning(ctx);
@@ -164,9 +163,9 @@ Future<List<LintFinding>> _debugSigningRule(
 
 /// AAB BundleConfig must carry a bundletool version.
 Future<List<LintFinding>> _bundleConfigRule(
-  PostBuildLintStep step,
-  BuildContext ctx,
-  PipelineState state,
+  final PostBuildLintStep step,
+  final BuildContext ctx,
+  final PipelineState state,
 ) async {
   if (!ctx.buildAab) return const [];
   final pb = File('${ctx.buildDir}/aab/BundleConfig.pb');
@@ -197,10 +196,10 @@ Future<List<LintFinding>> _bundleConfigRule(
 
 /// Artifact size budget.
 Future<List<LintFinding>> _sizeBudgetRule(
-  PostBuildLintStep step,
-  BuildContext ctx,
-  PipelineState state,
-  int maxSizeMb,
+  final PostBuildLintStep step,
+  final BuildContext ctx,
+  final PipelineState state,
+  final int maxSizeMb,
 ) async {
   final apk = state.apkPath;
   if (apk == null || !File(apk).existsSync()) return const [];

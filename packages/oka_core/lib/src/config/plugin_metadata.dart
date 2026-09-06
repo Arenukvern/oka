@@ -9,7 +9,7 @@ import 'dependency.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const PluginMetadata(Map<String, dynamic> value) {
-  factory PluginMetadata.fromJson(dynamic json) =>
+  factory PluginMetadata.fromJson(final Object? json) =>
       PluginMetadata(jsonDecodeMap(json));
 
   /// Plugin name
@@ -30,7 +30,7 @@ extension type const PluginMetadata(Map<String, dynamic> value) {
   /// Android dependencies extracted from plugin
   List<Dependency> get dependencies {
     final deps = jsonDecodeList(value['dependencies']);
-    return deps.map((dynamic e) => Dependency.fromJson(e)).toList();
+    return deps.map(Dependency.fromJson).toList();
   }
 
   /// Source directories relative to plugin android/ folder

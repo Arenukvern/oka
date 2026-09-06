@@ -12,6 +12,12 @@ import 'package:path/path.dart' as p;
 ///     monochrome: assets/icon/mono.xml  # optional Android 13+ themed icon
 /// ```
 class IconConfig {
+
+  const IconConfig({
+    this.backgroundColor = '#FFFFFF',
+    this.vector = '',
+    this.monochrome = '',
+  });
   /// Background as a color literal (`#RRGGBB` / `#AARRGGBB`) or resource ref.
   final String backgroundColor;
 
@@ -23,30 +29,22 @@ class IconConfig {
   /// (Android 13+ themed icons).
   final String monochrome;
 
-  const IconConfig({
-    this.backgroundColor = '#FFFFFF',
-    this.vector = '',
-    this.monochrome = '',
-  });
-
-  static IconConfig fromMap(Map<dynamic, dynamic> map) {
-    return IconConfig(
+  factory IconConfig.fromMap(final Map<dynamic, dynamic> map) => IconConfig(
       backgroundColor: map['background_color']?.toString() ?? '#FFFFFF',
       vector: map['vector']?.toString() ?? '',
       monochrome: map['monochrome']?.toString() ?? '',
     );
-  }
 }
 
 /// Result of staging launcher icon resources.
 class IconResources {
+
+  const IconResources({required this.written, required this.manifestRef});
   /// res-relative paths written (e.g. `mipmap-anydpi-v26/ic_launcher.xml`).
   final List<String> written;
 
   /// `android:icon` resource reference for the manifest.
   final String manifestRef;
-
-  const IconResources({required this.written, required this.manifestRef});
 }
 
 /// Generates adaptive launcher icon resources (vector-first, no binary deps).
@@ -58,9 +56,9 @@ class IconResources {
 /// - Optionally uses user-supplied VectorDrawable XML for the foreground and
 ///   monochrome layer instead of the generated glyph.
 Future<IconResources> stageLauncherIcons(
-  String resDir,
-  IconConfig config, {
-  required String projectPath,
+  final String resDir,
+  final IconConfig config, {
+  required final String projectPath,
 }) async {
   final written = <String>[];
 
@@ -124,8 +122,8 @@ Future<IconResources> stageLauncherIcons(
 
 /// Default oka glyph: rounded "O" ring centered in the adaptive-icon safe
 /// zone (108dp viewport, content within inner ~66dp).
-String defaultForegroundVector() {
-  return '''<?xml version="1.0" encoding="utf-8"?>
+String defaultForegroundVector() => '''
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -143,10 +141,9 @@ String defaultForegroundVector() {
         android:pathData="M70,38 m-5,0 a5,5 0 1,1 10,0 a5,5 0 1,1 -10,0"/>
 </vector>
 ''';
-}
 
 /// Validates/normalizes a color literal; passes through resource refs (@...).
-String _escapeColor(String raw) {
+String _escapeColor(final String raw) {
   final v = raw.trim();
   if (v.startsWith('@')) return v;
   if (!RegExp(r'^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$').hasMatch(v)) {

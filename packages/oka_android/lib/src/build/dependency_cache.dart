@@ -10,49 +10,49 @@ import '../maven_resolver.dart';
 
 export '../maven_resolver.dart'
     show
-        ResolvedJar,
-        MavenRepoRegistry,
         MavenHost,
-        googleMavenUrl,
-        flutterEmbeddingAndroidXDeps,
-        tryExtractClassesJarFromAar,
+        MavenRepoRegistry,
+        ResolvedJar,
+        extractAarPayload,
         extractClassesJarFromAar,
         extractClassesJarToFile,
-        extractAarPayload,
-        minimalJarBytes,
+        flutterEmbeddingAndroidXDeps,
+        googleMavenUrl,
         minimalAarBytes,
+        minimalJarBytes,
         parsePomDependencies,
-        parsePomParent,
+        parsePomImports,
         parsePomManagedVersions,
+        parsePomParent,
         parsePomProperties,
-        parsePomImports;
+        tryExtractClassesJarFromAar;
 
 /// Disk-cache facade delegating resolution to [MavenResolver].
 class DependencyCache {
-  final MavenResolver resolver;
 
   DependencyCache({
-    String? cacheRoot,
-    bool verbose = false,
-    bool allowNetwork = true,
-    List<String> userRepos = const [],
+    final String? cacheRoot,
+    final bool verbose = false,
+    final bool allowNetwork = true,
+    final List<String> userRepos = const [],
   }) : resolver = MavenResolver(
           cacheRoot: cacheRoot,
           verbose: verbose,
           allowNetwork: allowNetwork,
           userRepos: userRepos,
         );
+  final MavenResolver resolver;
 
   String get cacheRoot => resolver.cacheRoot;
   bool get verbose => resolver.verbose;
 
-  String localPathFor(MavenCoordinate coord) => resolver.localPathFor(coord);
-  String jarPathFor(MavenCoordinate coord) => resolver.jarPathFor(coord);
+  String localPathFor(final MavenCoordinate coord) => resolver.localPathFor(coord);
+  String jarPathFor(final MavenCoordinate coord) => resolver.jarPathFor(coord);
 
   Future<ResolvedJar> resolve(
-    MavenCoordinate coord, {
-    List<int>? fixtureBytes,
-    List<String> extraRepos = const [],
+    final MavenCoordinate coord, {
+    final List<int>? fixtureBytes,
+    final List<String> extraRepos = const [],
   }) =>
       resolver.resolve(
         coord,
@@ -61,16 +61,16 @@ class DependencyCache {
       );
 
   Future<List<ResolvedJar>> resolveFlutterAndroidX({
-    Map<String, List<int>> fixtures = const {},
+    final Map<String, List<int>> fixtures = const {},
   }) =>
       resolver.resolveFlutterAndroidX(fixtures: fixtures);
 
   Future<List<ResolvedJar>> resolveWithTransitives(
-    List<MavenCoordinate> roots, {
-    List<String> extraRepos = const [],
-    int maxDepth = 2,
-    int maxArtifacts = 250,
-    void Function(MavenCoordinate coord, Object error)? onFailure,
+    final List<MavenCoordinate> roots, {
+    final List<String> extraRepos = const [],
+    final int maxDepth = 2,
+    final int maxArtifacts = 250,
+    final void Function(MavenCoordinate coord, Object error)? onFailure,
   }) =>
       resolver.resolveWithTransitives(
         roots,

@@ -9,6 +9,7 @@
 /// Differences make the CLI exit non-zero (escape: `--quiet`), so refactors
 /// can claim "byte-equivalent output" with a checkable command instead of a
 /// claim in a PR description.
+library;
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -17,18 +18,6 @@ import 'build/sdk_locator.dart';
 
 /// Parsed subset of `aapt2 dump badging` output.
 class BadgingInfo {
-  final String packageName;
-  final String versionCode;
-  final String versionName;
-  final List<String> usesPermissions;
-  final String? minSdkVersion;
-  final String? targetSdkVersion;
-  final String? launchableActivity;
-  /// Intent-filter lines (actions/categories) when the badging output
-  /// carries them, keyed by badging key (e.g. `intent-filter-action`).
-  final Map<String, List<String>> intentFilters;
-  /// Every raw badging line (sorted, trimmed) — the full-diff fallback.
-  final List<String> allLines;
 
   const BadgingInfo({
     required this.packageName,
@@ -41,12 +30,24 @@ class BadgingInfo {
     this.intentFilters = const {},
     this.allLines = const [],
   });
+  final String packageName;
+  final String versionCode;
+  final String versionName;
+  final List<String> usesPermissions;
+  final String? minSdkVersion;
+  final String? targetSdkVersion;
+  final String? launchableActivity;
+  /// Intent-filter lines (actions/categories) when the badging output
+  /// carries them, keyed by badging key (e.g. `intent-filter-action`).
+  final Map<String, List<String>> intentFilters;
+  /// Every raw badging line (sorted, trimmed) — the full-diff fallback.
+  final List<String> allLines;
 }
 
 final _attrRe = RegExp(r"([a-zA-Z][a-zA-Z0-9_\-]*)='([^']*)'");
 
 /// Parse `aapt2 dump badging` output into a [BadgingInfo].
-BadgingInfo parseBadging(String output) {
+BadgingInfo parseBadging(final String output) {
   var packageName = '';
   var versionCode = '';
   var versionName = '';
@@ -116,7 +117,7 @@ BadgingInfo parseBadging(String output) {
     targetSdkVersion: targetSdk,
     launchableActivity: launchable,
     intentFilters: Map.unmodifiable(
-      intentFilters.map((k, v) => MapEntry(k, v..sort())),
+      intentFilters.map((final k, final v) => MapEntry(k, v..sort())),
     ),
     allLines: allLines..sort(),
   );
@@ -124,18 +125,18 @@ BadgingInfo parseBadging(String output) {
 
 /// Zip-level comparison result for the entry lists of two artifacts.
 class ZipEntryDiff {
-  /// Entry names present only in artifact A (sorted).
-  final List<String> onlyInA;
-  /// Entry names present only in artifact B (sorted).
-  final List<String> onlyInB;
-  /// Common entries whose content changed (crc32 mismatch).
-  final List<String> changedContent;
 
   const ZipEntryDiff({
     required this.onlyInA,
     required this.onlyInB,
     required this.changedContent,
   });
+  /// Entry names present only in artifact A (sorted).
+  final List<String> onlyInA;
+  /// Entry names present only in artifact B (sorted).
+  final List<String> onlyInB;
+  /// Common entries whose content changed (crc32 mismatch).
+  final List<String> changedContent;
 
   bool get isEmpty => onlyInA.isEmpty && onlyInB.isEmpty && changedContent.isEmpty;
 }
@@ -145,16 +146,16 @@ class ZipEntryDiff {
 /// Entry names only (directories included as-is); common entries are compared
 /// by crc32 to catch silent content swaps. Timestamps and compression
 /// metadata are ignored — the gate targets content equivalence.
-ZipEntryDiff compareZipEntries(String pathA, String pathB) {
+ZipEntryDiff compareZipEntries(final String pathA, final String pathB) {
   final entriesA = _entryCrcs(pathA);
   final entriesB = _entryCrcs(pathB);
-  final onlyA = entriesA.keys.where((n) => !entriesB.containsKey(n)).toList()
+  final onlyA = entriesA.keys.where((final n) => !entriesB.containsKey(n)).toList()
     ..sort();
-  final onlyB = entriesB.keys.where((n) => !entriesA.containsKey(n)).toList()
+  final onlyB = entriesB.keys.where((final n) => !entriesA.containsKey(n)).toList()
     ..sort();
   final changed = entriesA.keys
       .where(
-        (n) =>
+        (final n) =>
             entriesB.containsKey(n) &&
             entriesB[n] != entriesA[n] &&
             entriesA[n] != null,
@@ -168,7 +169,7 @@ ZipEntryDiff compareZipEntries(String pathA, String pathB) {
   );
 }
 
-Map<String, int?> _entryCrcs(String path) {
+Map<String, int?> _entryCrcs(final String path) {
   final bytes = File(path).readAsBytesSync();
   final archive = ZipDecoder().decodeBytes(bytes);
   return {
@@ -178,16 +179,6 @@ Map<String, int?> _entryCrcs(String path) {
 
 /// Full comparison result for two APK/AAB artifacts.
 class ArtifactComparison {
-  final String pathA;
-  final String pathB;
-  final BadgingInfo? badgingA;
-  final BadgingInfo? badgingB;
-  /// Human-readable badging differences (empty when badging matched or was
-  /// unavailable).
-  final List<String> badgingDifferences;
-  /// Non-null when badging could not be dumped (e.g. no aapt2 found).
-  final String? badgingSkippedReason;
-  final ZipEntryDiff zipDiff;
 
   const ArtifactComparison({
     required this.pathA,
@@ -198,6 +189,16 @@ class ArtifactComparison {
     this.badgingB,
     this.badgingSkippedReason,
   });
+  final String pathA;
+  final String pathB;
+  final BadgingInfo? badgingA;
+  final BadgingInfo? badgingB;
+  /// Human-readable badging differences (empty when badging matched or was
+  /// unavailable).
+  final List<String> badgingDifferences;
+  /// Non-null when badging could not be dumped (e.g. no aapt2 found).
+  final String? badgingSkippedReason;
+  final ZipEntryDiff zipDiff;
 
   bool get hasDifferences =>
       badgingDifferences.isNotEmpty ||
@@ -246,10 +247,10 @@ class ArtifactComparison {
 /// binary is located via [aapt2Path]. When aapt2 is unavailable the badging
 /// section is skipped with a reason — the zip diff still applies.
 Future<ArtifactComparison> compareArtifacts(
-  String pathA,
-  String pathB, {
-  String? aapt2Path,
-  Future<String> Function(String aapt2, String artifact)? dumpBadging,
+  final String pathA,
+  final String pathB, {
+  final String? aapt2Path,
+  final Future<String> Function(String aapt2, String artifact)? dumpBadging,
 }) async {
   final zipDiff = compareZipEntries(pathA, pathB);
 
@@ -283,7 +284,7 @@ Future<ArtifactComparison> compareArtifacts(
   );
 }
 
-Future<String> _defaultDumpBadging(String aapt2, String artifact) async {
+Future<String> _defaultDumpBadging(final String aapt2, final String artifact) async {
   final result = await Process.run(aapt2, ['dump', 'badging', artifact]);
   if (result.exitCode != 0) {
     throw Exception(
@@ -294,7 +295,7 @@ Future<String> _defaultDumpBadging(String aapt2, String artifact) async {
   return result.stdout as String;
 }
 
-List<String> _badgingDifferences(BadgingInfo? a, BadgingInfo? b) {
+List<String> _badgingDifferences(final BadgingInfo? a, final BadgingInfo? b) {
   if (a == null || b == null) {
     return const [];
   }
@@ -320,10 +321,10 @@ List<String> _badgingDifferences(BadgingInfo? a, BadgingInfo? b) {
     );
   }
   final permsOnlyA = a.usesPermissions
-      .where((x) => !b.usesPermissions.contains(x))
+      .where((final x) => !b.usesPermissions.contains(x))
       .toList();
   final permsOnlyB = b.usesPermissions
-      .where((x) => !a.usesPermissions.contains(x))
+      .where((final x) => !a.usesPermissions.contains(x))
       .toList();
   for (final perm in permsOnlyA) {
     diffs.add('permission only in A: $perm');
@@ -333,8 +334,8 @@ List<String> _badgingDifferences(BadgingInfo? a, BadgingInfo? b) {
   }
   // Full-output fallback catches anything the structured extraction missed
   // (intent-filter metadata, labels, features, …).
-  final linesOnlyA = a.allLines.where((l) => !b.allLines.contains(l)).toList();
-  final linesOnlyB = b.allLines.where((l) => !a.allLines.contains(l)).toList();
+  final linesOnlyA = a.allLines.where((final l) => !b.allLines.contains(l)).toList();
+  final linesOnlyB = b.allLines.where((final l) => !a.allLines.contains(l)).toList();
   if (diffs.isEmpty && (linesOnlyA.isNotEmpty || linesOnlyB.isNotEmpty)) {
     for (final l in linesOnlyA.take(20)) {
       diffs.add('badging line only in A: $l');

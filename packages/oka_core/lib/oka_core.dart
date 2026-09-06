@@ -2,7 +2,7 @@
 /// with typed artifacts, and the declarative composition root.
 ///
 /// This barrel is the public API of oka_core and is semver-covered.
-library oka_core;
+library;
 
 export 'src/composition.dart';
 export 'src/config/android_build.dart';

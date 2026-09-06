@@ -23,7 +23,7 @@ bool get autoInstallEnabled =>
 ///
 /// (Logic relocated from the CLI `oka get kotlin` so builds can self-heal;
 /// the CLI command delegates here.)
-Future<bool> ensureKotlinc({bool verbose = false}) async {
+Future<bool> ensureKotlinc({final bool verbose = false}) async {
   final existing = await SdkLocator().findKotlinc();
   if (existing != null) return true;
   if (!autoInstallEnabled) {
@@ -43,7 +43,7 @@ Future<bool> ensureKotlinc({bool verbose = false}) async {
   }
 }
 
-Future<void> _installKotlinCompiler({bool verbose = false}) async {
+Future<void> _installKotlinCompiler({final bool verbose = false}) async {
   final homeDir =
       Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
   if (homeDir.isEmpty) throw Exception('Could not determine home directory');
@@ -95,7 +95,7 @@ Future<void> _installKotlinCompiler({bool verbose = false}) async {
 /// Highest `sourceCompatibility JavaVersion.VERSION_NN` (or
 /// `sourceCompatibility "NN"`) declared in any of [gradleFiles]; null when
 /// nothing declares one.
-int? detectRequiredJavaLevel(Iterable<String> gradleFiles) {
+int? detectRequiredJavaLevel(final Iterable<String> gradleFiles) {
   var maxLevel = 0;
   for (final file in gradleFiles) {
     if (!File(file).existsSync()) continue;
@@ -118,9 +118,9 @@ int? detectRequiredJavaLevel(Iterable<String> gradleFiles) {
 /// Effective javac source/target: config version raised to the detected
 /// plugin maximum, with a printed notice when bumped.
 int effectiveJavaLevel({
-  required int configVersion,
-  Iterable<String> pluginGradleFiles = const [],
-  void Function(String message)? onBump,
+  required final int configVersion,
+  final Iterable<String> pluginGradleFiles = const [],
+  final void Function(String message)? onBump,
 }) {
   final detected = detectRequiredJavaLevel(pluginGradleFiles);
   if (detected != null && detected > configVersion) {
@@ -137,9 +137,9 @@ int effectiveJavaLevel({
 /// `version_code`/`version_name` wins, otherwise the app `pubspec.yaml`
 /// `version: x.y.z+nn`.
 ({int versionCode, String versionName}) resolveAndroidVersion(
-  String projectPath, {
-  required int configVersionCode,
-  required String configVersionName,
+  final String projectPath, {
+  required final int configVersionCode,
+  required final String configVersionName,
 }) {
   if (configVersionCode != 0 && configVersionName.isNotEmpty) {
     return (versionCode: configVersionCode, versionName: configVersionName);
@@ -163,14 +163,14 @@ int effectiveJavaLevel({
 }
 
 /// Names declared under `dev_dependencies` in [projectPath]/pubspec.yaml.
-Set<String> devDependencyNames(String projectPath) {
+Set<String> devDependencyNames(final String projectPath) {
   final file = File(p.join(projectPath, 'pubspec.yaml'));
   if (!file.existsSync()) return const {};
   try {
     final doc = loadYaml(file.readAsStringSync());
     final dev = doc is Map ? doc['dev_dependencies'] : null;
     if (dev is! Map) return const {};
-    return dev.keys.map((k) => k.toString()).toSet();
+    return dev.keys.map((final k) => k.toString()).toSet();
   } on YamlException {
     return const {};
   }

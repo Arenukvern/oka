@@ -9,6 +9,24 @@
 /// Only fields explicitly set (non-default) are emitted by [toConfigMap], so
 /// an `AndroidBuild` can never clobber values it does not carry.
 class AndroidBuild {
+
+  const AndroidBuild({
+    this.name = '',
+    this.packageName = '',
+    this.applicationId = '',
+    this.compileSdk = '',
+    this.targetSdk = '',
+    this.minSdk = '',
+    this.versionCode = 0,
+    this.versionName = '',
+    this.sourceDirs = const [],
+    this.abis = const [],
+    this.javaVersion = 0,
+    this.kotlinVersion = '',
+    this.requiredJavaVersion = '',
+    this.enableOptimization = false,
+    this.proguardFiles = const [],
+  });
   /// Project display name — feeds the `app_name` string resource and the
   /// activity label fallback (was top-level `name:` in oka.yaml).
   final String name;
@@ -49,40 +67,22 @@ class AndroidBuild {
   final bool enableOptimization;
   final List<String> proguardFiles;
 
-  const AndroidBuild({
-    this.name = '',
-    this.packageName = '',
-    this.applicationId = '',
-    this.compileSdk = '',
-    this.targetSdk = '',
-    this.minSdk = '',
-    this.versionCode = 0,
-    this.versionName = '',
-    this.sourceDirs = const [],
-    this.abis = const [],
-    this.javaVersion = 0,
-    this.kotlinVersion = '',
-    this.requiredJavaVersion = '',
-    this.enableOptimization = false,
-    this.proguardFiles = const [],
-  });
-
   AndroidBuild copyWith({
-    String? name,
-    String? packageName,
-    String? applicationId,
-    String? compileSdk,
-    String? targetSdk,
-    String? minSdk,
-    int? versionCode,
-    String? versionName,
-    List<String>? sourceDirs,
-    List<String>? abis,
-    int? javaVersion,
-    String? kotlinVersion,
-    String? requiredJavaVersion,
-    bool? enableOptimization,
-    List<String>? proguardFiles,
+    final String? name,
+    final String? packageName,
+    final String? applicationId,
+    final String? compileSdk,
+    final String? targetSdk,
+    final String? minSdk,
+    final int? versionCode,
+    final String? versionName,
+    final List<String>? sourceDirs,
+    final List<String>? abis,
+    final int? javaVersion,
+    final String? kotlinVersion,
+    final String? requiredJavaVersion,
+    final bool? enableOptimization,
+    final List<String>? proguardFiles,
   }) =>
       AndroidBuild(
         name: name ?? this.name,
@@ -130,6 +130,19 @@ class AndroidBuild {
 /// Typed, const-constructible Flutter build settings (ADR-0010) — the
 /// writable counterpart of the `flutter:` oka.yaml section.
 class FlutterBuild {
+
+  const FlutterBuild({
+    this.entrypoint = '',
+    this.assets = const [],
+    this.buildArgs = const [],
+    this.buildMode = '',
+    this.targetPlatform = '',
+    this.treeShakeIcons = false,
+    this.enableHotReload = false,
+    this.deferredComponents = false,
+    this.enginePath = '',
+    this.engineVersion = '',
+  });
   /// Dart entrypoint (e.g. `lib/main.dart`).
   final String entrypoint;
 
@@ -158,30 +171,17 @@ class FlutterBuild {
   final String enginePath;
   final String engineVersion;
 
-  const FlutterBuild({
-    this.entrypoint = '',
-    this.assets = const [],
-    this.buildArgs = const [],
-    this.buildMode = '',
-    this.targetPlatform = '',
-    this.treeShakeIcons = false,
-    this.enableHotReload = false,
-    this.deferredComponents = false,
-    this.enginePath = '',
-    this.engineVersion = '',
-  });
-
   FlutterBuild copyWith({
-    String? entrypoint,
-    List<String>? assets,
-    List<String>? buildArgs,
-    String? buildMode,
-    String? targetPlatform,
-    bool? treeShakeIcons,
-    bool? enableHotReload,
-    bool? deferredComponents,
-    String? enginePath,
-    String? engineVersion,
+    final String? entrypoint,
+    final List<String>? assets,
+    final List<String>? buildArgs,
+    final String? buildMode,
+    final String? targetPlatform,
+    final bool? treeShakeIcons,
+    final bool? enableHotReload,
+    final bool? deferredComponents,
+    final String? enginePath,
+    final String? engineVersion,
   }) =>
       FlutterBuild(
         entrypoint: entrypoint ?? this.entrypoint,

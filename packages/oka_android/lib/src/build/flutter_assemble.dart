@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
-import 'package:oka_core/src/config/build_context.dart';
 import 'apk_layout.dart';
 
 /// Build mode string for flutter assemble defines.
-String assembleBuildMode(BuildMode mode) {
+String assembleBuildMode(final BuildMode mode) {
   switch (mode) {
     case BuildMode.release:
       return 'release';
@@ -21,7 +21,7 @@ String assembleBuildMode(BuildMode mode) {
 /// Flutter assemble target name for Android application assets (debug/profile).
 ///
 /// Release AOT uses [androidAotBundleTarget] for native `libapp.so` bundles.
-String androidApplicationTarget(BuildMode mode) {
+String androidApplicationTarget(final BuildMode mode) {
   switch (mode) {
     case BuildMode.release:
       // Release still needs asset bundle; AOT is a separate target.
@@ -34,7 +34,7 @@ String androidApplicationTarget(BuildMode mode) {
 }
 
 /// AOT bundle target for a given ABI (produces app.so / libapp.so layouts).
-String androidAotBundleTarget(String abi) {
+String androidAotBundleTarget(final String abi) {
   final n = normalizeAbi(abi);
   switch (n) {
     case 'arm64-v8a':
@@ -49,7 +49,7 @@ String androidAotBundleTarget(String abi) {
 }
 
 /// Target platform define value for Flutter tools.
-String targetPlatformForAbi(String abi) {
+String targetPlatformForAbi(final String abi) {
   final n = normalizeAbi(abi);
   switch (n) {
     case 'arm64-v8a':
@@ -69,13 +69,13 @@ String targetPlatformForAbi(String abi) {
 ///
 /// Returns argv after the `flutter` executable (i.e. starts with `assemble`).
 List<String> buildFlutterAssembleArgs({
-  required String outputDir,
-  required String targetFile,
-  required BuildMode mode,
-  required String targetPlatform,
-  List<String> extraArgs = const [],
-  bool trackWidgetCreation = true,
-  Map<String, String> dartDefines = const {},
+  required final String outputDir,
+  required final String targetFile,
+  required final BuildMode mode,
+  required final String targetPlatform,
+  final List<String> extraArgs = const [],
+  final bool trackWidgetCreation = true,
+  final Map<String, String> dartDefines = const {},
 }) {
   final buildMode = assembleBuildMode(mode);
   final target = androidApplicationTarget(mode);
@@ -100,11 +100,11 @@ List<String> buildFlutterAssembleArgs({
 
 /// Pure command construction for release AOT bundle assemble.
 List<String> buildFlutterAotAssembleArgs({
-  required String outputDir,
-  required String targetFile,
-  required String abi,
-  List<String> extraArgs = const [],
-  Map<String, String> dartDefines = const {},
+  required final String outputDir,
+  required final String targetFile,
+  required final String abi,
+  final List<String> extraArgs = const [],
+  final Map<String, String> dartDefines = const {},
 }) {
   final platform = targetPlatformForAbi(abi);
   final target = androidAotBundleTarget(abi);
@@ -125,11 +125,6 @@ List<String> buildFlutterAotAssembleArgs({
 
 /// Result of a Flutter assemble invocation.
 class FlutterAssembleResult {
-  final int exitCode;
-  final String stdout;
-  final String stderr;
-  final String outputDir;
-  final String? flutterAssetsDir;
 
   const FlutterAssembleResult({
     required this.exitCode,
@@ -138,12 +133,17 @@ class FlutterAssembleResult {
     required this.outputDir,
     this.flutterAssetsDir,
   });
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+  final String outputDir;
+  final String? flutterAssetsDir;
 
   bool get success => exitCode == 0;
 }
 
 /// Locates `flutter_assets` under an assemble output directory.
-Future<String?> findFlutterAssetsDir(String assembleOutput) async {
+Future<String?> findFlutterAssetsDir(final String assembleOutput) async {
   final candidates = [
     p.join(assembleOutput, 'flutter_assets'),
     p.join(assembleOutput, 'assets', 'flutter_assets'),
@@ -165,7 +165,7 @@ Future<String?> findFlutterAssetsDir(String assembleOutput) async {
 }
 
 /// Locates `app.so` / `libapp.so` under an AOT assemble output.
-Future<String?> findLibappSo(String aotOutput) async {
+Future<String?> findLibappSo(final String aotOutput) async {
   final root = Directory(aotOutput);
   if (!await root.exists()) return null;
   final preferred = [
@@ -188,6 +188,16 @@ Future<String?> findLibappSo(String aotOutput) async {
 
 /// Runs `flutter assemble` for the Android application target.
 class FlutterAssembler {
+
+  FlutterAssembler({
+    this.verbose = false,
+    final Future<ProcessResult> Function(
+      String executable,
+      List<String> arguments, {
+      String? workingDirectory,
+      Map<String, String>? environment,
+    })? runProcess,
+  }) : runProcess = runProcess ?? Process.run;
   final bool verbose;
   final Future<ProcessResult> Function(
     String executable,
@@ -196,25 +206,15 @@ class FlutterAssembler {
     Map<String, String>? environment,
   }) runProcess;
 
-  FlutterAssembler({
-    this.verbose = false,
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments, {
-      String? workingDirectory,
-      Map<String, String>? environment,
-    })? runProcess,
-  }) : runProcess = runProcess ?? Process.run;
-
   Future<FlutterAssembleResult> assembleApplication({
-    required String projectPath,
-    required String outputDir,
-    required String entrypoint,
-    required BuildMode mode,
-    required String primaryAbi,
-    List<String> extraArgs = const [],
-    Map<String, String> dartDefines = const {},
-    Map<String, String>? environment,
+    required final String projectPath,
+    required final String outputDir,
+    required final String entrypoint,
+    required final BuildMode mode,
+    required final String primaryAbi,
+    final List<String> extraArgs = const [],
+    final Map<String, String> dartDefines = const {},
+    final Map<String, String>? environment,
   }) async {
     await Directory(outputDir).create(recursive: true);
     final platform = targetPlatformForAbi(primaryAbi);
@@ -249,13 +249,13 @@ class FlutterAssembler {
   }
 
   Future<FlutterAssembleResult> assembleAot({
-    required String projectPath,
-    required String outputDir,
-    required String entrypoint,
-    required String abi,
-    List<String> extraArgs = const [],
-    Map<String, String> dartDefines = const {},
-    Map<String, String>? environment,
+    required final String projectPath,
+    required final String outputDir,
+    required final String entrypoint,
+    required final String abi,
+    final List<String> extraArgs = const [],
+    final Map<String, String> dartDefines = const {},
+    final Map<String, String>? environment,
   }) async {
     await Directory(outputDir).create(recursive: true);
     final args = buildFlutterAotAssembleArgs(
@@ -288,9 +288,9 @@ class FlutterAssembler {
 
 /// Reads Flutter engine revision from `flutter --version --machine`.
 Future<String?> readFlutterEngineRevision({
-  Future<ProcessResult> Function(String, List<String>)? runProcess,
+  final Future<ProcessResult> Function(String, List<String>)? runProcess,
 }) async {
-  final runner = runProcess ?? (e, a) => Process.run(e, a);
+  final runner = runProcess ?? Process.run;
   try {
     final result = await runner('flutter', ['--version', '--machine']);
     if (result.exitCode != 0) return null;

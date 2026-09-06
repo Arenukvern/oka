@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
@@ -6,20 +7,19 @@ import '../build/aab_layout.dart';
 import '../build/aapt2_commands.dart';
 import '../build/apk_layout.dart';
 import '../build/sdk_locator.dart';
-import 'package:oka_core/src/config/build_context.dart';
 import '../signing_config.dart';
 
 /// Outcome of [compileAndDex].
 class CompileDexOutcome {
-  final bool ok;
-  final String? error;
-  final List<String> dexFiles;
 
   const CompileDexOutcome({
     required this.ok,
     this.error,
     this.dexFiles = const [],
   });
+  final bool ok;
+  final String? error;
+  final List<String> dexFiles;
 }
 
 /// aapt2 compile/link + kotlinc/javac + d8.
@@ -27,19 +27,19 @@ class CompileDexOutcome {
 /// Extracted from FlutterApkBuilder so pipeline steps and custom pipelines
 /// share one implementation (ADR-0002).
 Future<CompileDexOutcome> compileAndDex({
-  required BuildContext ctx,
-  required SdkLocator sdkLocator,
-  required String hostDir,
-  required String embeddingJar,
-  required List<String> androidxJarPaths,
-  List<String> pluginJavaSources = const [],
-  List<String> pluginKotlinSources = const [],
-  List<String> pluginJarDeps = const [],
-  List<String> pluginResDirs = const [],
-  List<String> resourceConfigs = const [],
-  String? versionCode,
-  String? versionName,
-  int? javaVersionOverride,
+  required final BuildContext ctx,
+  required final SdkLocator sdkLocator,
+  required final String hostDir,
+  required final String embeddingJar,
+  required final List<String> androidxJarPaths,
+  final List<String> pluginJavaSources = const [],
+  final List<String> pluginKotlinSources = const [],
+  final List<String> pluginJarDeps = const [],
+  final List<String> pluginResDirs = const [],
+  final List<String> resourceConfigs = const [],
+  final String? versionCode,
+  final String? versionName,
+  final int? javaVersionOverride,
 }) async {
   try {
     final aapt2 = await sdkLocator.findAapt2();
@@ -297,19 +297,19 @@ Future<CompileDexOutcome> compileAndDex({
 /// resources (`resources.pb` + protobuf manifest) consumed by the bundle
 /// packager. Returns dex files; proto output lands at `resources_proto.ap_`.
 Future<CompileDexOutcome> compileAndDexProto({
-  required BuildContext ctx,
-  required SdkLocator sdkLocator,
-  required String hostDir,
-  required String embeddingJar,
-  required List<String> androidxJarPaths,
-  List<String> pluginJavaSources = const [],
-  List<String> pluginKotlinSources = const [],
-  List<String> pluginJarDeps = const [],
-  List<String> pluginResDirs = const [],
-  List<String> resourceConfigs = const [],
-  String? versionCode,
-  String? versionName,
-  int? javaVersionOverride,
+  required final BuildContext ctx,
+  required final SdkLocator sdkLocator,
+  required final String hostDir,
+  required final String embeddingJar,
+  required final List<String> androidxJarPaths,
+  final List<String> pluginJavaSources = const [],
+  final List<String> pluginKotlinSources = const [],
+  final List<String> pluginJarDeps = const [],
+  final List<String> pluginResDirs = const [],
+  final List<String> resourceConfigs = const [],
+  final String? versionCode,
+  final String? versionName,
+  final int? javaVersionOverride,
 }) async {
   try {
     final aapt2 = await sdkLocator.findAapt2();
@@ -402,17 +402,11 @@ Future<CompileDexOutcome> compileAndDexProto({
 
 /// Shared javac/kotlinc/jar/d8 tail used by both APK and AAB compile paths.
 Future<CompileDexOutcome> _compileJavaAndDex({
-  required BuildContext ctx,
-  int? javaVersionOverride,
-  required SdkLocator sdkLocator,
-  required String hostDir,
-  required String embeddingJar,
-  required List<String> androidxJarPaths,
-  required String androidJar,
-  required String genDir,
-  List<String> pluginJavaSources = const [],
-  List<String> pluginKotlinSources = const [],
-  List<String> pluginJarDeps = const [],
+  required final BuildContext ctx,
+  required final SdkLocator sdkLocator, required final String hostDir, required final String embeddingJar, required final List<String> androidxJarPaths, required final String androidJar, required final String genDir, final int? javaVersionOverride,
+  final List<String> pluginJavaSources = const [],
+  final List<String> pluginKotlinSources = const [],
+  final List<String> pluginJarDeps = const [],
 }) async {
   final javac = await sdkLocator.findJavac();
   final classesDir = p.join(ctx.buildDir, 'classes');
@@ -564,14 +558,14 @@ Future<CompileDexOutcome> _compileJavaAndDex({
 
 /// Stage layout → zip → zipalign → apksigner. Returns signed APK path.
 Future<String> packageAndSign({
-  required BuildContext ctx,
-  required SdkLocator sdkLocator,
-  required List<String> dexFiles,
-  required String flutterAssetsDir,
-  required Map<String, String> libflutterByAbi,
-  required Map<String, String> libappByAbi,
-  Map<String, List<String>> extraNativeByAbi = const {},
-  SigningConfig? signing,
+  required final BuildContext ctx,
+  required final SdkLocator sdkLocator,
+  required final List<String> dexFiles,
+  required final String flutterAssetsDir,
+  required final Map<String, String> libflutterByAbi,
+  required final Map<String, String> libappByAbi,
+  final Map<String, List<String>> extraNativeByAbi = const {},
+  final SigningConfig? signing,
 }) async {
   final staging = p.join(ctx.buildDir, 'staging');
   final resourcesApk = p.join(ctx.buildDir, 'resources.ap_');
@@ -665,7 +659,7 @@ Future<String> packageAndSign({
 }
 
 /// Prefer configured compile SDK platform; fall back to highest installed.
-Future<String> resolveAndroidJar(String androidSdk, String compileSdk) async {
+Future<String> resolveAndroidJar(final String androidSdk, final String compileSdk) async {
   final preferred = p.join(
     androidSdk,
     'platforms',
@@ -705,7 +699,7 @@ Future<String> resolveAndroidJar(String androidSdk, String compileSdk) async {
 ///
 /// Dedupes by Maven artifact identity (group:artifact), keeping the highest
 /// version so d8 does not see duplicate types (e.g. kotlin-stdlib 1.9 vs 2.0).
-List<String> filterRuntimeJars(List<String> jars) {
+List<String> filterRuntimeJars(final List<String> jars) {
   final best = <String, ({String path, String version})>{};
   for (final j in jars) {
     final base = p.basename(j).toLowerCase();
@@ -722,14 +716,14 @@ List<String> filterRuntimeJars(List<String> jars) {
       best[id] = (path: j, version: ver);
     }
   }
-  return best.values.map((e) => e.path).toList();
+  return best.values.map((final e) => e.path).toList();
 }
 
 /// `.../group/path/artifact/version/file.jar` → `group.path:baseArtifact`
 ///
 /// Strips KMP suffixes (`-android`, `-jvm`, `-ktx`) so
 /// `lifecycle-runtime` and `lifecycle-runtime-android` collapse.
-String _artifactKey(String jarPath) {
+String _artifactKey(final String jarPath) {
   final parts = p.split(jarPath);
   // expect .../maven/<group>/<artifact>/<version>/<file>
   if (parts.length >= 4) {
@@ -749,16 +743,16 @@ String _artifactKey(String jarPath) {
   return p.basename(jarPath);
 }
 
-String _artifactVersion(String jarPath) {
+String _artifactVersion(final String jarPath) {
   final parts = p.split(jarPath);
   if (parts.length >= 2) return parts[parts.length - 2];
   return '0';
 }
 
-int _compareVersions(String a, String b) {
-  List<int> parse(String v) => v
-      .split(RegExp(r'[^0-9]+'))
-      .where((s) => s.isNotEmpty)
+int _compareVersions(final String a, final String b) {
+  List<int> parse(final String v) => v
+      .split(RegExp('[^0-9]+'))
+      .where((final s) => s.isNotEmpty)
       .map(int.parse)
       .toList();
   final pa = parse(a);
@@ -772,7 +766,7 @@ int _compareVersions(String a, String b) {
   return 0;
 }
 
-List<String> filterCompileOnlyJars(List<String> jars) {
+List<String> filterCompileOnlyJars(final List<String> jars) {
   final out = <String>[];
   final seen = <String>{};
   for (final j in jars) {
@@ -784,18 +778,16 @@ List<String> filterCompileOnlyJars(List<String> jars) {
   return out;
 }
 
-bool _isCompileOnlyJarName(String base) {
-  return base.contains('annotation') ||
+bool _isCompileOnlyJarName(final String base) => base.contains('annotation') ||
       base.contains('annotations') ||
       base.contains('jspecify') ||
       base.startsWith('kotlin-stdlib-common') ||
       base.contains('animal-sniffer') ||
       base.contains('checker-qual');
-}
 
 /// Prefer Java 17/21 for kotlinc — Kotlin 2.1 rejects JDK 25 version strings.
 Future<Map<String, String>> kotlinJavaEnvironment({
-  bool verbose = false,
+  final bool verbose = false,
 }) async {
   final env = Map<String, String>.from(Platform.environment);
   final candidates = <String>[
@@ -831,7 +823,7 @@ Future<Map<String, String>> kotlinJavaEnvironment({
   return env;
 }
 
-Future<void> copyDirectory(Directory source, Directory dest) async {
+Future<void> copyDirectory(final Directory source, final Directory dest) async {
   await dest.create(recursive: true);
   await for (final e in source.list(recursive: true, followLinks: false)) {
     final rel = p.relative(e.path, from: source.path);
@@ -847,14 +839,14 @@ Future<void> copyDirectory(Directory source, Directory dest) async {
 
 /// Stage `base/` module → zip → jarsigner (v1). Returns signed AAB path.
 Future<String> packageAndSignAab({
-  required BuildContext ctx,
-  required SdkLocator sdkLocator,
-  required List<String> dexFiles,
-  required String flutterAssetsDir,
-  required Map<String, String> libflutterByAbi,
-  required Map<String, String> libappByAbi,
-  Map<String, List<String>> extraNativeByAbi = const {},
-  SigningConfig? signing,
+  required final BuildContext ctx,
+  required final SdkLocator sdkLocator,
+  required final List<String> dexFiles,
+  required final String flutterAssetsDir,
+  required final Map<String, String> libflutterByAbi,
+  required final Map<String, String> libappByAbi,
+  final Map<String, List<String>> extraNativeByAbi = const {},
+  final SigningConfig? signing,
 }) async {
   final baseDir = p.join(ctx.buildDir, 'aab', 'base');
   final protoRes = p.join(ctx.buildDir, 'resources_proto.ap_');
@@ -906,7 +898,7 @@ Future<String> packageAndSignAab({
 }
 
 /// Locate jarsigner: next to javac first, then PATH.
-Future<String?> _findJarsigner(SdkLocator sdkLocator) async {
+Future<String?> _findJarsigner(final SdkLocator sdkLocator) async {
   try {
     final javac = await sdkLocator.findJavac();
     final candidate = p.join(p.dirname(javac), 'jarsigner');

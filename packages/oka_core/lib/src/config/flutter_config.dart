@@ -7,10 +7,10 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const FlutterConfig(Map<String, dynamic> value) {
-  static const empty = FlutterConfig({});
 
-  factory FlutterConfig.fromJson(dynamic json) =>
+  factory FlutterConfig.fromJson(final Object? json) =>
       FlutterConfig(jsonDecodeMap(json));
+  static const empty = FlutterConfig({});
 
   /// Asset directories to include in the bundle
   List<String> get assets => jsonDecodeListAs<String>(value['assets']);

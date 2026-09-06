@@ -33,9 +33,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  mcp_toolkit: ^5.0.4
   oka:
     path: ..
-  mcp_toolkit: ^5.0.4
+  oka_android: ^0.1.6
 
 dependency_overrides:
   # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
@@ -51,6 +52,10 @@ dependency_overrides:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  # Required to resolve `package:lints/recommended.yaml` referenced by
+  # xsoulspace_lints' shared configs.
+  lints: ^6.1.0
 
   # Strict lint set shared with the oka packages; applied via
   # `package:xsoulspace_lints/library.yaml` in analysis_options.yaml.

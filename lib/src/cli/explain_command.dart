@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
-import 'package:oka_core/oka_core.dart';
 
 /// `oka explain` — composes and validates the build plan with **zero tool
 /// invocations** (ADR-0007). Reports the step list with artifact chains,

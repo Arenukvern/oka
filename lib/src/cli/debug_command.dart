@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:oka_android/oka_android.dart';
-import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 /// `oka debug step <name>` — probe runner (ADR-0007 meta-learnings: running a

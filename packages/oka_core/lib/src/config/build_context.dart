@@ -21,6 +21,54 @@ enum BuildMode {
 /// by mutating a map mid-build. JSON is parsed only at this boundary
 /// (CLI args / oka.yaml) — steps see typed getters.
 class BuildContext {
+
+  const BuildContext({
+    required this.projectPath,
+    required this.buildDir,
+    required this.mode,
+    required this.config,
+    this.cacheDir = '',
+    this.tempDir = '',
+    this.flutterSdkPath = '',
+    this.androidSdkPath = '',
+    this.verbose = false,
+    this.flavor = '',
+    this.targetAbi = '',
+    this.buildAab = false,
+    this.dartDefines = const {},
+    this.targetOverride = '',
+    this.buildTimestamp,
+    this.processRunner,
+    this.onEvent,
+  });
+
+  factory BuildContext.fromJson(final Object? json) {
+    final map = jsonDecodeMap(json);
+    final modeStr = jsonDecodeString(map['mode']);
+    return BuildContext(
+      projectPath: jsonDecodeString(map['project_path']),
+      buildDir: jsonDecodeString(map['build_dir']),
+      mode: switch (modeStr) {
+        'release' => BuildMode.release,
+        'profile' => BuildMode.profile,
+        _ => BuildMode.debug,
+      },
+      config: OkaConfig.fromJson(map['config']),
+      cacheDir: jsonDecodeString(map['cache_dir']),
+      tempDir: jsonDecodeString(map['temp_dir']),
+      flutterSdkPath: jsonDecodeString(map['flutter_sdk_path']),
+      androidSdkPath: jsonDecodeString(map['android_sdk_path']),
+      verbose: jsonDecodeBool(map['verbose']),
+      flavor: jsonDecodeString(map['flavor']),
+      targetAbi: jsonDecodeString(map['target_abi']),
+      buildAab: jsonDecodeBool(map['build_aab']),
+      dartDefines: _decodeDefines(map['dart_defines']),
+      targetOverride: jsonDecodeString(map['target_override']),
+      buildTimestamp: dateTimeFromMillisecondsSinceEpoch(
+        jsonDecodeInt(map['build_timestamp']),
+      ),
+    );
+  }
   /// Project root path.
   final String projectPath;
 
@@ -75,57 +123,9 @@ class BuildContext {
   /// Pipeline event sink (null → events dropped; CLI pipes to stdout).
   final void Function(PipelineEvent event)? onEvent;
 
-  const BuildContext({
-    required this.projectPath,
-    required this.buildDir,
-    required this.mode,
-    required this.config,
-    this.cacheDir = '',
-    this.tempDir = '',
-    this.flutterSdkPath = '',
-    this.androidSdkPath = '',
-    this.verbose = false,
-    this.flavor = '',
-    this.targetAbi = '',
-    this.buildAab = false,
-    this.dartDefines = const {},
-    this.targetOverride = '',
-    this.buildTimestamp,
-    this.processRunner,
-    this.onEvent,
-  });
-
-  factory BuildContext.fromJson(dynamic json) {
-    final map = jsonDecodeMap(json);
-    final modeStr = jsonDecodeString(map['mode']);
-    return BuildContext(
-      projectPath: jsonDecodeString(map['project_path']),
-      buildDir: jsonDecodeString(map['build_dir']),
-      mode: switch (modeStr) {
-        'release' => BuildMode.release,
-        'profile' => BuildMode.profile,
-        _ => BuildMode.debug,
-      },
-      config: OkaConfig.fromJson(map['config']),
-      cacheDir: jsonDecodeString(map['cache_dir']),
-      tempDir: jsonDecodeString(map['temp_dir']),
-      flutterSdkPath: jsonDecodeString(map['flutter_sdk_path']),
-      androidSdkPath: jsonDecodeString(map['android_sdk_path']),
-      verbose: jsonDecodeBool(map['verbose']),
-      flavor: jsonDecodeString(map['flavor']),
-      targetAbi: jsonDecodeString(map['target_abi']),
-      buildAab: jsonDecodeBool(map['build_aab']),
-      dartDefines: _decodeDefines(map['dart_defines']),
-      targetOverride: jsonDecodeString(map['target_override']),
-      buildTimestamp: dateTimeFromMillisecondsSinceEpoch(
-        jsonDecodeInt(map['build_timestamp']),
-      ),
-    );
-  }
-
-  static Map<String, String> _decodeDefines(dynamic raw) {
+  static Map<String, String> _decodeDefines(final Object? raw) {
     if (raw is Map) {
-      return raw.map((k, v) => MapEntry(k.toString(), v.toString()));
+      return raw.map((final k, final v) => MapEntry(k.toString(), v.toString()));
     }
     return const {};
   }
@@ -134,10 +134,10 @@ class BuildContext {
   ProcessRunner get runner => processRunner ?? const SystemProcessRunner();
 
   /// Emits a progress message as a [PipelineLog] event.
-  void log(String message) => onEvent?.call(PipelineLog(message));
+  void log(final String message) => onEvent?.call(PipelineLog(message));
 
   /// Emits a [BuildWarning] — does not fail the build.
-  void warn(String message) => onEvent?.call(BuildWarning(message));
+  void warn(final String message) => onEvent?.call(BuildWarning(message));
 
   /// Effective Flutter entrypoint: [targetOverride] wins over oka.yaml.
   String get entrypoint => targetOverride.isNotEmpty
@@ -165,23 +165,23 @@ class BuildContext {
   };
 
   BuildContext copyWith({
-    ProcessRunner? processRunner,
-    void Function(PipelineEvent event)? onEvent,
-    String? projectPath,
-    String? buildDir,
-    BuildMode? mode,
-    OkaConfig? config,
-    String? cacheDir,
-    String? tempDir,
-    String? flutterSdkPath,
-    String? androidSdkPath,
-    bool? verbose,
-    String? flavor,
-    String? targetAbi,
-    bool? buildAab,
-    Map<String, String>? dartDefines,
-    String? targetOverride,
-    DateTime? buildTimestamp,
+    final ProcessRunner? processRunner,
+    final void Function(PipelineEvent event)? onEvent,
+    final String? projectPath,
+    final String? buildDir,
+    final BuildMode? mode,
+    final OkaConfig? config,
+    final String? cacheDir,
+    final String? tempDir,
+    final String? flutterSdkPath,
+    final String? androidSdkPath,
+    final bool? verbose,
+    final String? flavor,
+    final String? targetAbi,
+    final bool? buildAab,
+    final Map<String, String>? dartDefines,
+    final String? targetOverride,
+    final DateTime? buildTimestamp,
   }) => BuildContext(
     projectPath: projectPath ?? this.projectPath,
     buildDir: buildDir ?? this.buildDir,
@@ -210,7 +210,7 @@ class BuildContext {
 
 /// Extension type for build artifacts.
 extension type const BuildArtifact(Map<String, dynamic> value) {
-  factory BuildArtifact.fromJson(dynamic json) =>
+  factory BuildArtifact.fromJson(final Object? json) =>
       BuildArtifact(jsonDecodeMap(json));
 
   /// Output file path (APK or AAB).

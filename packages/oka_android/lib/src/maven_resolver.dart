@@ -11,19 +11,16 @@ import 'package:path/path.dart' as p;
 ///
 /// Prefer JVM/Android artifacts that actually ship `classes.jar` — some
 /// AndroidX "runtime" AARs are empty metadata shells (e.g. lifecycle-runtime).
-List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
-  return const [
+List<MavenCoordinate> flutterEmbeddingAndroidXDeps() => const [
     MavenCoordinate(
       groupId: 'androidx.annotation',
       artifactId: 'annotation-jvm',
       version: '1.9.1',
-      packaging: 'jar',
     ),
     MavenCoordinate(
       groupId: 'androidx.lifecycle',
       artifactId: 'lifecycle-common-jvm',
       version: '2.8.7',
-      packaging: 'jar',
     ),
     MavenCoordinate(
       groupId: 'androidx.lifecycle',
@@ -35,7 +32,6 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
       groupId: 'androidx.arch.core',
       artifactId: 'core-common',
       version: '2.2.0',
-      packaging: 'jar',
     ),
     MavenCoordinate(
       groupId: 'androidx.arch.core',
@@ -55,7 +51,6 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
       groupId: 'androidx.collection',
       artifactId: 'collection-jvm',
       version: '1.4.4',
-      packaging: 'jar',
     ),
     MavenCoordinate(
       groupId: 'androidx.annotation',
@@ -80,7 +75,6 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
       groupId: 'org.jetbrains.kotlin',
       artifactId: 'kotlin-stdlib',
       version: '2.0.21',
-      packaging: 'jar',
     ),
     // Hard runtime dependency of androidx.lifecycle 2.8+
     // (LifecycleRegistry uses kotlinx.coroutines.flow.StateFlow).
@@ -88,7 +82,6 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
       groupId: 'org.jetbrains.kotlinx',
       artifactId: 'kotlinx-coroutines-core-jvm',
       version: '1.9.0',
-      packaging: 'jar',
     ),
     // Used by FlutterLoader to load libflutter.so robustly on old devices.
     MavenCoordinate(
@@ -105,11 +98,13 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() {
       packaging: 'aar',
     ),
   ];
-}
 
 /// Declarative Maven repository routing (ADR-0007): one authoritative
 /// group-prefix → host map instead of scattered hardcoded prefix checks.
 class MavenRepoRegistry {
+
+  MavenRepoRegistry({final List<({String prefix, MavenHost host})>? routes})
+      : _routes = routes ?? _defaultRoutes();
   /// Group prefixes hosted on Google Maven (dl.google.com/dl/android/maven2).
   static const googleHosted = <String>[
     'androidx.',
@@ -148,16 +143,13 @@ class MavenRepoRegistry {
 
   final List<({String prefix, MavenHost host})> _routes;
 
-  MavenRepoRegistry({List<({String prefix, MavenHost host})>? routes})
-      : _routes = routes ?? _defaultRoutes();
-
   static List<({String prefix, MavenHost host})> _defaultRoutes() => [
         for (final g in googleHosted) (prefix: g, host: MavenHost.google),
         for (final g in vendorOnly) (prefix: g, host: MavenHost.vendor),
         for (final g in centralHosted) (prefix: g, host: MavenHost.central),
       ];
 
-  MavenHost hostFor(String groupId) {
+  MavenHost hostFor(final String groupId) {
     for (final r in _routes) {
       if (groupId.startsWith(r.prefix)) return r.host;
     }
@@ -168,15 +160,15 @@ class MavenRepoRegistry {
   /// store, then user repositories (vendor-only groups try user repos
   /// first). Deduplicated.
   List<String> candidatesFor(
-    MavenCoordinate c, {
-    List<String> userRepos = const [],
+    final MavenCoordinate c, {
+    final List<String> userRepos = const [],
   }) {
     final urls = <String>[];
-    void add(String u) {
+    void add(final String u) {
       if (!urls.contains(u)) urls.add(u);
     }
 
-    String url(MavenHost host) => switch (host) {
+    String url(final MavenHost host) => switch (host) {
           MavenHost.google =>
             'https://dl.google.com/dl/android/maven2/${c.pathSegment}/${c.fileName}',
           MavenHost.central =>
@@ -185,39 +177,36 @@ class MavenRepoRegistry {
         };
 
     final host = hostFor(c.groupId);
+    String normalizeBase(final String base) =>
+        base.endsWith('/') ? base.substring(0, base.length - 1) : base;
     final userUrls = [
       for (final base in userRepos)
-        '${base.endsWith('/') ? base.substring(0, base.length - 1) : base}'
-            '/${c.pathSegment}/${c.fileName}',
+        '${normalizeBase(base)}/${c.pathSegment}/${c.fileName}',
     ];
 
     // Vendor-only groups: user repos first (they host the artifacts).
     if (host == MavenHost.vendor) {
-      for (final u in userUrls) {
-        add(u);
-      }
+      userUrls.forEach(add);
     }
     add(url(MavenHost.google));
     add(url(MavenHost.central));
     if (host != MavenHost.vendor) {
-      for (final u in userUrls) {
-        add(u);
-      }
+      userUrls.forEach(add);
     }
-    return urls.where((u) => u.isNotEmpty).toList();
+    return urls.where((final u) => u.isNotEmpty).toList();
   }
 }
 
 enum MavenHost { google, central, vendor, unknown }
 
 /// Builds a Maven URL for [coord] via the default [MavenRepoRegistry].
-String googleMavenUrl(MavenCoordinate coord) =>
+String googleMavenUrl(final MavenCoordinate coord) =>
     MavenRepoRegistry.instance.candidatesFor(coord).first;
 
 /// Extracts `classes.jar` bytes from an AAR (zip) archive.
 ///
 /// Returns null when the AAR is a metadata-only shell (no classes.jar).
-Uint8List? tryExtractClassesJarFromAar(List<int> aarBytes) {
+Uint8List? tryExtractClassesJarFromAar(final List<int> aarBytes) {
   final archive = ZipDecoder().decodeBytes(aarBytes);
   for (final file in archive) {
     if (file.isFile &&
@@ -229,7 +218,7 @@ Uint8List? tryExtractClassesJarFromAar(List<int> aarBytes) {
 }
 
 /// Extracts `classes.jar` bytes from an AAR (zip) archive.
-Uint8List extractClassesJarFromAar(List<int> aarBytes) {
+Uint8List extractClassesJarFromAar(final List<int> aarBytes) {
   final jar = tryExtractClassesJarFromAar(aarBytes);
   if (jar != null) return jar;
   throw Exception('classes.jar not found in AAR');
@@ -237,8 +226,8 @@ Uint8List extractClassesJarFromAar(List<int> aarBytes) {
 
 /// Writes extracted classes.jar to [destJarPath]; returns path.
 Future<String> extractClassesJarToFile(
-  List<int> aarBytes,
-  String destJarPath,
+  final List<int> aarBytes,
+  final String destJarPath,
 ) async {
   final jarBytes = extractClassesJarFromAar(aarBytes);
   await File(destJarPath).parent.create(recursive: true);
@@ -248,6 +237,13 @@ Future<String> extractClassesJarToFile(
 
 /// Result of resolving one coordinate to a local JAR path.
 class ResolvedJar {
+
+  const ResolvedJar({
+    required this.coordinate,
+    required this.jarPath,
+    this.nativeLibsByAbi = const {},
+    this.resDirs = const [],
+  });
   final MavenCoordinate coordinate;
   final String jarPath;
 
@@ -256,16 +252,9 @@ class ResolvedJar {
 
   /// Resource dirs extracted from an AAR (values XML etc.), empty for jars.
   final List<String> resDirs;
-
-  const ResolvedJar({
-    required this.coordinate,
-    required this.jarPath,
-    this.nativeLibsByAbi = const {},
-    this.resDirs = const [],
-  });
 }
 
-/// Extracts AAR payload beyond classes.jar: jni/<abi>/*.so natives and res/.
+/// Extracts AAR payload beyond classes.jar: `jni/<abi>/*.so` natives and res/.
 ///
 /// Extraction target layout under [destDir]:
 /// - `jni/<abi>/<name>.so`
@@ -273,9 +262,9 @@ class ResolvedJar {
 /// Returns what was found; callers merge into staging/res compile inputs.
 Future<({Map<String, List<String>> nativeLibsByAbi, List<String> resDirs})>
 extractAarPayload(
-  List<int> aarBytes,
-  String destDir, {
-  bool verbose = false,
+  final List<int> aarBytes,
+  final String destDir, {
+  final bool verbose = false,
 }) async {
   final archive = ZipDecoder().decodeBytes(aarBytes);
   final natives = <String, List<String>>{};
@@ -283,11 +272,11 @@ extractAarPayload(
 
   for (final file in archive) {
     if (!file.isFile) continue;
-    final name = file.name.replaceAll('\\', '/');
+    final name = file.name.replaceAll(r'\', '/');
 
     // jni/<abi>/lib*.so
     final jniMatch = RegExp(
-      '^jni/([^/]+)/(lib[^/]+[.]so)' + r'$',
+      '^jni/([^/]+)/(lib[^/]+[.]so)' r'$',
     ).firstMatch(name);
     if (jniMatch != null) {
       final abi = jniMatch.group(1)!;
@@ -315,7 +304,7 @@ extractAarPayload(
 
   final resDirs = hasRes ? [p.join(destDir, 'res')] : const <String>[];
   if (verbose && (natives.isNotEmpty || resDirs.isNotEmpty)) {
-    final n = natives.values.fold<int>(0, (a, b) => a + b.length);
+    final n = natives.values.fold<int>(0, (final a, final b) => a + b.length);
     print('   AAR payload: $n natives, ${resDirs.length} res dir(s)');
   }
   return (nativeLibsByAbi: natives, resDirs: resDirs);
@@ -326,22 +315,9 @@ extractAarPayload(
 /// transitive resolution (parents, BOMs, properties), memoization and
 /// parallel BFS.
 class MavenResolver {
-  final String cacheRoot;
-  final bool verbose;
-  final http.Client? httpClient;
-
-  /// Per-run memoization: coordinate -> resolved result. Shared across all
-  /// plugins in one build so duplicate roots (kotlin-stdlib, androidx core…)
-  /// resolve once. In-flight futures de-duplicate concurrent resolutions.
-  final Map<String, ResolvedJar> _memo = {};
-  final Map<String, Future<ResolvedJar>> _inflight = {};
-  final bool allowNetwork;
-
-  /// User-declared repositories tried before/after built-in routing.
-  final List<String> userRepos;
 
   MavenResolver({
-    String? cacheRoot,
+    final String? cacheRoot,
     this.verbose = false,
     this.httpClient,
     this.allowNetwork = true,
@@ -356,18 +332,29 @@ class MavenResolver {
              'cache',
              'maven',
            );
+  final String cacheRoot;
+  final bool verbose;
+  final http.Client? httpClient;
 
-  String localPathFor(MavenCoordinate coord) {
-    return p.join(
+  /// Per-run memoization: coordinate -> resolved result. Shared across all
+  /// plugins in one build so duplicate roots (kotlin-stdlib, androidx core…)
+  /// resolve once. In-flight futures de-duplicate concurrent resolutions.
+  final Map<String, ResolvedJar> _memo = {};
+  final Map<String, Future<ResolvedJar>> _inflight = {};
+  final bool allowNetwork;
+
+  /// User-declared repositories tried before/after built-in routing.
+  final List<String> userRepos;
+
+  String localPathFor(final MavenCoordinate coord) => p.join(
       cacheRoot,
       coord.groupId.replaceAll('.', '/'),
       coord.artifactId,
       coord.version,
       coord.fileName,
     );
-  }
 
-  String jarPathFor(MavenCoordinate coord) {
+  String jarPathFor(final MavenCoordinate coord) {
     if (coord.packaging == 'jar') {
       return localPathFor(coord);
     }
@@ -386,9 +373,9 @@ class MavenResolver {
   /// [extraRepos] are tried before Google Maven / Maven Central.
   /// If packaging is aar and download 404s, retries as jar.
   Future<ResolvedJar> resolve(
-    MavenCoordinate coord, {
-    List<int>? fixtureBytes,
-    List<String> extraRepos = const [],
+    final MavenCoordinate coord, {
+    final List<int>? fixtureBytes,
+    final List<String> extraRepos = const [],
   }) {
     // Memoize per DependencyCache instance (per build): identical coordinates
     // requested by many plugins resolve once; concurrent requests share one
@@ -400,18 +387,20 @@ class MavenResolver {
     if (existing != null) return existing;
     final fut = _resolveUncached(coord, fixtureBytes, extraRepos);
     _inflight[memoKey] = fut;
-    return fut.then((r) {
+    return fut.then((final r) {
       _memo[memoKey] = r;
       return r;
     }).whenComplete(() {
+      // Map.remove returns the stored future — dropping it is intentional.
+      // ignore: discarded_futures
       _inflight.remove(memoKey);
     });
   }
 
   Future<ResolvedJar> _resolveUncached(
-    MavenCoordinate coord,
-    List<int>? fixtureBytes,
-    List<String> extraRepos,
+    final MavenCoordinate coord,
+    final List<int>? fixtureBytes,
+    final List<String> extraRepos,
   ) async {
     var working = coord;
     final jarPath = jarPathFor(working);
@@ -510,8 +499,8 @@ class MavenResolver {
   }
 
   Future<({MavenCoordinate coord, List<int> bytes})> _downloadArtifact(
-    MavenCoordinate coord, {
-    List<String> extraRepos = const [],
+    final MavenCoordinate coord, {
+    final List<String> extraRepos = const [],
   }) async {
     final candidates = <MavenCoordinate>[coord];
     // AndroidX multiplatform: real classes often live in *-android / *-jvm
@@ -531,7 +520,6 @@ class MavenResolver {
           groupId: coord.groupId,
           artifactId: '${coord.artifactId}-jvm',
           version: coord.version,
-          packaging: 'jar',
         ),
       );
     }
@@ -541,7 +529,6 @@ class MavenResolver {
           groupId: coord.groupId,
           artifactId: coord.artifactId,
           version: coord.version,
-          packaging: 'jar',
         ),
       );
     } else if (coord.packaging == 'jar') {
@@ -597,7 +584,7 @@ class MavenResolver {
   }
 
   /// Candidate URLs for [c]: built-in routing + user repositories.
-  List<String> _candidateUrls(MavenCoordinate c, List<String> extraRepos) =>
+  List<String> _candidateUrls(final MavenCoordinate c, final List<String> extraRepos) =>
       MavenRepoRegistry.instance.candidatesFor(
         c,
         userRepos: [...userRepos, ...extraRepos],
@@ -605,7 +592,7 @@ class MavenResolver {
 
   /// Resolve the fixed Flutter embedding AndroidX set.
   Future<List<ResolvedJar>> resolveFlutterAndroidX({
-    Map<String, List<int>> fixtures = const {},
+    final Map<String, List<int>> fixtures = const {},
   }) async {
     final results = <ResolvedJar>[];
     for (final coord in flutterEmbeddingAndroidXDeps()) {
@@ -620,11 +607,11 @@ class MavenResolver {
   /// BFS isolation stays intact (one bad artifact never empties the
   /// classpath), but failures become observable instead of verbose-only.
   Future<List<ResolvedJar>> resolveWithTransitives(
-    List<MavenCoordinate> roots, {
-    List<String> extraRepos = const [],
-    int maxDepth = 3,
-    int maxArtifacts = 250,
-    void Function(MavenCoordinate coord, Object error)? onFailure,
+    final List<MavenCoordinate> roots, {
+    final List<String> extraRepos = const [],
+    final int maxDepth = 3,
+    final int maxArtifacts = 250,
+    final void Function(MavenCoordinate coord, Object error)? onFailure,
   }) async {
     final seen = <String>{};
     final out = <ResolvedJar>[];
@@ -652,7 +639,7 @@ class MavenResolver {
 
       final expansions = await Future.wait(
         level.map(
-          (item) => _resolveAndExpand(
+          (final item) => _resolveAndExpand(
             item,
             queue,
             seen,
@@ -685,12 +672,12 @@ class MavenResolver {
   /// classpath.
   Future<({ResolvedJar? resolved, int length, List<({MavenCoordinate c, int depth})> next})>
   _resolveAndExpand(
-    ({MavenCoordinate c, int depth}) item,
-    List<({MavenCoordinate c, int depth})> queue,
-    Set<String> seen,
-    List<String> extraRepos,
-    int maxDepth, {
-    void Function(MavenCoordinate coord, Object error)? onFailure,
+    final ({MavenCoordinate c, int depth}) item,
+    final List<({MavenCoordinate c, int depth})> queue,
+    final Set<String> seen,
+    final List<String> extraRepos,
+    final int maxDepth, {
+    final void Function(MavenCoordinate coord, Object error)? onFailure,
   }) async {
     try {
       final resolved = await resolve(item.c, extraRepos: extraRepos);
@@ -714,7 +701,6 @@ class MavenResolver {
             groupId: item.c.groupId,
             artifactId: '$base-jvm',
             version: item.c.version,
-            packaging: 'jar',
           ),
         ]) {
           if (!seen.contains(alt.cacheKey) &&
@@ -749,8 +735,8 @@ class MavenResolver {
   }
 
   Future<List<MavenCoordinate>> _fetchPomDependencies(
-    MavenCoordinate coord, {
-    List<String> extraRepos = const [],
+    final MavenCoordinate coord, {
+    final List<String> extraRepos = const [],
   }) async {
     if (!allowNetwork) return const [];
     final pomCoord = MavenCoordinate(
@@ -780,7 +766,7 @@ class MavenResolver {
     // Version-less <dependency> entries (versions managed by a parent POM's
     // <dependencyManagement> or <properties>): fetch the parent once and
     // resolve versions from it.
-    final needsVersion = deps.any((d) => d.version.isEmpty);
+    final needsVersion = deps.any((final d) => d.version.isEmpty);
     if (!needsVersion) return deps;
 
     final parent = parsePomParent(pomXml);
@@ -796,7 +782,7 @@ class MavenResolver {
     // BOM imports of the direct parent: slf4j-bom etc. merge their managed
     // versions (resolving ${} refs against the parent's properties first).
     final importsQueue = parsePomImports(parentXml)
-        .map((c) => MavenCoordinate(
+        .map((final c) => MavenCoordinate(
               groupId: c.groupId,
               artifactId: c.artifactId,
               version: c.version.startsWith(r'${')
@@ -806,12 +792,12 @@ class MavenResolver {
                   : c.version,
               packaging: 'pom',
             ))
-        .where((c) => c.version.isNotEmpty)
+        .where((final c) => c.version.isNotEmpty)
         .toList();
     if (verbose) {
       print(
         '   parent-managed: ${managed.length} entries; '
-        'imports: ${importsQueue.map((c) => c.toString()).join(', ')}',
+        'imports: ${importsQueue.map((final c) => c.toString()).join(', ')}',
       );
     }
     var bomGuard = 0;
@@ -823,7 +809,7 @@ class MavenResolver {
       if (verbose && bomXml == null) print('   BOM fetch failed: $bom');
       if (bomXml == null) continue;
       final props = parsePomProperties(bomXml);
-      parsePomManagedVersions(bomXml).forEach((k, v) {
+      parsePomManagedVersions(bomXml).forEach((final k, final v) {
         managed[k] = v.startsWith(r'${')
             ? (v == r'${project.version}'
                 ? bom.version
@@ -846,7 +832,7 @@ class MavenResolver {
       parentProps.addAll(parsePomProperties(gpXml));
       grandparent = parsePomParent(gpXml);
     }
-    String resolveVersion(String v) {
+    String resolveVersion(final String v) {
       if (v.startsWith(r'${') && v.endsWith('}')) {
         final key = v.substring(2, v.length - 1);
         return ownProps[key] ?? parentProps[key] ?? '';
@@ -854,20 +840,20 @@ class MavenResolver {
       return v;
     }
 
-    return deps.map((d) {
+    return deps.map((final d) {
       var v = d.version;
       if (v.isEmpty) {
         v = managed['${d.groupId}:${d.artifactId}'] ?? '';
       }
       v = resolveVersion(v);
       return MavenCoordinate(groupId: d.groupId, artifactId: d.artifactId, version: v);
-    }).where((d) => d.version.isNotEmpty && !d.version.contains(r'${')).toList();
+    }).where((final d) => d.version.isNotEmpty && !d.version.contains(r'${')).toList();
   }
 
   /// Downloads (or reads cached) POM XML for [coord]; null when unavailable.
   Future<String?> _pomXml(
-    MavenCoordinate coord,
-    List<String> extraRepos,
+    final MavenCoordinate coord,
+    final List<String> extraRepos,
   ) async {
     final pomCoord = MavenCoordinate(
       groupId: coord.groupId,
@@ -876,7 +862,7 @@ class MavenResolver {
       packaging: 'pom',
     );
     final pomPath = localPathFor(pomCoord);
-    if (await File(pomPath).exists()) return await File(pomPath).readAsString();
+    if (await File(pomPath).exists()) return File(pomPath).readAsString();
     try {
       final dl = await _downloadArtifact(pomCoord, extraRepos: extraRepos);
       await File(pomPath).parent.create(recursive: true);
@@ -890,7 +876,7 @@ class MavenResolver {
 }
 
 /// Extracts `<parent>` coordinates from a POM, when present.
-MavenCoordinate? parsePomParent(String pomXml) {
+MavenCoordinate? parsePomParent(final String pomXml) {
   final m = RegExp(
     r'<parent>\s*<groupId>([^<]+)</groupId>\s*<artifactId>([^<]+)</artifactId>\s*<version>([^<]+)</version>',
   ).firstMatch(pomXml);
@@ -904,7 +890,7 @@ MavenCoordinate? parsePomParent(String pomXml) {
 
 /// Extracts `<dependencyManagement><dependencies>` versions from a POM:
 /// map of `groupId:artifactId` → version.
-Map<String, String> parsePomManagedVersions(String pomXml) {
+Map<String, String> parsePomManagedVersions(final String pomXml) {
   final out = <String, String>{};
   final mgmt = RegExp(
     r'<dependencyManagement>([\s\S]*?)</dependencyManagement>',
@@ -914,10 +900,10 @@ Map<String, String> parsePomManagedVersions(String pomXml) {
       in RegExp(r'<dependency>([\s\S]*?)</dependency>')
           .allMatches(mgmt.group(1)!)) {
     final body = block.group(1)!;
-    final g = RegExp(r'<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
+    final g = RegExp('<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
     final a =
-        RegExp(r'<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
-    final v = RegExp(r'<version>([^<]+)</version>').firstMatch(body)?.group(1);
+        RegExp('<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
+    final v = RegExp('<version>([^<]+)</version>').firstMatch(body)?.group(1);
     if (g != null && a != null && v != null) out['$g:$a'] = v;
   }
   return out;
@@ -925,7 +911,7 @@ Map<String, String> parsePomManagedVersions(String pomXml) {
 
 /// Extracts BOM imports (`<type>pom</type><scope>import</scope>`) from a
 /// POM's dependencyManagement — their managed versions merge transitively.
-List<MavenCoordinate> parsePomImports(String pomXml) {
+List<MavenCoordinate> parsePomImports(final String pomXml) {
   final out = <MavenCoordinate>[];
   final mgmt = RegExp(
     r'<dependencyManagement>([\s\S]*?)</dependencyManagement>',
@@ -937,10 +923,10 @@ List<MavenCoordinate> parsePomImports(String pomXml) {
     final body = block.group(1)!;
     if (!RegExp(r'<scope>\s*import\s*</scope>').hasMatch(body)) continue;
     if (!RegExp(r'<type>\s*pom\s*</type>').hasMatch(body)) continue;
-    final g = RegExp(r'<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
+    final g = RegExp('<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
     final a =
-        RegExp(r'<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
-    final v = RegExp(r'<version>([^<]+)</version>').firstMatch(body)?.group(1);
+        RegExp('<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
+    final v = RegExp('<version>([^<]+)</version>').firstMatch(body)?.group(1);
     if (g != null && a != null && v != null) {
       out.add(
         MavenCoordinate(groupId: g, artifactId: a, version: v, packaging: 'pom'),
@@ -951,7 +937,7 @@ List<MavenCoordinate> parsePomImports(String pomXml) {
 }
 
 /// Extracts `<properties>` from a POM: map of property name → value.
-Map<String, String> parsePomProperties(String pomXml) {
+Map<String, String> parsePomProperties(final String pomXml) {
   final section = RegExp(r'<properties>([\s\S]*?)</properties>')
       .firstMatch(pomXml)
       ?.group(1);
@@ -966,7 +952,7 @@ Map<String, String> parsePomProperties(String pomXml) {
 }
 
 /// Extract compile/runtime dependencies from a Maven POM (minimal).
-List<MavenCoordinate> parsePomDependencies(String pomXml) {
+List<MavenCoordinate> parsePomDependencies(final String pomXml) {
   final deps = <MavenCoordinate>[];
   // Strip dependencyManagement / profiles / build sections first: their
   // <dependency> blocks are build-time tooling, not runtime deps.
@@ -978,7 +964,7 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
   // <project> → keep only the top-level <dependencies> block when present.
   final ownDeps = RegExp(r'<dependencies>([\s\S]*?)</dependencies>')
       .allMatches(scope)
-      .map((m) => m.group(1)!)
+      .map((final m) => m.group(1)!)
       .join('\n');
   if (ownDeps.isNotEmpty) scope = ownDeps;
   final depBlocks = RegExp(
@@ -988,16 +974,16 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
   for (final block in depBlocks) {
     final body = block.group(1)!;
     // skip test/provided
-    final scope = RegExp(r'<scope>([^<]+)</scope>').firstMatch(body)?.group(1);
+    final scope = RegExp('<scope>([^<]+)</scope>').firstMatch(body)?.group(1);
     if (scope == 'test' || scope == 'provided' || scope == 'system') continue;
-    final optional = RegExp(r'<optional>true</optional>').hasMatch(body);
+    final optional = RegExp('<optional>true</optional>').hasMatch(body);
     if (optional) continue;
 
-    final g = RegExp(r'<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
+    final g = RegExp('<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
     final a = RegExp(
-      r'<artifactId>([^<]+)</artifactId>',
+      '<artifactId>([^<]+)</artifactId>',
     ).firstMatch(body)?.group(1);
-    var v = RegExp(r'<version>([^<]+)</version>').firstMatch(body)?.group(1) ?? '';
+    var v = RegExp('<version>([^<]+)</version>').firstMatch(body)?.group(1) ?? '';
     // Version may be absent (managed by a parent POM) or a property
     // reference — both resolved later against the parent POM.
     if (g == null || a == null) continue;
@@ -1011,7 +997,7 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
     // Skip BOMs (no classes)
     if (a.endsWith('-bom') || a == 'bom') continue;
     final type =
-        RegExp(r'<type>([^<]+)</type>').firstMatch(body)?.group(1) ?? 'jar';
+        RegExp('<type>([^<]+)</type>').firstMatch(body)?.group(1) ?? 'jar';
     final packaging = type == 'aar' ? 'aar' : 'jar';
     // Heuristic: android-ish artifacts often aar
     final pack =
@@ -1034,9 +1020,9 @@ List<MavenCoordinate> parsePomDependencies(String pomXml) {
 }
 
 /// Builds a minimal valid JAR (zip with empty META-INF) for tests.
-List<int> minimalJarBytes({String entryName = 'META-INF/MANIFEST.MF'}) {
+List<int> minimalJarBytes({final String entryName = 'META-INF/MANIFEST.MF'}) {
   final archive = Archive();
-  final manifest = 'Manifest-Version: 1.0\n\n';
+  const manifest = 'Manifest-Version: 1.0\n\n';
   archive.addFile(ArchiveFile(entryName, manifest.length, manifest.codeUnits));
   return ZipEncoder().encodeBytes(archive);
 }

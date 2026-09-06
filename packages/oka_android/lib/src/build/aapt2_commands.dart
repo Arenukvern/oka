@@ -4,11 +4,12 @@
 /// - `compile --dir <resDir> -o <out.zip>` writes a **compiled-resources ZIP**
 ///   (not a directory of .flat files).
 /// - `link ... -R <compiled.zip>` consumes that single ZIP (not per-file -R).
+library;
 
 /// Args after the aapt2 executable for directory resource compilation.
 List<String> buildAapt2CompileDirArgs({
-  required String resDir,
-  required String compiledResourcesZip,
+  required final String resDir,
+  required final String compiledResourcesZip,
 }) {
   if (!compiledResourcesZip.endsWith('.zip') &&
       !compiledResourcesZip.endsWith('.flata')) {
@@ -19,18 +20,17 @@ List<String> buildAapt2CompileDirArgs({
 
 /// Args after the aapt2 executable for linking a compiled-resources zip.
 List<String> buildAapt2LinkArgs({
-  required String androidJar,
-  required String manifestPath,
-  required String outputAp,
-  required String compiledResourcesZip,
-  String? javaOutDir,
-  String? assetsDir,
-  bool autoAddOverlay = true,
-  List<String> resourceConfigs = const [],
-  String? versionCode,
-  String? versionName,
-}) {
-  return <String>[
+  required final String androidJar,
+  required final String manifestPath,
+  required final String outputAp,
+  required final String compiledResourcesZip,
+  final String? javaOutDir,
+  final String? assetsDir,
+  final bool autoAddOverlay = true,
+  final List<String> resourceConfigs = const [],
+  final String? versionCode,
+  final String? versionName,
+}) => <String>[
     'link',
     '-I',
     androidJar,
@@ -57,7 +57,6 @@ List<String> buildAapt2LinkArgs({
     '-R',
     compiledResourcesZip,
   ];
-}
 
 /// Args after aapt2 for linking in **proto format** (App Bundle inputs).
 ///
@@ -66,17 +65,16 @@ List<String> buildAapt2LinkArgs({
 /// module expects. Reuses the same single `-R <compiled.zip>` rule as
 /// [buildAapt2LinkArgs].
 List<String> buildAapt2LinkProtoFormatArgs({
-  required String androidJar,
-  required String manifestPath,
-  required String outputAp,
-  required String compiledResourcesZip,
-  String? javaOutDir,
-  bool autoAddOverlay = true,
-  List<String> resourceConfigs = const [],
-  String? versionCode,
-  String? versionName,
-}) {
-  return <String>[
+  required final String androidJar,
+  required final String manifestPath,
+  required final String outputAp,
+  required final String compiledResourcesZip,
+  final String? javaOutDir,
+  final bool autoAddOverlay = true,
+  final List<String> resourceConfigs = const [],
+  final String? versionCode,
+  final String? versionName,
+}) => <String>[
     'link',
     '--proto-format',
     '-I',
@@ -99,11 +97,10 @@ List<String> buildAapt2LinkProtoFormatArgs({
     '-R',
     compiledResourcesZip,
   ];
-}
 
 /// Returns true if [path] looks like a compiled-resources archive file path
 /// (not a directory intended to hold loose .flat files).
-bool isCompiledResourcesZipPath(String path) {
+bool isCompiledResourcesZipPath(final String path) {
   final lower = path.toLowerCase();
   return lower.endsWith('.zip') ||
       lower.endsWith('.flata') ||

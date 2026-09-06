@@ -2,15 +2,15 @@ import 'dart:io';
 
 /// Result of an external process invocation.
 class ProcOutcome {
-  final int exitCode;
-  final String stdout;
-  final String stderr;
 
   const ProcOutcome({
     required this.exitCode,
     required this.stdout,
     required this.stderr,
   });
+  final int exitCode;
+  final String stdout;
+  final String stderr;
 
   bool get ok => exitCode == 0;
 }
@@ -18,13 +18,14 @@ class ProcOutcome {
 /// Injectable process runner (ADR-0007): every tool invocation flows through
 /// this interface so steps are testable without real SDKs and timeouts are
 /// enforced uniformly.
+// ignore: one_member_abstracts
 abstract class ProcessRunner {
   Future<ProcOutcome> run(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-    Duration? timeout,
+    final String executable,
+    final List<String> arguments, {
+    final String? workingDirectory,
+    final Map<String, String>? environment,
+    final Duration? timeout,
   });
 }
 
@@ -34,11 +35,11 @@ class SystemProcessRunner implements ProcessRunner {
 
   @override
   Future<ProcOutcome> run(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-    Duration? timeout,
+    final String executable,
+    final List<String> arguments, {
+    final String? workingDirectory,
+    final Map<String, String>? environment,
+    final Duration? timeout,
   }) async {
     final result = await Process.run(
       executable,

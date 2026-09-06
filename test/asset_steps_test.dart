@@ -4,10 +4,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-import 'package:oka_core/src/pipeline/pipeline.dart';
-import 'package:oka_android/src/pipeline/steps/asset_steps.dart';
-import 'package:oka_core/src/config/build_context.dart';
-import 'package:oka_core/src/config/oka_config.dart';
 
 void main() {
   group('ExtraAssetsStep', () {

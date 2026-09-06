@@ -1,12 +1,13 @@
 /// Generates Android host Java sources and manifests for Flutter embedding.
 ///
 /// Pure string builders — no I/O — so unit tests assert exact structure.
+library;
 
 import '../manifest_spec.dart';
 import '../pipeline/steps/asset_steps.dart' show DeeplinkConfig;
 
 /// Android package name validation (simple).
-bool isValidAndroidPackageName(String packageName) {
+bool isValidAndroidPackageName(final String packageName) {
   if (packageName.isEmpty) return false;
   final parts = packageName.split('.');
   if (parts.length < 2) return false;
@@ -15,13 +16,13 @@ bool isValidAndroidPackageName(String packageName) {
 }
 
 /// Path for MainActivity relative to a java source root.
-String mainActivityRelativePath(String packageName) {
+String mainActivityRelativePath(final String packageName) {
   final segments = packageName.split('.');
   return '${segments.join('/')}/MainActivity.java';
 }
 
 /// Generates a minimal FlutterActivity host.
-String generateMainActivityJava(String packageName) {
+String generateMainActivityJava(final String packageName) {
   if (!isValidAndroidPackageName(packageName)) {
     throw ArgumentError('Invalid Android package name: $packageName');
   }
@@ -37,19 +38,19 @@ public class MainActivity extends FlutterActivity {
 
 /// Plugin registration entry used by [generatePluginRegistrantJava].
 class PluginRegistration {
+
+  const PluginRegistration({required this.className, required this.name});
   /// Fully-qualified Java/Kotlin plugin class, e.g. `io.flutter.plugins.pathprovider.PathProviderPlugin`
   final String className;
 
   /// Human-readable plugin name (for comments / diagnostics).
   final String name;
-
-  const PluginRegistration({required this.className, required this.name});
 }
 
 /// Generates `io.flutter.plugins.GeneratedPluginRegistrant`.
 ///
 /// When [plugins] is empty, emits a no-op registrant (valid for plugin-free apps).
-String generatePluginRegistrantJava(List<PluginRegistration> plugins) {
+String generatePluginRegistrantJava(final List<PluginRegistration> plugins) {
   final buffer = StringBuffer();
   buffer.writeln('package io.flutter.plugins;');
   buffer.writeln();
@@ -99,17 +100,16 @@ String generatePluginRegistrantJava(List<PluginRegistration> plugins) {
 /// Backward-compatible wrapper: prefer [generateAndroidManifestFromSpec]
 /// (ADR-0006 — the manifest is a typed [ManifestSpec] value).
 String generateAndroidManifestXml({
-  required String packageName,
-  required String label,
-  required String minSdk,
-  required String targetSdk,
-  String activityName = '.MainActivity',
-  List<String> permissions = const ['android.permission.INTERNET'],
-  bool debuggable = true,
-  String extraIntentFilters = '',
-  String iconRef = '',
-}) {
-  return generateAndroidManifestFromSpec(
+  required final String packageName,
+  required final String label,
+  required final String minSdk,
+  required final String targetSdk,
+  final String activityName = '.MainActivity',
+  final List<String> permissions = const ['android.permission.INTERNET'],
+  final bool debuggable = true,
+  final String extraIntentFilters = '',
+  final String iconRef = '',
+}) => generateAndroidManifestFromSpec(
     packageName: packageName,
     label: label,
     minSdk: minSdk,
@@ -119,21 +119,20 @@ String generateAndroidManifestXml({
     extraIntentFilters: extraIntentFilters,
     iconRef: iconRef,
   );
-}
 
 /// Renders the host AndroidManifest from a typed [ManifestSpec] (ADR-0006).
 String generateAndroidManifestFromSpec({
-  required String packageName,
-  required String label,
-  required String minSdk,
-  required String targetSdk,
-  String activityName = '.MainActivity',
-  ManifestSpec spec = const ManifestSpec(),
-  String extraIntentFilters = '',
-  String iconRef = '',
+  required final String packageName,
+  required final String label,
+  required final String minSdk,
+  required final String targetSdk,
+  final String activityName = '.MainActivity',
+  final ManifestSpec spec = const ManifestSpec(),
+  final String extraIntentFilters = '',
+  final String iconRef = '',
 }) {
   final permLines = spec.permissions
-      .map((p) => '    <uses-permission android:name="$p" />')
+      .map((final p) => '    <uses-permission android:name="$p" />')
       .join('\n');
 
   // Application attributes: typed spec fields first, then passthrough map.
@@ -147,7 +146,7 @@ String generateAndroidManifestFromSpec({
     ...spec.applicationAttributes,
   };
   final appAttrLines = appAttrs.entries
-      .map((e) => '        ${e.key}="${e.value}"')
+      .map((final e) => '        ${e.key}="${e.value}"')
       .join('\n');
 
   final metaData = <MetaDataSpec>[
@@ -157,7 +156,7 @@ String generateAndroidManifestFromSpec({
   ];
   final metaDataLines = metaData
       .map(
-        (m) => m.resource != null
+        (final m) => m.resource != null
             ? '        <meta-data android:name="${m.name}" '
                 'android:resource="${m.resource}" />'
             : '        <meta-data android:name="${m.name}" '
@@ -166,7 +165,7 @@ String generateAndroidManifestFromSpec({
       .join('\n');
 
   final actAttrLines = spec.activityAttributes.entries
-      .map((e) => '            ${e.key}="${e.value}"')
+      .map((final e) => '            ${e.key}="${e.value}"')
       .join('\n');
 
   final filters = <String>[
@@ -174,7 +173,8 @@ String generateAndroidManifestFromSpec({
     if (extraIntentFilters.isNotEmpty) extraIntentFilters,
   ].join('\n');
 
-  return '''<?xml version="1.0" encoding="utf-8"?>
+  return '''
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="$packageName">
 
@@ -214,17 +214,16 @@ $metaDataLines
 }
 
 /// Renders deeplink intent-filters for a typed [ManifestSpec].
-String renderDeeplinkIntentFilters(List<DeeplinkConfig> deeplinks) =>
-    deeplinks.map((d) => d.intentFilterXml).join('\n');
+String renderDeeplinkIntentFilters(final List<DeeplinkConfig> deeplinks) =>
+    deeplinks.map((final d) => d.intentFilterXml).join('\n');
 
 /// Minimal values/strings and adaptive-friendly placeholder: we rely on
 /// `@android:style` and a generated solid-color mipmap via aapt is complex;
 /// generate a tiny res tree description for callers.
-String generateLauncherIconXml() {
-  return '''<?xml version="1.0" encoding="utf-8"?>
+String generateLauncherIconXml() => '''
+<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@android:color/white"/>
     <foreground android:drawable="@android:color/darker_gray"/>
 </adaptive-icon>
 ''';
-}

@@ -7,7 +7,7 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const ManifestMergeResult(Map<String, dynamic> value) {
-  factory ManifestMergeResult.fromJson(dynamic json) =>
+  factory ManifestMergeResult.fromJson(final Object? json) =>
       ManifestMergeResult(jsonDecodeMap(json));
 
   /// Merged manifest XML content
@@ -43,7 +43,7 @@ extension type const ManifestMergeResult(Map<String, dynamic> value) {
 
 /// Merge rules for AI-based manifest merging
 extension type const MergeRules(Map<String, dynamic> value) {
-  factory MergeRules.fromJson(dynamic json) => MergeRules(jsonDecodeMap(json));
+  factory MergeRules.fromJson(final Object? json) => MergeRules(jsonDecodeMap(json));
 
   /// Priority order for conflicting attributes
   String get priorityStrategy => jsonDecodeString(value['priority_strategy']);

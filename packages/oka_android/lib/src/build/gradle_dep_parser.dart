@@ -5,9 +5,22 @@
 /// - `implementation("group:artifact:version")`
 /// - `api "group:artifact:version"`
 /// - `compileOnly(...)` skipped for runtime packaging
+library;
+
+import 'package:meta/meta.dart';
 
 /// A parsed dependency declaration.
+@immutable
 class ParsedGradleDep {
+
+  const ParsedGradleDep({
+    required this.groupId,
+    required this.artifactId,
+    required this.version,
+    this.configuration = 'implementation',
+    this.inConditional = false,
+    this.conditionalGroup = 0,
+  });
   final String groupId;
   final String artifactId;
   final String version;
@@ -25,22 +38,13 @@ class ParsedGradleDep {
   /// call — callers combining several files must re-map ids per file.
   final int conditionalGroup;
 
-  const ParsedGradleDep({
-    required this.groupId,
-    required this.artifactId,
-    required this.version,
-    this.configuration = 'implementation',
-    this.inConditional = false,
-    this.conditionalGroup = 0,
-  });
-
   String get coordinate => '$groupId:$artifactId:$version';
 
   @override
   String toString() => coordinate;
 
   @override
-  bool operator ==(Object other) =>
+  bool operator ==(final Object other) =>
       other is ParsedGradleDep &&
       other.groupId == groupId &&
       other.artifactId == artifactId &&
@@ -78,7 +82,7 @@ final _coordPatterns = <RegExp>[
 /// Declarations found inside `if (...) { ... }` / `else { ... }` blocks are
 /// flagged [ParsedGradleDep.inConditional] with the enclosing group id.
 /// All coordinate patterns are single-line, so scopes are tracked line-wise.
-List<ParsedGradleDep> parseGradleDependencies(String gradleSource) {
+List<ParsedGradleDep> parseGradleDependencies(final String gradleSource) {
   final found = <ParsedGradleDep>{};
   // Scope stack: one entry per open brace; 0 = unconditional scope,
   // >0 = inside if/else group with that id.
@@ -118,7 +122,7 @@ List<ParsedGradleDep> parseGradleDependencies(String gradleSource) {
       scopes.add(lastClosedIfGroup > 0 ? lastClosedIfGroup : 0);
     }
 
-    final innermostGroup = scopes.lastWhere((g) => g > 0, orElse: () => 0);
+    final innermostGroup = scopes.lastWhere((final g) => g > 0, orElse: () => 0);
 
     for (final re in _coordPatterns) {
       for (final m in re.allMatches(line)) {
@@ -126,7 +130,7 @@ List<ParsedGradleDep> parseGradleDependencies(String gradleSource) {
         final artifact = m.group(2)!;
         final version = m.group(3)!;
         // Skip project-local and incomplete versions
-        if (version.contains('\$') || version == '+' ) {
+        if (version.contains(r'$') || version == '+' ) {
           continue;
         }
         if (group == 'project') {
@@ -180,16 +184,16 @@ List<ParsedGradleDep> parseGradleDependencies(String gradleSource) {
 /// [deps] from several gradle files must carry distinct
 /// [ParsedGradleDep.conditionalGroup] ids per file (re-map before calling).
 List<ParsedGradleDep> dedupeConditionalDeps(
-  List<ParsedGradleDep> deps, {
-  String pluginName = '',
-  void Function(String notice)? onNotice,
+  final List<ParsedGradleDep> deps, {
+  final String pluginName = '',
+  final void Function(String notice)? onNotice,
 }) {
   final kept = <ParsedGradleDep>[];
   final droppedInGroup = <int, List<ParsedGradleDep>>{};
   for (final dep in deps) {
     if (dep.inConditional &&
         kept.any(
-          (k) => k.conditionalGroup == dep.conditionalGroup,
+          (final k) => k.conditionalGroup == dep.conditionalGroup,
         )) {
       droppedInGroup
           .putIfAbsent(dep.conditionalGroup, () => [])
@@ -202,12 +206,12 @@ List<ParsedGradleDep> dedupeConditionalDeps(
     final who = pluginName.isEmpty ? '' : '$pluginName: ';
     for (final entry in droppedInGroup.entries) {
       final winner = kept.firstWhere(
-        (k) => k.conditionalGroup == entry.key,
+        (final k) => k.conditionalGroup == entry.key,
       );
       onNotice(
         'ℹ️  ${who}conditional if/else dependency variants collapsed: '
         'keeping ${winner.coordinate} (gradle default branch); skipping '
-        '${entry.value.map((d) => d.coordinate).join(", ")}',
+        '${entry.value.map((final d) => d.coordinate).join(", ")}',
       );
     }
   }
@@ -215,7 +219,7 @@ List<ParsedGradleDep> dedupeConditionalDeps(
 }
 
 /// Extract custom maven repository URLs from gradle text.
-List<String> parseMavenRepositoryUrls(String gradleSource) {
+List<String> parseMavenRepositoryUrls(final String gradleSource) {
   final urls = <String>[];
   final re = RegExp(r'''url\s*(?:=\s*)?uri\(?\s*["']([^"']+)["']''');
   final re2 = RegExp(r'''maven\s*\{\s*url\s+["']([^"']+)["']''');

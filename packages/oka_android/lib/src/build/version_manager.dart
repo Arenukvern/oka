@@ -19,10 +19,10 @@ abstract class VersionManager {
   Future<List<String>> listInstalledJavaVersions();
 
   /// Install a specific Java version
-  Future<bool> installJavaVersion(String version);
+  Future<bool> installJavaVersion(final String version);
 
   /// Get JAVA_HOME path for a specific version
-  Future<String?> getJavaHome(String version);
+  Future<String?> getJavaHome(final String version);
 
   /// Get the name of this version manager
   String get name;
@@ -85,7 +85,7 @@ abstract class VersionManager {
       print('✅ SDKMAN! installed successfully');
       print('');
       print('💡 Note: You may need to restart your terminal or run:');
-      print('   source "\$HOME/.sdkman/bin/sdkman-init.sh"');
+      print(r'   source "$HOME/.sdkman/bin/sdkman-init.sh"');
       print('');
 
       // Verify installation
@@ -118,7 +118,7 @@ class SDKMANVersionManager extends VersionManager {
     if (home.isEmpty) return false;
 
     final sdkmanDir = p.join(home, '.sdkman');
-    return await Directory(sdkmanDir).exists();
+    return Directory(sdkmanDir).exists();
   }
 
   @override
@@ -144,7 +144,7 @@ class SDKMANVersionManager extends VersionManager {
   }
 
   @override
-  Future<bool> installJavaVersion(String version) async {
+  Future<bool> installJavaVersion(final String version) async {
     print('📥 Installing Java $version via SDKMAN!...');
 
     // SDKMAN! requires bash and interactive mode, so we need to source it
@@ -190,7 +190,7 @@ class SDKMANVersionManager extends VersionManager {
   }
 
   @override
-  Future<String?> getJavaHome(String version) async {
+  Future<String?> getJavaHome(final String version) async {
     final home = Platform.environment['HOME'] ?? '';
     final candidatesDir = p.join(home, '.sdkman', 'candidates', 'java');
 
@@ -219,7 +219,7 @@ class SDKMANVersionManager extends VersionManager {
   }
 
   /// Find SDKMAN! Java identifier for a given version
-  Future<String?> _findSdkmanJavaIdentifier(String version) async {
+  Future<String?> _findSdkmanJavaIdentifier(final String version) async {
     final home = Platform.environment['HOME'] ?? '';
     final sdkmanInit = p.join(home, '.sdkman', 'bin', 'sdkman-init.sh');
 
@@ -313,7 +313,7 @@ class SDKMANVersionManager extends VersionManager {
   }
 
   /// Check if a string is a valid Java identifier for the requested version
-  bool _isValidJavaIdentifier(String identifier, String version) {
+  bool _isValidJavaIdentifier(final String identifier, final String version) {
     // Must contain the version number
     if (!identifier.contains(version)) {
       return false;
@@ -367,9 +367,9 @@ class AsdfVersionManager extends VersionManager {
       final output = result.stdout as String;
       final versions = output
           .split('\n')
-          .map((line) => line.trim())
-          .where((line) => line.isNotEmpty && !line.startsWith('*'))
-          .map((line) => line.replaceAll('*', '').trim())
+          .map((final line) => line.trim())
+          .where((final line) => line.isNotEmpty && !line.startsWith('*'))
+          .map((final line) => line.replaceAll('*', '').trim())
           .toList();
 
       return versions;
@@ -379,7 +379,7 @@ class AsdfVersionManager extends VersionManager {
   }
 
   @override
-  Future<bool> installJavaVersion(String version) async {
+  Future<bool> installJavaVersion(final String version) async {
     print('📥 Installing Java $version via asdf...');
 
     // Ensure Java plugin is installed
@@ -407,7 +407,7 @@ class AsdfVersionManager extends VersionManager {
   }
 
   @override
-  Future<String?> getJavaHome(String version) async {
+  Future<String?> getJavaHome(final String version) async {
     try {
       final home = Platform.environment['HOME'] ?? '';
       final asdfDir =
@@ -443,7 +443,7 @@ class AsdfVersionManager extends VersionManager {
   }
 
   /// Find asdf Java identifier for a given version
-  Future<String?> _findAsdfJavaIdentifier(String version) async {
+  Future<String?> _findAsdfJavaIdentifier(final String version) async {
     try {
       final result = await Process.run('asdf', ['list-all', 'java']);
 
@@ -533,7 +533,7 @@ class WingetVersionManager extends VersionManager {
   }
 
   @override
-  Future<bool> installJavaVersion(String version) async {
+  Future<bool> installJavaVersion(final String version) async {
     print('📥 Installing Java $version via winget...');
 
     // Determine package ID
@@ -560,12 +560,12 @@ class WingetVersionManager extends VersionManager {
   }
 
   @override
-  Future<String?> getJavaHome(String version) async {
+  Future<String?> getJavaHome(final String version) async {
     // On Windows, Java installations are typically in Program Files
     final programFiles =
-        Platform.environment['ProgramFiles'] ?? 'C:\\Program Files';
+        Platform.environment['ProgramFiles'] ?? r'C:\Program Files';
     final programFilesX86 =
-        Platform.environment['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
+        Platform.environment['ProgramFiles(x86)'] ?? r'C:\Program Files (x86)';
 
     final possiblePaths = [
       p.join(programFiles, 'Java', 'jdk-$version'),
@@ -585,10 +585,8 @@ class WingetVersionManager extends VersionManager {
     return null;
   }
 
-  /// Get winget package ID for Java version
-  String _getWingetJavaPackageId(String version) {
-    // Use Eclipse Temurin (Adoptium) as default
-    // These are well-maintained and widely compatible
-    return 'EclipseAdoptium.Temurin.$version.JDK';
-  }
+  /// Winget package ID for the given Java version. Uses Eclipse Temurin
+  /// (Adoptium) as default: well-maintained and widely compatible.
+  String _getWingetJavaPackageId(final String version) =>
+      'EclipseAdoptium.Temurin.$version.JDK';
 }

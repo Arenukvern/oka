@@ -25,6 +25,14 @@ import 'signing_config.dart';
 /// )
 /// ```
 class AndroidPipeline implements PlatformPipeline {
+
+  const AndroidPipeline({
+    this.overrides = const PipelineOverrides(),
+    this.steps,
+    this.strictPlugins = true,
+    this.config,
+    this.flutterConfig,
+  });
   /// Typed fast-settings (deps, assets, deeplinks, icon, manifest, signing).
   final PipelineOverrides overrides;
 
@@ -53,20 +61,12 @@ class AndroidPipeline implements PlatformPipeline {
     if (flutterConfig != null) 'flutter': flutterConfig!.toConfigMap(),
   };
 
-  const AndroidPipeline({
-    this.overrides = const PipelineOverrides(),
-    this.steps,
-    this.strictPlugins = true,
-    this.config,
-    this.flutterConfig,
-  });
-
   AndroidPipeline copyWith({
-    PipelineOverrides? overrides,
-    List<BuildStep>? steps,
-    bool? strictPlugins,
-    AndroidBuild? config,
-    FlutterBuild? flutterConfig,
+    final PipelineOverrides? overrides,
+    final List<BuildStep>? steps,
+    final bool? strictPlugins,
+    final AndroidBuild? config,
+    final FlutterBuild? flutterConfig,
   }) => AndroidPipeline(
     overrides: overrides ?? this.overrides,
     steps: steps ?? this.steps,
@@ -101,7 +101,7 @@ class AndroidPipeline implements PlatformPipeline {
   }
 
   @override
-  Future<StepResult> run(BuildContext ctx) async {
+  Future<StepResult> run(final BuildContext ctx) async {
     // Merge yaml fast-settings with Dart-composed overrides (Dart wins).
     final yaml = await PipelineOverrides.load(ctx.projectPath);
     final signing =

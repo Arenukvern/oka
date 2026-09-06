@@ -21,15 +21,14 @@ library;
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
-import 'package:oka_core/oka_core.dart';
 
-Future<void> main(List<String> args) => okaRun(
+Future<void> main(final List<String> args) => okaRun(
   args,
   oka: Oka(
     pipelines: [
       AndroidPipeline(
         // The old `android:` oka.yaml section — strictly typed.
-        config: AndroidBuild(
+        config: const AndroidBuild(
           name: 'example',
           packageName: 'com.example.example',
           compileSdk: '34',
@@ -42,7 +41,7 @@ Future<void> main(List<String> args) => okaRun(
           abis: ['arm64-v8a', 'armeabi-v7a'],
         ),
         // The old `flutter:` oka.yaml section.
-        flutterConfig: FlutterBuild(
+        flutterConfig: const FlutterBuild(
           entrypoint: 'lib/main.dart',
           assets: ['assets/'],
           buildMode: 'debug',
@@ -51,7 +50,7 @@ Future<void> main(List<String> args) => okaRun(
           enableHotReload: true,
         ),
         // The old `pipeline:` fast-settings + android.icon/res_dirs.
-        overrides: PipelineOverrides(
+        overrides: const PipelineOverrides(
           extraDeps: ['com.squareup.okhttp3:okhttp:4.12.0'],
           extraAssets: [
             (from: 'assets/hello.txt', to: 'assets/hello.txt'),
@@ -107,7 +106,10 @@ class BuildInfoStampStep extends BuildStep {
   Set<Artifact<Object>> get requires => {flutterAssetsDir};
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final out = File('${ctx.buildDir}/assemble/flutter_assets/build_info.txt');
     await out.parent.create(recursive: true);
     await out.writeAsString(
@@ -128,7 +130,10 @@ class PrintChecksumStep extends BuildStep {
   Set<Artifact<Object>> get requires => {apkPath};
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final apk = state.apkPath;
     if (apk == null) return StepResult.failure('no apk staged');
     final bytes = await File(apk).length();

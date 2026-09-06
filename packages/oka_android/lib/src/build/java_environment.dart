@@ -11,6 +11,9 @@ import 'version_manager.dart';
 /// system version managers (SDKMAN!, asdf, winget)
 /// {@endtemplate}
 class JavaEnvironment {
+
+  /// {@macro java_environment}
+  JavaEnvironment({this._verbose = false});
   final bool _verbose;
 
   /// Maximum Java version supported by Kotlin compiler (2.1.0)
@@ -18,9 +21,6 @@ class JavaEnvironment {
 
   /// Recommended Java version for Kotlin compilation
   static const int _kotlinRecommendedJavaVersion = 21;
-
-  /// {@macro java_environment}
-  JavaEnvironment({bool verbose = false}) : _verbose = verbose;
 
   /// Resolve Java environment for a specific version requirement
   ///
@@ -30,8 +30,8 @@ class JavaEnvironment {
   /// [requiredVersion] is the major Java version (e.g., "21", "17")
   /// [autoInstall] whether to automatically install missing versions
   Future<Map<String, String>?> resolveJavaEnvironment(
-    String? requiredVersion, {
-    bool autoInstall = true,
+    final String? requiredVersion, {
+    final bool autoInstall = true,
   }) async {
     // Check current Java version first
     final currentVersion = await _getCurrentJavaVersion();
@@ -212,7 +212,7 @@ class JavaEnvironment {
   }
 
   /// Check if current version is compatible with required version
-  bool _isVersionCompatible(String current, String required) {
+  bool _isVersionCompatible(final String current, final String required) {
     try {
       final currentMajor = int.parse(current);
       final requiredMajor = int.parse(required);
@@ -236,7 +236,7 @@ class JavaEnvironment {
   }
 
   /// Find a compatible version from installed versions
-  String? _findCompatibleVersion(List<String> installed, String required) {
+  String? _findCompatibleVersion(final List<String> installed, final String required) {
     // First try exact match on major version
     for (final version in installed) {
       if (version.startsWith('$required.') ||
@@ -258,7 +258,7 @@ class JavaEnvironment {
   }
 
   /// Build environment map with JAVA_HOME and PATH
-  Map<String, String> _buildEnvironment(String javaHome) {
+  Map<String, String> _buildEnvironment(final String javaHome) {
     final env = Map<String, String>.from(Platform.environment);
 
     env['JAVA_HOME'] = javaHome;
@@ -290,7 +290,7 @@ class JavaEnvironment {
   }
 
   /// Print manual installation instructions
-  void _printManualInstructions(String version) {
+  void _printManualInstructions(final String version) {
     print('');
     print('═══════════════════════════════════════════════════════════');
     print('📋 Manual Java Installation Instructions');
@@ -337,7 +337,7 @@ class JavaEnvironment {
   }
 
   /// Validate that a Java installation is working
-  Future<bool> validateJavaInstallation(String javaHome) async {
+  Future<bool> validateJavaInstallation(final String javaHome) async {
     final javac = Platform.isWindows
         ? p.join(javaHome, 'bin', 'javac.exe')
         : p.join(javaHome, 'bin', 'javac');

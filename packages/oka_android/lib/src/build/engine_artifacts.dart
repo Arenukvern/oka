@@ -7,16 +7,16 @@ import 'apk_layout.dart';
 
 /// Locates and extracts Flutter engine artifacts from a Flutter SDK tree.
 class EngineArtifacts {
-  final String flutterSdkPath;
-  final bool verbose;
 
   EngineArtifacts(this.flutterSdkPath, {this.verbose = false});
+  final String flutterSdkPath;
+  final bool verbose;
 
   String get engineRoot =>
       p.join(flutterSdkPath, 'bin', 'cache', 'artifacts', 'engine');
 
   /// Path to the ABI-specific flutter.jar (contains classes + libflutter.so).
-  Future<String?> findFlutterJar(String abi, {required bool release}) async {
+  Future<String?> findFlutterJar(final String abi, {required final bool release}) async {
     final dirName = engineArtifactDirForAbi(abi, release: release);
     final jar = p.join(engineRoot, dirName, 'flutter.jar');
     if (await File(jar).exists()) {
@@ -36,9 +36,9 @@ class EngineArtifacts {
 
   /// Extract `lib/<abi>/libflutter.so` from flutter.jar into [destSoPath].
   Future<String> extractLibflutter({
-    required String abi,
-    required String destSoPath,
-    required bool release,
+    required final String abi,
+    required final String destSoPath,
+    required final bool release,
   }) async {
     final jarPath = await findFlutterJar(abi, release: release);
     if (jarPath == null) {
@@ -91,9 +91,9 @@ class EngineArtifacts {
 
   /// Extract all requested ABIs' libflutter.so into [libDir]/abi}/libflutter.so.
   Future<Map<String, String>> extractLibflutterForAbis({
-    required List<String> abis,
-    required String libDir,
-    required bool release,
+    required final List<String> abis,
+    required final String libDir,
+    required final bool release,
   }) async {
     final result = <String, String>{};
     for (final abi in abis) {
@@ -110,8 +110,8 @@ class EngineArtifacts {
   /// Engine `flutter.jar` also contains `lib/**/*.so` which break d8 when passed
   /// as a whole archive.
   Future<String> extractEmbeddingClassesJar({
-    required String flutterJar,
-    required String destJarPath,
+    required final String flutterJar,
+    required final String destJarPath,
   }) async {
     final bytes = await File(flutterJar).readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
