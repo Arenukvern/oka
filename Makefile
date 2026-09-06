@@ -35,6 +35,9 @@ check-contracts: ## Run release contract gates (version sync, docs drift, change
 sync-version: ## Sync all version touchpoints from VERSION
 	bash tool/release/sync_version.sh
 
+bench: ## Build performance benchmarks against example/ (evidence in .steward/benchmark-summaries)
+	bash tool/benchmarks/build_benchmarks.sh example
+
 publish-dry-run: ## Dry-run pub.dev publish
 	dart publish --dry-run
 

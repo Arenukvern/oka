@@ -1,0 +1,42 @@
+schema: steward/scenario-manifest/v1
+repo: oka
+scenario: oka.contract-status-smoke
+status: runnable
+source:
+  git: https://github.com/Arenukvern/oka
+  commit: e0370ed4c4041a5e315e93409dbda326a4a914e6
+  steward_contract: steward.yaml
+safe_first_probe: oka.check.version-sync
+required_actions:
+  - oka.check.version-sync
+  - oka.check.docs-drift
+  - oka.check.changelog-markdown
+  - oka.check.no-personal-paths
+artifacts:
+  - id: steward_contract
+    kind: yaml
+    path: steward.yaml
+    required: true
+    durability: input
+  - id: version_sync_gate
+    kind: shell
+    path: tool/release/check_version_sync.sh
+    required: true
+    durability: input
+  - id: docs_drift_gate
+    kind: shell
+    path: tool/contracts/check_docs_drift.sh
+    required: true
+    durability: input
+  - id: changelog_gate
+    kind: shell
+    path: tool/release/check_changelog_markdown.sh
+    required: true
+    durability: input
+  - id: personal_paths_gate
+    kind: shell
+    path: tool/release/check_no_personal_paths.sh
+    required: true
+    durability: input
+blocked_by: null
+owner: oka
