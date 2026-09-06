@@ -54,6 +54,7 @@ class BuildContext {
     this.flavor = '',
     this.targetAbi = '',
     this.buildAab = false,
+    this.verifyAab = false,
     this.dartDefines = const {},
     this.targetOverride = '',
     this.buildTimestamp,
@@ -81,6 +82,7 @@ class BuildContext {
       flavor: jsonDecodeString(map['flavor']),
       targetAbi: jsonDecodeString(map['target_abi']),
       buildAab: jsonDecodeBool(map['build_aab']),
+      verifyAab: jsonDecodeBool(map['verify_aab']),
       dartDefines: _decodeDefines(map['dart_defines']),
       targetOverride: jsonDecodeString(map['target_override']),
       buildTimestamp: dateTimeFromMillisecondsSinceEpoch(
@@ -123,6 +125,10 @@ class BuildContext {
 
   /// Whether to build an Android App Bundle instead of an APK.
   final bool buildAab;
+
+  /// After a successful AAB build, verify it with bundletool
+  /// (`build-apks --mode=universal`) — the same parsing path as Play.
+  final bool verifyAab;
 
   /// Dart defines (`--dart-define`) merged with
   /// `--dart-define-from-file` contents. Passed to `flutter assemble`.
@@ -178,6 +184,7 @@ class BuildContext {
     'flavor': flavor,
     'target_abi': targetAbi,
     'build_aab': buildAab,
+    'verify_aab': verifyAab,
     'dart_defines': dartDefines,
     'target_override': targetOverride,
     'build_timestamp': buildTimestamp?.millisecondsSinceEpoch ?? 0,
@@ -198,6 +205,7 @@ class BuildContext {
     final String? flavor,
     final String? targetAbi,
     final bool? buildAab,
+    final bool? verifyAab,
     final Map<String, String>? dartDefines,
     final String? targetOverride,
     final DateTime? buildTimestamp,
@@ -214,6 +222,7 @@ class BuildContext {
     flavor: flavor ?? this.flavor,
     targetAbi: targetAbi ?? this.targetAbi,
     buildAab: buildAab ?? this.buildAab,
+    verifyAab: verifyAab ?? this.verifyAab,
     dartDefines: dartDefines ?? this.dartDefines,
     targetOverride: targetOverride ?? this.targetOverride,
     buildTimestamp: buildTimestamp ?? this.buildTimestamp,

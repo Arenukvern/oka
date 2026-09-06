@@ -137,6 +137,7 @@ class BuildCommand {
         'android',
         if (mode != BuildMode.debug) '--${mode.name}',
         if (wantsAab) '--aab',
+        if (wantsAab && (results['verify-aab'] as bool)) '--verify-aab',
         if (verbose) '--verbose',
         if ((results['flavor'] as String?)?.isNotEmpty ?? false)
           ...['--flavor', results['flavor'] as String],

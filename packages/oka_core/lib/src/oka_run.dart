@@ -15,6 +15,11 @@ final _okaRunParser = ArgParser()
   ..addFlag('debug', negatable: false, help: 'Build debug variant (default)')
   ..addFlag('profile', negatable: false, help: 'Build profile variant')
   ..addFlag('aab', negatable: false, help: 'Build AAB instead of APK')
+  ..addFlag(
+    'verify-aab',
+    negatable: false,
+    help: 'Verify the produced AAB with bundletool (build-apks universal)',
+  )
   ..addFlag('verbose', abbr: 'v', negatable: false)
   ..addOption('platform', defaultsTo: 'android')
   ..addOption('flavor', defaultsTo: '')
@@ -54,8 +59,8 @@ final _okaRunParser = ArgParser()
 /// ```
 ///
 /// Supported CLI flags (forwarded by `oka build`): `--release`, `--debug`,
-/// `--profile`, `--aab`, `--platform`, `--flavor`, `--abi`, `--target`,
-/// `--dart-define`, `--dart-define-from-file`, and `--verbose`.
+/// `--profile`, `--aab`, `--verify-aab`, `--platform`, `--flavor`, `--abi`,
+/// `--target`, `--dart-define`, `--dart-define-from-file`, and `--verbose`.
 ///
 /// Exits with a non-zero code and a diagnostic on failure.
 Future<void> okaRun(
@@ -114,6 +119,7 @@ Future<void> okaRun(
     flavor: results['flavor'] as String,
     targetAbi: results['abi'] as String,
     buildAab: buildAab,
+    verifyAab: results['verify-aab'] as bool,
     dartDefines: defines,
     targetOverride: (results['target'] as String?) ?? '',
   );

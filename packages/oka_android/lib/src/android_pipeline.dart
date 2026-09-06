@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:oka_core/oka_core.dart';
+import 'package:path/path.dart' as p;
 
 import 'android_state.dart';
+import 'build/bundletool.dart';
 import 'build/dependency_cache.dart';
 import 'build/launcher_icon.dart';
 import 'build/sdk_locator.dart';
@@ -10,6 +14,7 @@ import 'pipeline/steps/asset_steps.dart';
 import 'pipeline/steps/flutter_steps.dart';
 import 'pipeline/steps/host_steps.dart';
 import 'pipeline/steps/tool_steps.dart';
+import 'pipeline/toolchain.dart';
 import 'post_build_lint.dart';
 import 'signing_config.dart';
 /// Declarative Android platform pipeline (ADR-0006).
@@ -140,6 +145,16 @@ class AndroidPipeline implements PlatformPipeline {
 
   @override
   Future<StepResult> run(final BuildContext ctx) async {
+    if (steps != null && ctx.buildAab) {
+      // Explicit step lists own APK-vs-AAB packaging — `--aab` only names the
+      // build dir unless the composed list swaps in the AAB tail
+      // (CompileProtoAndDexStep → PackageAndSignAabStep → ValidateAabLayoutStep).
+      print(
+        '⚠️  Explicit step list + --aab: the composed steps control the '
+        'artifact type. Ensure the list uses the AAB packaging tail, '
+        'otherwise this build produces an APK.',
+      );
+    }
     // Merge yaml fast-settings with Dart-composed overrides (Dart wins).
     final yaml = await PipelineOverrides.load(ctx.projectPath);
     final signing =
@@ -187,7 +202,52 @@ class AndroidPipeline implements PlatformPipeline {
     // get fast-settings applied without threading every constructor. Steps
     // prefer their explicit constructor values and fall back to this.
     final state = PipelineState()..pipelineOverrides = merged;
-    return pipeline.run(ctx, initialState: state);
+    final result = await pipeline.run(ctx, initialState: state);
+    if (!result.ok) return result;
+    final artifactPath = result.data['apk_path'];
+    if (ctx.buildAab &&
+        ctx.verifyAab &&
+        artifactPath is String &&
+        artifactPath.endsWith('.aab')) {
+      final ok = await _verifyAabWithBundletool(ctx, artifactPath);
+      if (!ok) {
+        return StepResult.failure('AAB verification failed (bundletool)');
+      }
+    }
+    return result;
+  }
+
+  /// bundletool verification for produced AABs (ADR-0004): runs
+  /// `build-apks --mode=universal` — the same parsing path as Play — and
+  /// extracts the installable universal APK.
+  Future<bool> _verifyAabWithBundletool(
+    final BuildContext ctx,
+    final String aabPath,
+  ) async {
+    print('\n🔍 Verifying AAB with bundletool...');
+    final ks = await debugKeystore();
+    final apksPath = '${p.withoutExtension(aabPath)}.apks';
+    final result = await verifyAabWithBundletool(
+      aabPath: aabPath,
+      outputApksPath: apksPath,
+      keystorePath: ks,
+      keyAlias: 'androiddebugkey',
+      keyPass: 'android',
+      verbose: ctx.verbose,
+    );
+    if (!result.ok) {
+      stderr.writeln('❌ AAB verification failed:\n${result.error}');
+      return false;
+    }
+    print('✅ bundletool accepted the bundle: $apksPath');
+    final universalApk = await extractUniversalApk(
+      apksPath,
+      p.join(p.dirname(aabPath), 'universal', 'app-universal.apk'),
+    );
+    print('📱 Universal APK extracted: $universalApk');
+    print('   Install on a device with:');
+    print('     adb install -r $universalApk');
+    return true;
   }
 }
 
