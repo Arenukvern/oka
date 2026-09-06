@@ -1,9 +1,12 @@
 # AGENTS.md — oka
 
-Oka is a declarative, compositional, AI-native build system — easy to set up
-for any platform, starting with **no-Gradle Flutter Android** (`flutter
-assemble` + direct Android SDK tools). Agents execute; humans steer.
-This file is a **map**, not a manual — follow links.
+Oka is a declarative, compositional, AI-native build system: **one code for
+every platform build** — created not because Gradle is slow but because
+platform build configs are locked, scattered, and endlessly repeated. It
+collapses them into one typed, copyable Dart surface, starting with
+**no-Gradle Flutter Android** (`flutter assemble` + direct Android SDK
+tools). Agents execute; humans steer. This file is a **map**, not a manual —
+follow links.
 
 ## Non-negotiables
 

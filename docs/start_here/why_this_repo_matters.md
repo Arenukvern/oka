@@ -13,8 +13,8 @@ Three words carry the whole design:
 - **Declarative** — a build is described by typed values (`AndroidBuild`,
   `PipelineOverrides`, `ManifestSpec`) composed in a project-owned Dart
   entrypoint (ADR-0010). Configuration is code: type-safe, refactorable,
-  and written just as well by agents as by humans. No YAML sprawl, no
-  stringly flags.
+  copyable between projects, and written just as well by agents as by
+  humans. No YAML sprawl, no stringly flags.
 - **Compositional** — every capability is a `BuildStep`, a typed value, or a
   resolver service (ADR-0007's design law). Steps declare typed artifacts
   (`requires`/`provides`); the whole chain validates before any tool runs.
@@ -25,13 +25,30 @@ Three words carry the whole design:
   deterministic artifacts, and failures that name the fix. Success metric:
   *an agent can set up and fix a platform build from oka's messages alone.*
 
-## The problem
+## The problem oka was created for
 
-Every Flutter Android build pays a Gradle tax: daemon startup, configuration
-phase, plugin resolution — before any of your code compiles. Incremental
-builds take 30s+ when the actual work is seconds. For AI-assisted and
-agentic workflows, where builds run constantly, that tax dominates — and
-Gradle's opaque, stateful errors make agents flail.
+Not slowness — **lock-in and unmanageability**. The same story on every
+platform and OS: an app is one codebase, but building it is scattered across
+a dozen configs in different languages and formats — gradle DSL, XML
+manifests, properties, plists, proguard rules, signing files. None typed,
+none unified, none shareable. Every project re-solves the same problems
+(package, versions, icons, permissions, deeplinks, dependency quirks); every
+config repeats, drifts, and is effectively impossible to work with across
+projects. You don't operate the build — you negotiate with it, behind plugin
+DSLs and hidden defaults.
+
+The toolchain lock-in has real costs beyond friction: it makes builds
+non-reproducible, hides failure causes behind generated glue, and locks
+agents (and humans) out of fixing anything directly.
+
+Oka's bet: **it is all just one code.** The entire build — steps, deps,
+manifest, signing, icons — becomes one typed, composable Dart surface that
+you own end to end. One code that is readable, refactorable, and copyable
+between projects. Speed falls out of that as a consequence (incremental
+builds in ~23s, no daemon); simplicity and unification are the point. Each
+oka generation moves more per-platform noise — configs, defaults, recovery —
+into that single surface, until a platform build is as simple as copying one
+Dart file and running one command.
 
 ## What oka owns
 
@@ -96,7 +113,8 @@ One platform proves the model; the model is built for many. Expansion is
 
 ## Success looks like
 
-- Incremental builds 3–5x faster than Gradle.
+- A project's entire platform build is **one copyable Dart file** — moved
+  between projects without re-learning a config format.
 - Common Flutter apps (plugins included) build and install with zero Gradle
-  on disk.
-- An agent can fix a broken build from oka's error messages alone.
+  on disk — incrementally in seconds, not the 30s+ Gradle tax.
+- An agent can set up and fix a build from oka's error messages alone.

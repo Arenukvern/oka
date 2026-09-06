@@ -4,34 +4,53 @@
 [![Docs](https://img.shields.io/badge/docs-docs.page-02569B)](https://docs.page/arenukvern/oka)
 [![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
 
-Oka's north star: **platform builds as declarative, composable, typed pipelines
-that both humans and AI agents can run, inspect, and fix — easy to set up for
-any platform.** Today that promise is kept for **Android**: a no-Gradle
-pipeline (`flutter assemble` + direct SDK tools) that builds APKs and App
-Bundles without a Gradle daemon, AGP, or 30s+ configuration tax. Other
-platforms follow the same composition model — see
-[the long game](#the-long-game).
+Oka's north star: **one code for every platform build.** Today, building an
+app means negotiating with a pile of locked, untyped, scattered configs —
+Gradle DSL, manifests, properties, signing files — that repeat across every
+project, drift apart, and cannot be unified or copied. Oka replaces that with
+a **declarative, compositional pipeline written in ordinary Dart**: typed,
+refactorable, and copyable between projects. Starting with **Android** — no
+Gradle at all — and built to extend to any platform
+([the long game](#the-long-game)).
 
-## Why
+## Why oka was created
 
-Every Flutter Android build pays a Gradle tax: daemon startup, configuration
-phase, plugin resolution — before any of your code compiles. For AI-assisted
-workflows, where builds run constantly and an agent iterates against error
-output, that tax — plus Gradle's non-determinism and opaque errors — dominates.
+Not because Gradle is slow. Because **it is locked and unmanageable** — and
+the same is true of every platform's build system:
 
-Oka's answer is a build system designed for the agent loop from first
-principles:
+- Your app is one codebase, but building it means touching a dozen scattered
+  configs in different languages — `build.gradle.kts`, XML manifests,
+  `local.properties`, proguard rules, signing properties, plists. None are
+  typed, none share structure, none can be checked as a whole.
+- Every project re-solves the same problems: package name, versions, icons,
+  permissions, deeplinks, dependency quirks. The configs **repeat and drift**,
+  and unifying them across projects is impossible — they don't even share a
+  format.
+- You don't operate the build; you *negotiate* with it. The toolchain is
+  locked behind plugin DSLs and hidden defaults, and when it breaks, the fix
+  lives somewhere you can't read or control.
+
+Oka's answer: collapse all of it into **one code** — a typed, composable
+pipeline in Dart that you own end to end:
 
 - **Declarative** — the build is typed values (`AndroidBuild`,
-  `PipelineOverrides`, `ManifestSpec`), composed in a Dart entrypoint. No
-  YAML sprawl, no stringly flags; config is code that agents write well.
+  `PipelineOverrides`, `ManifestSpec`) composed in a Dart entrypoint. No
+  config DSL sprawl; the config is code, so it's checkable, diffable, and
+  **copyable between projects** — the same `oka_pipeline.dart` works
+  everywhere oka does.
 - **Compositional** — every capability is a `BuildStep`, a typed value, or a
   resolver service. Pipelines are immutable values; a new platform is a new
-  package implementing the same contract.
+  package implementing the same contract. You can build any pipeline.
 - **AI-native** — self-describing plans (`oka explain`), machine-checkable
   gates (`oka compare`), single-step probes (`oka debug step`), deterministic
   byte-reproducible artifacts, and failures that name the fix. The goal: *an
   agent can set up and fix a platform build from oka's messages alone.*
+
+Speed is a consequence, not the pitch: with the build as one readable code
+path and no Gradle, incremental builds drop to ~23s — but the reason oka
+exists is that **the config should be one simple, manageable, copyable
+thing.** Future generations of oka keep pushing everything that is still
+per-platform noise into that single Dart surface.
 
 ## Status: Android first
 
