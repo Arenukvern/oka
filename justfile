@@ -28,9 +28,10 @@ clean:
 test:
     dart test
 
-# Run linter
+# Run linter (workspace members via dart analyze; example via flutter analyze)
 lint:
     dart analyze
+    -cd example && flutter analyze
 
 # Run release contract gates (version sync, docs drift, changelog hygiene)
 check-contracts:

@@ -9,12 +9,26 @@ import 'pipeline/steps/asset_steps.dart' show DeeplinkConfig;
 import 'pipeline/steps/asset_steps.dart' show ExtraAssetsStep;
 import 'signing_config.dart';
 
-/// Fast-settings parsed from `oka.yaml` `pipeline:` section.
+/// Packaging fast-settings for the Android pipeline.
+///
+/// Groups the surfaces a project tweaks most often — extra Maven deps, local
+/// AARs, deeplinks, launcher icon, signing, resource configs — as one typed,
+/// const-constructible value. Parsed from the `oka.yaml` `pipeline:` section
+/// by [fromYamlMap], or composed directly in Dart:
+///
+/// ```dart
+/// const PipelineOverrides(
+///   extraDeps: ['androidx.core:core-ktx:1.13.1'],
+///   localAars: ['libs/testnative.aar'],
+///   deeplinks: [DeeplinkConfig(scheme: 'https', host: 'oka.example.com')],
+///   icon: IconConfig(backgroundColor: '#E8F5E9'),
+///   resourceConfigs: ['en', 'de'],
+/// )
+/// ```
 ///
 /// Precedence: built-in defaults < `oka.yaml` pipeline section < Dart
 /// composition (a user-supplied [Pipeline] always wins).
 class PipelineOverrides {
-
   const PipelineOverrides({
     this.extraDeps = const [],
     this.extraAssets = const [],
@@ -29,7 +43,7 @@ class PipelineOverrides {
     this.maxSizeMb,
   });
 
-/// Merges `android:` section surfaces that are not `pipeline:`-scoped.
+  /// Merges `android:` section surfaces that are not `pipeline:`-scoped.
   factory PipelineOverrides.fromOkaYaml(final Map<dynamic, dynamic> doc) {
     final pipelineRaw = doc['pipeline'];
     final base = pipelineRaw is Map

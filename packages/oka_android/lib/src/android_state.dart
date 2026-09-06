@@ -10,6 +10,18 @@ import 'pipeline_overrides.dart';
 
 /// Typed accessors for Android build artifacts shared across steps
 /// (ADR-0006).
+///
+/// The extension gives every step compile-time-checked reads/writes over the
+/// pipeline store, so no step has to hand-roll string keys:
+///
+/// ```dart
+/// @override
+/// Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+///   final overrides = state.pipelineOverrides ?? const PipelineOverrides();
+///   final abis = state.abis.isEmpty ? const ['arm64-v8a'] : state.abis;
+///   // ...
+/// }
+/// ```
 
 /// Key under which [AndroidPipeline.run] seeds the merged pipeline-level
 /// overrides into the runtime scope (ADR-0010): hooks composing explicit

@@ -18,14 +18,43 @@ import 'signing_config.dart';
 /// optional step list. When [steps] is null the default no-Gradle pipeline is
 /// composed (APK or AAB depending on [BuildContext.buildAab]).
 ///
+/// ## Minimal entrypoint
+///
+/// ```dart
+/// Future<void> main(List<String> args) => okaRun(
+///       args,
+///       oka: const Oka(
+///         pipelines: [
+///           AndroidPipeline(
+///             config: AndroidBuild(packageName: 'dev.example.app'),
+///           ),
+///         ],
+///       ),
+///     );
+/// ```
+///
+/// ## Typed fast-settings + custom steps
+///
 /// ```dart
 /// AndroidPipeline(
-///   overrides: PipelineOverrides().copyWith(resourceConfigs: ['en', 'ru']),
+///   overrides: const PipelineOverrides(
+///     extraDeps: ['androidx.core:core-ktx:1.13.1'],
+///     resourceConfigs: ['en', 'ru'],
+///   ),
 ///   steps: [...AndroidPipeline.defaultSteps, MyStep()],
 /// )
 /// ```
+///
+/// The artifact chain ([BuildStep.requires] / [BuildStep.provides]) is
+/// re-validated whenever the step list changes, so a mis-ordered list fails
+/// at composition time — before any tool runs.
+///
+/// See also:
+///
+/// * [defaultSteps], the default no-Gradle step sequence.
+/// * [PipelineOverrides], packaging fast-settings (deps, icon, signing...).
+/// * [AndroidBuild] / [FlutterBuild], typed base config (ADR-0010).
 class AndroidPipeline implements PlatformPipeline {
-
   const AndroidPipeline({
     this.overrides = const PipelineOverrides(),
     this.steps,
@@ -33,6 +62,7 @@ class AndroidPipeline implements PlatformPipeline {
     this.config,
     this.flutterConfig,
   });
+
   /// Typed fast-settings (deps, assets, deeplinks, icon, manifest, signing).
   final PipelineOverrides overrides;
 
@@ -40,6 +70,8 @@ class AndroidPipeline implements PlatformPipeline {
   final List<BuildStep>? steps;
 
   /// Whether unsupported plugins abort the build (strict) or warn (soft).
+  /// Soft mode (`false`) is the `--soft-plugins` escape hatch for builds that
+  /// can tolerate an empty plugin registrant.
   final bool strictPlugins;
 
   /// Typed base config (ADR-0010): the `android:` section, strictly typed.
@@ -75,7 +107,13 @@ class AndroidPipeline implements PlatformPipeline {
     flutterConfig: flutterConfig ?? this.flutterConfig,
   );
 
-  /// The default step sequence (fresh instances; services resolve lazily).
+  /// The default no-Gradle step sequence (fresh instances; services resolve
+  /// lazily). Covers: SDK/tool validation, `flutter assemble`, host codegen
+  /// (`MainActivity` + plugin registrant), plugin packaging, resource and DEX
+  /// compilation, APK/AAB layout staging, and signing.
+  ///
+  /// Treat it as a starting list — append custom steps, or replace
+  /// individual entries to specialize (each step is a plain value).
   static List<BuildStep> get defaultSteps {
     final sdkLocator = SdkLocator();
     final cache = DependencyCache();

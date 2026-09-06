@@ -1,18 +1,88 @@
-/// Oka Android platform package (ADR-0006).
+/// Android platform pipelines for oka: no-Gradle Flutter APK/AAB build steps,
+/// plugin packaging, the direct Android SDK toolchain (`aapt2`, `d8`,
+/// `apksigner`), and typed manifest/spec values (ADR-0006).
 ///
-/// Public API for hook authors: pipelines, steps, typed config/spec values,
-/// artifact keys, and the Android toolchain. Depends only on `oka_core` plus
-/// lightweight packages — no CLI/AI surface.
+/// This is the package hook authors depend on. It re-exports `oka_core` and
+/// adds everything Android-specific — no CLI/AI surface.
+///
+/// ## Building with the default pipeline
+///
+/// [AndroidPipeline] composes the full no-Gradle pipeline by default. An
+/// entrypoint only needs to declare it, optionally with typed config
+/// (ADR-0010) that deep-merges over any `oka.yaml`:
+///
+/// ```dart
+/// import 'package:oka_android/oka_android.dart';
+/// import 'package:oka_core/oka_core.dart';
+///
+/// Future<void> main(List<String> args) => okaRun(
+///       args,
+///       oka: const Oka(
+///         pipelines: [
+///           AndroidPipeline(
+///             config: AndroidBuild(
+///               packageName: 'dev.example.app',
+///               minSdk: '23',
+///               abis: ['arm64-v8a'],
+///             ),
+///             flutterConfig: FlutterBuild(
+///               entrypoint: 'lib/main.dart',
+///             ),
+///           ),
+///         ],
+///       ),
+///     );
+/// ```
+///
+/// Run it with `oka build apk --release` (oka discovers
+/// `tool/oka_pipeline.dart` by convention) or `dart run` it directly.
+///
+/// ## Customizing steps
+///
+/// Steps are immutable values. Append, replace, or remove them to reshape the
+/// pipeline — the artifact chain is re-validated at composition time:
+///
+/// ```dart
+/// AndroidPipeline(
+///   steps: [
+///     ...AndroidPipeline.defaultSteps,
+///     NotarizeApkStep(), // your BuildStep; requires 'apk-path'
+///   ],
+/// )
+/// ```
+///
+/// ## Fast settings
+///
+/// [PipelineOverrides] groups packaging-level fast settings — extra Maven
+/// deps, local AARs, deeplinks, launcher icon, signing, resource configs:
+///
+/// ```dart
+/// AndroidPipeline(
+///   overrides: const PipelineOverrides(
+///     extraDeps: ['androidx.core:core-ktx:1.13.1'],
+///     localAars: ['libs/analytics.aar'],
+///     resourceConfigs: ['en', 'de'],
+///     icon: IconConfig(backgroundColor: '#E8F5E9'),
+///   ),
+/// )
+/// ```
+///
+/// See also:
+///
+/// * [AndroidPipeline.defaultSteps], the default step chain.
+/// * [DependencyCache] and [MavenResolver], the dependency resolution layer.
+/// * [SdkLocator], which finds (or bootstraps, `oka get android-sdk`) the
+///   Android SDK.
 library;
 
 export 'package:oka_core/oka_core.dart';
 
-// Artifact keys + typed state accessors.
+// Artifact keys, typed state accessors, and the platform pipeline.
 export 'src/android_artifacts.dart';
-// Platform pipeline.
 export 'src/android_pipeline.dart';
 export 'src/android_state.dart';
 export 'src/auto_resolve.dart';
+
 // Build machinery.
 export 'src/build/aab_layout.dart';
 export 'src/build/aapt2_commands.dart';
@@ -37,7 +107,8 @@ export 'src/build/version_manager.dart';
 export 'src/build_cache.dart';
 export 'src/compare.dart';
 export 'src/dependency_plan.dart';
-// Pipeline.
+
+// Platform pipeline + specs.
 export 'src/manifest_spec.dart';
 export 'src/maven_resolver.dart';
 export 'src/pipeline/default_pipeline.dart';

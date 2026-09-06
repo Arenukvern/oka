@@ -129,6 +129,19 @@ class AndroidBuild {
 
 /// Typed, const-constructible Flutter build settings (ADR-0010) — the
 /// writable counterpart of the `flutter:` oka.yaml section.
+///
+/// Only fields explicitly set (non-default) are emitted by [toConfigMap], so
+/// a `FlutterBuild` can never clobber values it does not carry. Compose it on
+/// the pipeline:
+///
+/// ```dart
+/// AndroidPipeline(
+///   flutterConfig: FlutterBuild(
+///     entrypoint: 'lib/main_prod.dart',
+///     assets: ['assets/branding'],
+///   ),
+/// )
+/// ```
 class FlutterBuild {
 
   const FlutterBuild({

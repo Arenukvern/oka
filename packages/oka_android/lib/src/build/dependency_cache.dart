@@ -28,8 +28,20 @@ export '../maven_resolver.dart'
         tryExtractClassesJarFromAar;
 
 /// Disk-cache facade delegating resolution to [MavenResolver].
+///
+/// Memoizes per-build resolution of Maven coordinates and Flutter AndroidX
+/// artifacts: identical coordinates requested by many plugins hit the local
+/// cache once, and in-flight requests share one future. Steps receive a
+/// shared instance via constructors; `--offline` style builds pass
+/// `allowNetwork: false`.
+///
+/// ```dart
+/// final cache = DependencyCache(cacheRoot: '${ctx.cacheDir}/maven');
+/// final jar = await cache.resolve(
+///   MavenCoordinate.parse('androidx.core:core-ktx:1.13.1')!,
+/// );
+/// ```
 class DependencyCache {
-
   DependencyCache({
     final String? cacheRoot,
     final bool verbose = false,

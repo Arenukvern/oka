@@ -17,6 +17,25 @@ enum BuildMode {
 
 /// Typed build context passed to every [BuildStep] (ADR-0006).
 ///
+/// One immutable value per build: paths, mode, merged configuration, and
+/// SDK locations. Steps never mutate it — derived values go through
+/// [copyWith], and derived state (artifact outputs) lives in the pipeline's
+/// `PipelineState` instead.
+///
+/// ```dart
+/// @override
+/// Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+///   final out = File('${ctx.buildDir}/staged/app.apk');
+///   if (ctx.mode == BuildMode.release) {
+///     out.createSync(recursive: true);
+///   }
+///   return StepResult.success();
+/// }
+/// ```
+///
+/// Configuration precedence (highest wins): code defaults < `oka.yaml` <
+/// typed Dart config ([Oka] `configOverrides`) < CLI args.
+///
 /// Immutable value: configuration enters via constructors / [copyWith], never
 /// by mutating a map mid-build. JSON is parsed only at this boundary
 /// (CLI args / oka.yaml) — steps see typed getters.

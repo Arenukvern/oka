@@ -5,7 +5,15 @@ import 'package:path/path.dart' as p;
 
 import 'java_environment.dart';
 
-/// Locates Android SDK tools and validates their availability
+/// Locates Android SDK tools and validates their availability.
+///
+/// Resolution order (first hit wins): an explicitly provided path, the
+/// `OKA_ANDROID_SDK` environment variable, an oka-managed SDK under
+/// `~/.oka/android-sdk` (install with `oka get android-sdk`), then the
+/// standard `ANDROID_HOME` / `ANDROID_SDK_ROOT` locations.
+///
+/// Steps receive a configured locator via their constructors; the default
+/// pipeline wires one for all tool steps.
 class SdkLocator {
 
   SdkLocator({

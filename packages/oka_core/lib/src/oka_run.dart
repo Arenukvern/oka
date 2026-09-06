@@ -34,6 +34,30 @@ final _okaRunParser = ArgParser()
 /// Performs the boilerplate hooks should not repeat: arg parsing, oka.yaml
 /// loading, dart-define merging, build directory layout, pipeline selection by
 /// `--platform`, and execution.
+///
+/// A complete project entrypoint (conventionally `tool/oka_pipeline.dart`):
+///
+/// ```dart
+/// import 'package:oka_android/oka_android.dart';
+/// import 'package:oka_core/oka_core.dart';
+///
+/// Future<void> main(List<String> args) => okaRun(
+///       args,
+///       oka: const Oka(
+///         pipelines: [
+///           AndroidPipeline(
+///             config: AndroidBuild(packageName: 'dev.example.app'),
+///           ),
+///         ],
+///       ),
+///     );
+/// ```
+///
+/// Supported CLI flags (forwarded by `oka build`): `--release`, `--debug`,
+/// `--profile`, `--aab`, `--platform`, `--flavor`, `--abi`, `--target`,
+/// `--dart-define`, `--dart-define-from-file`, and `--verbose`.
+///
+/// Exits with a non-zero code and a diagnostic on failure.
 Future<void> okaRun(
   final List<String> args, {
   required final Oka oka,
