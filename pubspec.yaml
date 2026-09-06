@@ -17,10 +17,8 @@ environment:
 
 dependencies:
   args: ^2.5.0
-  oka_android:
-    path: packages/oka_android
-  oka_core:
-    path: packages/oka_core
+  oka_android: ^0.1.6
+  oka_core: ^0.1.6
   path: ^1.9.0
   yaml: ^3.1.2
   process: ^5.0.2
@@ -35,6 +33,15 @@ dependencies:
 dev_dependencies:
   lints: ^4.0.0
   test: ^1.25.0
+
+# Local development: resolve the sibling packages from this checkout.
+# `dart pub publish` ignores this section (packages publish against hosted
+# oka_core/oka_android).
+dependency_overrides:
+  oka_android:
+    path: packages/oka_android
+  oka_core:
+    path: packages/oka_core
 
 executables:
   oka:

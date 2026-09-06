@@ -127,7 +127,7 @@ Map<String, dynamic> mergeConfigMaps(
   return out;
 }
 
-Map<String, dynamic> _stringKeyed(Map m) =>
+Map<String, dynamic> _stringKeyed(Map<dynamic, dynamic> m) =>
     m.map((k, v) => MapEntry(k.toString(), v));
 
 /// Resolves the project's Dart pipeline entrypoint (ADR-0006/0010):

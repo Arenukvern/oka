@@ -39,9 +39,26 @@ jobs:
 
       - run: dart pub get
 
-      - name: Publish (dry-run preflight)
+      # Split packages (ADR-0006) publish in dependency order:
+      # oka_core -> oka_android -> oka. Hosted deps resolve against pub.dev,
+      # so the first release trains publish core before android/root.
+      - name: Publish oka_core (dry-run preflight)
+        working-directory: packages/oka_core
+        run: dart publish --dry-run
+      - name: Publish oka_android (dry-run preflight)
+        working-directory: packages/oka_android
+        run: dart publish --dry-run
+      - name: Publish oka (dry-run preflight)
         run: dart publish --dry-run
 
-      - name: Publish
+      - name: Publish oka_core
+        if: github.event_name == 'push'
+        working-directory: packages/oka_core
+        run: dart publish --force
+      - name: Publish oka_android
+        if: github.event_name == 'push'
+        working-directory: packages/oka_android
+        run: dart publish --force
+      - name: Publish oka
         if: github.event_name == 'push'
         run: dart publish --force

@@ -21,6 +21,14 @@ A: A silent fallback would hide gaps in oka's own pipeline and make success
 non-deterministic. Missing-tool failures surface via doctor-oriented errors so
 agents can remediate. Enforced by `test/phase0_no_gradle_fallback_test.dart`.
 
+**Q: Why sort d8 inputs and zip entries?**
+A: Dependency resolution runs in parallel, so jar order varied between runs —
+and d8 partitions classes into `classesN.dex` in argument order, making the
+multi-dex split (part count + content) non-reproducible. Sorting d8 inputs
+and writing zip entries in sorted path order makes artifacts byte-for-byte
+reproducible, which is what `oka compare` gates on. Enforced by
+`test/determinism_test.dart`.
+
 **Q: Why was the Rust/cargo-apk hybrid removed?**
 A: It rewrote the shared `rust_wrapper/Cargo.toml`, corrupting shared state,
 and duplicated packaging logic, so ADR-0001 demoted it. With zero remaining

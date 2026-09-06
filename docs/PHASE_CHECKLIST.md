@@ -9,8 +9,6 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
 
 ## Open
 
-- [ ] **Multi-dex determinism.** d8 part-file count can vary between runs
-      (stale parts are already cleaned per run; consider a fixed part count).
 - [ ] **H0 — Hot-reload prerequisite audit (ADR-0011).** Prove the oka-built
       debug APK is hot-reload-capable (kernel_blob.bin, VM service reachable,
       attach probe) and record evidence in
@@ -42,6 +40,30 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       (badging + zip entries) in both projects; 13 tests in
       `test/adr0010_typed_config_test.dart` incl. end-to-end
       `--print-config`; `dart test` all green.
+- [x] **Multi-dex determinism (ADR-0007 item).** d8 program/lib jar lists
+      sorted (parallel dependency resolution made argument order — and hence
+      the classesN.dex split — vary between runs); `zipStagingToApk` /
+      `zipBundle` write entries in sorted path order instead of filesystem
+      order. Evidence: `test/determinism_test.dart` (byte-identical APK/AAB
+      across runs and directory orders; real-d8 reproducibility when an SDK
+      is present).
+- [x] **oka init: full-Dart by default (ADR-0010).** Default scaffold is
+      `tool/oka_pipeline.dart` (typed config from pubspec name/version, no
+      oka.yaml); `--yaml` opts into the legacy YAML-first flow (with AI
+      gradle conversion); `--from-yaml` converts existing yaml 1:1.
+      Non-interactive terminals skip overwrite prompts (`--force` forces).
+      `test/init_command_test.dart` covers all three flows.
+- [x] **OSS publish readiness (ADR-0006 package split).** Split packages get
+      LICENSE/README/CHANGELOG; `oka_android` depends on hosted
+      `oka_core: ^0.1.6` (path deps are a publish blocker); root resolves
+      siblings via `dependency_overrides` for local dev. Publish train
+      `oka_core` → `oka_android` → `oka` wired into
+      `.github/workflows/pub_publish.yml` with per-package dry-run
+      preflight; version-sync gate extended to the split packages.
+      Evidence: `dart pub publish --dry-run` — oka_core and oka publishable
+      (oka_android resolves once oka_core's first release is up; host
+      projects bootstrap with `dependency_overrides`, documented in the
+      build guide).
 - [x] **Adoption fixes surfaced by last_answer (behavior-preserving):**
       `archive` bumped to ^4 (unblocks host apps using image /
       flutter_native_splash); pipeline-level overrides seeded into

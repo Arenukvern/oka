@@ -11,7 +11,6 @@ dependencies:
   archive: ^4.0.9
   crypto: ^3.0.3
   http: ^1.2.1
-  oka_core:
-    path: ../oka_core
+  oka_core: ^0.1.6
   path: ^1.9.0
   yaml: ^3.1.2

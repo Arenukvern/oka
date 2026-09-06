@@ -297,11 +297,12 @@ Future<void> stageApkLayout({
 /// using Android framework resource IDs.
 Future<void> zipStagingToApk(String stagingDir, String apkPath) async {
   final archive = Archive();
-  final root = Directory(stagingDir);
-  await for (final entity in root.list(recursive: true, followLinks: false)) {
-    if (entity is! File) continue;
-    final rel = p.relative(entity.path, from: stagingDir).replaceAll(r'\', '/');
-    final data = await entity.readAsBytes();
+  // Deterministic artifact bytes (ADR-0007): entry order follows sorted
+  // relative paths, not filesystem directory order.
+  final entries = await listRelativePaths(Directory(stagingDir));
+  final sorted = entries.toList()..sort();
+  for (final rel in sorted) {
+    final data = await File(p.join(stagingDir, rel)).readAsBytes();
     // resources.arsc must be STORED (uncompressed) and 4-byte aligned for
     // targetSdk >= 30 installs; compression here causes install failure -124.
     final file = ArchiveFile(rel, data.length, data)

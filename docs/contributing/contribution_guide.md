@@ -67,8 +67,13 @@ Releases are automated on `main` via **release-please**:
 4. release-please creates the `vX.Y.Z` tag and GitHub release **with changelog
    notes**.
 5. [`.github/workflows/pub_publish.yml`](../../.github/workflows/pub_publish.yml)
-   runs on the tag: asserts tag == `VERSION`, dry-run preflight, then publishes
-   to pub.dev.
+   runs on the tag: asserts tag == `VERSION`, per-package dry-run preflight,
+   then publishes to pub.dev **in dependency order**: `oka_core` →
+   `oka_android` → `oka` (the split packages share the release train's
+   version; `oka_android` declares a hosted `oka_core` constraint, so the
+   first train must publish core before android/root). Host projects that
+   need the packages before their first release bootstrap with
+   `dependency_overrides` (see the build guide).
 
 Manual fallback (when automation is blocked):
 

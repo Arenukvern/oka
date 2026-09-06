@@ -23,17 +23,34 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  test('generates oka.yaml scaffold with commented dart_entrypoint example',
+  test('default init scaffolds a full-Dart pipeline (no oka.yaml)',
       () async {
-    // No android/app/build.gradle → default (non-AI) config path.
     await InitCommand().run([]);
+
+    // ADR-0010: typed entrypoint at the discovery convention; no YAML.
+    final entry = File(p.join(tmp.path, 'tool', 'oka_pipeline.dart'));
+    expect(entry.existsSync(), isTrue);
+    expect(File(p.join(tmp.path, 'oka.yaml')).existsSync(), isFalse);
+
+    final content = entry.readAsStringSync();
+    expect(content, contains("name: 'my_app'"));
+    expect(content, contains("packageName: 'com.example.my_app'"));
+    expect(content, contains('versionCode: 7')); // from pubspec 2.3.4+7
+    expect(content, contains("versionName: '2.3.4+7'"));
+    expect(content, contains('AndroidPipeline.defaultSteps'));
+  });
+
+  test('--yaml opts into the legacy YAML-first scaffold', () async {
+    await InitCommand().run(['--yaml']);
 
     final file = File(p.join(tmp.path, 'oka.yaml'));
     expect(file.existsSync(), isTrue);
+    expect(File(p.join(tmp.path, 'tool', 'oka_pipeline.dart')).existsSync(),
+        isFalse);
     final content = file.readAsStringSync();
 
     // ADR-0006/0010: commented pipeline.dart_entrypoint example + pointer to
-    // the full composition example.
+    // the full-Dart conversion.
     expect(content, contains('dart_entrypoint'));
     expect(content, contains('tool/oka_pipeline.dart'));
     expect(
@@ -51,8 +68,8 @@ void main() {
     expect((parsed['android'] as Map)['package_name'], 'com.example.my_app');
   });
 
-  test('scaffold preserves the rest of the generated config', () async {
-    await InitCommand().run([]);
+  test('--yaml scaffold preserves the rest of the generated config', () async {
+    await InitCommand().run(['--yaml']);
     final parsed = loadYaml(File(p.join(tmp.path, 'oka.yaml')).readAsStringSync()) as Map;
     final android = parsed['android'] as Map;
     expect(android['min_sdk']?.toString(), '21');

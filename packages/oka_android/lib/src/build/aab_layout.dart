@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+
+import 'apk_layout.dart' show listRelativePaths;
 import 'package:path/path.dart' as p;
 
 /// App Bundle layout helpers (ADR-0004).
@@ -146,11 +148,11 @@ Future<void> stageAabBaseModule({
 /// Zip a bundle root ([bundleRoot] containing `base/`) into [aabPath].
 Future<void> zipBundle(String bundleRoot, String aabPath) async {
   final archive = Archive();
-  final root = Directory(bundleRoot);
-  await for (final entity in root.list(recursive: true, followLinks: false)) {
-    if (entity is! File) continue;
-    final rel = p.relative(entity.path, from: bundleRoot).replaceAll(r'\', '/');
-    final data = await entity.readAsBytes();
+  // Deterministic artifact bytes (ADR-0007): sorted entry order.
+  final entries = await listRelativePaths(Directory(bundleRoot));
+  final sorted = entries.toList()..sort();
+  for (final rel in sorted) {
+    final data = await File(p.join(bundleRoot, rel)).readAsBytes();
     archive.addFile(ArchiveFile(rel, data.length, data));
   }
   final encoded = ZipEncoder().encodeBytes(archive);

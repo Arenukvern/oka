@@ -10,6 +10,32 @@ How to run, build, and extend oka. Why-rationale lives in the
 
 ## 🏠 Setup Hub
 
+**Q: How do I start a new project (oka init)?**
+```bash
+oka init               # full-Dart config: scaffolds tool/oka_pipeline.dart
+                       # (typed AndroidBuild/FlutterBuild) — no oka.yaml
+oka init --yaml        # legacy YAML-first scaffold (with AI gradle conversion
+                       # when android/app/build.gradle exists)
+oka init --from-yaml   # converts an existing oka.yaml 1:1 into the typed
+                       # Dart entrypoint (ADR-0010)
+```
+`oka build` discovers `tool/oka_pipeline.dart` by convention — no YAML key
+needed. Non-interactive sessions (CI/agents) skip overwrite prompts; pass
+`--force` to overwrite.
+
+**Q: How do I depend on oka packages before their first pub.dev release?**
+`oka_android` declares a hosted `oka_core` constraint, so until both are
+published, host projects resolve them locally:
+```yaml
+dependency_overrides:
+  oka_android:
+    path: /path/to/oka/packages/oka_android
+  oka_core:
+    path: /path/to/oka/packages/oka_core
+```
+Publish order (release train, see `.github/workflows/pub_publish.yml`):
+`oka_core` → `oka_android` → `oka`. Drop the overrides once published.
+
 **Q: How do I install oka and its Android SDK?**
 ```bash
 make install          # dart pub get

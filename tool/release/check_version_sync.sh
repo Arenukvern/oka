@@ -25,6 +25,17 @@ pubspec_version="$(
 [[ "$pubspec_version" == "$repo_version" ]] ||
   fail "pubspec.yaml version ($pubspec_version) != VERSION ($repo_version)"
 
+# Split packages (ADR-0006): publishable with the same release train.
+for pkg in packages/oka_core packages/oka_android; do
+  pkg_pubspec="$ROOT_DIR/$pkg/pubspec.yaml"
+  [[ -f "$pkg_pubspec" ]] || continue
+  pkg_version="$(
+    sed -nE 's/^version:[[:space:]]*([^[:space:]#]+).*/\1/p' "$pkg_pubspec" | head -1
+  )"
+  [[ "$pkg_version" == "$repo_version" ]] ||
+    fail "$pkg version ($pkg_version) != VERSION ($repo_version)"
+done
+
 for manifest in \
   "$ROOT_DIR/plugin/.cursor-plugin/plugin.json" \
   "$ROOT_DIR/plugin/.codex-plugin/plugin.json" \

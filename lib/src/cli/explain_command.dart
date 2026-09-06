@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
 import 'package:oka_core/oka_core.dart';
-import 'package:path/path.dart' as p;
 
 /// `oka explain` — composes and validates the build plan with **zero tool
 /// invocations** (ADR-0007). Reports the step list with artifact chains,
@@ -181,8 +180,8 @@ class ExplainCommand {
       );
     }
     for (final step in AndroidPipeline.defaultSteps) {
-      final req = describeArtifacts(step.requires);
-      final prov = describeArtifacts(step.provides);
+      final req = step.requires.map((a) => a.id).join(', ');
+      final prov = step.provides.map((a) => a.id).join(', ');
       print(
         '    ${step.name.padRight(24)}'
         '${req.isEmpty ? '' : '← [$req] '}'

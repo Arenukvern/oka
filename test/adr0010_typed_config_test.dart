@@ -95,8 +95,13 @@ version: 1.0.0+1
 environment:
   sdk: ^3.12.0
 dependencies:
-  oka:
-    path: $repoRoot
+  oka_android:
+    path: $repoRoot/packages/oka_android
+  oka_core:
+    path: $repoRoot/packages/oka_core
+# Bootstrap overrides: oka_android's hosted oka_core constraint cannot
+# resolve until the split packages are first published to pub.dev.
+dependency_overrides:
   oka_android:
     path: $repoRoot/packages/oka_android
   oka_core:

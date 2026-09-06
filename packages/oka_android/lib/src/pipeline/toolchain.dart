@@ -222,15 +222,19 @@ Future<CompileDexOutcome> compileAndDex({
 
     // Prefer newer build-tools d8 (35+) for embedding + large classpaths.
     // Compile-only jars (annotations) go to --lib, not into the program DEX.
-    final programJars = <String>[
+    // ADR-0007 determinism: dependency resolution runs in parallel, so the
+    // jar order varies between runs — and d8 partitions classes into
+    // classesN.dex in argument order. Sorting makes the multi-dex split
+    // (part count + content distribution) reproducible byte-for-byte.
+    final programJars = [
       classesJar,
       embeddingJar,
       ...filterRuntimeJars([...androidxJarPaths, ...pluginJarDeps]),
-    ];
+    ]..sort();
     final compileOnlyJars = filterCompileOnlyJars([
       ...androidxJarPaths,
       ...pluginJarDeps,
-    ]);
+    ])..sort();
     final minApi = ctx.config.android.minSdk.isEmpty
         ? '21'
         : ctx.config.android.minSdk;
