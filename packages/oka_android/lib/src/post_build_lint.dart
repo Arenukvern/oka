@@ -76,11 +76,13 @@ class PostBuildLintStep extends BuildStep {
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     final rules = [...defaultRules, ...extraRules];
     final findings = <LintFinding>[];
+    // ADR-0010: constructor budget wins; pipeline-level overrides fill in.
+    final effectiveMaxSizeMb = maxSizeMb ?? state.pipelineOverrides?.maxSizeMb;
     for (final rule in rules) {
       findings.addAll(await rule(this, ctx, state));
     }
-    if (maxSizeMb != null) {
-      findings.addAll(await _sizeBudgetRule(this, ctx, state, maxSizeMb!));
+    if (effectiveMaxSizeMb != null) {
+      findings.addAll(await _sizeBudgetRule(this, ctx, state, effectiveMaxSizeMb));
     }
 
     final errors = findings.where((f) => f.severity == Severity.error);

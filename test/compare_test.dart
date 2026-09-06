@@ -31,7 +31,7 @@ File _writeZip(String path, Map<String, List<int>> entries) {
   }
   final file = File(path);
   file.parent.createSync(recursive: true);
-  file.writeAsBytesSync(ZipEncoder().encode(archive)!);
+  file.writeAsBytesSync(ZipEncoder().encodeBytes(archive));
   return file;
 }
 

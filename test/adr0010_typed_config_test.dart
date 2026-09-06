@@ -6,6 +6,7 @@ import 'package:oka_core/oka_core.dart';
 import 'package:test/test.dart';
 
 void main() {
+  _overridesSeedingTests();
   group('ADR-0010: AndroidBuild / FlutterBuild typed config', () {
     test('toConfigMap emits only explicitly set fields, yaml-shaped', () {
       final map = const AndroidBuild(
@@ -162,3 +163,91 @@ Future<void> main(List<String> args) => okaRun(
     });
   });
 }
+
+/// ADR-0010 regression: hooks composing explicit step lists get the merged
+/// pipeline-level overrides seeded into the runtime scope (the
+/// `steps: [...defaultSteps]` wiring silently dropped overrides before).
+class _OverridesProbeStep extends BuildStep {
+  final void Function(PipelineOverrides? ov) onProbe;
+
+  _OverridesProbeStep(this.onProbe);
+
+  @override
+  String get name => 'overrides-probe';
+
+  @override
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+    onProbe(state.pipelineOverrides);
+    return StepResult.success();
+  }
+}
+
+void _overridesSeedingTests() {
+  test(
+    'AndroidPipeline.run seeds merged overrides into the runtime scope',
+    () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_ov_seed_');
+      addTearDown(() => tmp.deleteSync(recursive: true));
+      await File('${tmp.path}/oka.yaml').writeAsString('''
+name: seedtest
+android:
+  package_name: dev.seed.test
+pipeline:
+  exclude_plugins: [integration_test]
+''');
+      final ctx = BuildContext(
+        projectPath: tmp.path,
+        buildDir: '${tmp.path}/.oka_cache/build/debug',
+        mode: BuildMode.debug,
+        config: OkaConfig.empty,
+        cacheDir: '${tmp.path}/.oka_cache',
+        tempDir: '${tmp.path}/.oka_cache/tmp',
+      );
+      await Directory(ctx.buildDir).create(recursive: true);
+
+      PipelineOverrides? seen;
+      final probe = _OverridesProbeStep((ov) => seen = ov);
+      final pipeline = AndroidPipeline(
+        overrides: const PipelineOverrides(
+          extraDeps: ['com.squareup.okhttp3:okhttp:4.12.0'],
+          maxSizeMb: 50,
+        ),
+        steps: [probe],
+      );
+      final result = await pipeline.run(ctx);
+      expect(result.ok, isTrue, reason: result.error);
+      expect(seen, isNotNull);
+      // Hook overrides + yaml fast-settings both present in the merged view.
+      expect(seen!.extraDeps, ['com.squareup.okhttp3:okhttp:4.12.0']);
+      expect(seen!.excludePlugins, ['integration_test']);
+      expect(seen!.maxSizeMb, 50);
+    });
+
+    test('ExtraAssetsStep falls back to pipeline-level overrides', () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_ov_assets_');
+      addTearDown(() => tmp.deleteSync(recursive: true));
+      final src = File('${tmp.path}/note.txt');
+      await src.writeAsString('hello');
+      final assetsDir = '${tmp.path}/flutter_assets';
+      await Directory(assetsDir).create(recursive: true);
+
+      final state = PipelineState()..flutterAssetsDir = assetsDir;
+      state.pipelineOverrides = const PipelineOverrides(extraAssets: [
+        (from: 'note.txt', to: 'notes/note.txt'),
+      ]);
+      final ctx = BuildContext(
+        projectPath: tmp.path,
+        buildDir: '${tmp.path}/build',
+        mode: BuildMode.debug,
+        config: OkaConfig.empty,
+        cacheDir: '${tmp.path}/.oka_cache',
+        tempDir: '${tmp.path}/.oka_cache/tmp',
+      );
+      final result = await ExtraAssetsStep(const []).run(ctx, state);
+      expect(result.ok, isTrue, reason: result.error);
+      expect(
+        await File('$assetsDir/notes/note.txt').readAsString(),
+        'hello',
+      );
+    });
+  }

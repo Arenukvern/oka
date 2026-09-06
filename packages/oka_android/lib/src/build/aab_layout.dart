@@ -153,10 +153,7 @@ Future<void> zipBundle(String bundleRoot, String aabPath) async {
     final data = await entity.readAsBytes();
     archive.addFile(ArchiveFile(rel, data.length, data));
   }
-  final encoded = ZipEncoder().encode(archive);
-  if (encoded == null) {
-    throw StateError('Failed to encode AAB zip from $bundleRoot');
-  }
+  final encoded = ZipEncoder().encodeBytes(archive);
   await File(aabPath).parent.create(recursive: true);
   await File(aabPath).writeAsBytes(encoded, flush: true);
 }

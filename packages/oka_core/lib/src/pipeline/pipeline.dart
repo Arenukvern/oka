@@ -120,11 +120,13 @@ class Pipeline {
     return null;
   }
 
-  Future<StepResult> run(BuildContext ctx) async {
+  Future<StepResult> run(BuildContext ctx, {PipelineState? initialState}) async {
     final validationError = validate();
     if (validationError != null) return StepResult.failure(validationError);
 
-    final state = PipelineState();
+    // ADR-0010: platform pipelines may seed the runtime scope (e.g. the
+    // merged pipeline-level overrides) — it is the single mutable layer.
+    final state = initialState ?? PipelineState();
     void emit(PipelineEvent e) => onEvent?.call(e);
     for (final step in steps) {
       if (verbose) print('▶ step: ${step.name}');

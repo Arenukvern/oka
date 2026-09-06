@@ -130,10 +130,7 @@ class EngineArtifacts {
     if (count == 0) {
       throw Exception('No .class entries found in $flutterJar');
     }
-    final encoded = ZipEncoder().encode(out);
-    if (encoded == null) {
-      throw Exception('Failed to encode embedding classes jar');
-    }
+    final encoded = ZipEncoder().encodeBytes(out);
     await File(destJarPath).parent.create(recursive: true);
     await File(destJarPath).writeAsBytes(encoded, flush: true);
     if (verbose) {

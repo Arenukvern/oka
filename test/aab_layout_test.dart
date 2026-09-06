@@ -121,7 +121,7 @@ void main() {
           ..addFile(ArchiveFile('AndroidManifest.xml', 4, [1, 2, 3, 4]))
           ..addFile(ArchiveFile('resources.pb', 2, [9, 9]))
           ..addFile(ArchiveFile('res/values/values.arsc.flat', 1, [7]));
-        await protoZip.writeAsBytes(ZipEncoder().encode(archive)!);
+        await protoZip.writeAsBytes(ZipEncoder().encodeBytes(archive));
 
         final dex = File('${tmp.path}/classes.dex');
         await dex.writeAsBytes([0x64, 0x65, 0x78]);

@@ -214,6 +214,7 @@ class FlutterAssembler {
     required String primaryAbi,
     List<String> extraArgs = const [],
     Map<String, String> dartDefines = const {},
+    Map<String, String>? environment,
   }) async {
     await Directory(outputDir).create(recursive: true);
     final platform = targetPlatformForAbi(primaryAbi);
@@ -234,6 +235,7 @@ class FlutterAssembler {
       'flutter',
       args,
       workingDirectory: projectPath,
+      environment: environment,
     );
 
     final assets = await findFlutterAssetsDir(outputDir);
@@ -253,6 +255,7 @@ class FlutterAssembler {
     required String abi,
     List<String> extraArgs = const [],
     Map<String, String> dartDefines = const {},
+    Map<String, String>? environment,
   }) async {
     await Directory(outputDir).create(recursive: true);
     final args = buildFlutterAotAssembleArgs(
@@ -271,6 +274,7 @@ class FlutterAssembler {
       'flutter',
       args,
       workingDirectory: projectPath,
+      environment: environment,
     );
 
     return FlutterAssembleResult(

@@ -26,6 +26,12 @@ class CompileAndDexStep extends BuildStep {
   /// Resource qualifier filter (aapt2 `--configs`), e.g. `['en', 'ru']`.
   final List<String> resourceConfigs;
 
+  /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
+  List<String> _effectiveResourceConfigs(PipelineState state) =>
+      resourceConfigs.isNotEmpty
+          ? resourceConfigs
+          : (state.pipelineOverrides?.resourceConfigs ?? const []);
+
   @override
   String get name => 'compile-and-dex';
 
@@ -82,7 +88,7 @@ class CompileAndDexStep extends BuildStep {
       'compileSdk:${ctx.config.android.compileSdk}',
       'kotlin:${ctx.config.android.kotlinVersion}',
       'java:${ctx.config.android.javaVersion}',
-      'resourceConfigs:${resourceConfigs.join(',')}',
+      'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
       'versionCode:${version.versionCode}',
       'versionName:${version.versionName}',
       'java:$javaLevel',
@@ -114,7 +120,7 @@ class CompileAndDexStep extends BuildStep {
       pluginKotlinSources: packaged?.allKotlinSources ?? const [],
       pluginJarDeps: packaged?.allJarDeps ?? const [],
       pluginResDirs: [...state.aarResDirs, ...?packaged?.resDirs],
-      resourceConfigs: resourceConfigs,
+      resourceConfigs: _effectiveResourceConfigs(state),
       versionCode: version.versionCode.toString(),
       versionName: version.versionName,
       javaVersionOverride: javaLevel,
@@ -148,6 +154,10 @@ class PackageAndSignStep extends BuildStep {
   PackageAndSignStep({SdkLocator? sdkLocator, this.signing})
     : sdkLocator = sdkLocator ?? SdkLocator();
 
+  /// ADR-0010: constructor signing wins; pipeline-level overrides fill in.
+  SigningConfig? _effectiveSigning(PipelineState state) =>
+      signing ?? state.pipelineOverrides?.signing;
+
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('📱 Packaging APK...');
@@ -168,7 +178,7 @@ class PackageAndSignStep extends BuildStep {
       libflutterByAbi: state.libflutterByAbi,
       libappByAbi: state.libappByAbi,
       extraNativeByAbi: extraNatives,
-      signing: signing,
+      signing: _effectiveSigning(state),
     );
     state.apkPath = signed;
     return StepResult.success();
@@ -195,6 +205,12 @@ class CompileProtoAndDexStep extends BuildStep {
     SdkLocator? sdkLocator,
     this.resourceConfigs = const [],
   }) : sdkLocator = sdkLocator ?? SdkLocator();
+
+  /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
+  List<String> _effectiveResourceConfigs(PipelineState state) =>
+      resourceConfigs.isNotEmpty
+          ? resourceConfigs
+          : (state.pipelineOverrides?.resourceConfigs ?? const []);
 
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
@@ -247,7 +263,7 @@ class CompileProtoAndDexStep extends BuildStep {
       'compileSdk:${ctx.config.android.compileSdk}',
       'kotlin:${ctx.config.android.kotlinVersion}',
       'java:${ctx.config.android.javaVersion}',
-      'resourceConfigs:${resourceConfigs.join(',')}',
+      'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
       'versionCode:${ctx.config.android.versionCode}',
       'versionName:${ctx.config.android.versionName}',
     ]);
@@ -279,7 +295,7 @@ class CompileProtoAndDexStep extends BuildStep {
       pluginKotlinSources: packaged?.allKotlinSources ?? const [],
       pluginJarDeps: packaged?.allJarDeps ?? const [],
       pluginResDirs: [...state.aarResDirs, ...?packaged?.resDirs],
-      resourceConfigs: resourceConfigs,
+      resourceConfigs: _effectiveResourceConfigs(state),
       versionCode: version.versionCode.toString(),
       versionName: version.versionName,
       javaVersionOverride: javaLevel,
@@ -313,6 +329,10 @@ class PackageAndSignAabStep extends BuildStep {
   PackageAndSignAabStep({SdkLocator? sdkLocator, this.signing})
     : sdkLocator = sdkLocator ?? SdkLocator();
 
+  /// ADR-0010: constructor signing wins; pipeline-level overrides fill in.
+  SigningConfig? _effectiveSigningAab(PipelineState state) =>
+      signing ?? state.pipelineOverrides?.signing;
+
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('📦 Packaging App Bundle...');
@@ -333,7 +353,7 @@ class PackageAndSignAabStep extends BuildStep {
         libflutterByAbi: state.libflutterByAbi,
         libappByAbi: state.libappByAbi,
         extraNativeByAbi: extraNatives,
-        signing: signing,
+        signing: _effectiveSigningAab(state),
       );
       state.apkPath = signed; // artifact path slot shared across pipelines
       return StepResult.success();

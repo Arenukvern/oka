@@ -105,7 +105,13 @@ class PluginPackagingStep extends BuildStep {
     if (ctx.mode.isRelease) {
       autoExcluded = devDependencyNames(ctx.projectPath).toList();
     }
-    final excluded = {...excludePlugins, ...autoExcluded};
+    // ADR-0010: constructor-level excludes win; pipeline-level overrides
+    // (seeded by AndroidPipeline.run) fill the rest.
+    final excluded = {
+      ...excludePlugins,
+      ...?state.pipelineOverrides?.excludePlugins,
+      ...autoExcluded,
+    };
     if (excluded.isNotEmpty) {
       discovery = discovery.excluding(excluded.toList());
       if (autoExcluded.isNotEmpty && ctx.verbose) {
@@ -307,9 +313,31 @@ class HostCodegenStep extends BuildStep {
     IconConfig? iconConfig,
   }) : iconConfig = iconConfig ?? const IconConfig();
 
+  /// ADR-0010: values left at constructor defaults fall back to the
+  /// pipeline-level overrides seeded into the runtime scope.
+  ({
+    List<DeeplinkConfig> deeplinks,
+    IconConfig iconConfig,
+    ManifestSpec? manifestOverride,
+    List<String> resDirs,
+  }) _resolveHostOverrides(PipelineState state) {
+    final ov = state.pipelineOverrides;
+    return (
+      deeplinks: yamlDeeplinks.isNotEmpty
+          ? yamlDeeplinks
+          : (ov?.deeplinks ?? const []),
+      iconConfig: iconConfig == const IconConfig()
+          ? (ov?.icon ?? const IconConfig())
+          : iconConfig,
+      manifestOverride: manifestOverride ?? ov?.manifest,
+      resDirs: resDirs.isNotEmpty ? resDirs : (ov?.resDirs ?? const []),
+    );
+  }
+
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('📝 Generating Android host sources...');
+    final host = _resolveHostOverrides(state);
     final hostDir = p.join(ctx.buildDir, 'host_java');
     final packageName = ctx.config.android.packageName;
 
@@ -342,7 +370,7 @@ class HostCodegenStep extends BuildStep {
 
     // User res dirs (launch theme, styles, splash, mipmaps) — merged after
     // generated res so user resources win on conflicts.
-    for (final rel in resDirs) {
+    for (final rel in host.resDirs) {
       final src = Directory(p.join(ctx.projectPath, rel));
       if (!await src.exists()) {
         return StepResult.failure('res_dirs: directory not found: $rel');
@@ -356,7 +384,7 @@ class HostCodegenStep extends BuildStep {
     try {
       final icons = await stageLauncherIcons(
         resDir,
-        iconConfig,
+        host.iconConfig,
         projectPath: ctx.projectPath,
       );
       iconRef = icons.manifestRef;
@@ -375,10 +403,10 @@ class HostCodegenStep extends BuildStep {
     var spec = manifestYaml is Map
         ? ManifestSpec.fromYamlMap(manifestYaml)
         : const ManifestSpec();
-    if (yamlDeeplinks.isNotEmpty) {
-      spec = spec.copyWith(deeplinks: yamlDeeplinks);
+    if (host.deeplinks.isNotEmpty) {
+      spec = spec.copyWith(deeplinks: host.deeplinks);
     }
-    final effective = manifestOverride ?? spec;
+    final effective = host.manifestOverride ?? spec;
     if (ctx.verbose) {
       print(
         '   manifest: ${effective.permissions.length} permissions, '

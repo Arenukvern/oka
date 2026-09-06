@@ -25,6 +25,16 @@ class FlutterAssembleStep extends BuildStep {
 
   /// Absolute paths of pubspec.yaml files for path: dependencies declared in
   /// the package config (sibling checkouts). Non-existent entries ignored.
+  /// Resolves the Android SDK without failing the step — when unavailable,
+  /// the flutter tool reports its own actionable error.
+  Future<String?> _locateAndroidSdkSafe() async {
+    try {
+      return await sdkLocator.findAndroidSdk();
+    } on Exception {
+      return null;
+    }
+  }
+
   static List<File> _pathDependencyPubspecs(String packageConfigJson) {
     final out = <File>[];
     final rootUriRe = RegExp(r'"rootUri":\s*"([^"]+)"');
@@ -110,6 +120,15 @@ class FlutterAssembleStep extends BuildStep {
     }
 
     print('🎨 Running flutter assemble...');
+    // ADR-0007 AUTO: the flutter tool subprocess resolves the Android SDK on
+    // its own (env → project android/local.properties). Projects with a
+    // stale/missing sdk.dir fail build_hooks even though oka found the SDK —
+    // pass the located SDK through the environment so `flutter assemble` sees
+    // exactly what oka's own steps see.
+    final androidSdkHome = await _locateAndroidSdkSafe();
+    final sdkEnv = androidSdkHome == null
+        ? null
+        : {'ANDROID_SDK_ROOT': androidSdkHome, 'ANDROID_HOME': androidSdkHome};
     final assembleOut = p.join(ctx.buildDir, 'assemble');
     final assembleResult = await assembler.assembleApplication(
       projectPath: ctx.projectPath,
@@ -119,6 +138,7 @@ class FlutterAssembleStep extends BuildStep {
       primaryAbi: state.abis.first,
       extraArgs: ctx.config.flutter.buildArgs,
       dartDefines: ctx.dartDefines,
+      environment: sdkEnv,
     );
     if (!assembleResult.success) {
       return StepResult.failure(
@@ -190,7 +210,16 @@ class EngineExtractionStep extends BuildStep {
 
 /// Assembles release AOT (libapp.so) per ABI. No-op in debug/profile.
 class ReleaseAotStep extends BuildStep {
-  @override
+    /// Resolves the Android SDK without failing the step.
+  Future<String?> _locateAndroidSdkSafe() async {
+    try {
+      return await sdkLocator.findAndroidSdk();
+    } on Exception {
+      return null;
+    }
+  }
+
+@override
   Set<Artifact<Object>> get requires => {abis};
 
   @override
@@ -237,6 +266,7 @@ class ReleaseAotStep extends BuildStep {
     final libappByAbi = <String, String>{};
     for (final abi in state.abis) {
       final aotOut = p.join(ctx.buildDir, 'aot', normalizeAbi(abi));
+      final aotSdkEnv = await _locateAndroidSdkSafe();
       final aotResult = await assembler.assembleAot(
         projectPath: ctx.projectPath,
         outputDir: aotOut,
@@ -244,7 +274,13 @@ class ReleaseAotStep extends BuildStep {
         abi: abi,
         extraArgs: ctx.config.flutter.buildArgs,
         dartDefines: ctx.dartDefines,
-      );
+            environment: aotSdkEnv == null
+          ? null
+          : {
+              'ANDROID_SDK_ROOT': aotSdkEnv,
+              'ANDROID_HOME': aotSdkEnv,
+            },
+    );
       if (!aotResult.success) {
         return StepResult.failure(
           'flutter AOT assemble failed for $abi: ${aotResult.stderr}',

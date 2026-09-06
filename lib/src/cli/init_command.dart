@@ -40,7 +40,7 @@ class InitCommand {
 
     // ADR-0010: convert existing oka.yaml into a typed Dart entrypoint.
     if (args.contains('--from-yaml')) {
-      await _convertFromYaml();
+      await _convertFromYaml(force: args.contains('--force'));
       return;
     }
     if (args.contains('--dart')) {
@@ -130,7 +130,7 @@ class InitCommand {
 
   /// ADR-0010: convert an existing oka.yaml into a typed Dart pipeline
   /// entrypoint at [kDefaultEntrypointPath].
-  Future<void> _convertFromYaml() async {
+  Future<void> _convertFromYaml({bool force = false}) async {
     final okaYamlFile = File('oka.yaml');
     if (!await okaYamlFile.exists()) {
       print('❌ --from-yaml requires an existing oka.yaml to convert');
@@ -141,7 +141,10 @@ class InitCommand {
       print('❌ oka.yaml is not a mapping');
       exit(1);
     }
-    await _writeEntrypoint(OkaInitGenerator.entrypointFromYaml(doc).code);
+    await _writeEntrypoint(
+      OkaInitGenerator.entrypointFromYaml(doc).code,
+      force: force,
+    );
   }
 
   /// ADR-0010: scaffold a fresh full-Dart pipeline (no oka.yaml).
@@ -171,9 +174,9 @@ class InitCommand {
     print('  3. Run "oka build apk" to build (no oka.yaml needed)');
   }
 
-  Future<void> _writeEntrypoint(String code) async {
+  Future<void> _writeEntrypoint(String code, {bool force = false}) async {
     final target = File(p.join('tool', 'oka_pipeline.dart'));
-    if (await target.exists()) {
+    if (await target.exists() && !force) {
       print('⚠️  $kDefaultEntrypointPath already exists');
       stdout.write('   Overwrite? (y/N): ');
       final response = stdin.readLineSync()?.toLowerCase();
@@ -479,7 +482,7 @@ class OkaInitGenerator {
     b.writeln();
     b.writeln('Future<void> main(List<String> args) => okaRun(');
     b.writeln('  args,');
-    b.writeln('  oka: const Oka(');
+    b.writeln('  oka: Oka(');
     b.writeln('    pipelines: [');
     b.writeln('      AndroidPipeline(');
     if (androidLines.isNotEmpty) {

@@ -180,7 +180,7 @@ dependencies {
       }
       final aar = Archive();
       aar.addFile(ArchiveFile('classes.jar', classes.length, classes));
-      final aarBytes = ZipEncoder().encode(aar)!;
+      final aarBytes = ZipEncoder().encodeBytes(aar);
       await cache.resolve(
         const MavenCoordinate(
           groupId: 'androidx.core',

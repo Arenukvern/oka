@@ -13,14 +13,14 @@ List<int> buildTestAar(Map<String, List<int>> entries) {
   entries.forEach((name, bytes) {
     archive.addFile(ArchiveFile(name, bytes.length, bytes));
   });
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encodeBytes(archive);
 }
 
 // Minimal valid classes.jar content (a zip with one file).
 final _classesJarBytes = () {
   final jar = Archive();
   jar.addFile(ArchiveFile('com/example/Foo.class', 4, [1, 2, 3, 4]));
-  return ZipEncoder().encode(jar)!;
+  return ZipEncoder().encodeBytes(jar);
 }();
 
 void main() {

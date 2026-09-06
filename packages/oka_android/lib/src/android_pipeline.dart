@@ -1,13 +1,16 @@
 import 'package:oka_core/oka_core.dart';
 
+import 'android_state.dart';
 import 'build/dependency_cache.dart';
 import 'build/launcher_icon.dart';
 import 'build/sdk_locator.dart';
 import 'manifest_spec.dart';
 import 'pipeline/default_pipeline.dart';
+import 'pipeline/steps/asset_steps.dart';
 import 'pipeline/steps/flutter_steps.dart';
 import 'pipeline/steps/host_steps.dart';
 import 'pipeline/steps/tool_steps.dart';
+import 'post_build_lint.dart';
 import 'signing_config.dart';
 /// Declarative Android platform pipeline (ADR-0006).
 ///
@@ -85,9 +88,15 @@ class AndroidPipeline implements PlatformPipeline {
       EngineExtractionStep(sdkLocator: sdkLocator),
       ReleaseAotStep(sdkLocator: sdkLocator),
       DependencyResolveStep(cache: cache),
+      // Fast-settings surfaces (ADR-0010): steps read pipeline-level
+      // overrides seeded into the runtime scope; constructor args stay empty.
+      ExtraDepsStep(const [], cache),
+      LocalAarsStep(const []),
       CompileAndDexStep(sdkLocator: sdkLocator),
+      ExtraAssetsStep(const []),
       PackageAndSignStep(sdkLocator: sdkLocator),
       ValidateLayoutStep(),
+      PostBuildLintStep(),
     ];
   }
 
@@ -110,6 +119,11 @@ class AndroidPipeline implements PlatformPipeline {
       signing: signing,
       icon: overrides.icon == const IconConfig() ? null : overrides.icon,
       localAars: overrides.localAars.isEmpty ? null : overrides.localAars,
+      resDirs: overrides.resDirs.isEmpty ? null : overrides.resDirs,
+      excludePlugins: overrides.excludePlugins.isEmpty
+          ? null
+          : overrides.excludePlugins,
+      maxSizeMb: overrides.maxSizeMb,
     );
 
     final Pipeline pipeline;
@@ -130,7 +144,12 @@ class AndroidPipeline implements PlatformPipeline {
         overrides: merged,
       );
     }
-    return pipeline.run(ctx);
+    // ADR-0010: seed the merged overrides into the runtime scope so hooks
+    // composing explicit step lists (`steps: [...AndroidPipeline.defaultSteps]`)
+    // get fast-settings applied without threading every constructor. Steps
+    // prefer their explicit constructor values and fall back to this.
+    final state = PipelineState()..pipelineOverrides = merged;
+    return pipeline.run(ctx, initialState: state);
   }
 }
 

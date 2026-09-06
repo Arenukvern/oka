@@ -22,7 +22,7 @@ void main() {
         ..addFile(ArchiveFile('toc.pb', 2, [1, 1]))
         ..addFile(ArchiveFile('splits/base-master.apk', 3, [7, 7, 7]))
         ..addFile(ArchiveFile('splits/universal.apk', 5, [1, 2, 3, 4, 5]));
-      await apks.writeAsBytes(ZipEncoder().encode(archive)!);
+      await apks.writeAsBytes(ZipEncoder().encodeBytes(archive));
 
       final dest = '${tmp.path}/universal.apk';
       final out = await extractUniversalApk(apks.path, dest);
@@ -34,7 +34,7 @@ void main() {
       final apks = File('${tmp.path}/test.apks');
       final archive = Archive()
         ..addFile(ArchiveFile('splits/base-master.apk', 1, [1]));
-      await apks.writeAsBytes(ZipEncoder().encode(archive)!);
+      await apks.writeAsBytes(ZipEncoder().encodeBytes(archive));
 
       expect(
         () => extractUniversalApk(apks.path, '${tmp.path}/u.apk'),

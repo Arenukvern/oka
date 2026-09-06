@@ -1,6 +1,7 @@
 import 'package:oka_core/oka_core.dart';
 
 import 'build/dependency_cache.dart';
+import 'pipeline_overrides.dart';
 import 'build/engine_artifacts.dart';
 import 'build/host_codegen.dart';
 import 'build/plugin_discovery.dart';
@@ -8,9 +9,25 @@ import 'build/plugin_packager.dart';
 import 'build/sdk_locator.dart';
 
 /// Typed accessors for Android build artifacts shared across steps
-/// (ADR-0006). The store keys match the ids of the artifact constants in
+/// (ADR-0006).
+
+/// Key under which [AndroidPipeline.run] seeds the merged pipeline-level
+/// overrides into the runtime scope (ADR-0010): hooks composing explicit
+/// step lists get fast-settings applied without threading constructors.
+const pipelineOverridesKey = 'pipeline_overrides';
+
+/// The store keys match the ids of the artifact constants in
 /// `android_artifacts.dart`.
 extension AndroidPipelineState on PipelineState {
+  /// Merged pipeline-level overrides (yaml fast-settings + typed Dart
+  /// config), seeded by [AndroidPipeline.run]. Steps fall back to this for
+  /// values their constructors leave unset.
+  PipelineOverrides? get pipelineOverrides =>
+      this[pipelineOverridesKey] as PipelineOverrides?;
+
+  set pipelineOverrides(PipelineOverrides? v) =>
+      this[pipelineOverridesKey] = v;
+
   /// Resolved ABIs for this build.
   List<String> get abis => _asList('abis');
 

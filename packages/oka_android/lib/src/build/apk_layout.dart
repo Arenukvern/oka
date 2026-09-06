@@ -305,13 +305,12 @@ Future<void> zipStagingToApk(String stagingDir, String apkPath) async {
     // resources.arsc must be STORED (uncompressed) and 4-byte aligned for
     // targetSdk >= 30 installs; compression here causes install failure -124.
     final file = ArchiveFile(rel, data.length, data)
-      ..compress = rel != 'resources.arsc';
+      ..compression = rel == 'resources.arsc'
+          ? CompressionType.none
+          : CompressionType.deflate;
     archive.addFile(file);
   }
-  final encoded = ZipEncoder().encode(archive);
-  if (encoded == null) {
-    throw StateError('Failed to encode APK zip from $stagingDir');
-  }
+  final encoded = ZipEncoder().encodeBytes(archive);
   await File(apkPath).parent.create(recursive: true);
   await File(apkPath).writeAsBytes(encoded, flush: true);
 }

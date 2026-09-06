@@ -1038,7 +1038,7 @@ List<int> minimalJarBytes({String entryName = 'META-INF/MANIFEST.MF'}) {
   final archive = Archive();
   final manifest = 'Manifest-Version: 1.0\n\n';
   archive.addFile(ArchiveFile(entryName, manifest.length, manifest.codeUnits));
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encodeBytes(archive);
 }
 
 /// Builds a minimal AAR containing classes.jar for tests.
@@ -1049,5 +1049,5 @@ List<int> minimalAarBytes() {
   archive.addFile(
     ArchiveFile('AndroidManifest.xml', 11, '<manifest/>'.codeUnits),
   );
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encodeBytes(archive);
 }

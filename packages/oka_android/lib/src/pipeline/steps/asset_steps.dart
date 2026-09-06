@@ -49,7 +49,11 @@ class ExtraAssetsStep extends BuildStep {
 
   @override
   Future<StepResult> run(BuildContext ctx, PipelineState state) async {
-    if (entries.isEmpty) return StepResult.success();
+    // ADR-0010: constructor entries win; pipeline-level overrides fill in.
+    final effective = entries.isNotEmpty
+        ? entries
+        : (state.pipelineOverrides?.extraAssets ?? const []);
+    if (effective.isEmpty) return StepResult.success();
     final assetsDir = state.flutterAssetsDir;
     if (assetsDir == null) {
       return StepResult.failure(
@@ -57,7 +61,7 @@ class ExtraAssetsStep extends BuildStep {
         'after flutter-assemble.',
       );
     }
-    for (final entry in entries) {
+    for (final entry in effective) {
       final src = File(p.join(ctx.projectPath, entry.from));
       final srcDir = Directory(p.join(ctx.projectPath, entry.from));
       final dest = p.join(assetsDir, entry.to);

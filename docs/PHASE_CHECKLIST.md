@@ -37,13 +37,20 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       oka.yaml in `okaRun` (+ `--print-config`), entrypoint discovery
       (`tool/oka_pipeline.dart` -> `bin/oka_pipeline.dart`) in build/explain/
       doctor/debug, `oka init --from-yaml` 1:1 converter + `--dart` scaffold.
-      Example app migrated to full-Dart (`example/tool/oka_pipeline.dart`,
-      oka.yaml deleted). Evidence: same-hook A/B **byte-equivalence** —
-      badging, `AndroidManifest.xml`, `resources.arsc`, `classes.dex`
-      identical between yaml-config and Dart-config builds (residual diffs:
-      example's timestamped `build_info.txt` stamp + signature cascade);
-      9 tests in `test/adr0010_typed_config_test.dart` incl. end-to-end
+      Example app **and last_answer** migrated to full-Dart (oka.yaml deleted
+      in both). Evidence: yaml-config vs Dart-config builds **byte-equivalent**
+      (badging + zip entries) in both projects; 13 tests in
+      `test/adr0010_typed_config_test.dart` incl. end-to-end
       `--print-config`; `dart test` all green.
+- [x] **Adoption fixes surfaced by last_answer (behavior-preserving):**
+      `archive` bumped to ^4 (unblocks host apps using image /
+      flutter_native_splash); pipeline-level overrides seeded into
+      `PipelineState` — explicit `steps:` lists now get fast-settings
+      (exclude_plugins, extra_deps, manifest, icon, signing,
+      resource_configs, extra_assets, local_aars, max_size_mb) instead of
+      silently dropping them (pre-existing ADR-0006 gap); `flutter assemble`
+      subprocesses receive the located `ANDROID_SDK_ROOT` (projects with a
+      stale android/local.properties no longer fail build_hooks).
 
 - [x] **Remove demoted cargo-apk hybrid (ADR-0009 — accepted & executed).**
       `rust_wrapper/`, `CargoApkManifest`, `CargoApkConfig` + barrel exports,
