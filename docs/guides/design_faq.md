@@ -21,6 +21,15 @@ A: A silent fallback would hide gaps in oka's own pipeline and make success
 non-deterministic. Missing-tool failures surface via doctor-oriented errors so
 agents can remediate. Enforced by `test/phase0_no_gradle_fallback_test.dart`.
 
+**Q: If oka goes multi-platform someday, what carries over?**
+A: The contracts, not the code. `oka_core` is already platform-agnostic
+(pipeline, typed artifacts, composition root, `okaRun`); a platform is a new
+`PlatformPipeline` package selected by `--platform`, and the agent surface
+(explain/compare/doctor/debug step) composes whatever pipelines exist. That's
+why the design law bans platform detail in core — see
+[why oka matters](../start_here/why_this_repo_matters.md) for the expansion
+criteria.
+
 **Q: Why sort d8 inputs and zip entries?**
 A: Dependency resolution runs in parallel, so jar order varied between runs —
 and d8 partitions classes into `classesN.dex` in argument order, making the

@@ -1,7 +1,8 @@
 # AGENTS.md — oka
 
-Oka is a Dart CLI that replaces Gradle for Flutter Android builds
-(`flutter assemble` + direct Android SDK tools). Agents execute; humans steer.
+Oka is a declarative, compositional, AI-native build system — easy to set up
+for any platform, starting with **no-Gradle Flutter Android** (`flutter
+assemble` + direct Android SDK tools). Agents execute; humans steer.
 This file is a **map**, not a manual — follow links.
 
 ## Non-negotiables
