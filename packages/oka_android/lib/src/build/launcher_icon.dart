@@ -12,12 +12,18 @@ import 'package:path/path.dart' as p;
 ///     monochrome: assets/icon/mono.xml  # optional Android 13+ themed icon
 /// ```
 class IconConfig {
-
   const IconConfig({
     this.backgroundColor = '#FFFFFF',
     this.vector = '',
     this.monochrome = '',
   });
+
+  factory IconConfig.fromMap(final Map<dynamic, dynamic> map) => IconConfig(
+      backgroundColor: map['background_color']?.toString() ?? '#FFFFFF',
+      vector: map['vector']?.toString() ?? '',
+      monochrome: map['monochrome']?.toString() ?? '',
+    );
+
   /// Background as a color literal (`#RRGGBB` / `#AARRGGBB`) or resource ref.
   final String backgroundColor;
 
@@ -28,12 +34,6 @@ class IconConfig {
   /// Optional project-relative path to a monochrome VectorDrawable
   /// (Android 13+ themed icons).
   final String monochrome;
-
-  factory IconConfig.fromMap(final Map<dynamic, dynamic> map) => IconConfig(
-      backgroundColor: map['background_color']?.toString() ?? '#FFFFFF',
-      vector: map['vector']?.toString() ?? '',
-      monochrome: map['monochrome']?.toString() ?? '',
-    );
 }
 
 /// Result of staging launcher icon resources.

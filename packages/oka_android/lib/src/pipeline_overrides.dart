@@ -29,6 +29,20 @@ class PipelineOverrides {
     this.maxSizeMb,
   });
 
+/// Merges `android:` section surfaces that are not `pipeline:`-scoped.
+  factory PipelineOverrides.fromOkaYaml(final Map<dynamic, dynamic> doc) {
+    final pipelineRaw = doc['pipeline'];
+    final base = pipelineRaw is Map
+        ? PipelineOverrides.fromYamlMap(pipelineRaw)
+        : const PipelineOverrides();
+    final android = doc['android'];
+    final resRaw = android is Map ? android['res_dirs'] : null;
+    final resDirs = resRaw is List
+        ? resRaw.map((final e) => e.toString()).toList(growable: false)
+        : const <String>[];
+    return resDirs.isEmpty ? base : base.copyWith(resDirs: resDirs);
+  }
+
   factory PipelineOverrides.fromYamlMap(final Map<dynamic, dynamic> map) {
     final deps = map['extra_deps'];
     final assetsRaw = map['extra_assets'];
@@ -118,20 +132,6 @@ class PipelineOverrides {
     excludePlugins: excludePlugins ?? this.excludePlugins,
     maxSizeMb: maxSizeMb ?? this.maxSizeMb,
   );
-
-  /// Merges `android:` section surfaces that are not `pipeline:`-scoped.
-  factory PipelineOverrides.fromOkaYaml(final Map<dynamic, dynamic> doc) {
-    final pipelineRaw = doc['pipeline'];
-    final base = pipelineRaw is Map
-        ? PipelineOverrides.fromYamlMap(pipelineRaw)
-        : const PipelineOverrides();
-    final android = doc['android'];
-    final resRaw = android is Map ? android['res_dirs'] : null;
-    final resDirs = resRaw is List
-        ? resRaw.map((final e) => e.toString()).toList(growable: false)
-        : const <String>[];
-    return resDirs.isEmpty ? base : base.copyWith(resDirs: resDirs);
-  }
 
 
   static List<String> _resourceConfigs(final Object? raw) =>

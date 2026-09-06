@@ -3,7 +3,8 @@ import 'package:oka_core/src/config/manifest_merge_result.dart';
 /// Prompt templates for AI agent operations
 class PromptTemplates {
   /// Gradle to oka.yaml conversion prompt
-  static String gradleConversion(String gradleContent, String projectPath) => '''
+  static String gradleConversion(String gradleContent, String projectPath) =>
+      '''
 Convert this Gradle Android configuration to oka.yaml format.
 
 Gradle file content:
@@ -54,10 +55,10 @@ If a value is not found in the Gradle file, use sensible defaults:
 - res_dirs: ["src/main/res"]
 - abis: ["arm64-v8a", "armeabi-v7a"]
 ''';
-  }
 
   /// Extract dependencies from Gradle
-  static String extractDependencies(String gradleContent) => '''
+  static String extractDependencies(String gradleContent) =>
+      '''
 Extract all Android dependencies from this Gradle file.
 
 Gradle content:
@@ -84,7 +85,6 @@ Each dependency should have:
 
 Exclude test dependencies (testImplementation, androidTestImplementation).
 ''';
-  }
 
   /// Manifest merging prompt
   static String manifestMerge(
@@ -124,7 +124,8 @@ Start with <?xml version="1.0" encoding="utf-8"?> and include the complete <mani
   }
 
   /// Explain build error using AI
-  static String explainError(String errorMessage, String context) => '''
+  static String explainError(String errorMessage, String context) =>
+      '''
 A build error occurred in the Oka build system. Explain what went wrong and suggest fixes.
 
 Error message:
@@ -140,5 +141,4 @@ Provide:
 
 Keep the response concise and actionable.
 ''';
-  }
 }

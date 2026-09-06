@@ -13,6 +13,7 @@ analyzer:
 
 linter:
   rules:
+    prefer_final_parameters: false
     # Build steps report progress on stdout; oka is a CLI build tool.
     avoid_print: false
     # The build pipeline deliberately uses synchronous dart:io for small,

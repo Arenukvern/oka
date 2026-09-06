@@ -15,10 +15,9 @@ import 'prompt_templates.dart';
 /// Uses Apple Foundation Models for macOS and Gemini as fallback.
 /// Implements caching to avoid repeated API calls.
 class OkaAiAgent {
+  OkaAiAgent(this._client, this._cacheDir);
   final AiClient _client;
   final String _cacheDir;
-
-  OkaAiAgent(this._client, this._cacheDir);
 
   /// Convert Gradle build.gradle content to OkaConfig
   Future<OkaConfig> convertGradleToOka(
@@ -45,7 +44,10 @@ class OkaAiAgent {
 
     // Cache result
     await _saveToCache(
-        cacheKey, 'gradle_conversion', jsonEncode(config.toJson()));
+      cacheKey,
+      'gradle_conversion',
+      jsonEncode(config.toJson()),
+    );
 
     return config;
   }
@@ -195,8 +197,9 @@ class OkaAiAgent {
   ) {
     try {
       // Extract XML from response
-      final xmlMatch =
-          RegExp(r'<manifest[\s\S]*</manifest>').firstMatch(response);
+      final xmlMatch = RegExp(
+        r'<manifest[\s\S]*</manifest>',
+      ).firstMatch(response);
 
       if (xmlMatch == null) {
         return ManifestMergeResult.fromJson({

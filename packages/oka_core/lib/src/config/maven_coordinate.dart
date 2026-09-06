@@ -6,13 +6,6 @@ import 'package:meta/meta.dart';
 /// (oka_android); consolidated here.
 @immutable
 class MavenCoordinate {
-  final String groupId;
-  final String artifactId;
-  final String version;
-
-  /// Artifact packaging: jar | aar | pom.
-  final String packaging;
-
   const MavenCoordinate({
     required this.groupId,
     required this.artifactId,
@@ -34,6 +27,13 @@ class MavenCoordinate {
           'jar',
     );
   }
+
+  final String groupId;
+  final String artifactId;
+  final String version;
+
+  /// Artifact packaging: jar | aar | pom.
+  final String packaging;
 
   /// Parses `group:artifact:version` (packaging auto-detected via KMP
   /// suffix probing at resolve time). Returns null for malformed input.

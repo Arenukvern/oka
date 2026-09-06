@@ -158,8 +158,9 @@ class InitCommand {
         exit(0);
       }
     }
-    final pubspec = loadYaml(await File('pubspec.yaml').readAsString())
-        as Map<dynamic, dynamic>;
+    final pubspec =
+        loadYaml(await File('pubspec.yaml').readAsString())
+            as Map<dynamic, dynamic>;
     final name = (pubspec['name'] as String?) ?? 'app';
     final version = (pubspec['version'] as String?) ?? '1.0.0';
     final versionCode = RegExp(r'\+(\d+)$').firstMatch(version)?.group(1);
@@ -347,11 +348,24 @@ class OkaInitGenerator {
     }
     for (final key in androidMap.keys) {
       if (!const [
-        'package_name', 'application_id', 'compile_sdk', 'target_sdk',
-        'min_sdk', 'version_code', 'version_name', 'source_dirs', 'abis',
-        'java_version', 'kotlin_version', 'required_java_version',
-        'enable_optimization', 'proguard_files', 'icon', 'res_dirs',
-        'manifest', 'signing',
+        'package_name',
+        'application_id',
+        'compile_sdk',
+        'target_sdk',
+        'min_sdk',
+        'version_code',
+        'version_name',
+        'source_dirs',
+        'abis',
+        'java_version',
+        'kotlin_version',
+        'required_java_version',
+        'enable_optimization',
+        'proguard_files',
+        'icon',
+        'res_dirs',
+        'manifest',
+        'signing',
       ].contains(key)) {
         notices.add('android.$key is not auto-converted — port by hand');
       }
@@ -392,9 +406,16 @@ class OkaInitGenerator {
     }
     for (final key in flutterMap.keys) {
       if (!const [
-        'entrypoint', 'assets', 'build_args', 'build_mode',
-        'target_platform', 'tree_shake_icons', 'enable_hot_reload',
-        'deferred_components', 'engine_path', 'engine_version',
+        'entrypoint',
+        'assets',
+        'build_args',
+        'build_mode',
+        'target_platform',
+        'tree_shake_icons',
+        'enable_hot_reload',
+        'deferred_components',
+        'engine_path',
+        'engine_version',
       ].contains(key)) {
         notices.add('flutter.$key is not auto-converted — port by hand');
       }
@@ -477,8 +498,14 @@ class OkaInitGenerator {
     }
     for (final key in pipelineMap.keys) {
       if (!const [
-        'extra_deps', 'extra_assets', 'local_aars', 'resource_configs',
-        'exclude_plugins', 'max_size_mb', 'deeplinks', 'dart_entrypoint',
+        'extra_deps',
+        'extra_assets',
+        'local_aars',
+        'resource_configs',
+        'exclude_plugins',
+        'max_size_mb',
+        'deeplinks',
+        'dart_entrypoint',
       ].contains(key)) {
         notices.add('pipeline.$key is not auto-converted — port by hand');
       }
@@ -593,9 +620,15 @@ class OkaInitGenerator {
     }
     for (final key in manifest.keys) {
       if (!const [
-        'permissions', 'cleartext_traffic', 'flutter_deeplinking',
-        'debuggable', 'extract_native_libs', 'application_attributes',
-        'activity_attributes', 'application_meta_data', 'deeplinks',
+        'permissions',
+        'cleartext_traffic',
+        'flutter_deeplinking',
+        'debuggable',
+        'extract_native_libs',
+        'application_attributes',
+        'activity_attributes',
+        'application_meta_data',
+        'deeplinks',
       ].contains(key)) {
         notices.add('android.manifest.$key is not auto-converted');
       }
@@ -609,8 +642,9 @@ class OkaInitGenerator {
     for (final e in raw) {
       if (e is Map && e['scheme'] != null) {
         final host = e['host'] == null ? '' : _esc(e['host'].toString());
-        final prefix =
-            e['pathPrefix'] == null ? '' : _esc(e['pathPrefix'].toString());
+        final prefix = e['pathPrefix'] == null
+            ? ''
+            : _esc(e['pathPrefix'].toString());
         links.add(
           "DeeplinkConfig(scheme: '${_esc(e['scheme'].toString())}', "
           "host: '$host', pathPrefix: '$prefix')",
@@ -631,15 +665,15 @@ class OkaInitGenerator {
   static String _strList(List<String> items) =>
       '[${items.map((e) => "'${_esc(e)}'").join(', ')}]';
 
-  static String _strMap(Map<dynamic, dynamic> map) => 'const {'
+  static String _strMap(Map<dynamic, dynamic> map) =>
+      'const {'
       '${map.entries.map((e) => "'${_esc(e.key.toString())}': '${_esc(e.value.toString())}'").join(', ')}'
       '}';
 }
 
 /// Generated entrypoint code + anything the converter could not port.
 class OkaInitResult {
+  const OkaInitResult({required this.code, required this.notices});
   final String code;
   final List<String> notices;
-
-  const OkaInitResult({required this.code, required this.notices});
 }

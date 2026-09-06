@@ -4,6 +4,15 @@ import 'package:path/path.dart' as p;
 
 /// A suggested Maven coordinate for a missing class.
 class DependencySuggestion {
+  const DependencySuggestion({
+    required this.groupId,
+    required this.artifactId,
+    required this.version,
+    required this.missingClass,
+    required this.confidence,
+    required this.source,
+  });
+
   final String groupId;
   final String artifactId;
   final String version;
@@ -14,15 +23,6 @@ class DependencySuggestion {
 
   /// Provenance: 'known-class' | 'cache-scan'.
   final String source;
-
-  const DependencySuggestion({
-    required this.groupId,
-    required this.artifactId,
-    required this.version,
-    required this.missingClass,
-    required this.confidence,
-    required this.source,
-  });
 
   String get coordinate => '$groupId:$artifactId:$version';
 

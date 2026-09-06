@@ -21,11 +21,14 @@ class FoundationModelsClient implements AiClient {
 
     try {
       // Try to use mlx_lm if available for local inference
-      final result = await Process.run(
-        'python3',
-        ['-m', 'mlx_lm.generate', '--prompt', prompt, '--max-tokens', '2000'],
-        runInShell: true,
-      );
+      final result = await Process.run('python3', [
+        '-m',
+        'mlx_lm.generate',
+        '--prompt',
+        prompt,
+        '--max-tokens',
+        '2000',
+      ], runInShell: true);
 
       if (result.exitCode == 0) {
         return result.stdout.toString();
@@ -38,19 +41,18 @@ class FoundationModelsClient implements AiClient {
     } catch (e) {
       print('Foundation Models error: $e, falling back to Gemini');
       final geminiClient = GeminiClient();
-      return await geminiClient.complete(prompt);
+      return geminiClient.complete(prompt);
     }
   }
 }
 
 /// Google Gemini API client
 class GeminiClient implements AiClient {
+  GeminiClient({String? apiKey, String model = 'gemini-1.5-flash'})
+    : _apiKey = apiKey ?? Platform.environment['GEMINI_API_KEY'],
+      _model = model;
   final String? _apiKey;
   final String _model;
-
-  GeminiClient({String? apiKey, String model = 'gemini-1.5-flash'})
-      : _apiKey = apiKey ?? Platform.environment['GEMINI_API_KEY'],
-        _model = model;
 
   @override
   Future<String> complete(String prompt) async {
@@ -72,20 +74,18 @@ class GeminiClient implements AiClient {
         'contents': [
           {
             'parts': [
-              {'text': prompt}
-            ]
-          }
+              {'text': prompt},
+            ],
+          },
         ],
-        'generationConfig': {
-          'temperature': 0.2,
-          'maxOutputTokens': 4096,
-        },
+        'generationConfig': {'temperature': 0.2, 'maxOutputTokens': 4096},
       }),
     );
 
     if (response.statusCode != 200) {
       throw Exception(
-          'Gemini API error: ${response.statusCode} ${response.body}');
+        'Gemini API error: ${response.statusCode} ${response.body}',
+      );
     }
 
     final json = jsonDecode(response.body);

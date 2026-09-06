@@ -1,4 +1,3 @@
-
 import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
@@ -33,9 +32,10 @@ void main() {
         sink: executed,
         requires: {const Artifact<Object>('thing')},
       );
-      final result = await Pipeline([producer, consumer]).run(
-        BuildContext.empty,
-      );
+      final result = await Pipeline([
+        producer,
+        consumer,
+      ]).run(BuildContext.empty);
       expect(result.ok, isTrue);
       expect(executed, ['producer', 'consumer']);
     });
@@ -49,9 +49,10 @@ void main() {
         'consumer',
         requires: {const Artifact<Object>('thing')},
       );
-      final result = await Pipeline([consumer, producer]).run(
-        BuildContext.empty,
-      );
+      final result = await Pipeline([
+        consumer,
+        producer,
+      ]).run(BuildContext.empty);
       expect(result.ok, isFalse);
       expect(result.error, contains('Declare a provider before "consumer"'));
     });
@@ -108,13 +109,6 @@ void main() {
 
 /// Step that records execution order and declares artifacts.
 class _RecordingStep extends BuildStep {
-  final String _name;
-  final List<String>? _sink;
-  @override
-  final Set<Artifact<Object>> requires;
-  @override
-  final Set<Artifact<Object>> provides;
-
   _RecordingStep(
     String name, {
     List<String>? sink,
@@ -122,6 +116,12 @@ class _RecordingStep extends BuildStep {
     this.provides = const {},
   }) : _name = name,
        _sink = sink;
+  final String _name;
+  final List<String>? _sink;
+  @override
+  final Set<Artifact<Object>> requires;
+  @override
+  final Set<Artifact<Object>> provides;
 
   @override
   String get name => _name;
