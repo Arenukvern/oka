@@ -75,48 +75,34 @@ class DoctorCommand {
     }
     print('');
 
-    // Check Android SDK
+    // Check Android SDK (ADR-0015: the check mechanics live in oka_android;
+    // the command formats the returned check results).
     print('[Android SDK]');
-    try {
-      final androidSdk = await locator.findAndroidSdk();
-      print('  ✅ Found at: $androidSdk');
+    final sdkReport = await androidSdkDoctorChecks(toolchain: locator);
+    if (sdkReport.sdkFound) {
+      print('  ✅ Found at: ${sdkReport.sdkPath}');
 
-      // Check for required tools
-      final tools = {
-        'aapt2': locator.findAapt2(),
-        'd8': locator.findD8(),
-        'zipalign': locator.findZipalign(),
-        'apksigner': locator.findApksigner(),
-        'adb': locator.findAdb(),
-      };
-
-      for (final entry in tools.entries) {
-        try {
-          final path = await entry.value;
-          print('  ✅ ${entry.key}: ${p.basename(p.dirname(path))}');
-        } catch (e) {
-          print('  ❌ ${entry.key}: Not found');
+      // Required packaging tools
+      for (final check in sdkReport.toolChecks) {
+        if (check.found) {
+          print('  ✅ ${check.tool}: ${p.basename(p.dirname(check.path!))}');
+        } else {
+          print('  ❌ ${check.tool}: Not found');
           allGood = false;
         }
       }
 
       // Check R8 separately (it's optional but recommended)
-      try {
-        final r8Path = await locator.findR8();
-        if (r8Path != null) {
-          print('  ✅ r8: ${p.basename(p.dirname(r8Path))}');
-        } else {
-          print(
-              '  ⚠️  r8: Not found (optional, but recommended for release builds)');
-          print('      💡 Run "oka get r8" to install');
-        }
-      } catch (e) {
+      final r8Path = sdkReport.r8Path;
+      if (r8Path != null) {
+        print('  ✅ r8: ${p.basename(p.dirname(r8Path))}');
+      } else {
         print(
             '  ⚠️  r8: Not found (optional, but recommended for release builds)');
         print('      💡 Run "oka get r8" to install');
       }
-    } catch (e) {
-      print('  ❌ Not found: $e');
+    } else {
+      print('  ❌ Not found: ${sdkReport.sdkError}');
       allGood = false;
     }
     print('');
@@ -268,24 +254,9 @@ class DoctorCommand {
       print('  ⚠️  kotlinc not found — builds auto-install on demand');
     }
 
-    // bundletool (AAB verification)
-    final bt = Directory(
-      p.join(
-        Platform.environment['HOME'] ??
-            Platform.environment['USERPROFILE'] ??
-            '.',
-        '.oka',
-        'tools',
-      ),
-    );
-    final hasBundletool = bt.existsSync() &&
-        bt.listSync().any((e) => p.basename(e.path).startsWith('bundletool'));
-    print(
-      hasBundletool
-          ? '  ✅ bundletool: available for AAB verification'
-          : '  ℹ️  bundletool not installed (only needed for --verify-aab) —'
-              ' "oka get bundletool"',
-    );
+    // AAB verification dependency (ADR-0004) — the strings live with the
+    // mechanism in oka_android (ADR-0015: verbs never know platforms).
+    (await bundletoolHealthLines()).forEach(print);
 
     // Maven cache state
     final mavenCache = Directory(

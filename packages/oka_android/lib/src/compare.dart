@@ -244,12 +244,16 @@ class ArtifactComparison {
 /// Compare two APK/AAB artifacts (badging + zip entries).
 ///
 /// [dumpBadging] injects the aapt2 invocation for tests; by default the
-/// binary is located via [aapt2Path]. When aapt2 is unavailable the badging
-/// section is skipped with a reason — the zip diff still applies.
+/// binary is resolved here (explicit [aapt2Path], else located on the
+/// machine — ADR-0015: tool resolution lives in oka_android, not the CLI
+/// verb). When aapt2 is unavailable the badging section is skipped with a
+/// reason — the zip diff still applies. [skipBadgingSection] forces that
+/// skip (the `oka compare --skip-badging` routing).
 Future<ArtifactComparison> compareArtifacts(
   final String pathA,
   final String pathB, {
   final String? aapt2Path,
+  final bool skipBadgingSection = false,
   final Future<String> Function(String aapt2, String artifact)? dumpBadging,
 }) async {
   final zipDiff = compareZipEntries(pathA, pathB);
@@ -259,13 +263,17 @@ Future<ArtifactComparison> compareArtifacts(
   String? skipReason;
   final usesInjectedDumper = dumpBadging != null;
   final dumper = dumpBadging ?? _defaultDumpBadging;
-  if (aapt2Path == null && !usesInjectedDumper) {
+  var resolvedAapt2 = aapt2Path;
+  if (resolvedAapt2 == null && !usesInjectedDumper && !skipBadgingSection) {
+    resolvedAapt2 = await locateAapt2ForCompare();
+  }
+  if (skipBadgingSection || (resolvedAapt2 == null && !usesInjectedDumper)) {
     skipReason = 'no aapt2 found (set ANDROID_SDK_ROOT or run `oka get '
         'android-sdk`) — zip entries still compared';
   } else {
     try {
-      badgingA = parseBadging(await dumper(aapt2Path ?? '', pathA));
-      badgingB = parseBadging(await dumper(aapt2Path ?? '', pathB));
+      badgingA = parseBadging(await dumper(resolvedAapt2 ?? '', pathA));
+      badgingB = parseBadging(await dumper(resolvedAapt2 ?? '', pathB));
     } on Exception catch (e) {
       skipReason = 'aapt2 dump badging failed: $e';
       badgingA = null;

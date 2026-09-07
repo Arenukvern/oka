@@ -6,9 +6,9 @@ import 'package:oka_android/oka_android.dart';
 
 /// `oka compare <file1> <file2>` — formal byte-equivalence gate (ADR-0007).
 ///
-/// Diffs two APK/AAB artifacts: `aapt2 dump badging` (package, version,
-/// permissions, intent-filter metadata) + zip entry lists. Exits non-zero on
-/// differences unless `--quiet`.
+/// Diffs two APK/AAB artifacts via [compareArtifacts] in oka_android
+/// (packaging-metadata dump + zip entry lists; tool resolution included).
+/// Exits non-zero on differences unless `--quiet`.
 class CompareCommand {
   Future<void> run(List<String> args) async {
     final parser = ArgParser()
@@ -21,7 +21,7 @@ class CompareCommand {
       ..addFlag(
         'skip-badging',
         negatable: false,
-        help: 'Skip the aapt2 badging diff (zip entries only)',
+        help: 'Skip the packaging-metadata diff (zip entries only)',
       );
     final results = parser.parse(args);
     final quiet = results['quiet'] as bool;
@@ -40,15 +40,10 @@ class CompareCommand {
       }
     }
 
-    String? aapt2;
-    if (!skipBadging) {
-      aapt2 = await locateAapt2ForCompare();
-    }
-
     final comparison = await compareArtifacts(
       files[0],
       files[1],
-      aapt2Path: aapt2,
+      skipBadgingSection: skipBadging,
     );
 
     if (quiet) {

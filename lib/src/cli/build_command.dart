@@ -53,8 +53,8 @@ class BuildCommand {
         'verify-aab',
         negatable: false,
         help:
-            'After building an AAB, verify it with bundletool build-apks '
-            '(universal mode). Requires bundletool: oka get bundletool',
+            'After building an AAB, verify it with the AAB verification tool '
+            '(universal mode)',
       )
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
       ..addOption('flavor', help: 'Build flavor')
@@ -237,7 +237,7 @@ class BuildCommand {
     print('📊 Size: ${(artifact.size / 1024 / 1024).toStringAsFixed(2)} MB');
 
     if (wantsAab && (results['verify-aab'] as bool)) {
-      final ok = await _verifyAab(artifact.apkPath, verbose: verbose);
+      final ok = await verifyAabPostBuild(artifact.apkPath, verbose: verbose);
       if (!ok) exit(1);
     }
   }
@@ -263,43 +263,5 @@ class BuildCommand {
       exit(1);
     }
     return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
-  }
-
-  /// bundletool verification loop for AABs (ADR-0004).
-  ///
-  /// An .aab cannot be installed directly; build-apks exercises the same
-  /// parsing/generation path as Play. Optionally install the universal APK.
-  Future<bool> _verifyAab(String aabPath, {required bool verbose}) async {
-    print('\n🔍 Verifying AAB with bundletool...');
-    try {
-      final ks = await debugKeystore();
-      final apksPath = '${p.withoutExtension(aabPath)}.apks';
-      final result = await verifyAabWithBundletool(
-        aabPath: aabPath,
-        outputApksPath: apksPath,
-        keystorePath: ks,
-        keyAlias: 'androiddebugkey',
-        keyPass: 'android',
-        verbose: verbose,
-      );
-      if (!result.ok) {
-        print('❌ AAB verification failed:\n${result.error}');
-        return false;
-      }
-      print('✅ bundletool accepted the bundle: $apksPath');
-
-      final universalDir = p.join(p.dirname(aabPath), 'universal');
-      final universalApk = await extractUniversalApk(
-        apksPath,
-        p.join(universalDir, 'app-universal.apk'),
-      );
-      print('📱 Universal APK extracted: $universalApk');
-      print('   Install on a device with:');
-      print('     adb install -r $universalApk');
-      return true;
-    } on Exception catch (e) {
-      print('❌ AAB verification failed: $e');
-      return false;
-    }
   }
 }

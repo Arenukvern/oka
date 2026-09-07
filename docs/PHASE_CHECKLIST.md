@@ -36,7 +36,10 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       launch` shim (`lib/src/cli/launch_command.dart`) delegates to `oka run
       device` with zero platform logic (moved flags → typed target config).
       Gate: `test/adr0015_cli_platform_leakage_gate_test.dart` (C1-folded
-      files clean; ratchet allowlist for the remaining T1-owned verbs).
+      files clean; ratchet emptied by the ADR-0015 follow-up — build,
+      compare, doctor, get are parse-and-delegate shims over
+      `oka_android`'s compare/doctor-checks/provisioning APIs; the only
+      remaining exception is the `--skip-badging` flag name).
       Evidence: `test/adr0015_device_target_test.dart` (18 tests: compile
       validation, scripted fake-adb/aapt2 flows, pure helpers),
       `test/adr0015_launch_alias_test.dart` (dispatch equivalence + flags),
@@ -124,11 +127,24 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       composing over this provisioner; `EmulatorSpec` typed fields on
       `DeviceTarget` (deferred — not needed until a boot step consumes
       them, per the no-dead-config rule).
-- [ ] **T3 — Distribution-target ADR (ADR-0014).** Checkpoint for
-      `PublishTarget` contract, secrets/auth handling, and target packages
-      (`oka_play`, `oka_huawei`, …). Gated on T0/T1. Conformance suite
-      (dry-run without credentials, no stdin, no secrets in state) defined
-      there.
+- [ ] **P0 — PublishTarget contract + credential-path policy (ADR-0014).**
+      `PublishTarget` in `oka_core` (extends `Target`; conformance laws:
+      dry-run without credentials, no stdin, no secret values in state/
+      logs/events); credential-path resolution policy (explicit config
+      path → `OKA_<TARGET>_*` env → `~/.oka/credentials/<target>/`, same
+      ordered-policy shape as T1); doctor secret audit (dart-define keys
+      matching secret-ish patterns fail with the tier rule); credential
+      file inside repo ⇒ must be gitignored. Tests: policy unit tests with
+      injected env, audit key-pattern table, dry-run conformance.
+- [ ] **P1 — `oka_play` target package (ADR-0014).** Play Publisher API
+      upload steps (service-account JSON by path; AAB → internal track);
+      `PublishTarget` conformance suite extracted as a shared package for
+      P2+. Evidence: dry-run against a fake endpoint; real upload gated on
+      maintainer credentials.
+- [ ] **P2 — `oka_huawei` target package (ADR-0014).** AppGallery Connect
+      upload + GMS-exclusion build variant composed via `AndroidBuild`
+      (artifact validator must catch GMS-dependent steps in the excluded
+      composition). Evidence: dry-run + composition-validation tests.
 - [ ] **H0 — Hot-reload prerequisite audit (ADR-0011).** Prove the oka-built
       debug APK is hot-reload-capable (kernel_blob.bin, VM service reachable,
       attach probe) and record evidence in

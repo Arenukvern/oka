@@ -19,4 +19,5 @@ docs live in `README.md` and `docs/guides/build_and_config.md`.
 | [0011](0011-hot-reload-run-loop.md) | Agent-first dev loop: hot reload via the flutter_tools daemon protocol | accepted |
 | [0012](0012-remove-embedded-ai-client.md) | Remove the embedded AI client; oka is agent-driven, not LLM-embedding | accepted |
 | [0013](0013-toolchain-provisioning-artifact-store.md) | Toolchain, provisioning, and artifact store as composable surfaces; distribution targets are not platforms | accepted |
+| [0014](0014-distribution-targets-secrets-model.md) | Distribution targets + three-tier secrets model (defines for app config, credential paths for build-host secrets) | accepted |
 | [0015](0015-cli-verb-target-split.md) | CLI verb/target split and project-declared target discovery (`oka run`) | accepted |

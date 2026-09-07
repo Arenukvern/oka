@@ -69,8 +69,26 @@ A: No — distribution targets are not platforms (ADR-0013). Play, AppGallery,
 and RuStore builds are one Android application composed differently: a
 target = a build-variant composition (e.g. no GMS deps for Huawei) plus a
 publish tail. Targets live in separate packages (`oka_play`, `oka_huawei`,
-…) over the same pipeline kernel; store APIs and credential handling are
-deferred to their own ADR (0014).
+…) over the same pipeline kernel; the target contract and the credentials
+model are settled in [ADR-0014](../decisions/0014-distribution-targets-secrets-model.md).
+
+## Secrets (ADR 0014)
+
+**Q: Why can't secrets go in `--dart-define`?**
+A: Define values are compile-time constants **baked into the binary** —
+recoverable from the AOT snapshot — and they leak into CI logs, `flutter run
+--verbose`, and process listings. Defines are for app-visible non-secrets
+(base URLs, feature flags, channels). Credential contents (service-account
+JSON, keystores) never belong to the app binary at all — they are
+build-host files consumed by oka steps.
+
+**Q: So where do publishing credentials live?**
+A: As **paths**, exactly like assets (ADR-0014). Typed config holds a path
+or an env-var name; oka resolves it through an ordered, doctor-printable
+policy (explicit path → `OKA_<TARGET>_*` env → `~/.oka/credentials/<target>/`).
+The file stays out of git and out of the binary. Targets must dry-run
+without credentials present — so agents can rehearse a publish without
+touching a real secret.
 
 ## CLI (ADR 0015)
 
