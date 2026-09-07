@@ -61,5 +61,15 @@ const dexFiles = Artifact<List<String>>('dex_files');
 /// Final APK path (provided by `package-and-sign` / `package-and-sign-aab`).
 const apkPath = Artifact<String>('apk_path');
 
+/// Session manifest path recorded by `record-run-session` (ADR-0011 H1).
+const runSessionPath = Artifact<String>('run_session_path');
+
+/// VM service URI scraped from device log (provided by `await-vm-service`).
+const vmServiceUri = Artifact<String>('vm_service_uri');
+
+/// Local host port from `adb forward tcp:0` (provided by
+/// `forward-vm-service`).
+const vmServiceLocalPort = Artifact<int>('vm_service_local_port');
+
 /// Staged APK layout directory (pre-zip).
 const apkStagingDir = Artifact<Directory>('apk_staging_dir');

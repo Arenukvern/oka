@@ -142,9 +142,13 @@ class PluginPackager {
       }
     }
 
-    await Future.wait(
-      List.generate(poolSize.clamp(1, plugins.length), (_) => worker()),
-    );
+    // Zero-plugin projects (pure Dart UI over engine classes) must build:
+    // clamp(1, 0) is an invalid argument, so guard the pool size.
+    if (plugins.isNotEmpty) {
+      await Future.wait(
+        List.generate(poolSize.clamp(1, plugins.length), (_) => worker()),
+      );
+    }
 
     for (var i = 0; i < plugins.length; i++) {
       final plugin = plugins[i];

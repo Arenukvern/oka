@@ -266,17 +266,80 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       / `credential: CredentialRef(huawei/agconnect-credentials →
       [redacted])`. Real uploads against production AGC remain gated on
       maintainer credentials.
-- [ ] **H0 — Hot-reload prerequisite audit (ADR-0011).** Prove the oka-built
+- [x] **H0 — Hot-reload prerequisite audit (ADR-0011).** Prove the oka-built
       debug APK is hot-reload-capable (kernel_blob.bin, VM service reachable,
       attach probe) and record evidence in
       [hot_reload_plan.md](guides/hot_reload_plan.md). Tests: APK-content
       assertions.
-- [ ] **H1 — Session manifest / flag parity (ADR-0011).**
+      Done. Evidence (full transcripts in the plan's H0 evidence block):
+      oka-built debug APK zip contains `kernel_blob.bin` (46 MB) +
+      `isolate_snapshot_data` + `libflutter.so`, **no AOT `libapp.so`**;
+      `-dTrackWidgetCreation=true` asserted; headless emulator (API 34
+      arm64) live chain: `oka run device` install → launch → logscan clean,
+      oka's `AdbTool` scraped the VM service URI (`The Dart VM service is
+      listening on http://127.0.0.1:38635/…/` — newer Flutter wording,
+      parser now matches both spellings), `adb forward tcp:0` + HTTP
+      `getVM` over the forwarded port returned the VM + 1 isolate
+      (`PROBE_OK`); `flutter attach --machine` connects to the oka-built
+      APK and reaches `app.started` (discovers the service URI itself);
+      `flutter run --machine --use-application-binary` is Gradle-free (0
+      mentions in the transcript) but re-installs the APK itself.
+      **Decision recorded:** H3 integrates via `attach --machine`; oka owns
+      install → launch. Tests: `test/adr0011_apk_contents_test.dart`
+      (static arg assertions + real-pipeline zip-content assertions with
+      SDK-present skip). No blockers remain.
+- [x] **H1 — Session manifest / flag parity (ADR-0011).**
       `run_session.json` recorded at build time; `oka dev` validates and
       refuses mismatch; flutter binary resolved from recorded SDK path.
-- [ ] **H2 — Device layer (ADR-0011).** adb install/launch/logcat-scrape/
+      Done. **Format (schema 1, documented in `run_session.dart`):**
+      `run_session.json` next to the APK with fixed field order — `schema`
+      (1, readers refuse unknown schemas), `oka_version`, `recorded_at`
+      (ISO8601 UTC, the only volatile field), `flutter_sdk_path`,
+      `engine_revision` (`bin/internal/engine.version` of the recording
+      SDK), `target_file`, `build_mode`, `dart_defines` (merged
+      `--dart-define` + `--dart-define-from-file`, trimmed, sorted keys),
+      `application_id`, `abis`, `apk_path`, `flavor`,
+      `track_widget_creation`. Evidence:
+      `RecordRunSessionStep` appended to both default pipelines (APK+AAB)
+      and to the example composition root — `oka build apk --debug` on
+      `example/` emits the manifest (golden-file test asserts the exact
+      JSON modulo `recorded_at`); `validateRunSession` refuses on mismatch
+      naming every differing field + fix (never warn-and-continue);
+      `checkDevSession` (oka_android) = `oka dev` preflight: refuses
+      no-APK / pre-manifest builds, flag mismatches (target/defines/mode/app
+      id), engine drift at the recorded path, missing flutter binary — and
+      resolves the session flutter binary from the **recorded SDK path**,
+      never PATH. CLI stays parse-and-delegate (`lib/src/cli/dev_command.dart`):
+      live transcripts — happy path validates and prints the session line;
+      `oka dev --dart-define=STORE=sideload` refuses with
+      `dart_defines (STORE): recorded "", requested "STORE=sideload"`, exit 1;
+      `oka dev --target=lib/alt.dart` refuses naming `target_file`. Tests:
+      `test/adr0011_run_session_test.dart` (33 tests: round-trip,
+      deterministic encoding, unknown-field tolerance, corrupt/unknown-
+      schema fail-closed, per-field mismatches, CLI↔manifest define
+      normalization parity, golden step output, `checkDevSession` table).
+- [x] **H2 — Device layer (ADR-0011).** adb install/launch/logcat-scrape/
       forward in `oka_android/src/dev/`; command-construction + parser tests;
       emulator e2e evidence.
+      Done. Evidence: `adb_tool.dart` (pure argv builders `adbDevicesArgs` /
+      `adbInstallArgs` / `adbLaunchArgs` / `adbForwardArgs` / logcat args;
+      parsers `parseAdbDevices` / `parseVmServiceUri` / `parseForwardPort`;
+      `classifyAdbFailure` → typed kind + oka-style fix for unauthorized /
+      no-device / device-offline / signing-mismatch / install-failed /
+      adb-missing / unknown; `AdbTool` executor with injectable path +
+      process runner; bounded `awaitVmServiceUri` poll);
+      `AwaitVmServiceStep` / `ForwardVmServiceStep` in the validated chain
+      (artifacts `vm_service_uri`, `vm_service_local_port`).
+      `test/adr0011_adb_tool_test.dart` (24 tests incl. scripted fake adb
+      binaries — the `adr0015` pattern — and the emulator-captured
+      announcement line as a regression fixture). Emulator e2e evidence:
+      provisioned non-interactively (licenses pre-accepted; see the H0
+      evidence block for the exact one-time commands), then live
+      `oka run device` on `emulator-5554` (install → launch → pid alive →
+      no failure signatures) and the AdbTool scrape+forward+getVM probe
+      (`PROBE_OK`). Device selection (`oka dev -d`) and its zero/multiple-
+      device errors land with H3's session wiring (parse-and-delegate —
+      the `AdbDevice.ready` contract is already in place).
 - [ ] **H3 — `oka dev` v1 daemon session (ADR-0011).**
       `flutter attach --machine` adapter, human TTY loop + `--json` agent
       stream; scripted-fake protocol tests; headless reload e2e evidence.

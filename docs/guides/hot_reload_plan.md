@@ -60,7 +60,102 @@ manual evidence recorded here.
 **Exit:** this evidence block filled; blockers documented.
 
 > ### H0 evidence
-> *(fill in — device/emulator logs, attach probe transcript, decision note)*
+> Filled 2026-09-07 (dev machine: Apple Silicon macOS, fvm Flutter beta
+> 3.47.0-0.4.pre, engine `f88005a259ba379c2c1156178aa1870936be7b7f`,
+> oka-managed SDK `~/.oka/android-sdk`). No item remains blocked — an
+> emulator was provisioned non-interactively and the full chain was probed
+> live.
+>
+> **1. Debug APK contents (static, real builds).**
+> `example/.oka_cache/build/debug/app-debug.apk` (oka-built, no-Gradle):
+> zip contains `assets/flutter_assets/kernel_blob.bin` (46,221,080 bytes),
+> `isolate_snapshot_data` (11,647,016), `vm_snapshot_data`,
+> `lib/arm64-v8a/libflutter.so`, `lib/armeabi-v7a/libflutter.so`; **no
+> `libapp.so` anywhere** (debug = JIT). `-dTrackWidgetCreation=true` is
+> passed in `flutter_assemble.dart` and asserted in
+> `test/adr0011_apk_contents_test.dart`, which also rebuilds a minimal
+> fixture through the real default pipeline when SDKs are present and
+> re-asserts the same zip contract (skip-with-reason otherwise).
+>
+> **2. Emulator install → launch → logcat → forward → getVM (live).**
+> Provisioned headless AVD (API 34, google_apis arm64) and ran the real
+> chain — note the item below *discovered a Flutter wording change*:
+>
+> ```
+> $ cd example && oka run device
+> 📲 Installing app-debug.apk → ✅ Installed
+> 🚀 Starting com.example.example.MainActivity
+> ✅ Process alive (pid 5910)
+> ✅ No failure signatures in device log
+>
+> $ adb logcat -d | grep -i "vm service"
+> I/flutter ( 5910): The Dart VM service is listening on
+>     http://127.0.0.1:38635/ZhBkkcLBabc=/        ← note: "is listening"
+>
+> $ dart run tool/vm_service_probe_tmp.dart   (one-off, uses oka's AdbTool)
+> devices: [emulator-5554 (device, sdk_gphone64_arm64)]
+> scraped: http://127.0.0.1:38635/ZhBkkcLBabc=
+> forwarded localhost:65286 -> device:38635
+> getVM status: null / 2.0
+> VM: name=vm version=3.13.0-282.4.beta on "android_arm64"
+> isolates: 1
+> PROBE_OK
+> ```
+>
+> The scrape/forward/getVM probe ran through oka's own `AdbTool` — the H2
+> device layer is proven against a real device, not just fakes. The
+> announcement wording differs from the historical one (newer Flutter:
+> `The Dart VM service is listening on` vs `Dart VM Service listening on`);
+> `parseVmServiceUri` now matches both (case-insensitive, optional `is`)
+> with a regression test using the exact emulator line.
+>
+> **3. Attach probe — `flutter attach --machine` against the oka-built APK
+> (live).** Attach discovers the service URI on its own and reaches
+> `app.started`:
+>
+> ```
+> {"event":"daemon.connected","params":{"version":"0.6.1",...}}
+> Waiting for a connection from Flutter on sdk gphone64 arm64...
+> {"event":"app.start","params":{...,"launchMode":"attach","mode":"debug"}}
+> {"event":"app.debugPort","params":{"port":65462,
+>     "wsUri":"ws://127.0.0.1:65462/XZgHLBJKpIA=/ws",...}}
+> {"event":"app.progress","params":{"progressId":"devFS.update",
+>     "message":"Syncing files to device sdk gphone64 arm64...",...}}
+> {"event":"app.started","params":{...}}
+> ```
+>
+> **4. `flutter run --machine --use-application-binary <apk>` probe.** Runs
+> end-to-end with **zero Gradle invocations** (`grep -ci gradle` on the full
+> daemon transcript: 0): `Installing .oka_cache/build/debug/app-debug.apk...`
+> → launch → `app.debugPort` → `app.started`. Gradle-free, but it *re-
+> installs* the APK itself (duplicating oka's device layer and risking a
+> drift against the recorded session manifest).
+>
+> **5. Decision (H3 integration point): `flutter attach --machine`.**
+> oka owns build → install → launch (H2 device layer); attach consumes the
+> *running* app without re-installing, reports a usable `wsUri` via
+> `app.debugPort`, and never touches Gradle. `run --use-application-binary`
+> is recorded as the Gradle-free fallback but duplicates install/launch —
+> rejected as the primary path.
+>
+> **6. Emulator provisioning note (what a human runs once).** Licenses in
+> `~/.oka/android-sdk/licenses/` were already accepted; `sdkmanager
+> "emulator"` worked non-interactively (slow CDN, ~30 min). The system
+> image download via `sdkmanager` was pathologically slow (~10 MB/min), so
+> it was fetched directly (12-way parallel curl of
+> `https://dl.google.com/android/repository/sys-img/google_apis/arm64-v8a-34_r14.zip`,
+> unzipped into `system-images/android-34/google_apis/arm64-v8a/`). The
+> reproducible one-time human path is simply:
+>
+> ```
+> sdkmanager "emulator" "system-images;android-34;google_apis;arm64-v8a"
+> avdmanager create avd -n h0test -k "system-images;android-34;google_apis;arm64-v8a" -d pixel_5
+> emulator -avd h0test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+> ```
+>
+> (Small-disk machines: the pixel_5 profile defaults to a 6 GiB data
+> partition; qcow2 keeps the on-disk image small but the free-space check
+> still demands the full virtual size.)
 
 ## H1 — Session manifest (flag parity subsystem)
 
@@ -107,6 +202,26 @@ locator already used for build tools.
 style); logcat-parser unit tests against recorded fixture logs; emulator
 e2e marked and skipped when no emulator is available (CI follows
 `PHASE_CHECKLIST` evidence rules — device tests need the emulator tier).
+
+**Test exit/evidence (H2, 2026-09-07):** delivered via the ADR-0015 device
+target + the new H2 adb layer. `adb_tool.dart` (oka_android) owns command
+construction, parsers (`parseAdbDevices`, `parseVmServiceUri` — now
+matching both Flutter announcement spellings, see the H0 finding —,
+`parseForwardPort`) and failure classification (`classifyAdbFailure`:
+unauthorized / no-device / device-offline / signing-mismatch /
+install-failed / adb-missing); `AdbTool` executes with an injectable path
++ process runner; `AwaitVmServiceStep` / `ForwardVmServiceStep` compose the
+scrape + forward into the validated step chain (artifacts `vm_service_uri`,
+`vm_service_local_port`). Tests: `test/adr0011_adb_tool_test.dart`
+(24 tests: argv construction, fixture parsing incl. the newer
+`The Dart VM service is listening on` line, failure table, scripted fake
+adb for devices/install/forward/logcat, bounded `awaitVmServiceUri`, step
+chain validation). **Live emulator e2e evidence** (headless AVD, API 34
+arm64): `oka run device` install → launch → pid alive → no failure
+signatures, then oka's `AdbTool` scraped the VM service URI, forwarded
+`tcp:0`, and called `getVM` (`PROBE_OK` — full transcript in the H0
+evidence block above). Install/launch/logcat-scan step tests predate H2
+(`test/adr0015_device_target_test.dart`, scripted fakes).
 
 **Exit:** `oka dev --build --install --launch` (no session yet) works
 end-to-end on emulator; evidence recorded.

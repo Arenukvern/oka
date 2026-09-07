@@ -38,13 +38,14 @@ List<BuildStep> _commonSteps() => [
 ];
 
 /// APK tail: single-dex compile, zipalign/apksigner packaging, APK layout
-/// validation.
+/// validation, session manifest (ADR-0011 H1 — `oka dev` flag parity).
 List<BuildStep> _apkTail() => [
   CompileAndDexStep(),
   PackageAndSignStep(),
   // Custom step B: observe the packaged artifact.
   PrintChecksumStep(),
   ValidateLayoutStep(),
+  RecordRunSessionStep(),
 ];
 
 /// AAB tail (ADR-0004): proto-format resource linking, `base/` module
@@ -54,6 +55,7 @@ List<BuildStep> _aabTail() => [
   PackageAndSignAabStep(),
   PrintChecksumStep(),
   ValidateAabLayoutStep(),
+  RecordRunSessionStep(),
 ];
 
 Future<void> main(final List<String> args) {

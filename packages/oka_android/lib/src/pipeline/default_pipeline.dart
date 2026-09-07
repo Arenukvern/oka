@@ -10,6 +10,7 @@ import '../build/dependency_cache.dart';
 import '../build/flutter_assemble.dart';
 import '../build/plugin_discovery.dart';
 import '../build/toolchain.dart';
+import '../dev/run_session.dart';
 import '../pipeline_overrides.dart';
 import '../post_build_lint.dart';
 import 'steps/asset_steps.dart';
@@ -234,6 +235,7 @@ Future<Pipeline> defaultApkPipeline(
     ExtraAssetsStep(overrides.extraAssets),
     PackageAndSignStep(toolchain: toolchain, signing: overrides.signing),
     ValidateLayoutStep(),
+    RecordRunSessionStep(toolchain: toolchain),
     PostBuildLintStep(maxSizeMb: overrides.maxSizeMb),
   ], verbose: verbose);
 }
@@ -283,6 +285,7 @@ Future<Pipeline> defaultAabPipeline(
     ExtraAssetsStep(overrides.extraAssets),
     PackageAndSignAabStep(toolchain: toolchain, signing: overrides.signing),
     ValidateAabLayoutStep(),
+    RecordRunSessionStep(toolchain: toolchain),
     PostBuildLintStep(maxSizeMb: overrides.maxSizeMb),
   ], verbose: verbose);
 }
