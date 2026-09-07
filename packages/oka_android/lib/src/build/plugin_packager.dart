@@ -7,7 +7,7 @@ import 'dependency_cache.dart';
 import 'gradle_dep_parser.dart';
 import 'host_codegen.dart';
 import 'plugin_discovery.dart';
-import 'sdk_locator.dart';
+import 'toolchain.dart';
 
 /// Declared Maven inputs for one plugin (ADR-0008).
 class PluginDeclaredDeps {
@@ -88,12 +88,17 @@ class PluginPackager {
 
   PluginPackager({
     required this.dependencyCache,
-    required this.sdkLocator,
+    required final ResolvedToolchain sdkLocator,
     this.verbose = false,
     this.allowNetwork = true,
-  });
+  }) : toolchain = sdkLocator;
   final DependencyCache dependencyCache;
-  final SdkLocator sdkLocator;
+
+  /// Resolved toolchain (ADR-0013 T1). The constructor parameter stays
+  /// named `sdkLocator` for source compatibility with call sites outside
+  /// this migration wave (`oka explain`); the type is the injectable
+  /// [ResolvedToolchain].
+  final ResolvedToolchain toolchain;
   final bool verbose;
   final bool allowNetwork;
 
@@ -569,7 +574,7 @@ public final class BuildConfig {
       }
     }
 
-    final androidSdk = await sdkLocator.findAndroidSdk();
+    final androidSdk = await toolchain.findAndroidSdk();
     final ndk = await findNdkHome(androidSdk);
     if (ndk == null) {
       throw Exception(
@@ -594,14 +599,14 @@ public final class BuildConfig {
       final outDir = p.join(workDir, abiNorm);
       await Directory(outDir).create(recursive: true);
 
-      final toolchain = p.join(
+      final ndkToolchain = p.join(
         ndk,
         'build',
         'cmake',
         'android.toolchain.cmake',
       );
-      if (!await File(toolchain).exists()) {
-        throw Exception('NDK toolchain missing: $toolchain');
+      if (!await File(ndkToolchain).exists()) {
+        throw Exception('NDK toolchain missing: $ndkToolchain');
       }
 
       final configure = await Process.run(cmake, [
@@ -609,7 +614,7 @@ public final class BuildConfig {
         srcDir,
         '-B',
         outDir,
-        '-DCMAKE_TOOLCHAIN_FILE=$toolchain',
+        '-DCMAKE_TOOLCHAIN_FILE=$ndkToolchain',
         '-DANDROID_ABI=$abiNorm',
         '-DANDROID_PLATFORM=android-21',
         '-DANDROID_STL=c++_static',

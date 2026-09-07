@@ -14,7 +14,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 
-import 'build/sdk_locator.dart';
+import 'build/toolchain.dart';
 
 /// Parsed subset of `aapt2 dump badging` output.
 class BadgingInfo {
@@ -350,7 +350,7 @@ List<String> _badgingDifferences(final BadgingInfo? a, final BadgingInfo? b) {
 /// Convenience: locate aapt2 for [compareArtifacts] (null when unavailable).
 Future<String?> locateAapt2ForCompare() async {
   try {
-    return await SdkLocator().findAapt2();
+    return await ResolvedToolchain().findAapt2();
   } on Exception {
     return null;
   }

@@ -200,13 +200,13 @@ class BuildCommand {
       },
     });
 
-    final locator = SdkLocator(verbose: verbose);
+    final toolchain = ResolvedToolchain(verbose: verbose);
 
     BuildArtifact artifact;
     if (useNativeAndroid) {
       // Legacy non-Flutter Android shell pipeline (not for Flutter apps).
       print('⚙️  Using legacy native-android pipeline (no Flutter assemble)\n');
-      final builder = AndroidBuilder(locator, verbose: verbose);
+      final builder = AndroidBuilder(toolchain, verbose: verbose);
       artifact = await builder.buildApk(buildContext);
     } else {
       // Default: no-Gradle Flutter APK (never flutter build apk / Gradle).
@@ -214,7 +214,7 @@ class BuildCommand {
         print('🧩 Soft plugin mode: unsupported plugins will be skipped\n');
       }
       final builder = FlutterApkBuilder(
-        locator,
+        toolchain,
         verbose: verbose,
         strictPlugins: strictPlugins,
       );

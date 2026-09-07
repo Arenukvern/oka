@@ -8,31 +8,31 @@ import '../../android_state.dart';
 import '../../build/apk_layout.dart';
 import '../../build/dependency_cache.dart';
 import '../../build/flutter_assemble.dart';
-import '../../build/sdk_locator.dart';
+import '../../build/toolchain.dart';
 import '../../build_cache.dart';
 
 /// Runs `flutter assemble` to produce flutter_assets.
 class FlutterAssembleStep extends BuildStep {
 
-  FlutterAssembleStep({final SdkLocator? sdkLocator, final FlutterAssembler? assembler})
-    : sdkLocator = sdkLocator ?? SdkLocator(),
-      assembler = assembler ?? FlutterAssembler();
+  FlutterAssembleStep({this.toolchain, final FlutterAssembler? assembler})
+    : assembler = assembler ?? FlutterAssembler();
   @override
   Set<Artifact<Object>> get requires => {abis};
 
   @override
   Set<Artifact<Object>> get provides => {flutterAssetsDir};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
   final FlutterAssembler assembler;
 
-  /// Absolute paths of pubspec.yaml files for path: dependencies declared in
-  /// the package config (sibling checkouts). Non-existent entries ignored.
   /// Resolves the Android SDK without failing the step — when unavailable,
   /// the flutter tool reports its own actionable error.
-  Future<String?> _locateAndroidSdkSafe() async {
+  Future<String?> _locateAndroidSdkSafe(final PipelineState state) async {
     try {
-      return await sdkLocator.findAndroidSdk();
+      return await (toolchain ?? state.resolvedToolchain ??
+              ResolvedToolchain())
+          .findAndroidSdk();
     } on Exception {
       return null;
     }
@@ -124,7 +124,7 @@ class FlutterAssembleStep extends BuildStep {
     // stale/missing sdk.dir fail build_hooks even though oka found the SDK —
     // pass the located SDK through the environment so `flutter assemble` sees
     // exactly what oka's own steps see.
-    final androidSdkHome = await _locateAndroidSdkSafe();
+    final androidSdkHome = await _locateAndroidSdkSafe(state);
     final sdkEnv = androidSdkHome == null
         ? null
         : {'ANDROID_SDK_ROOT': androidSdkHome, 'ANDROID_HOME': androidSdkHome};
@@ -164,15 +164,15 @@ class FlutterAssembleStep extends BuildStep {
 /// Extracts libflutter.so per ABI from the Flutter engine artifacts.
 class EngineExtractionStep extends BuildStep {
 
-  EngineExtractionStep({final SdkLocator? sdkLocator})
-    : sdkLocator = sdkLocator ?? SdkLocator();
+  EngineExtractionStep({this.toolchain});
   @override
   Set<Artifact<Object>> get requires => {abis};
 
   @override
   Set<Artifact<Object>> get provides => {libflutterByAbi, embeddingJar};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
 
   @override
   String get name => 'engine-extraction';
@@ -180,7 +180,10 @@ class EngineExtractionStep extends BuildStep {
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     print('📦 Extracting Flutter engine natives...');
-    final engine = await engineArtifacts(ctx, sdkLocator);
+    final engine = await engineArtifacts(
+      ctx,
+      toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
+    );
     final libDir = p.join(ctx.buildDir, 'lib');
     final libflutterByAbi = await engine.extractLibflutterForAbis(
       abis: state.abis,
@@ -210,13 +213,14 @@ class EngineExtractionStep extends BuildStep {
 /// Assembles release AOT (libapp.so) per ABI. No-op in debug/profile.
 class ReleaseAotStep extends BuildStep {
 
-  ReleaseAotStep({final SdkLocator? sdkLocator, final FlutterAssembler? assembler})
-    : sdkLocator = sdkLocator ?? SdkLocator(),
-      assembler = assembler ?? FlutterAssembler();
+  ReleaseAotStep({this.toolchain, final FlutterAssembler? assembler})
+    : assembler = assembler ?? FlutterAssembler();
     /// Resolves the Android SDK without failing the step.
-  Future<String?> _locateAndroidSdkSafe() async {
+  Future<String?> _locateAndroidSdkSafe(final PipelineState state) async {
     try {
-      return await sdkLocator.findAndroidSdk();
+      return await (toolchain ?? state.resolvedToolchain ??
+              ResolvedToolchain())
+          .findAndroidSdk();
     } on Exception {
       return null;
     }
@@ -228,7 +232,8 @@ class ReleaseAotStep extends BuildStep {
   @override
   Set<Artifact<Object>> get provides => {libappByAbi};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
   final FlutterAssembler assembler;
 
   @override
@@ -265,7 +270,7 @@ class ReleaseAotStep extends BuildStep {
     final libappByAbi = <String, String>{};
     for (final abi in state.abis) {
       final aotOut = p.join(ctx.buildDir, 'aot', normalizeAbi(abi));
-      final aotSdkEnv = await _locateAndroidSdkSafe();
+      final aotSdkEnv = await _locateAndroidSdkSafe(state);
       final aotResult = await assembler.assembleAot(
         projectPath: ctx.projectPath,
         outputDir: aotOut,

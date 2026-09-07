@@ -8,6 +8,7 @@ import 'composition.dart';
 import 'config/build_context.dart';
 import 'config/oka_config.dart';
 import 'pipeline/pipeline.dart';
+import 'targets/describe.dart';
 import 'targets/target.dart';
 
 /// Entry-point options accepted by [okaRun] (forwarded by `oka build` when a
@@ -39,7 +40,10 @@ final _okaRunParser = ArgParser()
   // declared targets as JSON so the CLI can name them in errors without
   // guessing.
   ..addOption('oka-run-target', hide: true)
-  ..addFlag('oka-list-targets', negatable: false, hide: true);
+  ..addFlag('oka-list-targets', negatable: false, hide: true)
+  // ADR-0015 (C2): describe each declared target's compiled step chain —
+  // the validated-plan surface, no execution. Used by `oka explain --targets`.
+  ..addFlag('oka-describe-targets', negatable: false, hide: true);
 
 /// Runs a declarative [Oka] composition from a project hook entrypoint
 /// (ADR-0006: `oka build` delegates to `dart run <entrypoint>` which calls
@@ -97,6 +101,25 @@ Future<void> okaRun(
     stdout.writeln(jsonEncode([
       for (final t in oka.targets)
         {'name': t.name, 'description': t.description},
+    ]));
+    return;
+  }
+
+  // ADR-0015 (C2): machine mode for `oka explain --targets` — report each
+  // declared target's compiled step chain (validated, never executed). A
+  // target whose compile throws is reported as a per-target `error` entry
+  // instead of aborting the listing.
+  if (results['oka-describe-targets'] as bool) {
+    validateTargets(oka);
+    final root = projectPath ?? Directory.current.path;
+    final ctx = BuildContext(
+      projectPath: root,
+      buildDir: '',
+      mode: BuildMode.debug,
+      config: await loadOkaYaml(root),
+    );
+    stdout.writeln(jsonEncode([
+      for (final t in oka.targets) _describeTargetSafely(t, ctx),
     ]));
     return;
   }
@@ -184,6 +207,24 @@ Future<void> okaRun(
   final apkPath = result.data['apk_path'];
   if (apkPath is String && apkPath.isNotEmpty) {
     stdout.writeln('✅ Build complete: $apkPath');
+  }
+}
+
+/// Describes one target for `oka explain --targets` (ADR-0015), reporting a
+/// compile failure as a per-target `error` entry instead of aborting the
+/// listing. Never executes anything — [describeTarget] is pure.
+Map<String, dynamic> _describeTargetSafely(
+  final Target t,
+  final BuildContext ctx,
+) {
+  try {
+    return describeTarget(t, ctx).toJson();
+  } catch (e) {
+    return {
+      'name': t.name,
+      'description': t.description,
+      'error': e.toString(),
+    };
   }
 }
 

@@ -7,7 +7,7 @@ import 'dependency_cache.dart';
 import 'dependency_suggest.dart';
 import 'flutter_assemble.dart';
 import 'plugin_discovery.dart';
-import 'sdk_locator.dart';
+import 'toolchain.dart';
 
 /// Error thrown when required Android SDK build-tools are missing.
 class AndroidSdkMissingException implements Exception {
@@ -29,7 +29,7 @@ class AndroidSdkMissingException implements Exception {
 class FlutterApkBuilder {
 
   FlutterApkBuilder(
-    this.sdkLocator, {
+    this.toolchain, {
     this.verbose = false,
     final FlutterAssembler? assembler,
     final PluginDiscovery? pluginDiscovery,
@@ -39,7 +39,7 @@ class FlutterApkBuilder {
     this.strictPlugins = true,
   }) : assembler = assembler ?? FlutterAssembler(verbose: verbose),
        pluginDiscovery = pluginDiscovery ?? PluginDiscovery(verbose: verbose);
-  final SdkLocator sdkLocator;
+  final ResolvedToolchain toolchain;
   final bool verbose;
   final FlutterAssembler assembler;
   final PluginDiscovery pluginDiscovery;
@@ -66,7 +66,7 @@ class FlutterApkBuilder {
       final Pipeline pipeline;
       if (isAab) {
         pipeline = await defaultAabPipeline(
-          sdkLocator,
+          toolchain,
           verbose: verbose,
           strictPlugins: strictPlugins,
           allowNetwork: allowNetwork,
@@ -75,7 +75,7 @@ class FlutterApkBuilder {
         );
       } else {
         pipeline = await defaultApkPipeline(
-          sdkLocator,
+          toolchain,
           verbose: verbose,
           layoutOnly: layoutOnly,
           strictPlugins: strictPlugins,

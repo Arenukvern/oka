@@ -28,6 +28,19 @@ class DoctorCommand {
     print('  ℹ️  Oka v$okaVersion');
     print('');
 
+    // ── Toolchain policy (ADR-0013 T1) ────────────────────────────────
+    // Resolution as data: ordered candidate sources per tool, evaluated
+    // with results + candidates tried. Owned by the T1 toolchain
+    // migration — keep edits inside this marked block.
+    print('[Toolchain Policy (ADR-0013)]');
+    final policyToolchain = ResolvedToolchain();
+    for (final line
+        in await policyToolchain.describePolicyLines()) {
+      print('  $line');
+    }
+    print('');
+    // ── End toolchain policy block ─────────────────────────────────
+
     final locator = SdkLocator();
     var allGood = true;
 

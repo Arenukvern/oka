@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
@@ -9,6 +10,14 @@ import 'package:oka_android/oka_android.dart';
 /// `oka build --dry-run` routes here.
 class ExplainCommand {
   Future<void> run(List<String> args) async {
+    // ADR-0015 (C2): `oka explain --targets` — list the project-declared
+    // targets with their compiled step chains (no tool execution, no device
+    // probing) instead of the platform build plan.
+    if (args.contains('--targets')) {
+      await _explainTargets();
+      return;
+    }
+
     final release = args.contains('--release');
     final aab = args.contains('--aab') || args.contains('aab');
     // ADR-0008: opt-in dependency-plan resolution. Cache-only by default;
@@ -204,4 +213,148 @@ class ExplainCommand {
       '${release ? ' --release' : ''}` to build.',
     );
   }
+
+  /// `oka explain --targets` (ADR-0015): lists each project-declared target's
+  /// step chain — the same validated-plan surface as builds, with **zero
+  /// tool invocations**. Loads the project entrypoint (same discovery as
+  /// build/run) and asks it (machine mode: `--oka-describe-targets`) for the
+  /// compiled chains; nothing is compiled or executed in this process.
+  Future<void> _explainTargets() async {
+    final projectPath = Directory.current.path;
+    final entrypoint = await findPipelineEntrypoint(projectPath);
+    if (entrypoint == null) {
+      stderr.writeln(
+        '❌ oka explain --targets: no project entrypoint found (expected\n'
+        '   tool/oka_pipeline.dart or bin/oka_pipeline.dart). Project targets\n'
+        '   live there — run `oka init` to bootstrap a project, or `oka --help`\n'
+        '   for the core verbs.',
+      );
+      exit(1);
+    }
+
+    final targets = await loadDescribedTargets(
+      projectPath: projectPath,
+      entrypoint: entrypoint,
+    );
+
+    print('🔍 oka explain — project targets (no tools invoked)\n');
+    print('  entrypoint: $entrypoint');
+    if (targets.isEmpty) {
+      print('\n  This project declares no targets. Add them to the Oka');
+      print('  composition root ($entrypoint): Oka(targets: [...]) — see ADR-0015.');
+      return;
+    }
+
+    for (final target in targets) {
+      print('\n  ${target.name} — ${target.description}');
+      if (target.error != null) {
+        print('    ❌ target failed to compile: ${target.error}');
+        continue;
+      }
+      for (final step in target.steps) {
+        final req = step.requires.join(', ');
+        final prov = step.provides.join(', ');
+        print(
+          '    ${step.name.padRight(24)}'
+          '${req.isEmpty ? '' : '← [$req] '}'
+          '${prov.isEmpty ? '' : '→ [$prov]'}',
+        );
+      }
+      print(
+        '    ${target.isValid ? '✅ artifact chain valid' : '❌ ${target.validationError}'}',
+      );
+    }
+    print('\nNo tools invoked. Run a target with `oka run <target>`.');
+  }
+}
+
+/// A step of a target's described chain (ADR-0015).
+class DescribedTargetStep {
+  const DescribedTargetStep({
+    required this.name,
+    required this.requires,
+    required this.provides,
+  });
+
+  factory DescribedTargetStep.fromJson(final Map<String, dynamic> json) =>
+      DescribedTargetStep(
+        name: json['name']?.toString() ?? '',
+        requires: [
+          for (final r in (json['requires'] as List? ?? const [])) r.toString(),
+        ],
+        provides: [
+          for (final p in (json['provides'] as List? ?? const [])) p.toString(),
+        ],
+      );
+
+  final String name;
+  final List<String> requires;
+  final List<String> provides;
+}
+
+/// A target discovered from the project entrypoint with its described step
+/// chain (ADR-0015). [error] is set when the entrypoint failed to compile
+/// the target at all; otherwise [validationError] carries the composition-
+/// time artifact-chain failure (null = valid).
+class DescribedTarget {
+  const DescribedTarget({
+    required this.name,
+    required this.description,
+    this.steps = const [],
+    this.validationError,
+    this.error,
+  });
+
+  factory DescribedTarget.fromJson(final Map<String, dynamic> json) =>
+      DescribedTarget(
+        name: json['name']?.toString() ?? '',
+        description: json['description']?.toString() ?? '',
+        steps: [
+          for (final s in (json['steps'] as List? ?? const []))
+            DescribedTargetStep.fromJson((s as Map).cast<String, dynamic>()),
+        ],
+        validationError: json['validationError']?.toString(),
+        error: json['error']?.toString(),
+      );
+
+  final String name;
+  final String description;
+  final List<DescribedTargetStep> steps;
+  final String? validationError;
+  final String? error;
+
+  bool get isValid => validationError == null;
+}
+
+/// Loads the described target chains from the project entrypoint (ADR-0015).
+///
+/// Runs `dart run <entrypoint> --oka-describe-targets` — the entrypoint's
+/// `okaRun` compiles each declared target **purely** (no tool execution) and
+/// answers with a JSON array of chains. Exits with the entrypoint's
+/// diagnostics when it fails to load.
+Future<List<DescribedTarget>> loadDescribedTargets({
+  required final String projectPath,
+  required final String entrypoint,
+}) async {
+  final proc = await Process.run(
+    'dart',
+    ['run', entrypoint, '--oka-describe-targets'],
+    workingDirectory: projectPath,
+    runInShell: true,
+  );
+  if (proc.exitCode != 0) {
+    stdout.write(proc.stdout);
+    stderr.write(proc.stderr);
+    exit(proc.exitCode);
+  }
+  final decoded = jsonDecode(proc.stdout as String);
+  if (decoded is! List) {
+    throw FormatException(
+      'entrypoint $entrypoint did not report target chains as a JSON array',
+    );
+  }
+  return [
+    for (final e in decoded)
+      DescribedTarget.fromJson((e as Map).cast<String, dynamic>()),
+  ];
 }

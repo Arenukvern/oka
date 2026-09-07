@@ -7,16 +7,18 @@ import 'package:test/test.dart';
 void main() {
   group('validatePackagingTools vs adb', () {
     test('source: packaging validation does not call findAdb', () async {
-      final locatorSrc = await File(
-        p.join('packages', 'oka_android', 'lib', 'src', 'build', 'sdk_locator.dart'),
+      // ADR-0013 T1: tool resolution moved from sdk_locator.dart to
+      // toolchain.dart — the invariants hold on the new policy file.
+      final toolchainSrc = await File(
+        p.join('packages', 'oka_android', 'lib', 'src', 'build', 'toolchain.dart'),
       ).readAsString();
 
       // Extract validatePackagingTools body roughly
-      final start = locatorSrc.indexOf('validatePackagingTools()');
+      final start = toolchainSrc.indexOf('validatePackagingTools()');
       expect(start, greaterThan(0));
-      final end = locatorSrc.indexOf('validateTools(', start);
+      final end = toolchainSrc.indexOf('validateTools(', start);
       expect(end, greaterThan(start));
-      final body = locatorSrc.substring(start, end);
+      final body = toolchainSrc.substring(start, end);
       expect(body, contains('findAapt2'));
       expect(body, contains('findD8'));
       expect(body, contains('findZipalign'));
@@ -25,7 +27,7 @@ void main() {
     });
 
     test(
-      'source: FlutterApkBuilder uses validatePackagingTools not adb-required',
+      'source: EnsureAndroidSdkStep uses validatePackagingTools not adb-required',
       () async {
         final text = await File(
           p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'steps', 'host_steps.dart'),
@@ -37,12 +39,12 @@ void main() {
     );
 
     test('validateTools treats adb as optional by default', () async {
-      final locatorSrc = await File(
-        p.join('packages', 'oka_android', 'lib', 'src', 'build', 'sdk_locator.dart'),
+      final toolchainSrc = await File(
+        p.join('packages', 'oka_android', 'lib', 'src', 'build', 'toolchain.dart'),
       ).readAsString();
-      expect(locatorSrc, contains('requireAdb = false'));
+      expect(toolchainSrc, contains('requireAdb = false'));
       // optional catch around findAdb
-      expect(locatorSrc, contains('Optional for packaging-only flows'));
+      expect(toolchainSrc, contains('Optional for packaging-only flows'));
     });
 
     test('validatePackagingTools fails clearly without Android SDK', () async {
@@ -66,6 +68,18 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('SdkLocator is a thin wrapper over ResolvedToolchain (ADR-0013)',
+        () async {
+      // The deprecated wrapper must not reimplement resolution — it only
+      // forwards constructor args to the data-driven policy.
+      final wrapperSrc = await File(
+        p.join('packages', 'oka_android', 'lib', 'src', 'build', 'sdk_locator.dart'),
+      ).readAsString();
+      expect(wrapperSrc, contains('extends ResolvedToolchain'));
+      expect(wrapperSrc, isNot(contains('Future<String> find')));
+      expect(wrapperSrc, isNot(contains('Platform.environment')));
     });
   });
 }

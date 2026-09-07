@@ -124,11 +124,11 @@ class GetCommand {
   Future<void> _installR8() async {
     print('📦 Installing R8 optimizer...\n');
 
-    final locator = SdkLocator();
+    final toolchain = ResolvedToolchain();
 
     try {
       // Check if R8 already exists
-      final existingR8 = await locator.findR8();
+      final existingR8 = await toolchain.findR8();
       if (existingR8 != null) {
         print('✅ R8 is already installed at: $existingR8');
         return;
@@ -200,42 +200,42 @@ class GetCommand {
   Future<void> _installAll() async {
     print('📦 Installing all missing dependencies...\n');
 
-    final locator = SdkLocator();
+    final toolchain = ResolvedToolchain();
     final missing = <String>[];
 
     // Check what's missing
     print('🔍 Checking for missing tools...');
 
     try {
-      await locator.findAapt2();
+      await toolchain.findAapt2();
     } catch (e) {
       missing.add('aapt2');
     }
 
     try {
-      await locator.findD8();
+      await toolchain.findD8();
     } catch (e) {
       missing.add('d8');
     }
 
-    final r8 = await locator.findR8();
+    final r8 = await toolchain.findR8();
     if (r8 == null) {
       missing.add('r8');
     }
 
     try {
-      await locator.findZipalign();
+      await toolchain.findZipalign();
     } catch (e) {
       missing.add('zipalign');
     }
 
     try {
-      await locator.findApksigner();
+      await toolchain.findApksigner();
     } catch (e) {
       missing.add('apksigner');
     }
 
-    final kotlinc = await locator.findKotlinc();
+    final kotlinc = await toolchain.findKotlinc();
     if (kotlinc == null) {
       missing.add('kotlin');
     }
@@ -268,8 +268,8 @@ class GetCommand {
   /// Find Android SDK Manager (sdkmanager)
   Future<String?> _findSdkManager() async {
     try {
-      final locator = SdkLocator();
-      final androidSdk = await locator.findAndroidSdk();
+      final toolchain = ResolvedToolchain();
+      final androidSdk = await toolchain.findAndroidSdk();
 
       // Check cmdline-tools locations
       final possiblePaths = [
@@ -331,8 +331,8 @@ class GetCommand {
 
     try {
       // Check if Kotlin already exists
-      final locator = SdkLocator();
-      final existingKotlin = await locator.findKotlinc();
+      final toolchain = ResolvedToolchain();
+      final existingKotlin = await toolchain.findKotlinc();
       if (existingKotlin != null) {
         print('✅ Kotlin compiler is already installed at: $existingKotlin');
         return;

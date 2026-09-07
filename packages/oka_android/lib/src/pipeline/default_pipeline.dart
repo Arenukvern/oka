@@ -9,7 +9,7 @@ import '../build/apk_layout.dart';
 import '../build/dependency_cache.dart';
 import '../build/flutter_assemble.dart';
 import '../build/plugin_discovery.dart';
-import '../build/sdk_locator.dart';
+import '../build/toolchain.dart';
 import '../pipeline_overrides.dart';
 import '../post_build_lint.dart';
 import 'steps/asset_steps.dart';
@@ -142,11 +142,11 @@ class LocalAarsStep extends BuildStep {
 /// Layout-only staging used by unit tests (no external tools invoked).
 class _LayoutOnlyStep extends BuildStep {
 
-  _LayoutOnlyStep(this.sdkLocator);
+  _LayoutOnlyStep(this.toolchain);
   @override
   Set<Artifact<Object>> get provides => {abis, apkPath};
 
-  final SdkLocator sdkLocator;
+  final ResolvedToolchain toolchain;
 
   @override
   String get name => 'layout-only';
@@ -189,7 +189,7 @@ class _LayoutOnlyStep extends BuildStep {
 /// Step order mirrors the historical FlutterApkBuilder.build() exactly —
 /// this is a behavior-preserving composition.
 Future<Pipeline> defaultApkPipeline(
-  final SdkLocator sdkLocator, {
+  final ResolvedToolchain toolchain, {
   final bool verbose = false,
   final bool layoutOnly = false,
   final bool strictPlugins = true,
@@ -205,14 +205,14 @@ Future<Pipeline> defaultApkPipeline(
 
   // Layout-only test path keeps the old shortcut semantics.
   if (layoutOnly) {
-    return Pipeline([_LayoutOnlyStep(sdkLocator)], verbose: verbose);
+    return Pipeline([_LayoutOnlyStep(toolchain)], verbose: verbose);
   }
 
   return Pipeline([
-    EnsureAndroidSdkStep(sdkLocator: sdkLocator),
+    EnsureAndroidSdkStep(toolchain: toolchain),
     ResolveAbisStep(),
     PluginPackagingStep(
-      sdkLocator: sdkLocator,
+      toolchain: toolchain,
       pluginDiscovery: discovery,
       dependencyCache: cache,
       strictPlugins: strictPlugins,
@@ -224,15 +224,15 @@ Future<Pipeline> defaultApkPipeline(
       manifestOverride: overrides.manifest,
       resDirs: overrides.resDirs,
     ),
-    FlutterAssembleStep(sdkLocator: sdkLocator, assembler: assembler),
-    EngineExtractionStep(sdkLocator: sdkLocator),
-    ReleaseAotStep(sdkLocator: sdkLocator, assembler: assembler),
+    FlutterAssembleStep(toolchain: toolchain, assembler: assembler),
+    EngineExtractionStep(toolchain: toolchain),
+    ReleaseAotStep(toolchain: toolchain, assembler: assembler),
     DependencyResolveStep(cache: cache),
     ExtraDepsStep(overrides.extraDeps, cache, verbose: verbose),
     LocalAarsStep(overrides.localAars, verbose: verbose),
-    CompileAndDexStep(sdkLocator: sdkLocator, resourceConfigs: overrides.resourceConfigs),
+    CompileAndDexStep(toolchain: toolchain, resourceConfigs: overrides.resourceConfigs),
     ExtraAssetsStep(overrides.extraAssets),
-    PackageAndSignStep(sdkLocator: sdkLocator, signing: overrides.signing),
+    PackageAndSignStep(toolchain: toolchain, signing: overrides.signing),
     ValidateLayoutStep(),
     PostBuildLintStep(maxSizeMb: overrides.maxSizeMb),
   ], verbose: verbose);
@@ -244,7 +244,7 @@ Future<Pipeline> defaultApkPipeline(
 /// (`--proto-format`), packaging (`base/` module + jarsigner v1) and layout
 /// validation.
 Future<Pipeline> defaultAabPipeline(
-  final SdkLocator sdkLocator, {
+  final ResolvedToolchain toolchain, {
   final bool verbose = false,
   final bool strictPlugins = true,
   final bool allowNetwork = true,
@@ -258,10 +258,10 @@ Future<Pipeline> defaultAabPipeline(
   final discovery = PluginDiscovery(verbose: verbose);
 
   return Pipeline([
-    EnsureAndroidSdkStep(sdkLocator: sdkLocator),
+    EnsureAndroidSdkStep(toolchain: toolchain),
     ResolveAbisStep(),
     PluginPackagingStep(
-      sdkLocator: sdkLocator,
+      toolchain: toolchain,
       pluginDiscovery: discovery,
       dependencyCache: cache,
       strictPlugins: strictPlugins,
@@ -273,15 +273,15 @@ Future<Pipeline> defaultAabPipeline(
       manifestOverride: overrides.manifest,
       resDirs: overrides.resDirs,
     ),
-    FlutterAssembleStep(sdkLocator: sdkLocator, assembler: assembler),
-    EngineExtractionStep(sdkLocator: sdkLocator),
-    ReleaseAotStep(sdkLocator: sdkLocator, assembler: assembler),
+    FlutterAssembleStep(toolchain: toolchain, assembler: assembler),
+    EngineExtractionStep(toolchain: toolchain),
+    ReleaseAotStep(toolchain: toolchain, assembler: assembler),
     DependencyResolveStep(cache: cache),
     ExtraDepsStep(overrides.extraDeps, cache, verbose: verbose),
     LocalAarsStep(overrides.localAars, verbose: verbose),
-    CompileProtoAndDexStep(sdkLocator: sdkLocator, resourceConfigs: overrides.resourceConfigs),
+    CompileProtoAndDexStep(toolchain: toolchain, resourceConfigs: overrides.resourceConfigs),
     ExtraAssetsStep(overrides.extraAssets),
-    PackageAndSignAabStep(sdkLocator: sdkLocator, signing: overrides.signing),
+    PackageAndSignAabStep(toolchain: toolchain, signing: overrides.signing),
     ValidateAabLayoutStep(),
     PostBuildLintStep(maxSizeMb: overrides.maxSizeMb),
   ], verbose: verbose);

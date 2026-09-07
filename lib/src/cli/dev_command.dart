@@ -23,7 +23,7 @@ class DevCommand {
     print('');
     print('For now, use:');
     print('  1. oka build apk --debug');
-    print('  2. adb install -r .oka_cache/build/debug/app-debug.apk');
+    print('  2. oka run device (install, launch, failure-signature scan)');
     print('  3. flutter attach');
   }
 }

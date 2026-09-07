@@ -90,12 +90,16 @@ Usage: oka <command> [options]
 
 Commands:
   init      Initialize oka.yaml configuration from existing Gradle project
-  explain   Show the validated build plan (no tools invoked)
+  explain   Show the validated build plan (no tools invoked);
+            `oka explain --targets` lists project-declared targets with
+            their step chains (also no tools invoked)
   build     Build APK or AAB
-  compare   Diff two APK/AAB artifacts (badging + zip entries; byte-equivalence gate)
+  compare   Diff two APK/AAB artifacts (metadata + zip entries;
+            byte-equivalence gate)
   debug     Probe a single pipeline step (oka debug step <name>) or check
             DEX symbols (oka debug dex <apk> --find <class>)
-  launch    Install + launch on device and scan logcat for failure signatures
+  launch    Alias of `oka run device`: install the newest APK, launch on
+            device, scan the device log for failure signatures
   run       Run a project-declared target (oka run <target>; targets are
             discovered from tool/oka_pipeline.dart — `oka run` lists them)
   dev       Start development mode with hot reload
@@ -111,9 +115,10 @@ Examples:
   oka build apk               # No-Gradle Flutter debug APK (full plugins)
   oka build apk --release     # Release (AOT / libapp.so)
   oka compare old.apk new.apk # Diff artifacts (exit 1 on differences)
+  oka explain --targets     # List project-declared targets + step chains
   oka debug step compile-and-dex  # Re-run one pipeline step on .oka_cache
   oka debug dex app.apk --find kotlinx.atomicfu.AtomicFU  # DEX symbol check
-  oka launch                  # Install newest APK, launch, scan logcat
+  oka launch                  # Alias of `oka run device` (see above)
   oka run <target>            # Run a project-declared target (see above)
   oka get android-sdk         # Bootstrap packaging SDK
   oka doctor                  # Check system setup

@@ -7,7 +7,7 @@ import 'android_state.dart';
 import 'build/bundletool.dart';
 import 'build/dependency_cache.dart';
 import 'build/launcher_icon.dart';
-import 'build/sdk_locator.dart';
+import 'build/toolchain.dart';
 import 'manifest_spec.dart';
 import 'pipeline/default_pipeline.dart';
 import 'pipeline/steps/asset_steps.dart';
@@ -120,24 +120,24 @@ class AndroidPipeline implements PlatformPipeline {
   /// Treat it as a starting list — append custom steps, or replace
   /// individual entries to specialize (each step is a plain value).
   static List<BuildStep> get defaultSteps {
-    final sdkLocator = SdkLocator();
+    final toolchain = ResolvedToolchain();
     final cache = DependencyCache();
     return [
-      EnsureAndroidSdkStep(sdkLocator: sdkLocator),
+      EnsureAndroidSdkStep(toolchain: toolchain),
       ResolveAbisStep(),
-      PluginPackagingStep(sdkLocator: sdkLocator, dependencyCache: cache),
+      PluginPackagingStep(toolchain: toolchain, dependencyCache: cache),
       HostCodegenStep(),
-      FlutterAssembleStep(sdkLocator: sdkLocator),
-      EngineExtractionStep(sdkLocator: sdkLocator),
-      ReleaseAotStep(sdkLocator: sdkLocator),
+      FlutterAssembleStep(toolchain: toolchain),
+      EngineExtractionStep(toolchain: toolchain),
+      ReleaseAotStep(toolchain: toolchain),
       DependencyResolveStep(cache: cache),
       // Fast-settings surfaces (ADR-0010): steps read pipeline-level
       // overrides seeded into the runtime scope; constructor args stay empty.
       ExtraDepsStep(const [], cache),
       LocalAarsStep(const []),
-      CompileAndDexStep(sdkLocator: sdkLocator),
+      CompileAndDexStep(toolchain: toolchain),
       ExtraAssetsStep(const []),
-      PackageAndSignStep(sdkLocator: sdkLocator),
+      PackageAndSignStep(toolchain: toolchain),
       ValidateLayoutStep(),
       PostBuildLintStep(),
     ];
@@ -179,19 +179,23 @@ class AndroidPipeline implements PlatformPipeline {
       maxSizeMb: overrides.maxSizeMb,
     );
 
+    // ADR-0013 T1: one shared toolchain for the whole build — the ordered,
+    // printable resolution policy injected into PipelineState so steps
+    // resolve tools through data, never a god-object.
+    final toolchain = ResolvedToolchain();
     final Pipeline pipeline;
     if (steps != null) {
       pipeline = Pipeline(steps!, verbose: ctx.verbose);
     } else if (ctx.buildAab) {
       pipeline = await defaultAabPipeline(
-        SdkLocator(),
+        toolchain,
         verbose: ctx.verbose,
         strictPlugins: strictPlugins,
         overrides: merged,
       );
     } else {
       pipeline = await defaultApkPipeline(
-        SdkLocator(),
+        toolchain,
         verbose: ctx.verbose,
         strictPlugins: strictPlugins,
         overrides: merged,
@@ -201,7 +205,9 @@ class AndroidPipeline implements PlatformPipeline {
     // composing explicit step lists (`steps: [...AndroidPipeline.defaultSteps]`)
     // get fast-settings applied without threading every constructor. Steps
     // prefer their explicit constructor values and fall back to this.
-    final state = PipelineState()..pipelineOverrides = merged;
+    final state = PipelineState()
+      ..pipelineOverrides = merged
+      ..resolvedToolchain = toolchain;
     final result = await pipeline.run(ctx, initialState: state);
     if (!result.ok) return result;
     final artifactPath = result.data['apk_path'];

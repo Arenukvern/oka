@@ -103,10 +103,16 @@ export 'src/build/launcher_icon.dart';
 export 'src/build/plugin_discovery.dart';
 export 'src/build/plugin_packager.dart';
 export 'src/build/sdk_locator.dart';
+export 'src/build/toolchain.dart';
 export 'src/build/version_manager.dart';
 export 'src/build_cache.dart';
 export 'src/compare.dart';
 export 'src/dependency_plan.dart';
+
+// Device layer (ADR-0015: the device target + DEX probe live here, never
+// in the CLI verb layer).
+export 'src/dev/device_target.dart';
+export 'src/dev/dex_probe.dart';
 
 // Platform pipeline + specs.
 export 'src/manifest_spec.dart';

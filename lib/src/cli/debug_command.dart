@@ -34,12 +34,8 @@ class DebugCommand {
 
   /// `oka debug dex <apk> --find kotlinx.atomicfu.AtomicFU`
   ///
-  /// Static DEX symbol check: verifies the class descriptor appears in the
-  /// APK's `classes*.dex` string pools. Catches runtime dependency gaps
-  /// (NoClassDefFoundError at startup) BEFORE installing — the class must be
-  /// either defined or referenced in a dex, or the app is guaranteed to
-  /// crash. Presence is "defined or referenced" (string-pool heuristic);
-  /// absence is a hard failure.
+  /// ADR-0015: the probe implementation lives in `oka_android`
+  /// (`checkDexSymbols`); this verb only parses args and delegates.
   Future<void> _runDex(final List<String> args) async {
     final parser = ArgParser()
       ..addMultiOption(
@@ -63,55 +59,7 @@ class DebugCommand {
       exit(2);
     }
 
-    final workingDir = await Directory.systemTemp.createTemp('oka_dex_');
-    try {
-      // Extract the dex string pools: descriptors are stored as plain UTF-8
-      // MUTF-8 — a byte search is exact for class descriptors.
-      final result = await Process.run('unzip', [
-        '-o',
-        '-q',
-        apk,
-        'classes*.dex',
-        '-d',
-        workingDir.path,
-      ]);
-      if (result.exitCode != 0) {
-        print('❌ no classes*.dex in $apk: ${result.stderr}');
-        exit(2);
-      }
-      final pools = <String, String>{};
-      await for (final f in workingDir.list()) {
-        if (f is! File || !f.path.endsWith('.dex')) continue;
-        pools[p.basename(f.path)] = String.fromCharCodes(f.readAsBytesSync());
-      }
-
-      var failed = false;
-      print('🔍 DEX symbol check: ${p.basename(apk)}');
-      for (final q in queries) {
-        final descriptor = q.startsWith('L')
-            ? q
-            : 'L${q.replaceAll('.', '/')};';
-        final hits = pools.entries
-            .where((final e) => e.value.contains(descriptor))
-            .map((final e) => e.key)
-            .toList();
-        if (hits.isEmpty) {
-          failed = true;
-          print('  ❌ $descriptor — ABSENT from all dex files');
-          print(
-            '     Referencing code will throw NoClassDefFoundError at '
-            'runtime (kills GeneratedPluginRegistrant).',
-          );
-        } else {
-          print('  ✅ $descriptor — in ${hits.join(', ')}');
-        }
-      }
-      exit(failed ? 1 : 0);
-    } finally {
-      try {
-        await workingDir.delete(recursive: true);
-      } catch (_) {}
-    }
+    exit((await checkDexSymbols(apk: apk, queries: queries)).exitCode);
   }
 
   Future<void> _runStep(List<String> args) async {
@@ -264,8 +212,8 @@ Usage: oka debug <subcommand>
 Subcommands:
   step <name>   Run one default-pipeline step (plus its upstream prefix)
                 against the project's .oka_cache with verbose output.
-  dex <apk>     Static DEX symbol check: verify class descriptors exist in
-                --find <class> the APK's classes*.dex (catches runtime
+  dex <apk>     Static DEX symbol check (oka_android): verify class
+  --find <cls>  descriptors exist in the APK's dex pools (catches runtime
                 dependency gaps before install).
 
 Examples:

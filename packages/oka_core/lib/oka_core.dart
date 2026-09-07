@@ -83,4 +83,6 @@ export 'src/pipeline/pipeline.dart';
 export 'src/pipeline_events.dart';
 export 'src/process_runner.dart';
 export 'src/store/artifact_store.dart';
+export 'src/targets/describe.dart';
 export 'src/targets/target.dart';
+export 'src/toolchain/toolchain.dart';

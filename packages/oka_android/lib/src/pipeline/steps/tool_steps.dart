@@ -8,7 +8,7 @@ import '../../android_state.dart';
 import '../../auto_resolve.dart';
 import '../../build/aab_layout.dart';
 import '../../build/apk_layout.dart';
-import '../../build/sdk_locator.dart';
+import '../../build/toolchain.dart';
 import '../../build_cache.dart';
 import '../../signing_config.dart';
 import '../toolchain.dart';
@@ -16,15 +16,15 @@ import '../toolchain.dart';
 /// aapt2 compile/link + kotlinc/javac + d8 → dex files.
 class CompileAndDexStep extends BuildStep {
 
-  CompileAndDexStep({final SdkLocator? sdkLocator, this.resourceConfigs = const []})
-    : sdkLocator = sdkLocator ?? SdkLocator();
+  CompileAndDexStep({this.toolchain, this.resourceConfigs = const []});
   @override
   Set<Artifact<Object>> get requires => {hostDir, embeddingJar, packagedPlugins};
 
   @override
   Set<Artifact<Object>> get provides => {dexFiles};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
 
   /// Resource qualifier filter (aapt2 `--configs`), e.g. `['en', 'ru']`.
   final List<String> resourceConfigs;
@@ -109,7 +109,8 @@ class CompileAndDexStep extends BuildStep {
     print('🔨 Compiling resources and Java/Kotlin (Android SDK tools)...');
     final result = await compileAndDex(
       ctx: ctx,
-      sdkLocator: sdkLocator,
+      toolchain:
+          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
@@ -137,8 +138,7 @@ class CompileAndDexStep extends BuildStep {
 /// Stages the APK layout, zips, zipaligns and signs.
 class PackageAndSignStep extends BuildStep {
 
-  PackageAndSignStep({final SdkLocator? sdkLocator, this.signing})
-    : sdkLocator = sdkLocator ?? SdkLocator();
+  PackageAndSignStep({this.toolchain, this.signing});
   @override
   Set<Artifact<Object>> get requires =>
       {dexFiles, flutterAssetsDir, libflutterByAbi};
@@ -146,7 +146,8 @@ class PackageAndSignStep extends BuildStep {
   @override
   Set<Artifact<Object>> get provides => {apkPath};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
 
   /// Release keystore configuration (null → auto-resolve → debug fallback).
   final SigningConfig? signing;
@@ -172,7 +173,8 @@ class PackageAndSignStep extends BuildStep {
 
     final signed = await packageAndSign(
       ctx: ctx,
-      sdkLocator: sdkLocator,
+      toolchain:
+          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       dexFiles: state.dexFiles,
       flutterAssetsDir: state.flutterAssetsDir!,
       libflutterByAbi: state.libflutterByAbi,
@@ -188,17 +190,15 @@ class PackageAndSignStep extends BuildStep {
 /// aapt2 compile + proto-format link + javac/kotlinc + d8 (AAB, ADR-0004).
 class CompileProtoAndDexStep extends BuildStep {
 
-  CompileProtoAndDexStep({
-    final SdkLocator? sdkLocator,
-    this.resourceConfigs = const [],
-  }) : sdkLocator = sdkLocator ?? SdkLocator();
+  CompileProtoAndDexStep({this.toolchain, this.resourceConfigs = const []});
   @override
   Set<Artifact<Object>> get requires => {hostDir, embeddingJar, packagedPlugins};
 
   @override
   Set<Artifact<Object>> get provides => {dexFiles};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
 
   /// Resource qualifier filter (aapt2 `--configs`).
   final List<String> resourceConfigs;
@@ -284,7 +284,8 @@ class CompileProtoAndDexStep extends BuildStep {
     print('🔨 Compiling resources (proto) and Java/Kotlin for AAB...');
     final result = await compileAndDexProto(
       ctx: ctx,
-      sdkLocator: sdkLocator,
+      toolchain:
+          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
@@ -312,8 +313,7 @@ class CompileProtoAndDexStep extends BuildStep {
 /// Stages the AAB `base/` module, zips and signs with jarsigner (v1).
 class PackageAndSignAabStep extends BuildStep {
 
-  PackageAndSignAabStep({final SdkLocator? sdkLocator, this.signing})
-    : sdkLocator = sdkLocator ?? SdkLocator();
+  PackageAndSignAabStep({this.toolchain, this.signing});
   @override
   Set<Artifact<Object>> get requires =>
       {dexFiles, flutterAssetsDir, libflutterByAbi};
@@ -321,7 +321,8 @@ class PackageAndSignAabStep extends BuildStep {
   @override
   Set<Artifact<Object>> get provides => {apkPath};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
 
   /// Release keystore configuration (null → auto-resolve → debug fallback).
   final SigningConfig? signing;
@@ -347,7 +348,8 @@ class PackageAndSignAabStep extends BuildStep {
     try {
       final signed = await packageAndSignAab(
         ctx: ctx,
-        sdkLocator: sdkLocator,
+        toolchain:
+            toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
         dexFiles: state.dexFiles,
         flutterAssetsDir: state.flutterAssetsDir!,
         libflutterByAbi: state.libflutterByAbi,

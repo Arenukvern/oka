@@ -115,6 +115,10 @@ Future<void> main(final List<String> args) {
           steps: [..._commonSteps(), ...(wantsAab ? _aabTail() : _apkTail())],
         ),
       ],
+      // ADR-0015: project-declared targets. `oka run device` (alias:
+      // `oka launch`) installs the newest built APK, launches it, and
+      // scans the device log for failure signatures.
+      targets: const [DeviceTarget()],
     ),
   );
 }

@@ -23,16 +23,35 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       correctness gate): snapshot-cached entrypoint evaluation keyed on
       content hash — current dispatch shells out to `dart run` like `oka
       build` already does.
-- [ ] **C1 — Fold platform leakage behind the boundary (ADR-0015).**
+- [x] **C1 — Fold platform leakage behind the boundary (ADR-0015).**
       `oka launch` → alias of `oka run device` (`DeviceTarget` shipped by
       `oka_android`); `oka get` nouns route through ADR-0013 tool
       providers; `oka debug dex` moves behind the Android package. Gate:
       `bin/` + verb implementations contain no platform logic (grep gate
       or import-lint test); `oka compare` byte-equivalence preserved.
-- [ ] **C2 — `oka explain --targets` (ADR-0015).** Discovered targets
+      Done. `DeviceTarget` + device steps (`packages/oka_android/lib/src/dev/`):
+      resolve-newest-APK → install → launch → logcat failure-signature scan,
+      compiled to a validated pipeline; dex probe moved to
+      `oka_android/lib/src/dev/dex_probe.dart` (pure Dart zip read); `oka
+      launch` shim (`lib/src/cli/launch_command.dart`) delegates to `oka run
+      device` with zero platform logic (moved flags → typed target config).
+      Gate: `test/adr0015_cli_platform_leakage_gate_test.dart` (C1-folded
+      files clean; ratchet allowlist for the remaining T1-owned verbs).
+      Evidence: `test/adr0015_device_target_test.dart` (18 tests: compile
+      validation, scripted fake-adb/aapt2 flows, pure helpers),
+      `test/adr0015_launch_alias_test.dart` (dispatch equivalence + flags),
+      `test/adr0015_dex_probe_test.dart` (probe + CLI delegation); example
+      composition root declares `DeviceTarget` (`oka run device` demo).
+- [x] **C2 — `oka explain --targets` (ADR-0015).** Discovered targets
       listed with their step chains via the validated-plan surface;
       `oka --help` stays static (core verbs + pointer). Evidence: explain
-      output for a project declaring a custom target.
+      output for a project declaring a custom target. Done:
+      `describeTarget` (pure, `packages/oka_core/lib/src/targets/describe.dart`)
+      + `--oka-describe-targets` machine mode in `okaRun`;
+      `oka explain --targets` in `lib/src/cli/explain_command.dart` (no tool
+      execution, no device probing; entrypoint-less → `oka init`);
+      `test/adr0015_explain_targets_test.dart` (chains, no-execution,
+      validation failures, plain-explain regression).
 - [x] **T0 — ArtifactStore contract + cache unification (ADR-0013).**
       `ArtifactStore`/`ContentKey` in `oka_core`; plain-directory
       `LocalArtifactStore` with human-decodable layout; unify
@@ -52,13 +71,24 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       `test/artifact_store_test.dart` (22 tests). `dart analyze` clean,
       `dart test` 245 passing. Stdin prompts removed from AndroidX
       download and SDKMAN paths.
-- [ ] **T1 — Toolchain resolution as data (ADR-0013).** `Toolchain`/
+- [x] **T1 — Toolchain resolution as data (ADR-0013).** `Toolchain`/
       `ToolProvider` contract; dissolve `SdkLocator` into an ordered,
       printable resolution policy injected as a `ResolvedToolchain`
       artifact; provisioning goes through the store; **stdin prompts
       removed** from all build paths. Tests: precedence-policy unit tests;
       `oka doctor` prints resolved policy; `oka compare` byte-equivalence
       preserved across the refactor.
+      Evidence: contracts in `packages/oka_core/lib/src/toolchain/`
+      (`ToolQuery`, `ResolvedTool`, `ToolSource`, `ToolResolution`,
+      `ToolchainException`, `Toolchain`); policy + injectable env in
+      `packages/oka_android/lib/src/build/toolchain.dart`
+      (`AndroidToolchain.describe/resolve`, `ResolvedToolchain` seeded into
+      `PipelineState.resolvedToolchain` by `AndroidPipeline.run`);
+      `sdk_locator.dart` reduced to a thin wrapper delegating to the
+      policy; provisioning (`AndroidxJarProvisioner`) still store-based;
+      `oka doctor` prints the resolved policy (paths + sources + fixes);
+      `test/toolchain_policy_test.dart` (19 precedence/version/doctor
+      tests, injected env), `dart analyze` clean, determinism test green.
 - [ ] **T2 — Device layer through the store (ADR-0013, with H2).**
       adb/emulator provisioning as platform-scoped tool providers;
       install/launch steps consume `ResolvedToolchain`. Evidence: emulator

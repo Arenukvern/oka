@@ -6,7 +6,7 @@ import 'package:path/path.dart' as p;
 import '../build/aab_layout.dart';
 import '../build/aapt2_commands.dart';
 import '../build/apk_layout.dart';
-import '../build/sdk_locator.dart';
+import '../build/toolchain.dart';
 import '../signing_config.dart';
 
 /// Outcome of [compileAndDex].
@@ -28,7 +28,7 @@ class CompileDexOutcome {
 /// share one implementation (ADR-0002).
 Future<CompileDexOutcome> compileAndDex({
   required final BuildContext ctx,
-  required final SdkLocator sdkLocator,
+  required final ResolvedToolchain toolchain,
   required final String hostDir,
   required final String embeddingJar,
   required final List<String> androidxJarPaths,
@@ -42,8 +42,8 @@ Future<CompileDexOutcome> compileAndDex({
   final int? javaVersionOverride,
 }) async {
   try {
-    final aapt2 = await sdkLocator.findAapt2();
-    final androidSdk = await sdkLocator.findAndroidSdk();
+    final aapt2 = await toolchain.findAapt2();
+    final androidSdk = await toolchain.findAndroidSdk();
     final compileSdk = ctx.config.android.compileSdk.isEmpty
         ? '34'
         : ctx.config.android.compileSdk;
@@ -114,7 +114,7 @@ Future<CompileDexOutcome> compileAndDex({
     }
 
     // javac + kotlinc for host + all plugin sources
-    final javac = await sdkLocator.findJavac();
+    final javac = await toolchain.findJavac();
     final classesDir = p.join(ctx.buildDir, 'classes');
     if (await Directory(classesDir).exists()) {
       await Directory(classesDir).delete(recursive: true);
@@ -140,7 +140,7 @@ Future<CompileDexOutcome> compileAndDex({
 
     // Kotlin first (produces .class for Java to see)
     if (pluginKotlinSources.isNotEmpty) {
-      final kotlinc = await sdkLocator.findKotlinc();
+      final kotlinc = await toolchain.findKotlinc();
       if (kotlinc == null) {
         return CompileDexOutcome(
           ok: false,
@@ -212,7 +212,7 @@ Future<CompileDexOutcome> compileAndDex({
       );
     }
 
-    final d8 = await sdkLocator.findD8();
+    final d8 = await toolchain.findD8();
     final dexOutDir = p.join(ctx.buildDir, 'dex');
     // d8 appends part files (classes2.dex…) — stale parts from earlier runs
     // with different classpath sizes would otherwise accumulate into the APK.
@@ -298,7 +298,7 @@ Future<CompileDexOutcome> compileAndDex({
 /// packager. Returns dex files; proto output lands at `resources_proto.ap_`.
 Future<CompileDexOutcome> compileAndDexProto({
   required final BuildContext ctx,
-  required final SdkLocator sdkLocator,
+  required final ResolvedToolchain toolchain,
   required final String hostDir,
   required final String embeddingJar,
   required final List<String> androidxJarPaths,
@@ -312,8 +312,8 @@ Future<CompileDexOutcome> compileAndDexProto({
   final int? javaVersionOverride,
 }) async {
   try {
-    final aapt2 = await sdkLocator.findAapt2();
-    final androidSdk = await sdkLocator.findAndroidSdk();
+    final aapt2 = await toolchain.findAapt2();
+    final androidSdk = await toolchain.findAndroidSdk();
     final compileSdk = ctx.config.android.compileSdk.isEmpty
         ? '34'
         : ctx.config.android.compileSdk;
@@ -385,7 +385,7 @@ Future<CompileDexOutcome> compileAndDexProto({
     return await _compileJavaAndDex(
       ctx: ctx,
       javaVersionOverride: javaVersionOverride,
-      sdkLocator: sdkLocator,
+      toolchain: toolchain,
       hostDir: hostDir,
       embeddingJar: embeddingJar,
       androidxJarPaths: androidxJarPaths,
@@ -403,12 +403,12 @@ Future<CompileDexOutcome> compileAndDexProto({
 /// Shared javac/kotlinc/jar/d8 tail used by both APK and AAB compile paths.
 Future<CompileDexOutcome> _compileJavaAndDex({
   required final BuildContext ctx,
-  required final SdkLocator sdkLocator, required final String hostDir, required final String embeddingJar, required final List<String> androidxJarPaths, required final String androidJar, required final String genDir, final int? javaVersionOverride,
+  required final ResolvedToolchain toolchain, required final String hostDir, required final String embeddingJar, required final List<String> androidxJarPaths, required final String androidJar, required final String genDir, final int? javaVersionOverride,
   final List<String> pluginJavaSources = const [],
   final List<String> pluginKotlinSources = const [],
   final List<String> pluginJarDeps = const [],
 }) async {
-  final javac = await sdkLocator.findJavac();
+  final javac = await toolchain.findJavac();
   final classesDir = p.join(ctx.buildDir, 'classes');
   if (await Directory(classesDir).exists()) {
     await Directory(classesDir).delete(recursive: true);
@@ -433,7 +433,7 @@ Future<CompileDexOutcome> _compileJavaAndDex({
   final classpath = classpathEntries.join(cpSep);
 
   if (pluginKotlinSources.isNotEmpty) {
-    final kotlinc = await sdkLocator.findKotlinc();
+    final kotlinc = await toolchain.findKotlinc();
     if (kotlinc == null) {
       return CompileDexOutcome(
         ok: false,
@@ -496,7 +496,7 @@ Future<CompileDexOutcome> _compileJavaAndDex({
     );
   }
 
-  final d8 = await sdkLocator.findD8();
+  final d8 = await toolchain.findD8();
   final dexOutDir = p.join(ctx.buildDir, 'dex');
   // d8 appends part files (classes2.dex…) — stale parts from earlier runs
   // with different classpath sizes would otherwise accumulate into the APK.
@@ -559,7 +559,7 @@ Future<CompileDexOutcome> _compileJavaAndDex({
 /// Stage layout → zip → zipalign → apksigner. Returns signed APK path.
 Future<String> packageAndSign({
   required final BuildContext ctx,
-  required final SdkLocator sdkLocator,
+  required final ResolvedToolchain toolchain,
   required final List<String> dexFiles,
   required final String flutterAssetsDir,
   required final Map<String, String> libflutterByAbi,
@@ -593,8 +593,8 @@ Future<String> packageAndSign({
   await zipStagingToApk(staging, unsigned);
 
   // zipalign + apksigner
-  final zipalign = await sdkLocator.findZipalign();
-  final apksigner = await sdkLocator.findApksigner();
+  final zipalign = await toolchain.findZipalign();
+  final apksigner = await toolchain.findApksigner();
   final aligned = p.join(ctx.buildDir, 'app-${ctx.mode.name}-aligned.apk');
   final signed = p.join(ctx.buildDir, 'app-${ctx.mode.name}.apk');
 
@@ -862,7 +862,7 @@ Future<void> copyDirectory(final Directory source, final Directory dest) async {
 /// Stage `base/` module → zip → jarsigner (v1). Returns signed AAB path.
 Future<String> packageAndSignAab({
   required final BuildContext ctx,
-  required final SdkLocator sdkLocator,
+  required final ResolvedToolchain toolchain,
   required final List<String> dexFiles,
   required final String flutterAssetsDir,
   required final Map<String, String> libflutterByAbi,
@@ -915,7 +915,7 @@ Future<String> packageAndSignAab({
     );
   }
   final signed = p.join(bundleRoot, 'app-${ctx.mode.name}.aab');
-  final jarsigner = await _findJarsigner(sdkLocator);
+  final jarsigner = await _findJarsigner(toolchain);
   await signAab(
     unsignedAabPath: unsigned,
     keystorePath: ks,
@@ -932,9 +932,9 @@ Future<String> packageAndSignAab({
 }
 
 /// Locate jarsigner: next to javac first, then PATH.
-Future<String?> _findJarsigner(final SdkLocator sdkLocator) async {
+Future<String?> _findJarsigner(final ResolvedToolchain toolchain) async {
   try {
-    final javac = await sdkLocator.findJavac();
+    final javac = await toolchain.findJavac();
     final candidate = p.join(p.dirname(javac), 'jarsigner');
     if (await File(candidate).exists()) return candidate;
   } catch (_) {

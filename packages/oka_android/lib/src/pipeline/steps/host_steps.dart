@@ -12,7 +12,7 @@ import '../../build/host_codegen.dart';
 import '../../build/launcher_icon.dart';
 import '../../build/plugin_discovery.dart';
 import '../../build/plugin_packager.dart';
-import '../../build/sdk_locator.dart';
+import '../../build/toolchain.dart';
 import '../../build_cache.dart';
 import '../../manifest_spec.dart';
 import '../toolchain.dart' show copyDirectory;
@@ -23,16 +23,17 @@ import 'asset_steps.dart' show DeeplinkConfig;
 /// Preserves ADR-0001: never fall back to Gradle / `flutter build apk`.
 class EnsureAndroidSdkStep extends BuildStep {
 
-  EnsureAndroidSdkStep({final SdkLocator? sdkLocator})
-    : sdkLocator = sdkLocator ?? SdkLocator();
-  final SdkLocator sdkLocator;
+  EnsureAndroidSdkStep({this.toolchain});
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
   @override
   String get name => 'ensure-android-sdk';
 
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     try {
-      await sdkLocator.validatePackagingTools();
+      await (toolchain ?? state.resolvedToolchain ?? ResolvedToolchain())
+          .validatePackagingTools();
       return StepResult.success();
     } on Exception catch (e) {
       return StepResult.failure(
@@ -70,18 +71,18 @@ class ResolveAbisStep extends BuildStep {
 class PluginPackagingStep extends BuildStep {
 
   PluginPackagingStep({
-    final SdkLocator? sdkLocator,
+    this.toolchain,
     final PluginDiscovery? pluginDiscovery,
     final DependencyCache? dependencyCache,
     this.strictPlugins = true,
     this.excludePlugins = const [],
-  }) : sdkLocator = sdkLocator ?? SdkLocator(),
-       pluginDiscovery = pluginDiscovery ?? PluginDiscovery(),
+  }) : pluginDiscovery = pluginDiscovery ?? PluginDiscovery(),
        dependencyCache = dependencyCache ?? DependencyCache();
   @override
   Set<Artifact<Object>> get provides => {packagedPlugins, registrations};
 
-  final SdkLocator sdkLocator;
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
+  final ResolvedToolchain? toolchain;
   final PluginDiscovery pluginDiscovery;
   final DependencyCache dependencyCache;
   final bool strictPlugins;
@@ -204,7 +205,8 @@ class PluginPackagingStep extends BuildStep {
 
     final packager = PluginPackager(
       dependencyCache: dependencyCache,
-      sdkLocator: sdkLocator,
+      sdkLocator:
+          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       verbose: ctx.verbose,
     );
     final packaged = await packager.packageAll(

@@ -5,7 +5,7 @@ import 'build/engine_artifacts.dart';
 import 'build/host_codegen.dart';
 import 'build/plugin_discovery.dart';
 import 'build/plugin_packager.dart';
-import 'build/sdk_locator.dart';
+import 'build/toolchain.dart';
 import 'pipeline_overrides.dart';
 
 /// Typed accessors for Android build artifacts shared across steps
@@ -28,6 +28,10 @@ import 'pipeline_overrides.dart';
 /// step lists get fast-settings applied without threading constructors.
 const pipelineOverridesKey = 'pipeline_overrides';
 
+/// Key under which [AndroidPipeline.run] seeds the resolved toolchain
+/// (ADR-0013 T1): one shared, printable resolution policy for all steps.
+const resolvedToolchainKey = 'resolved_toolchain';
+
 /// The store keys match the ids of the artifact constants in
 /// `android_artifacts.dart`.
 extension AndroidPipelineState on PipelineState {
@@ -39,6 +43,15 @@ extension AndroidPipelineState on PipelineState {
 
   set pipelineOverrides(final PipelineOverrides? v) =>
       this[pipelineOverridesKey] = v;
+
+  /// Resolved toolchain (ADR-0013 T1): the ordered, printable resolution
+  /// policy injected by [AndroidPipeline.run]. Steps stop calling a
+  /// locator god-object and resolve tools through this instead.
+  ResolvedToolchain? get resolvedToolchain =>
+      this[resolvedToolchainKey] as ResolvedToolchain?;
+
+  set resolvedToolchain(final ResolvedToolchain? v) =>
+      this[resolvedToolchainKey] = v;
 
   /// Resolved ABIs for this build.
   List<String> get abis => _asList('abis');
@@ -141,10 +154,10 @@ extension AndroidPipelineState on PipelineState {
 /// Engine artifacts helper shared by engine-related steps.
 Future<EngineArtifacts> engineArtifacts(
   final BuildContext ctx,
-  final SdkLocator locator,
+  final ResolvedToolchain toolchain,
 ) async {
   final sdk = ctx.flutterSdkPath.isNotEmpty
       ? ctx.flutterSdkPath
-      : await locator.findFlutterSdk();
+      : await toolchain.findFlutterSdk();
   return EngineArtifacts(sdk, verbose: ctx.verbose);
 }

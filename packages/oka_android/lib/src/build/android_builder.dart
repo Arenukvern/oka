@@ -3,13 +3,13 @@ import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
-import 'sdk_locator.dart';
+import 'toolchain.dart';
 
 /// Android APK builder that orchestrates the build pipeline
 class AndroidBuilder {
 
-  AndroidBuilder(this._sdkLocator, {this._verbose = false});
-  final SdkLocator _sdkLocator;
+  AndroidBuilder(this._toolchain, {this._verbose = false});
+  final ResolvedToolchain _toolchain;
   final bool _verbose;
 
   /// Build APK from build context
@@ -21,7 +21,7 @@ class AndroidBuilder {
 
       // Validate tools
       print('Validating Android SDK tools...');
-      await _sdkLocator.validateTools();
+      await _toolchain.validateTools();
 
       // Create build directories
       await _createBuildDirectories(ctx);
@@ -86,8 +86,8 @@ class AndroidBuilder {
 
   /// Compile Android resources using aapt2
   Future<void> compileResources(final BuildContext ctx) async {
-    final aapt2 = await _sdkLocator.findAapt2();
-    final androidSdk = await _sdkLocator.findAndroidSdk();
+    final aapt2 = await _toolchain.findAapt2();
+    final androidSdk = await _toolchain.findAndroidSdk();
 
     final resDir =
         p.join(ctx.projectPath, 'android', 'app', 'src', 'main', 'res');
@@ -156,7 +156,7 @@ class AndroidBuilder {
   /// Compile Kotlin and Java sources
   Future<void> compileKotlin(final BuildContext ctx) async {
     // Resolve Java environment first
-    final javaEnvironment = await _sdkLocator.resolveJavaForKotlin(ctx);
+    final javaEnvironment = await _toolchain.resolveJavaForKotlin(ctx);
     final env = javaEnvironment ?? Platform.environment;
 
     if (javaEnvironment != null && _verbose) {
@@ -164,8 +164,8 @@ class AndroidBuilder {
       print('   JAVA_HOME: ${javaEnvironment['JAVA_HOME']}');
     }
 
-    final javac = await _sdkLocator.findJavac();
-    final kotlinc = await _sdkLocator.findKotlinc();
+    final javac = await _toolchain.findJavac();
+    final kotlinc = await _toolchain.findKotlinc();
 
     final srcDir =
         p.join(ctx.projectPath, 'android', 'app', 'src', 'main', 'java');
@@ -188,7 +188,7 @@ class AndroidBuilder {
     }
 
     // Get Android SDK jar
-    final androidSdk = await _sdkLocator.findAndroidSdk();
+    final androidSdk = await _toolchain.findAndroidSdk();
     final androidJar = p.join(
       androidSdk,
       'platforms',
@@ -197,11 +197,11 @@ class AndroidBuilder {
     );
 
     // Get Flutter and AndroidX JARs
-    final flutterJar = await _sdkLocator.findFlutterJar();
-    final androidxAnnotationJar = await _sdkLocator.findAndroidXAnnotations();
-    final androidxLifecycleJar = await _sdkLocator.findAndroidXLifecycle();
+    final flutterJar = await _toolchain.findFlutterJar();
+    final androidxAnnotationJar = await _toolchain.findAndroidXAnnotations();
+    final androidxLifecycleJar = await _toolchain.findAndroidXLifecycle();
     final androidxLifecycleRuntimeJar =
-        await _sdkLocator.findAndroidXLifecycleRuntime();
+        await _toolchain.findAndroidXLifecycleRuntime();
 
     // Build classpath with all required JARs
     final classpathSeparator = Platform.isWindows ? ';' : ':';
@@ -217,7 +217,7 @@ class AndroidBuilder {
     // Compile Kotlin files first if kotlinc is available
     if (kotlinc != null && kotlinFiles.isNotEmpty) {
       // Get Kotlin standard library for compilation
-      final kotlinStdlib = await _sdkLocator.findKotlinStdlib();
+      final kotlinStdlib = await _toolchain.findKotlinStdlib();
 
       // Build Kotlin-specific classpath with stdlib
       final kotlinClasspath = kotlinStdlib != null
@@ -356,12 +356,12 @@ class AndroidBuilder {
 
     // Collect all dependency JARs that need to be included in DEX
     // These are the same JARs used during compilation
-    final flutterJar = await _sdkLocator.findFlutterJar();
-    final androidxAnnotationJar = await _sdkLocator.findAndroidXAnnotations();
-    final androidxLifecycleJar = await _sdkLocator.findAndroidXLifecycle();
+    final flutterJar = await _toolchain.findFlutterJar();
+    final androidxAnnotationJar = await _toolchain.findAndroidXAnnotations();
+    final androidxLifecycleJar = await _toolchain.findAndroidXLifecycle();
     final androidxLifecycleRuntimeJar =
-        await _sdkLocator.findAndroidXLifecycleRuntime();
-    final kotlinStdlib = await _sdkLocator.findKotlinStdlib();
+        await _toolchain.findAndroidXLifecycleRuntime();
+    final kotlinStdlib = await _toolchain.findKotlinStdlib();
 
     // Build list of all JARs to include in DEX
     final inputJars = [
@@ -382,11 +382,11 @@ class AndroidBuilder {
 
     if (ctx.mode.isRelease) {
       // Try to use R8 for release builds with optimization
-      final r8 = await _sdkLocator.findR8();
+      final r8 = await _toolchain.findR8();
 
       if (r8 != null) {
         // Use R8 for optimized release builds
-        final androidSdk = await _sdkLocator.findAndroidSdk();
+        final androidSdk = await _toolchain.findAndroidSdk();
         final androidJar = p.join(
           androidSdk,
           'platforms',
@@ -419,7 +419,7 @@ class AndroidBuilder {
         print('⚠️  R8 not found, falling back to D8 (no optimization)');
         print('💡 Run "oka get r8" to install R8 for optimized builds');
 
-        final d8 = await _sdkLocator.findD8();
+        final d8 = await _toolchain.findD8();
 
         final d8Result = await Process.run(
           d8,
@@ -438,7 +438,7 @@ class AndroidBuilder {
       }
     } else {
       // Use D8 for debug builds (faster, no optimization)
-      final d8 = await _sdkLocator.findD8();
+      final d8 = await _toolchain.findD8();
 
       final d8Result = await Process.run(
         d8,
@@ -488,8 +488,8 @@ class AndroidBuilder {
 
   /// Sign APK with debug or release keystore
   Future<void> signApk(final BuildContext ctx) async {
-    final zipalign = await _sdkLocator.findZipalign();
-    final apksigner = await _sdkLocator.findApksigner();
+    final zipalign = await _toolchain.findZipalign();
+    final apksigner = await _toolchain.findApksigner();
 
     final unsignedApk =
         p.join(ctx.buildDir, 'app-${ctx.mode.name}-unsigned.apk');

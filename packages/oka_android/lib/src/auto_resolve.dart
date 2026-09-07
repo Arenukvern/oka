@@ -11,7 +11,7 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-import 'build/sdk_locator.dart';
+import 'build/toolchain.dart';
 
 /// Set when automatic tool installation should be suppressed.
 const noAutoInstallEnv = 'OKA_NO_AUTO_INSTALL';
@@ -25,7 +25,7 @@ bool get autoInstallEnabled =>
 /// (Logic relocated from the CLI `oka get kotlin` so builds can self-heal;
 /// the CLI command delegates here.)
 Future<bool> ensureKotlinc({final bool verbose = false}) async {
-  final existing = await SdkLocator().findKotlinc();
+  final existing = await ResolvedToolchain().findKotlinc();
   if (existing != null) return true;
   if (!autoInstallEnabled) {
     if (verbose) {
@@ -36,7 +36,7 @@ Future<bool> ensureKotlinc({final bool verbose = false}) async {
   print('🛠️  kotlinc not found — auto-installing (escape: $noAutoInstallEnv=1)');
   try {
     await installKotlinCompiler(verbose: verbose);
-    return await SdkLocator().findKotlinc() != null;
+    return await ResolvedToolchain().findKotlinc() != null;
   } on Exception catch (e) {
     print('⚠️  Kotlin auto-install failed: $e');
     print('   Run manually: oka get kotlin');
@@ -60,7 +60,7 @@ Future<void> _installKotlinCompiler({final bool verbose = false}) async {
   final kotlinDir = p.join(okaToolsDir, 'kotlin-$kotlinVersion');
 
   if (await Directory(kotlinDir).exists()) {
-    return; // downloaded but not on PATH; SdkLocator finds it there
+    return; // downloaded but not on PATH; ResolvedToolchain finds it there
   }
 
   const downloadUrl =
