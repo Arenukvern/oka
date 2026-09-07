@@ -7,6 +7,8 @@ import 'package:yaml/yaml.dart';
 import 'composition.dart';
 import 'config/build_context.dart';
 import 'config/oka_config.dart';
+import 'pipeline/pipeline.dart';
+import 'targets/target.dart';
 
 /// Entry-point options accepted by [okaRun] (forwarded by `oka build` when a
 /// project declares `pipeline.dart_entrypoint` in oka.yaml).
@@ -30,7 +32,14 @@ final _okaRunParser = ArgParser()
   // ADR-0010: print the fully merged config map (oka.yaml + typed Dart
   // config) as JSON and exit — used by tooling (e.g. `oka debug step`) to
   // materialize a hook project's config without running a build.
-  ..addFlag('print-config', negatable: false, hide: true);
+  ..addFlag('print-config', negatable: false, hide: true)
+  // ADR-0015: target dispatch. `oka run <target>` (and unknown-verb
+  // dispatch) delegate here: the target is resolved against [Oka.targets],
+  // its compiled steps validated, then run. `--oka-list-targets` prints the
+  // declared targets as JSON so the CLI can name them in errors without
+  // guessing.
+  ..addOption('oka-run-target', hide: true)
+  ..addFlag('oka-list-targets', negatable: false, hide: true);
 
 /// Runs a declarative [Oka] composition from a project hook entrypoint
 /// (ADR-0006: `oka build` delegates to `dart run <entrypoint>` which calls
@@ -62,6 +71,12 @@ final _okaRunParser = ArgParser()
 /// `--profile`, `--aab`, `--verify-aab`, `--platform`, `--flavor`, `--abi`,
 /// `--target`, `--dart-define`, `--dart-define-from-file`, and `--verbose`.
 ///
+/// Hidden dispatch flags (ADR-0015, used by `oka run <target>` and the
+/// unknown-verb dispatcher): `--oka-run-target <name>` resolves [name]
+/// against `Oka.targets`, validates its compiled steps, and runs them
+/// instead of the platform pipeline; `--oka-list-targets` prints the
+/// declared targets as a JSON array and exits.
+///
 /// Exits with a non-zero code and a diagnostic on failure.
 Future<void> okaRun(
   final List<String> args, {
@@ -74,7 +89,17 @@ Future<void> okaRun(
 
   final verbose = results['verbose'] as bool;
   final platform = results['platform'] as String;
-  final pipeline = _selectPipeline(oka, platform);
+
+  // ADR-0015: machine mode — report the declared targets and exit. Used by
+  // the CLI dispatcher to name available targets in unknown-verb errors.
+  if (results['oka-list-targets'] as bool) {
+    validateTargets(oka);
+    stdout.writeln(jsonEncode([
+      for (final t in oka.targets)
+        {'name': t.name, 'description': t.description},
+    ]));
+    return;
+  }
 
   final root = projectPath ?? Directory.current.path;
   final mode = results['release'] as bool
@@ -86,11 +111,23 @@ Future<void> okaRun(
   final buildDirMode = buildAab ? '${mode.name}-aab' : mode.name;
 
   final config = await loadOkaYaml(root);
-  // ADR-0010: typed Dart config (AndroidPipeline.config/flutterConfig) wins
-  // over oka.yaml; empty overrides leave yaml-only projects untouched.
+
+  // ADR-0015: requested target overrides the platform pipeline. Its config
+  // overrides deep-merge over oka.yaml with the same precedence as
+  // PlatformPipeline.configOverrides.
+  final Target? target;
+  final PlatformPipeline? pipeline;
+  final requestedTargetName = results['oka-run-target'] as String?;
+  if (requestedTargetName != null) {
+    target = _resolveTarget(oka, requestedTargetName);
+    pipeline = null;
+  } else {
+    target = null;
+    pipeline = _selectPipeline(oka, platform);
+  }
   final mergedMap = mergeConfigMaps(
     config.toJson(),
-    pipeline.configOverrides,
+    target?.configOverrides ?? pipeline!.configOverrides,
   );
   final mergedConfig = OkaConfig.fromJson(mergedMap);
 
@@ -124,7 +161,22 @@ Future<void> okaRun(
     targetOverride: (results['target'] as String?) ?? '',
   );
 
-  final result = await pipeline.run(ctx);
+  final StepResult result;
+  if (target != null) {
+    // ADR-0015: target pipelines go through the same composition-time
+    // artifact validation as platform builds — before any tool runs.
+    final targetPipeline = Pipeline(target.compile(ctx), verbose: verbose);
+    final validationError = targetPipeline.validate();
+    if (validationError != null) {
+      stderr.writeln(
+        '❌ target "${target.name}" pipeline is invalid: $validationError',
+      );
+      exit(1);
+    }
+    result = await targetPipeline.run(ctx);
+  } else {
+    result = await pipeline!.run(ctx);
+  }
   if (!result.ok) {
     stderr.writeln('❌ oka run failed: ${result.error}');
     exit(1);
@@ -190,6 +242,56 @@ PlatformPipeline _selectPipeline(final Oka oka, final String platform) {
     'No pipeline for platform "$platform". Declared: '
     '${oka.pipelines.map((final p) => p.platform).join(', ')}',
   );
+}
+
+/// Resolves [name] against [oka.targets] (ADR-0015).
+///
+/// Throws [TargetResolutionException] when [name] matches no declared
+/// target — the message lists the available targets, or explains that the
+/// composition root declares none.
+Target findTarget(final Oka oka, final String name) {
+  for (final t in oka.targets) {
+    if (t.name == name) return t;
+  }
+  if (oka.targets.isEmpty) {
+    throw TargetResolutionException(
+      'target "$name" not found: the composition root declares no targets.\n'
+      'Declare targets in the Oka composition root '
+      '(tool/oka_pipeline.dart): Oka(targets: [...]) — see ADR-0015.',
+    );
+  }
+  throw TargetResolutionException(
+    'target "$name" not found. Available targets: '
+    '${oka.targets.map((final t) => t.name).join(', ')}.',
+  );
+}
+
+/// Validates every declared target name: lowercase identifier, unique, and
+/// never shadowing a reserved core verb (ADR-0015). Throws
+/// [TargetResolutionException] naming the first violation.
+void validateTargets(final Oka oka) {
+  final seen = <String>{};
+  for (final t in oka.targets) {
+    final error = validateTargetName(t.name);
+    if (error != null) throw TargetResolutionException(error);
+    if (!seen.add(t.name)) {
+      throw TargetResolutionException(
+        'duplicate target name "${t.name}" — target names must be unique.',
+      );
+    }
+  }
+}
+
+/// Resolves and validates a requested target, exiting with a clean message
+/// on failure (used by `oka run <target>` dispatch).
+Target _resolveTarget(final Oka oka, final String name) {
+  try {
+    validateTargets(oka);
+    return findTarget(oka, name);
+  } on TargetResolutionException catch (e) {
+    stderr.writeln('❌ $e');
+    exit(1);
+  }
 }
 
 /// Loads and parses `oka.yaml` from [projectPath]. Missing file → [OkaConfig.empty].

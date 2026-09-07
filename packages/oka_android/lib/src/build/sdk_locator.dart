@@ -14,16 +14,23 @@ import 'java_environment.dart';
 ///
 /// Steps receive a configured locator via their constructors; the default
 /// pipeline wires one for all tool steps.
+///
+/// AndroidX JAR provisioning goes through the shared [ArtifactStore]
+/// (ADR-0013): legacy downloads under `~/.oka/cache/androidx` still resolve
+/// (read-only), new downloads land in the store (`OKA_CACHE`-pointable) and
+/// are automatic — never interactive, no stdin in the build path.
 class SdkLocator {
 
   SdkLocator({
     this._androidSdkPath,
     this._flutterSdkPath,
     this._verbose = false,
-  });
+    final ArtifactStore? store,
+  })  : _store = store ?? LocalArtifactStore();
   final String? _androidSdkPath;
   final String? _flutterSdkPath;
   final bool _verbose;
+  final ArtifactStore _store;
 
   /// Find Android SDK path
   Future<String> findAndroidSdk() async {
@@ -405,331 +412,150 @@ class SdkLocator {
   }
 
   /// Locate AndroidX annotation JAR
-  Future<String> findAndroidXAnnotations() async {
-    final home = Platform.environment['HOME'] ?? '';
-
-    // Check oka cache
-    final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
-    final cachedJar = p.join(okaCacheDir, 'annotation-jvm-1.9.1.jar');
-    if (await File(cachedJar).exists()) {
-      return cachedJar;
-    }
-
-    // Download from Google Maven
-    if (_promptUserForDownload('androidx.annotation:annotation')) {
-      print('📥 Downloading AndroidX annotation JAR from Google Maven...');
-      final downloadedPath = await _downloadAndroidXAnnotations('1.9.1');
-      print('✅ Downloaded to: $downloadedPath');
-      return downloadedPath;
-    }
-
-    throw Exception(
-      'AndroidX annotation JAR not found. Please ensure you have built a Flutter Android app at least once, '
-      'or manually download androidx.annotation:annotation from https://maven.google.com',
-    );
-  }
+  Future<String> findAndroidXAnnotations() => _androidXJar(
+        name: 'annotation-jvm',
+        version: '1.9.1',
+        legacyFileName: 'annotation-jvm-1.9.1.jar',
+        miss: (final tmpDir) => _downloadAndroidXJar(
+          url:
+              'https://maven.google.com/androidx/annotation/annotation-jvm/1.9.1/annotation-jvm-1.9.1.jar',
+          fileName: 'annotation-jvm-1.9.1.jar',
+          tmpDir: tmpDir,
+        ),
+      );
 
   /// Locate AndroidX lifecycle-common JAR
   ///
-  /// Downloads from Google Maven if not found in oka cache
-  Future<String> findAndroidXLifecycle() async {
-    final home = Platform.environment['HOME'] ?? '';
-
-    // Check oka cache
-    final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
-    final cachedJar = p.join(okaCacheDir, 'lifecycle-common-jvm-2.8.7.jar');
-    if (await File(cachedJar).exists()) {
-      return cachedJar;
-    }
-
-    // Download from Google Maven
-    if (_promptUserForDownload('androidx.lifecycle:lifecycle-common')) {
-      print(
-          '📥 Downloading AndroidX lifecycle-common JAR from Google Maven...');
-      final downloadedPath = await _downloadAndroidXLifecycle('2.8.7');
-      print('✅ Downloaded to: $downloadedPath');
-      return downloadedPath;
-    }
-
-    throw Exception(
-      'AndroidX lifecycle-common JAR not found. '
-      'Download from https://maven.google.com/androidx/lifecycle/lifecycle-common-jvm/',
-    );
-  }
+  /// Downloads from Google Maven through the artifact store when missing.
+  Future<String> findAndroidXLifecycle() => _androidXJar(
+        name: 'lifecycle-common-jvm',
+        version: '2.8.7',
+        legacyFileName: 'lifecycle-common-jvm-2.8.7.jar',
+        miss: (final tmpDir) => _downloadAndroidXJar(
+          url:
+              'https://maven.google.com/androidx/lifecycle/lifecycle-common-jvm/2.8.7/lifecycle-common-jvm-2.8.7.jar',
+          fileName: 'lifecycle-common-jvm-2.8.7.jar',
+          tmpDir: tmpDir,
+        ),
+      );
 
   /// Locate AndroidX lifecycle-runtime JAR
   ///
-  /// Downloads from Google Maven if not found in oka cache
-  Future<String> findAndroidXLifecycleRuntime() async {
+  /// Downloads the AAR from Google Maven through the artifact store and
+  /// extracts `classes.jar` from it (Android classes ship in AAR packaging).
+  Future<String> findAndroidXLifecycleRuntime() => _androidXJar(
+        name: 'lifecycle-runtime',
+        version: '2.8.7',
+        legacyFileName: 'lifecycle-runtime-2.8.7.jar',
+        miss: (final tmpDir) async {
+          const version = '2.8.7';
+          final aarFile = await _downloadAndroidXJar(
+            url:
+                'https://maven.google.com/androidx/lifecycle/lifecycle-runtime/2.8.7/lifecycle-runtime-2.8.7.aar',
+            fileName: 'lifecycle-runtime-$version.aar',
+            tmpDir: tmpDir,
+          );
+          print('   Extracting classes.jar from AAR...');
+          final extractResult = await Process.run(
+            'unzip',
+            ['-j', aarFile.path, 'classes.jar', '-d', tmpDir],
+          );
+          if (extractResult.exitCode != 0) {
+            throw Exception(
+                'Failed to extract classes.jar: ${extractResult.stderr}');
+          }
+          final jarFile = File(p.join(tmpDir, 'classes.jar'))
+              .rename(p.join(tmpDir, 'lifecycle-runtime-$version.jar'));
+          await aarFile.delete();
+          return jarFile;
+        },
+      );
+
+  /// Resolves an AndroidX JAR: legacy flat cache (`~/.oka/cache/androidx`)
+  /// is honored read-only, otherwise the artifact store fetches via [miss]
+  /// exactly once and stores under
+  /// `<storeRoot>/androidx/<name>/<version>-<hash>/<platform>/`.
+  Future<String> _androidXJar({
+    required final String name,
+    required final String version,
+    required final String legacyFileName,
+    required final Future<File> Function(String tmpDir) miss,
+  }) async {
     final home = Platform.environment['HOME'] ?? '';
 
-    // Check oka cache
-    final okaCacheDir = p.join(home, '.oka', 'cache', 'androidx');
-    final cachedJar = p.join(okaCacheDir, 'lifecycle-runtime-2.8.7.jar');
-    if (await File(cachedJar).exists()) {
-      return cachedJar;
-    }
-
-    // Download from Google Maven
-    if (_promptUserForDownload('androidx.lifecycle:lifecycle-runtime')) {
-      print(
-          '📥 Downloading AndroidX lifecycle-runtime JAR from Google Maven...');
-      final downloadedPath = await _downloadAndroidXLifecycleRuntime('2.8.7');
-      print('✅ Downloaded to: $downloadedPath');
-      return downloadedPath;
-    }
-
-    throw Exception(
-      'AndroidX lifecycle-runtime JAR not found. '
-      'Download from https://maven.google.com/androidx/lifecycle/lifecycle-runtime/',
+    // Legacy cache (pre-store layout) — read-only, still resolves.
+    final legacyJar = File(
+      p.join(home, '.oka', 'cache', 'androidx', legacyFileName),
     );
-  }
-
-  /// Prompt user for permission to download a package
-  bool _promptUserForDownload(final String packageName) {
-    stdout.write('\n⚠️  $packageName not found locally.\n'
-        '📦 Download from Google Maven? (y/n): ');
-    final response = stdin.readLineSync()?.trim().toLowerCase();
-    return response == 'y' || response == 'yes';
-  }
-
-  /// Download AndroidX annotation JAR from Google Maven repository
-  Future<String> _downloadAndroidXAnnotations(final String version) async {
-    final home = Platform.environment['HOME'] ?? '';
-    final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
-    await Directory(cacheDir).create(recursive: true);
-
-    final jarFileName = 'annotation-jvm-$version.jar';
-    final jarPath = p.join(cacheDir, jarFileName);
-
-    // If already exists, return it
-    if (await File(jarPath).exists()) {
-      return jarPath;
+    if (await legacyJar.exists()) {
+      return legacyJar.path;
     }
 
-    final url =
-        'https://maven.google.com/androidx/annotation/annotation-jvm/$version/$jarFileName';
-
-    print('   URL: $url');
-    print('   Target: $jarPath');
-
+    print('📥 Downloading AndroidX $name $version from Google Maven...');
+    final key = ContentKey.compute(
+      category: 'androidx',
+      name: name,
+      version: version,
+      inputs: ['google-maven:$name:$version'],
+    );
+    final tmp = await Directory.systemTemp.createTemp('oka_androidx_');
     try {
-      // Use curl to download with verbose output
-      final result = await Process.run(
-        'curl',
-        [
-          '-L', // Follow redirects
-          '-f', // Fail on HTTP errors
-          '-o',
-          jarPath,
-          '--progress-bar',
-          url,
-        ],
-        stdoutEncoding: null,
-        stderrEncoding: null,
-      );
-
-      if (result.exitCode != 0) {
-        final stderr = result.stderr != null
-            ? String.fromCharCodes(result.stderr as List<int>)
-            : 'Unknown error';
-        throw Exception(
-            'Download failed (exit code ${result.exitCode}): $stderr');
+      final stored = await _store.fetch(key, () => miss(tmp.path));
+      print('   File size: ${(await stored.length() / 1024).toStringAsFixed(2)} KB');
+      print('✅ Cached at: ${stored.path}');
+      return stored.path;
+    } finally {
+      try {
+        await tmp.delete(recursive: true);
+      } on FileSystemException {
+        // best-effort temp cleanup
       }
-
-      // Validate downloaded file
-      final jarFile = File(jarPath);
-      if (!await jarFile.exists()) {
-        throw Exception('Downloaded file not found at: $jarPath');
-      }
-
-      final fileSize = await jarFile.length();
-      print('   File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
-
-      if (fileSize < 1000) {
-        // JAR should be at least 1KB
-        await jarFile.delete();
-        throw Exception('Downloaded file is too small (possibly invalid)');
-      }
-
-      return jarPath;
-    } catch (e) {
-      // Clean up partial download
-      final jarFile = File(jarPath);
-      if (await jarFile.exists()) {
-        await jarFile.delete();
-      }
-      rethrow;
     }
   }
 
-  /// Download AndroidX lifecycle-common JAR from Google Maven repository
-  Future<String> _downloadAndroidXLifecycle(final String version) async {
-    final home = Platform.environment['HOME'] ?? '';
-    final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
-    await Directory(cacheDir).create(recursive: true);
-
-    final jarFileName = 'lifecycle-common-jvm-$version.jar';
-    final jarPath = p.join(cacheDir, jarFileName);
-
-    // If already exists, return it
-    if (await File(jarPath).exists()) {
-      return jarPath;
-    }
-
-    final url =
-        'https://maven.google.com/androidx/lifecycle/lifecycle-common-jvm/$version/$jarFileName';
-
+  /// Downloads [url] with curl into [tmpDir]/[fileName], validating the
+  /// payload is a real artifact (≥ 1 KB) — partial downloads are removed.
+  Future<File> _downloadAndroidXJar({
+    required final String url,
+    required final String fileName,
+    required final String tmpDir,
+  }) async {
+    final target = File(p.join(tmpDir, fileName));
     print('   URL: $url');
-    print('   Target: $jarPath');
+    print('   Target: ${target.path}');
 
-    try {
-      // Use curl to download with verbose output
-      final result = await Process.run(
-        'curl',
-        [
-          '-L', // Follow redirects
-          '-f', // Fail on HTTP errors
-          '-o',
-          jarPath,
-          '--progress-bar',
-          url,
-        ],
-        stdoutEncoding: null,
-        stderrEncoding: null,
-      );
+    final result = await Process.run(
+      'curl',
+      [
+        '-L', // Follow redirects
+        '-f', // Fail on HTTP errors
+        '-o',
+        target.path,
+        '--progress-bar',
+        url,
+      ],
+      stdoutEncoding: null,
+      stderrEncoding: null,
+    );
 
-      if (result.exitCode != 0) {
-        final stderr = result.stderr != null
-            ? String.fromCharCodes(result.stderr as List<int>)
-            : 'Unknown error';
-        throw Exception(
-            'Download failed (exit code ${result.exitCode}): $stderr');
-      }
-
-      // Validate downloaded file
-      final jarFile = File(jarPath);
-      if (!await jarFile.exists()) {
-        throw Exception('Downloaded file not found at: $jarPath');
-      }
-
-      final fileSize = await jarFile.length();
-      print('   File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
-
-      if (fileSize < 1000) {
-        // JAR should be at least 1KB
-        await jarFile.delete();
-        throw Exception('Downloaded file is too small (possibly invalid)');
-      }
-
-      return jarPath;
-    } catch (e) {
-      // Clean up partial download
-      final jarFile = File(jarPath);
-      if (await jarFile.exists()) {
-        await jarFile.delete();
-      }
-      rethrow;
-    }
-  }
-
-  /// Download AndroidX lifecycle-runtime JAR from Google Maven repository
-  ///
-  /// Downloads the AAR and extracts classes.jar from it since the Android
-  /// classes are packaged in AAR format, not as standalone JARs
-  Future<String> _downloadAndroidXLifecycleRuntime(final String version) async {
-    final home = Platform.environment['HOME'] ?? '';
-    final cacheDir = p.join(home, '.oka', 'cache', 'androidx');
-    await Directory(cacheDir).create(recursive: true);
-
-    final jarFileName = 'lifecycle-runtime-$version.jar';
-    final jarPath = p.join(cacheDir, jarFileName);
-
-    // If already exists, return it
-    if (await File(jarPath).exists()) {
-      return jarPath;
+    if (result.exitCode != 0) {
+      final stderr = result.stderr != null
+          ? String.fromCharCodes(result.stderr as List<int>)
+          : 'Unknown error';
+      throw Exception('Download failed (exit code ${result.exitCode}): $stderr');
     }
 
-    // Download AAR file
-    final aarFileName = 'lifecycle-runtime-$version.aar';
-    final aarPath = p.join(cacheDir, aarFileName);
-    final url =
-        'https://maven.google.com/androidx/lifecycle/lifecycle-runtime/$version/$aarFileName';
-
-    print('   URL: $url');
-    print('   Downloading AAR...');
-
-    try {
-      // Download AAR
-      final downloadResult = await Process.run(
-        'curl',
-        [
-          '-L', // Follow redirects
-          '-f', // Fail on HTTP errors
-          '-o',
-          aarPath,
-          '--progress-bar',
-          url,
-        ],
-        stdoutEncoding: null,
-        stderrEncoding: null,
-      );
-
-      if (downloadResult.exitCode != 0) {
-        final stderr = downloadResult.stderr != null
-            ? String.fromCharCodes(downloadResult.stderr as List<int>)
-            : 'Unknown error';
-        throw Exception(
-            'Download failed (exit code ${downloadResult.exitCode}): $stderr');
-      }
-
-      // Extract classes.jar from AAR (AAR is just a ZIP file)
-      print('   Extracting classes.jar from AAR...');
-      final extractResult = await Process.run(
-        'unzip',
-        ['-j', aarPath, 'classes.jar', '-d', cacheDir],
-      );
-
-      if (extractResult.exitCode != 0) {
-        throw Exception(
-            'Failed to extract classes.jar: ${extractResult.stderr}');
-      }
-
-      // Rename extracted classes.jar to our target name
-      final extractedJar = p.join(cacheDir, 'classes.jar');
-      await File(extractedJar).rename(jarPath);
-
-      // Clean up AAR file
-      await File(aarPath).delete();
-
-      // Validate extracted JAR
-      final jarFile = File(jarPath);
-      if (!await jarFile.exists()) {
-        throw Exception('Extracted JAR not found at: $jarPath');
-      }
-
-      final fileSize = await jarFile.length();
-      print('   File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
-
-      if (fileSize < 1000) {
-        // JAR should be at least 1KB
-        await jarFile.delete();
-        throw Exception('Extracted file is too small (possibly invalid)');
-      }
-
-      return jarPath;
-    } catch (e) {
-      // Clean up partial downloads
-      final jarFile = File(jarPath);
-      if (await jarFile.exists()) {
-        await jarFile.delete();
-      }
-      final aarFile = File(aarPath);
-      if (await aarFile.exists()) {
-        await aarFile.delete();
-      }
-      rethrow;
+    if (!await target.exists()) {
+      throw Exception('Downloaded file not found at: ${target.path}');
     }
+
+    final fileSize = await target.length();
+    if (fileSize < 1000) {
+      // JAR should be at least 1KB
+      await target.delete();
+      throw Exception('Downloaded file is too small (possibly invalid)');
+    }
+    return target;
   }
 
   /// Resolve Java environment for Kotlin compilation

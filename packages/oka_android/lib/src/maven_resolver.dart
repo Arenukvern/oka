@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
@@ -323,17 +324,25 @@ class MavenResolver {
     this.httpClient,
     this.allowNetwork = true,
     this.userRepos = const [],
-  }) : cacheRoot =
-           cacheRoot ??
-           p.join(
-             Platform.environment['HOME'] ??
-                 Platform.environment['USERPROFILE'] ??
-                 '.',
-             '.oka',
-             'cache',
-             'maven',
-           );
+  }) : cacheRoot = cacheRoot ?? defaultCacheRoot();
   final String cacheRoot;
+
+  /// Default cache root routes through the shared artifact store (ADR-0013):
+  /// `<storeRoot>/maven` where `<storeRoot>` honors `OKA_CACHE`. The legacy
+  /// root (`~/.oka/cache/maven`) keeps resolving when it exists and the
+  /// store copy does not — existing caches stay valid, nothing re-downloads.
+  static String defaultCacheRoot({
+    final Map<String, String>? environment,
+  }) {
+    final env = environment ?? Platform.environment;
+    final storeMaven =
+        p.join(LocalArtifactStore.defaultRoot(environment: env), 'maven');
+    if (Directory(storeMaven).existsSync()) return storeMaven;
+    final home = env['HOME'] ?? env['USERPROFILE'] ?? '.';
+    final legacy = p.join(home, '.oka', 'cache', 'maven');
+    if (Directory(legacy).existsSync()) return legacy;
+    return storeMaven;
+  }
   final bool verbose;
   final http.Client? httpClient;
 
@@ -398,6 +407,40 @@ class MavenResolver {
     });
   }
 
+  /// Registers a downloaded artifact into the shared artifact store (ADR-0013)
+  /// by writing a per-entry `oka_store.json` index next to it. The on-disk
+  /// Maven layout is unchanged (human-decodable, group/artifact/version);
+  /// the index makes it visible to `oka cache list/gc` and purgeable as a
+  /// store entry (the whole version directory — artifact, classes jar and
+  /// AAR payload — is the gc unit).
+  Future<void> _registerStoreEntry(
+    final String artifactPath,
+    final MavenCoordinate coord,
+    final List<int> bytes,
+  ) async {
+    try {
+      final artifact = File(artifactPath);
+      await File(
+        p.join(p.dirname(artifactPath), LocalArtifactStore.indexFileName),
+      ).writeAsString(
+        const JsonEncoder.withIndent('  ').convert({
+          'category': 'maven',
+          'name': '${coord.groupId}:${coord.artifactId}',
+          'version': coord.version,
+          'hash': sha256.convert(bytes).toString(),
+          'platform': 'jvm',
+          'file': p.basename(artifactPath),
+          'size_bytes': await artifact.length(),
+          'created': DateTime.now().toUtc().toIso8601String(),
+          'source': 'maven-resolver',
+        }),
+        flush: true,
+      );
+    } on FileSystemException {
+      // Index registration is best-effort — never fail a resolve over it.
+    }
+  }
+
   Future<ResolvedJar> _resolveUncached(
     final MavenCoordinate coord,
     final List<int>? fixtureBytes,
@@ -458,6 +501,7 @@ class MavenResolver {
     final artifactPath = localPathFor(working);
     await File(artifactPath).parent.create(recursive: true);
     await File(artifactPath).writeAsBytes(bytes, flush: true);
+    await _registerStoreEntry(artifactPath, working, bytes);
 
     final outJar = jarPathFor(working);
     if (working.packaging == 'aar') {

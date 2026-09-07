@@ -7,6 +7,7 @@ library;
 
 import 'dart:io';
 
+import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -34,7 +35,7 @@ Future<bool> ensureKotlinc({final bool verbose = false}) async {
   }
   print('🛠️  kotlinc not found — auto-installing (escape: $noAutoInstallEnv=1)');
   try {
-    await _installKotlinCompiler(verbose: verbose);
+    await installKotlinCompiler(verbose: verbose);
     return await SdkLocator().findKotlinc() != null;
   } on Exception catch (e) {
     print('⚠️  Kotlin auto-install failed: $e');
@@ -43,15 +44,20 @@ Future<bool> ensureKotlinc({final bool verbose = false}) async {
   }
 }
 
+/// Installs the Kotlin compiler under `~/.oka/tools` (ADR-0007 shared
+/// installer used by both the build self-heal and `oka get kotlin`).
+Future<void> installKotlinCompiler({final bool verbose = false}) =>
+    _installKotlinCompiler(verbose: verbose);
+
 Future<void> _installKotlinCompiler({final bool verbose = false}) async {
   final homeDir =
       Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
   if (homeDir.isEmpty) throw Exception('Could not determine home directory');
 
   const kotlinVersion = '2.1.0';
-  final okaCacheDir = p.join(homeDir, '.oka', 'tools');
-  await Directory(okaCacheDir).create(recursive: true);
-  final kotlinDir = p.join(okaCacheDir, 'kotlin-$kotlinVersion');
+  final okaToolsDir = p.join(homeDir, '.oka', 'tools');
+  await Directory(okaToolsDir).create(recursive: true);
+  final kotlinDir = p.join(okaToolsDir, 'kotlin-$kotlinVersion');
 
   if (await Directory(kotlinDir).exists()) {
     return; // downloaded but not on PATH; SdkLocator finds it there
@@ -59,32 +65,48 @@ Future<void> _installKotlinCompiler({final bool verbose = false}) async {
 
   const downloadUrl =
       'https://github.com/JetBrains/kotlin/releases/download/v$kotlinVersion/kotlin-compiler-$kotlinVersion.zip';
-  final tempFile = p.join(okaCacheDir, 'kotlin-compiler.zip');
-  final download = await Process.run('curl', [
-    '-L',
-    '-o',
-    tempFile,
-    downloadUrl,
-  ], runInShell: true);
-  if (download.exitCode != 0) {
-    throw Exception('Failed to download Kotlin: ${download.stderr}');
-  }
 
+  // Provision the compiler zip through the shared artifact store
+  // (ADR-0013) so `oka cache list/gc` sees it and OKA_CACHE can share it.
+  final store = LocalArtifactStore();
+  final zipFile = await store.fetch(
+    ContentKey.compute(
+      category: 'kotlin-compiler',
+      name: 'kotlin-compiler',
+      version: kotlinVersion,
+      inputs: const [downloadUrl],
+    ),
+    () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_kotlin_');
+      final tempFile = p.join(tmp.path, 'kotlin-compiler.zip');
+      final download = await Process.run('curl', [
+        '-L',
+        '-o',
+        tempFile,
+        downloadUrl,
+      ], runInShell: true);
+      if (download.exitCode != 0) {
+        throw Exception('Failed to download Kotlin: ${download.stderr}');
+      }
+      return File(tempFile);
+    },
+  );
+
+  print('📦 Extracting Kotlin compiler from ${zipFile.path}...');
   final extract = await Process.run('unzip', [
     '-q',
-    tempFile,
+    zipFile.path,
     '-d',
-    okaCacheDir,
+    okaToolsDir,
   ], runInShell: true);
   if (extract.exitCode != 0) {
     throw Exception('Failed to extract Kotlin: ${extract.stderr}');
   }
 
-  final extractedDir = p.join(okaCacheDir, 'kotlinc');
+  final extractedDir = p.join(okaToolsDir, 'kotlinc');
   if (await Directory(extractedDir).exists()) {
     await Directory(extractedDir).rename(kotlinDir);
   }
-  await File(tempFile).delete();
 
   if (!Platform.isWindows) {
     await Process.run('chmod', ['+x', p.join(kotlinDir, 'bin', 'kotlinc')]);

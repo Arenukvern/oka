@@ -1,5 +1,6 @@
 import 'config/build_context.dart';
 import 'pipeline/pipeline.dart';
+import 'targets/target.dart';
 
 /// The declarative composition root for an oka build (ADR-0006).
 ///
@@ -27,11 +28,19 @@ import 'pipeline/pipeline.dart';
 /// * [okaRun], which performs the boilerplate around this composition.
 /// * `AndroidPipeline` (oka_android), the default Android [PlatformPipeline].
 class Oka {
-  const Oka({required this.pipelines});
+  const Oka({required this.pipelines, this.targets = const []});
 
   /// Platform pipelines to compose. One is selected per build target by
   /// matching [PlatformPipeline.platform] against `--platform`.
   final List<PlatformPipeline> pipelines;
+
+  /// Project-declared targets (ADR-0015), dispatched via `oka run <target>`
+  /// (or a bare `oka <target>` — unknown verbs dispatch to targets). Each
+  /// [Target] compiles to a validated step list, so targets get the same
+  /// composition-time artifact validation as pipelines. Names are validated
+  /// at dispatch: lowercase identifiers, unique, never shadowing a reserved
+  /// core verb (`init`, `build`, `run`, ...).
+  final List<Target> targets;
 }
 
 /// A platform-specific pipeline (e.g. `AndroidPipeline` from oka_android).

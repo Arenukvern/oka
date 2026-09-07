@@ -362,54 +362,11 @@ class GetCommand {
         return;
       }
 
-      // Download Kotlin
+      // Download + extract through the shared installer (ADR-0013: the
+      // compiler zip is provisioned via the artifact store).
       print('📥 Downloading Kotlin $kotlinVersion...');
       print('   This may take a few minutes...\n');
-
-      const downloadUrl =
-          'https://github.com/JetBrains/kotlin/releases/download/v$kotlinVersion/kotlin-compiler-$kotlinVersion.zip';
-
-      // Download using curl
-      final tempFile = p.join(okaCacheDir, 'kotlin-compiler.zip');
-      final downloadResult = await Process.run('curl', [
-        '-L',
-        '-o',
-        tempFile,
-        downloadUrl,
-      ], runInShell: true);
-
-      if (downloadResult.exitCode != 0) {
-        throw Exception('Failed to download Kotlin: ${downloadResult.stderr}');
-      }
-
-      print('📦 Extracting Kotlin compiler...');
-
-      // Extract using unzip
-      final extractResult = await Process.run('unzip', [
-        '-q',
-        tempFile,
-        '-d',
-        okaCacheDir,
-      ], runInShell: true);
-
-      if (extractResult.exitCode != 0) {
-        throw Exception('Failed to extract Kotlin: ${extractResult.stderr}');
-      }
-
-      // Rename extracted directory to include version
-      final extractedDir = p.join(okaCacheDir, 'kotlinc');
-      if (await Directory(extractedDir).exists()) {
-        await Directory(extractedDir).rename(kotlinDir);
-      }
-
-      // Clean up temp file
-      await File(tempFile).delete();
-
-      // Make kotlinc executable
-      if (!Platform.isWindows) {
-        final kotlincPath = p.join(kotlinDir, 'bin', 'kotlinc');
-        await Process.run('chmod', ['+x', kotlincPath]);
-      }
+      await installKotlinCompiler();
 
       print('✅ Kotlin compiler installed successfully!');
       print('   Location: $kotlinDir');

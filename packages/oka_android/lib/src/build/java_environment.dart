@@ -93,7 +93,7 @@ class JavaEnvironment {
     }
 
     // Try to find/install compatible Java version
-    var versionManager = await VersionManager.detectBestVersionManager();
+    final versionManager = await VersionManager.detectBestVersionManager();
 
     if (versionManager == null) {
       print('');
@@ -101,31 +101,13 @@ class JavaEnvironment {
       print('   Cannot automatically switch Java versions');
       print('');
 
-      // Offer to install SDKMAN! on Unix systems
+      // Offer to install SDKMAN! on Unix systems — never interactively:
+      // no stdin in any build path (ADR-0007/0013). Name the fix instead.
       if (!Platform.isWindows) {
-        if (_promptUserForSDKMANInstall()) {
-          final installed = await VersionManager.installSDKMAN();
-
-          if (installed) {
-            // Re-detect version managers after installation
-            versionManager = await VersionManager.detectBestVersionManager();
-
-            if (versionManager == null) {
-              print('');
-              print('⚠️  SDKMAN! installed but not detected');
-              print('   Please restart your terminal and try again');
-              print('');
-              return null;
-            }
-            // Continue with the newly installed version manager
-          } else {
-            _printManualInstructions(effectiveRequiredVersion!);
-            return null;
-          }
-        } else {
-          _printManualInstructions(effectiveRequiredVersion!);
-          return null;
-        }
+        print('💡 Install SDKMAN! (https://sdkman.io) to let oka switch '
+            'Java versions automatically, or install the required JDK manually.');
+        _printManualInstructions(effectiveRequiredVersion!);
+        return null;
       } else {
         _printManualInstructions(effectiveRequiredVersion!);
         return null;
@@ -280,13 +262,6 @@ class JavaEnvironment {
     }
 
     return env;
-  }
-
-  /// Prompt user to install SDKMAN!
-  bool _promptUserForSDKMANInstall() {
-    stdout.write('\n💡 Would you like to install SDKMAN! now? (y/n): ');
-    final response = stdin.readLineSync()?.trim().toLowerCase();
-    return response == 'y' || response == 'yes';
   }
 
   /// Print manual installation instructions

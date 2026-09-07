@@ -9,13 +9,20 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
 
 ## Open
 
-- [ ] **C0 — `Target` contract + `oka run` dispatcher (ADR-0015).**
+- [x] **C0 — `Target` contract + `oka run` dispatcher (ADR-0015).**
       Typed, const-constructible `Target` (compiles to `Pipeline`) in
       `oka_core`; `Oka(targets: [...])` in the composition root; `oka run
       <target>` dispatch (core verbs reserved, targets cannot shadow);
       unknown-verb errors name available targets; snapshot cache keyed on
       entrypoint content hash. Tests: dispatch, collision rejection,
       target→pipeline validation via existing artifact checker.
+      Done. Evidence: `test/adr0015_target_dispatch_test.dart` (18 tests:
+      dispatch, collision/validation, unknown-verb listing, no-entrypoint);
+      `packages/oka_core/lib/src/targets/target.dart`,
+      `lib/src/cli/run_command.dart`. Deferred (latency only, not a
+      correctness gate): snapshot-cached entrypoint evaluation keyed on
+      content hash — current dispatch shells out to `dart run` like `oka
+      build` already does.
 - [ ] **C1 — Fold platform leakage behind the boundary (ADR-0015).**
       `oka launch` → alias of `oka run device` (`DeviceTarget` shipped by
       `oka_android`); `oka get` nouns route through ADR-0013 tool
@@ -26,13 +33,25 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       listed with their step chains via the validated-plan surface;
       `oka --help` stays static (core verbs + pointer). Evidence: explain
       output for a project declaring a custom target.
-- [ ] **T0 — ArtifactStore contract + cache unification (ADR-0013).**
+- [x] **T0 — ArtifactStore contract + cache unification (ADR-0013).**
       `ArtifactStore`/`ContentKey` in `oka_core`; plain-directory
       `LocalArtifactStore` with human-decodable layout; unify
       `~/.oka/cache/androidx`, `~/.oka/tools`, and dependency caches behind
       it; `oka cache list/gc/why` as interface views. Inputs shared,
       outputs per-project. Tests: key-function + store round-trip; cache
       listing evidence.
+      Done. Evidence: `packages/oka_core/lib/src/store/artifact_store.dart`
+      (`ContentKey`, `ArtifactStore`, `LocalArtifactStore` — layout
+      `<root>/<category>/<name>/<version>-<hash12>/<platform>/` + per-entry
+      `oka_store.json`, `OKA_CACHE`-pointable root); AndroidX + Kotlin
+      provisioning through the store (`sdk_locator.dart`,
+      `auto_resolve.dart`), legacy flat caches still resolve read-only;
+      Maven resolver registers entries into the store index
+      (`maven_resolver.dart`); `lib/src/cli/cache_command.dart` (`oka cache
+      list/gc/why` — `bin/oka.dart` wiring pending, see file header);
+      `test/artifact_store_test.dart` (22 tests). `dart analyze` clean,
+      `dart test` 245 passing. Stdin prompts removed from AndroidX
+      download and SDKMAN paths.
 - [ ] **T1 — Toolchain resolution as data (ADR-0013).** `Toolchain`/
       `ToolProvider` contract; dissolve `SdkLocator` into an ordered,
       printable resolution policy injected as a `ResolvedToolchain`
