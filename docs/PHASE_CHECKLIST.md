@@ -161,15 +161,111 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       incl. negative cases). `dart analyze` clean; `dart test` 390
       passing (338 pre-existing + 52 new). Shared-suite extraction stays
       P1 (per ADR-0014 phased plan).
-- [ ] **P1 — `oka_play` target package (ADR-0014).** Play Publisher API
-      upload steps (service-account JSON by path; AAB → internal track);
-      `PublishTarget` conformance suite extracted as a shared package for
-      P2+. Evidence: dry-run against a fake endpoint; real upload gated on
-      maintainer credentials.
-- [ ] **P2 — `oka_huawei` target package (ADR-0014).** AppGallery Connect
+- [x] **P1 — `oka_play` target package (ADR-0014).** `PlayPublishTarget`
+      in `packages/oka_play` (`extends PublishTarget`; `publish-play`,
+      dry-run-by-default; compiles to `stage-aab` → `publish-plan` under
+      dry-run, `stage-aab` → `play-upload` real; `PlayTrack` typed config
+      with `internal` default, staged-rollout `userFraction`,
+      `releaseName`; metadata flows into the plan). Upload tail:
+      `play_upload_step.dart` — AAB by `Artifact<String>('aab-path')`,
+      service-account JSON by *path* via the P0 `CredentialResolver`
+      (typed-config path → `OKA_PLAY_SERVICE_ACCOUNT_JSON` env →
+      well-known location; injected-env testable), shape-checked by field
+      name only (`play_credentials.dart`), JWT (RS256) → OAuth token
+      exchange via googleapis_auth over an injectable base client, then
+      the androidpublisher/v3 Edits flow (`play_publisher_client.dart`:
+      create edit → upload AAB → assign track → commit) over an injectable
+      `http.Client`; failures are `StepResult.failure` naming status +
+      remediation, never credential values. Shared suite extracted as
+      `packages/oka_conformance` (`expectPublishConformance` re-exported
+      from oka_core — the oka_core contract is untouched; plus
+      `expectPlanShape`/`expectPlanDescribes` plan-shape assertions,
+      `expectNoSecretMaterial`/`expectStateRedacted` redaction assertions,
+      and the scripted offline `FakeHttpTransport` that throws on
+      unexpected requests — the `universal_storage_conformance` pattern;
+      usable as-is by P2+ targets). CLI untouched (targets are
+      project-declared — the ADR-0015 payoff). Tests: `test/`
+      `play_conformance_test.dart` (full ADR-0014 suite over
+      `PlayPublishTarget` incl. no-stdin scan of `lib/src`, zero-HTTP
+      dry-run via `assertNoRequests`, plan shape, redaction, credential
+      policy with injected env incl. hard-fail on configured-but-missing
+      path), `play_upload_flow_test.dart` (token exchange + full Edits
+      flow against the fake transport — exact ordered request URLs, JWT
+      bearer-grant + RS256 header + `iss`/`scope`/`aud` claims, AAB bytes
+      verbatim, track release body incl. `inProgress`+fraction rollout,
+      failure paths: missing AAB / empty packageName / unresolvable
+      credential / malformed service-account / API 403 — all offline, no
+      network). Done. Evidence: dry-run plan
+      (`dart run` over `PlayPublishTarget()`):
+      `target: publish-play (dry run — nothing was uploaded)` /
+      `endpoint: Google Play Publisher API (androidpublisher/v3)` /
+      `track: internal` / `artifact: aab-path → …/app-release.aab` /
+      `metadata.packageName: dev.example.app` /
+      `credential: CredentialRef(play/service-account-json →
+      [redacted])`. Real upload gated on maintainer credentials (the
+      synthetic test key in `test/synthetic_credentials.dart` is generated
+      fixture material, labeled as such, and guards nothing). `dart
+      analyze` clean (root + both new packages); `dart test` 390 passing
+      at root (unchanged), 27 in `oka_play`, 11 in `oka_conformance`.
+- [x] **P2 — `oka_huawei` target package (ADR-0014).** AppGallery Connect
       upload + GMS-exclusion build variant composed via `AndroidBuild`
       (artifact validator must catch GMS-dependent steps in the excluded
-      composition). Evidence: dry-run + composition-validation tests.
+      composition). Done. Evidence:
+      `packages/oka_huawei/lib/src/` (`huawei_publish_target.dart`:
+      `HuaweiPublishTarget extends PublishTarget` — `publish-huawei`,
+      dry-run default; compiles to `huawei-stage-aab` → `publish-plan`
+      under dry-run, `huawei-stage-aab` → `agc-publish` real; composes
+      `HuaweiBuildVariant`; `agc_publish_step.dart`:
+      `HuaweiStageAabStep` (pure path resolution, no existence check — the
+      real tail enforces it) + `AgcPublishStep` (AGC token fetch →
+      upload-url → PUT artifact → submit, credential file resolved by path
+      via the P0 `CredentialResolver`, secrets never leave step-local
+      scope); `agc_api.dart`: `AgcClient` over an injectable `http.Client`
+      (`AgcEndpoints` default
+      `https://connect-api.cloud.huawei.com`), redacting `AgcToken` /
+      `AgcCredentials`, `AgcApiException` naming status + ret.code — never
+      bodies/credentials; `agc_credentials.dart`;
+      `huawei_release_config.dart`: typed track / staged-rollout /
+      release-note file paths; `gms_variant.dart`: `HuaweiBuildVariant` —
+      `extraDeps` filtered through `isGmsCoordinate` (oka_android seam),
+      `excludedGmsDeps` inspectable). **Additive seam in oka_android**
+      (justification: declaring GMS-dependency artifacts required typed ids
+      no existing file provides; no existing behavior modified):
+      `packages/oka_android/lib/src/gms_artifacts.dart` — `gms-dep:<coordinate>`
+      version-free artifact ids, `isGmsCoordinate` / `splitGmsDependencies`
+      (GMS group prefixes as data), `GmsDependencyProviderStep` (declares +
+      existence-checks resolved GMS jars; absent in GMS-excluded variants).
+      **Composition-validation demonstration:** a step requiring
+      `gmsDependencyArtifact('com.android.billingclient:billing-ktx')` in a
+      GMS-excluded composition fails `Pipeline.validate()` /
+      `describeTarget(...).isValid` naming
+      `gms-dep:com.android.billingclient:billing-ktx` and the step —
+      **before any tool runs** (the test's step records execution and
+      asserts it never happened); positive control: with
+      `GmsDependencyProviderStep` present the same step validates and runs.
+      Tests: `packages/oka_huawei/test/huawei_conformance_test.dart` (the
+      three ADR-0014 laws via the P1 shared suite
+      `oka_conformance`/`expectPublishConformance` + plan-shape and
+      redaction assertions + zero-HTTP proof),
+      `test/agc_flow_test.dart` (token → upload-url → PUT → submit against
+      the scripted `FakeHttpTransport`, byte-exact upload, ordered requests,
+      failure paths: missing artifact / missing credential file with
+      tried-candidates + fix / malformed credentials / HTTP 401 / ret.code
+      ≠ 0 / missing release-note file — every error asserted free of secret
+      material), `test/gms_composition_test.dart` (classification, variant
+      filtering, the validator rejection + positive control);
+      `packages/oka_android/test/gms_artifacts_test.dart` (seam unit tests).
+      `dart analyze` clean for oka_huawei/oka_android (remaining analyze
+      infos in packages/oka_play belong to P1, in flight); root `dart test`
+      390 passing (unchanged); `packages/oka_huawei` 31 passing,
+      `packages/oka_android` 11 passing. Sample dry-run plan
+      (`plan.describeLines()`): `target: publish-huawei (dry run — nothing
+      was uploaded)` / `endpoint: AppGallery Connect Publishing API
+      (https://connect-api.cloud.huawei.com)` / `track: beta` / `artifact:
+      aab-path → <buildDir>/app-release.aab` / `metadata.appId: 110012345`
+      / `credential: CredentialRef(huawei/agconnect-credentials →
+      [redacted])`. Real uploads against production AGC remain gated on
+      maintainer credentials.
 - [ ] **H0 — Hot-reload prerequisite audit (ADR-0011).** Prove the oka-built
       debug APK is hot-reload-capable (kernel_blob.bin, VM service reachable,
       attach probe) and record evidence in

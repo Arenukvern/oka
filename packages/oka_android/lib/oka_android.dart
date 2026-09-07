@@ -117,6 +117,9 @@ export 'src/dev/device_provisioning.dart';
 export 'src/dev/device_target.dart';
 export 'src/dev/dex_probe.dart';
 
+// GMS-dependency artifact seam (ADR-0013 two-axis law; additive for P2).
+export 'src/gms_artifacts.dart';
+
 // Platform pipeline + specs.
 export 'src/manifest_spec.dart';
 export 'src/maven_resolver.dart';

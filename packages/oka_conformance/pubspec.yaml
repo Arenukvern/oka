@@ -1,0 +1,31 @@
+name: oka_conformance
+description: >-
+  Shared publish-target conformance suite for oka (ADR-0014): the three
+  publishing laws (dry-run without credentials, no stdin, no secret values
+  in state) as a reusable test harness, plus redaction and plan-shape
+  assertion helpers and a scripted fake HTTP transport for offline tests.
+version: 0.1.6
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_conformance
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - build-system
+  - cli
+  - testing
+  - conformance
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  http: ^1.2.1
+  meta: ^1.14.0
+  oka_core: ^0.1.6
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.25.0
+  xsoulspace_lints: ^0.1.2

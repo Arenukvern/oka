@@ -30,5 +30,7 @@ dependencies:
   yaml: ^3.1.2
 
 dev_dependencies:
+  # Tests for the additive GMS-dependency artifact seam (ADR-0014 P2).
   lints: ^6.1.0
+  test: ^1.25.0
   xsoulspace_lints: ^0.1.2
