@@ -8,6 +8,7 @@ import 'composition.dart';
 import 'config/build_context.dart';
 import 'config/oka_config.dart';
 import 'pipeline/pipeline.dart';
+import 'publish/publish_target.dart';
 import 'targets/describe.dart';
 import 'targets/target.dart';
 
@@ -196,7 +197,22 @@ Future<void> okaRun(
       );
       exit(1);
     }
-    result = await targetPipeline.run(ctx);
+    // The state handle survives the run: publish targets put their
+    // ADR-0014 dry-run plan into it (PublishPlanStep.plan), read below.
+    final targetState = PipelineState();
+    result = await targetPipeline.run(ctx, initialState: targetState);
+    // ADR-0014 dry-run law: a successful dry-run publish dispatch MUST
+    // print the plan — exactly what a real run would do. (There is no
+    // machine-readable output flag for explain/dispatch output today, so
+    // this is a plain human/agent-readable print; add JSON here when one
+    // exists.) Platform build dispatch (`oka build`) is unchanged.
+    final plan = targetState[PublishPlanStep.plan.id];
+    if (result.ok && plan is PublishPlan) {
+      stdout.writeln('📋 Publish plan for "${target.name}":');
+      for (final line in plan.describeLines()) {
+        stdout.writeln('  $line');
+      }
+    }
   } else {
     result = await pipeline!.run(ctx);
   }

@@ -50,6 +50,7 @@ class HuaweiPublishTarget extends PublishTarget {
     this.credentialPath,
     this.endpoints = const AgcEndpoints(),
     this.httpFactory,
+    this.artifactPath,
   });
 
   /// Dry-run is the default: publishing targets plan unless explicitly
@@ -73,6 +74,11 @@ class HuaweiPublishTarget extends PublishTarget {
   /// HTTP transport factory (tests inject a fake; production defaults to a
   /// real [http.Client] inside the upload step).
   final http.Client Function()? httpFactory;
+
+  /// Explicit publish-artifact path override (typed config, ADR-0014).
+  /// Highest precedence in [HuaweiStageAabStep]; null → the staged path
+  /// resolves from the pipeline state or oka's default AAB output layout.
+  final String? artifactPath;
 
   /// The redacting credential reference (path only, never values).
   static const agconnectCredentials = CredentialRef(
@@ -106,7 +112,7 @@ class HuaweiPublishTarget extends PublishTarget {
 
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) => [
-        HuaweiStageAabStep(),
+        HuaweiStageAabStep(artifactPath: artifactPath),
       ];
 
   @override

@@ -9,9 +9,9 @@ import 'agc_credentials.dart';
 import 'huawei_release_config.dart';
 
 /// Stages the publish artifact for the Huawei upload tail: resolves the
-/// AAB path (an upstream step may provide `aab-path` — otherwise the
-/// default build-dir location) and provides it under the target's
-/// [artifactId].
+/// AAB path (typed [artifactPath] override → an upstream `aab-path` → the
+/// Android build's shared `apk_path` slot → the default oka AAB output
+/// location) and provides it under the target's [artifactId].
 ///
 /// Pure with respect to the filesystem: it never checks existence — the
 /// dry-run law requires the stage to run with an empty state and no
@@ -19,10 +19,13 @@ import 'huawei_release_config.dart';
 /// The real upload step ([AgcPublishStep]) enforces existence before any
 /// HTTP call and fails naming the path.
 class HuaweiStageAabStep extends BuildStep {
-  HuaweiStageAabStep();
+  HuaweiStageAabStep({this.artifactPath});
 
   /// The staged AAB path (consumed by the plan step and the upload tail).
   static const aabPath = Artifact<String>('aab-path');
+
+  /// Typed-config path override (null → state / default layout).
+  final String? artifactPath;
 
   @override
   String get name => 'huawei-stage-aab';
@@ -32,16 +35,27 @@ class HuaweiStageAabStep extends BuildStep {
 
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
-    final existing = state[aabPath.id];
-    if (existing is String && existing.isNotEmpty) {
-      // Composed after a platform build that already staged the AAB.
-      return StepResult.success({'aab-path': existing});
-    }
-    final staged = '${ctx.buildDir}${ctx.buildDir.endsWith('/') ? '' : '/'}'
-        'app-release.aab';
-    state[aabPath.id] = staged;
-    return StepResult.success({'aab-path': staged});
+    final path = artifactPath ?? _resolveStaged(ctx, state);
+    if (path.isNotEmpty) state[aabPath.id] = path;
+    return StepResult.success({'aab-path': path});
   }
+
+  /// State resolution (typed override already handled): an upstream
+  /// `aab-path` wins over the Android build's shared `apk_path` slot;
+  /// the fallback is oka's real AAB output path.
+  String _resolveStaged(final BuildContext ctx, final PipelineState state) {
+    final existing = state[aabPath.id];
+    if (existing is String && existing.isNotEmpty) return existing;
+    final androidAab = state['apk_path'];
+    if (androidAab is String && androidAab.isNotEmpty) return androidAab;
+    return defaultAabPath(ctx);
+  }
+
+  /// oka's default AAB output location: `<buildDir>/aab/app-<mode>.aab`
+  /// (matches `packageAndSignAab` in oka_android — keep in sync).
+  static String defaultAabPath(final BuildContext ctx) =>
+      '${ctx.buildDir}${ctx.buildDir.endsWith('/') ? '' : '/'}'
+      'aab/app-${ctx.mode.name}.aab';
 }
 
 /// The real upload tail: AGC token fetch → upload-url → artifact upload →
