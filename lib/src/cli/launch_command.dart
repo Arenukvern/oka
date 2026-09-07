@@ -44,12 +44,11 @@ class LaunchCommand {
     }
 
     final parser = ArgParser()
-      ..addFlag(
+      ..addOption(
         'device',
         abbr: 'd',
-        negatable: false,
-        help: 'Accepted for CLI compatibility; the device target runs '
-            'against the connected device',
+        help: 'Device serial — required on multi-device hosts; '
+            'forwarded to the device target',
       )
       ..addFlag('verbose', negatable: false, help: 'Verbose output')
       ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help');
@@ -61,11 +60,14 @@ class LaunchCommand {
 
     // Same dispatch path as `oka run device` — the device target is
     // resolved from the project entrypoint, its compiled steps validated,
-    // then run. No platform logic here.
+    // then run. No platform logic here; `-d` is re-expressed in the
+    // dispatcher's vocabulary (`--oka-target-arg device=<id>`).
     await RunCommand().run([
       'device',
-      // Alias flags are re-expressed in the dispatcher's own vocabulary so
-      // they reach the entrypoint.
+      if ((results['device'] as String?)?.isNotEmpty ?? false) ...[
+        '--oka-target-arg',
+        'device=${results['device']}',
+      ],
       if (results['verbose'] as bool) '--verbose',
       ...results.rest,
     ]);

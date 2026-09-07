@@ -33,29 +33,50 @@ import '../build/toolchain.dart';
 
 // -- Pure command construction ---------------------------------------------
 
+/// Serial prefix so adb targets one attached device. Multi-device hosts
+/// (phone + emulator) fail with "more than one device" without it.
+List<String> adbSerialArgs(final String? serial) =>
+    serial == null || serial.trim().isEmpty ? const [] : ['-s', serial.trim()];
+
 /// `adb devices -l` (long listing: id, state, model).
 List<String> adbDevicesArgs() => ['devices', '-l'];
 
-/// `adb install -r <apk>` (reinstall, keep data).
-List<String> adbInstallArgs(final String apk) => ['install', '-r', apk];
+/// `adb [-s <serial>] install -r <apk>` (reinstall, keep data).
+List<String> adbInstallArgs(final String apk, {final String? serial}) =>
+    [...adbSerialArgs(serial), 'install', '-r', apk];
 
-/// `adb shell am start -n <package>/<activity>`.
-List<String> adbLaunchArgs(final String packageName, final String activity) =>
-    ['shell', 'am', 'start', '-n', '$packageName/$activity'];
+/// `adb [-s <serial>] shell am start -n <package>/<activity>`.
+List<String> adbLaunchArgs(
+  final String packageName,
+  final String activity, {
+  final String? serial,
+}) => [
+      ...adbSerialArgs(serial),
+      'shell',
+      'am',
+      'start',
+      '-n',
+      '$packageName/$activity',
+    ];
 
-/// `adb forward tcp:<hostPort> tcp:<devicePort>`; [hostPort] 0 = adb picks
-/// a free local port (printed on stdout).
+/// `adb [-s <serial>] forward tcp:<hostPort> tcp:<devicePort>`; [hostPort]
+/// 0 = adb picks a free local port (printed on stdout).
 List<String> adbForwardArgs({
   required final int devicePort,
   final int hostPort = 0,
+  final String? serial,
 }) =>
-    ['forward', 'tcp:$hostPort', 'tcp:$devicePort'];
+    [...adbSerialArgs(serial), 'forward', 'tcp:$hostPort', 'tcp:$devicePort'];
 
-/// `adb logcat -d` (dump the current buffer — bounded scrape, no stream).
-List<String> adbLogcatDumpArgs() => ['logcat', '-d'];
+/// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
+/// no stream).
+List<String> adbLogcatDumpArgs({final String? serial}) =>
+    [...adbSerialArgs(serial), 'logcat', '-d'];
 
-/// `adb logcat -c` (clear buffer before launch, per [LaunchAppStep]).
-List<String> adbLogcatClearArgs() => ['logcat', '-c'];
+/// `adb [-s <serial>] logcat -c` (clear buffer before launch, per
+/// [LaunchAppStep]).
+List<String> adbLogcatClearArgs({final String? serial}) =>
+    [...adbSerialArgs(serial), 'logcat', '-c'];
 
 // -- Pure parsers -----------------------------------------------------------
 
@@ -271,6 +292,7 @@ AdbFailure classifyAdbFailure(final String rawOutput) {
 class AdbTool {
   AdbTool({
     required this.adbPath,
+    this.serial,
     final Future<ProcessResult> Function(String, List<String>)? runProcess,
   }) : _runProcess = runProcess ?? _defaultRun;
 
@@ -281,6 +303,11 @@ class AdbTool {
       Process.run(exe, args);
 
   final String adbPath;
+
+  /// Device serial (`adb -s`) — required on multi-device hosts; null lets
+  /// adb pick (single-device setups only).
+  final String? serial;
+
   final Future<ProcessResult> Function(String, List<String>) _runProcess;
 
   Never _fail(final String operation, final ProcessResult r) {
@@ -299,7 +326,7 @@ class AdbTool {
   /// `adb install -r`. Throws [AdbToolException] with the classified fix on
   /// failure (adb exits non-zero OR prints `Failure` while exiting 0).
   Future<void> install(final String apk) async {
-    final r = await _runProcess(adbPath, adbInstallArgs(apk));
+    final r = await _runProcess(adbPath, adbInstallArgs(apk, serial: serial));
     final out = '${r.stdout}${r.stderr}';
     if (r.exitCode != 0 || out.contains('Failure')) _fail('install', r);
   }
@@ -308,20 +335,20 @@ class AdbTool {
   Future<void> launch(final String packageName, final String activity) async {
     final r = await _runProcess(
       adbPath,
-      adbLaunchArgs(packageName, activity),
+      adbLaunchArgs(packageName, activity, serial: serial),
     );
     if (r.exitCode != 0) _fail('am start', r);
   }
 
   /// Clears the logcat buffer (`logcat -c`) before a launch.
   Future<void> clearLogcat() async {
-    final r = await _runProcess(adbPath, adbLogcatClearArgs());
+    final r = await _runProcess(adbPath, adbLogcatClearArgs(serial: serial));
     if (r.exitCode != 0) _fail('logcat -c', r);
   }
 
   /// Dumps the current logcat buffer (`logcat -d`).
   Future<String> logcatDump() async {
-    final r = await _runProcess(adbPath, adbLogcatDumpArgs());
+    final r = await _runProcess(adbPath, adbLogcatDumpArgs(serial: serial));
     if (r.exitCode != 0) _fail('logcat -d', r);
     return r.stdout as String;
   }
@@ -334,7 +361,7 @@ class AdbTool {
   }) async {
     final r = await _runProcess(
       adbPath,
-      adbForwardArgs(devicePort: devicePort, hostPort: hostPort),
+      adbForwardArgs(devicePort: devicePort, hostPort: hostPort, serial: serial),
     );
     if (r.exitCode != 0) _fail('forward', r);
     if (hostPort != 0) return hostPort;
@@ -401,11 +428,15 @@ Future<String> resolveAdbForSteps(
 /// stale announcement from a previous run cannot match.
 class AwaitVmServiceStep extends BuildStep {
   AwaitVmServiceStep({
+    this.deviceId,
     this.adbPath,
     this.toolchain,
     this.timeout = const Duration(seconds: 60),
     this.pollInterval = const Duration(milliseconds: 500),
   });
+
+  /// Device serial — required on multi-device hosts; null = single device.
+  final String? deviceId;
 
   /// Injectable adb path (tests / explicit config); null → toolchain.
   final String? adbPath;
@@ -436,7 +467,7 @@ class AwaitVmServiceStep extends BuildStep {
         'adb not found — install platform-tools (oka get android-sdk)',
       );
     }
-    final tool = AdbTool(adbPath: adb);
+    final tool = AdbTool(adbPath: adb, serial: deviceId);
     print('🔎 Waiting for the Dart VM service announcement (logcat)...');
     final info = await tool.awaitVmServiceUri(
       timeout: timeout,
@@ -459,7 +490,10 @@ class AwaitVmServiceStep extends BuildStep {
 /// tcp:DEVICE_PORT — adb picks a free local port) and provides
 /// [vmServiceLocalPort] (ADR-0011 H2). Requires [vmServiceUri].
 class ForwardVmServiceStep extends BuildStep {
-  ForwardVmServiceStep({this.adbPath, this.toolchain});
+  ForwardVmServiceStep({this.deviceId, this.adbPath, this.toolchain});
+
+  /// Device serial — required on multi-device hosts; null = single device.
+  final String? deviceId;
 
   /// Injectable adb path (tests / explicit config); null → toolchain.
   final String? adbPath;
@@ -491,7 +525,7 @@ class ForwardVmServiceStep extends BuildStep {
     }
     final uri = state[vmServiceUri.id]! as String;
     final devicePort = Uri.parse(uri).port;
-    final tool = AdbTool(adbPath: adb);
+    final tool = AdbTool(adbPath: adb, serial: deviceId);
     final int localPort;
     try {
       localPort = await tool.forwardTcp(devicePort: devicePort);

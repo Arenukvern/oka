@@ -117,6 +117,24 @@ abstract class Target {
   /// artifact chain before executing anything.
   List<BuildStep> compile(final BuildContext ctx);
 
+  /// Invocation-arg keys this target accepts via `oka run <target>`
+  /// --oka-target-arg key=value` (and verb shims that forward, e.g.
+  /// `oka launch -d <id>` → `device=<id>`). Empty by default — a target
+  /// that accepts nothing needs no override.
+  Set<String> get supportedInvocationArgs => const {};
+
+  /// Returns a NEW target value with [args] applied (targets are const
+  /// values — never mutate; implementations return a copy). Called by the
+  /// dispatcher before [compile] only when invocation args are present; the
+  /// default rejects everything with an actionable error listing the
+  /// accepted keys, so a target that accepts nothing needs no override.
+  Target applyInvocationArgs(final Map<String, String> args) {
+    throw ArgumentError(
+      'target "$name" accepts no invocation args — got: '
+      '${args.keys.join(', ')}.',
+    );
+  }
+
   @override
   String toString() => 'Target($name)';
 }

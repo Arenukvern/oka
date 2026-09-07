@@ -179,6 +179,10 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   required final String projectPath,
   final ResolvedToolchain? toolchain,
 
+  /// Device serial — required on multi-device hosts (phone + emulator);
+  /// threaded to every device step and the AdbTool VM-service operations.
+  final String? deviceId,
+
   /// Injectable tool paths (tests / explicit config); null → [toolchain].
   /// Forwarded to the device steps and to the attach spawn (the flutter
   /// tool discovers devices through the platform-tools dir on PATH).
@@ -199,11 +203,12 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   final steps = [
     ...DeviceTarget(
       waitSeconds: waitSeconds,
+      deviceId: deviceId,
       adbPath: adbPath,
       toolchain: toolchain,
     ).compile(ctx),
-    AwaitVmServiceStep(adbPath: adbPath, toolchain: toolchain),
-    ForwardVmServiceStep(adbPath: adbPath, toolchain: toolchain),
+    AwaitVmServiceStep(deviceId: deviceId, adbPath: adbPath, toolchain: toolchain),
+    ForwardVmServiceStep(deviceId: deviceId, adbPath: adbPath, toolchain: toolchain),
   ];
   final pipeline = Pipeline(steps);
   final validationError = pipeline.validate();

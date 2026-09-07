@@ -13,7 +13,9 @@ import 'package:oka_core/oka_core.dart';
 /// Test double standing in for oka_android's [DeviceTarget] — same name,
 /// no device I/O.
 class FakeDeviceTarget extends Target {
-  const FakeDeviceTarget();
+  const FakeDeviceTarget({this.deviceId});
+
+  final String? deviceId;
 
   @override
   String get name => 'device';
@@ -23,11 +25,29 @@ class FakeDeviceTarget extends Target {
       'Test double for the device target (writes a marker file)';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [FakeDeviceStep()];
+  Set<String> get supportedInvocationArgs => const {'device'};
+
+  @override
+  FakeDeviceTarget applyInvocationArgs(final Map<String, String> args) {
+    final unknown = args.keys.toSet().difference(supportedInvocationArgs);
+    if (unknown.isNotEmpty) {
+      throw ArgumentError(
+        'target "device" does not accept invocation arg(s): '
+        '${unknown.join(', ')} — accepted: device=<serial>.',
+      );
+    }
+    return FakeDeviceTarget(deviceId: args['device']);
+  }
+
+  @override
+  List<BuildStep> compile(final BuildContext ctx) =>
+      [FakeDeviceStep(deviceId: deviceId)];
 }
 
 class FakeDeviceStep extends BuildStep {
-  FakeDeviceStep();
+  FakeDeviceStep({this.deviceId});
+
+  final String? deviceId;
 
   @override
   String get name => 'fake-device';
@@ -43,6 +63,7 @@ class FakeDeviceStep extends BuildStep {
         jsonEncode({
           'verbose': ctx.verbose,
           'mode': ctx.mode.name,
+          if (deviceId != null) 'deviceId': deviceId,
         }),
       );
     return StepResult.success();

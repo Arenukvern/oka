@@ -16,6 +16,7 @@ class AgcEndpoints {
 
   static const String defaultBaseUrl = 'https://connect-api.cloud.huawei.com';
 
+  /// The base URL every endpoint path is resolved against.
   final String baseUrl;
 
   /// OAuth2 client-credentials token endpoint.
@@ -35,14 +36,17 @@ class AgcEndpoints {
 
 /// An OAuth2 access token obtained from the AGC token endpoint.
 ///
-/// The value is a secret: [toString] redacts unconditionally, and the token
-/// never enters [PipelineState], logs, events, or publish plans — it lives
+/// The token value is a secret: [toString] redacts unconditionally, and the token
+/// never enters `PipelineState`, logs, events, or publish plans — it lives
 /// only in the upload step's local scope and in `Authorization` headers.
 @immutable
 class AgcToken {
   const AgcToken({required this.value, required this.expiresInSeconds});
 
+  /// The bearer token value (secret — never log, store, or echo it).
   final String value;
+
+  /// Token lifetime in seconds (AGC `expires_in`).
   final int expiresInSeconds;
 
   /// Redacting form.
@@ -63,7 +67,10 @@ class AgcToken {
 class AgcUploadSession {
   const AgcUploadSession({required this.uploadUrl, required this.session});
 
+  /// The presigned URL to PUT the artifact bytes to (not a secret).
   final String uploadUrl;
+
+  /// The session id the `app-submit` call references (not a secret).
   final String session;
 
   @override
@@ -84,7 +91,10 @@ class AgcUploadSession {
 class AgcSubmitReceipt {
   const AgcSubmitReceipt({required this.version, required this.submitId});
 
+  /// App version string reported by AGC for this submission.
   final String version;
+
+  /// AGC submission id (useful for support requests / audit trails).
   final String submitId;
 
   @override
@@ -117,8 +127,14 @@ class AgcApiException implements Exception {
   /// Which client operation failed: `token`, `upload-url`, `upload`,
   /// `submit`.
   final String operation;
+
+  /// HTTP status AGC answered with.
   final int statusCode;
+
+  /// AGC API error code from the response `ret.code` field, if present.
   final String? retCode;
+
+  /// AGC API error message from the response `ret.msg` field, if present.
   final String? retMessage;
 
   @override

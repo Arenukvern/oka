@@ -10,6 +10,7 @@ configuration tax on every build.
 | Audience | Start here |
 | --- | --- |
 | Build an app now | [Quick recipes](/start_here/quick_recipes) |
+| Publish to Google Play / AppGallery | [Publishing guide](/guides/publishing) |
 | Understand the project | [Why this repo matters](/start_here/why_this_repo_matters) |
 | Configure a build | [Build & configuration guide](/guides/build_and_config) |
 | Contribute / change architecture | [Docs map](/start_here/docs_map) |
@@ -37,4 +38,4 @@ cd example && oka build apk
 
 Experimental but actively used. See the
 [phase checklist](/PHASE_CHECKLIST) for what is proven by tests, and the
-[roadmap](https://github.com/Arenukvern/oka#roadmap) for what's next.
+[roadmap](/start_here/roadmap) for what's next.

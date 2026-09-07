@@ -5,7 +5,10 @@ import 'package:oka_core/oka_core.dart';
 class PlanShapeException implements Exception {
   PlanShapeException({required this.plan, required this.mismatches});
 
+  /// The offending plan (renderable with [PublishPlan.describeLines]).
   final PublishPlan plan;
+
+  /// Human-readable mismatches — one entry per failed expectation.
   final List<String> mismatches;
 
   @override
@@ -20,8 +23,8 @@ class PlanShapeException implements Exception {
 /// non-secret metadata a real run would use — no more, no less.
 ///
 /// [metadata] is matched as a subset (the plan may carry more entries);
-/// pass [exactMetadata: true] to require an exact map. [credentials] must
-/// match the plan's refs exactly (order included).
+/// pass [exactMetadata] as `true` to require an exact map. [credentials]
+/// must match the plan's refs exactly (order included).
 void expectPlanShape(
   final PublishPlan plan, {
   final String? target,

@@ -62,8 +62,9 @@ class PlayEditResult {
 /// assign the bundle to a track → commit. The client never authenticates —
 /// the caller passes an [http.Client] that already carries credentials
 /// (in production the googleapis_auth client created from the
-/// service-account JSON; in tests a scripted [FakeHttpTransport]-backed
-/// client). No network happens unless the injected client performs it.
+/// service-account JSON; in tests a scripted `FakeHttpTransport`-backed
+/// client — see `oka_conformance`). No network happens unless the injected
+/// client performs it.
 class PlayPublisherClient {
   PlayPublisherClient({
     required this.client,

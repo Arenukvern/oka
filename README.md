@@ -2,133 +2,123 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-docs.page-02569B)](https://docs.page/arenukvern/oka)
-[![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
 
-Oka's north star: **one code for every platform build.** Today, building an
-app means negotiating with a pile of locked, untyped, scattered configs —
-Gradle DSL, manifests, properties, signing files — that repeat across every
-project, drift apart, and cannot be unified or copied. Oka replaces that with
-a **declarative, compositional pipeline written in ordinary Dart**: typed,
-refactorable, and copyable between projects. Starting with **Android** — no
-Gradle at all — and built to extend to any platform
-([the long game](#the-long-game)).
-
-## Why oka was created
-
-Not because Gradle is slow. Because **it is locked and unmanageable** — and
-the same is true of every platform's build system:
-
-- Your app is one codebase, but building it means touching a dozen scattered
-  configs in different languages — `build.gradle.kts`, XML manifests,
-  `local.properties`, proguard rules, signing properties, plists. None are
-  typed, none share structure, none can be checked as a whole.
-- Every project re-solves the same problems: package name, versions, icons,
-  permissions, deeplinks, dependency quirks. The configs **repeat and drift**,
-  and unifying them across projects is impossible — they don't even share a
-  format.
-- You don't operate the build; you _negotiate_ with it. The toolchain is
-  locked behind plugin DSLs and hidden defaults, and when it breaks, the fix
-  lives somewhere you can't read or control.
-
-Oka's answer: collapse all of it into **one code** — a typed, composable
-pipeline in Dart that you own end to end:
+**Oka replaces Gradle for Flutter Android builds.** One typed, copyable Dart
+file describes the whole platform build — manifest, SDK levels, icons,
+plugins, signing, publish targets — and oka executes it with `flutter
+assemble` + direct Android SDK tools: no Gradle daemon, no AGP, no 30-second
+configuration tax, incremental builds ~23s. Three words carry the design:
 
 - **Declarative** — the build is typed values (`AndroidBuild`,
-  `PipelineOverrides`, `ManifestSpec`) composed in a Dart entrypoint. No
-  config DSL sprawl; the config is code, so it's checkable, diffable, and
-  **copyable between projects** — the same `oka_pipeline.dart` works
-  everywhere oka does.
-- **Compositional** — every capability is a `BuildStep`, a typed value, or a
-  resolver service. Pipelines are immutable values; a new platform is a new
-  package implementing the same contract. You can build any pipeline.
-- **AI-native** — self-describing plans (`oka explain`), machine-checkable
-  gates (`oka compare`), single-step probes (`oka debug step`), deterministic
-  byte-reproducible artifacts, and failures that name the fix. The goal: _an
-  agent can set up and fix a platform build from oka's messages alone._
+  `PipelineOverrides`, `ManifestSpec`) composed in a project-owned Dart
+  entrypoint. Config is code: checkable, diffable, copyable between projects.
+- **Compositional** — every capability is a `BuildStep` or typed value; the
+  whole chain is validated before any tool runs. A store target or platform
+  is another package over the same kernel.
+- **AI-native** — self-describing plans (`oka explain`), single-step probes,
+  byte-equivalence gates, and failures that name the fix. *An agent can set
+  up and fix a platform build from oka's messages alone.*
 
-Speed is a consequence, not the pitch: with the build as one readable code
-path and no Gradle, incremental builds drop to ~23s — but the reason oka
-exists is that **the config should be one simple, manageable, copyable
-thing.** Future generations of oka keep pushing everything that is still
-per-platform noise into that single Dart surface.
+Production-validated on real apps (18-plugin production app;
+bundletool-validated release AABs).
 
-## Status: Android first
+## Quickstart: first build in under two minutes
 
-Production-validated on real apps (18-plugin production app; incremental
-builds ~23s; bundletool-validated release AABs).
-
-- 🚀 **No Gradle, ever** — the default path never falls back to
-  `flutter build apk` (enforced by tests)
-- 📦 **Plugin packaging** — Java/Kotlin sources, Maven/AAR deps (natives +
-  res), real `GeneratedPluginRegistrant`, transitive POM/BOM resolution
-- 🧩 **AAB** — hand-assembled bundles, optional bundletool verification
-- 🔧 **Self-resolving** — missing tools self-install, java levels auto-bump,
-  versions fall back to pubspec, dev-only plugins auto-exclude
-- ✅ **Post-build gates** — lint (version, signing, size budget), byte
-  equivalence via `oka compare`
-- 🔁 **Dev loop** — `oka dev` (build-parity check → install → launch →
-  attach session: hot reload / hot restart) with agent streams (`--json`,
-  `--watch`), [ADR-0011](docs/decisions/0011-hot-reload-run-loop.md)
-
-Not yet (by design, see [the long game](#the-long-game)): iOS, desktop, web.
-
-## Installation
+Install once, then:
 
 ```bash
-dart pub global activate oka        # pub.dev
-# or from source:
-git clone https://github.com/Arenukvern/oka.git && cd oka
-just install && just global
-
-# one-time SDK bootstrap (or point at an existing Android SDK)
-oka get android-sdk
+dart pub global activate oka
+oka get android-sdk     # one-time SDK bootstrap into ~/.oka/android-sdk
 oka doctor              # verify everything
 ```
 
-Requirements: Flutter SDK, JDK 11+; Android build-tools + platforms are
-bootstrapped into `~/.oka/android-sdk` by `oka get android-sdk`. No Gradle.
-
-## Quick start
-
-```bash
-cd your-flutter-project
-oka init                # full-Dart config: scaffolds tool/oka_pipeline.dart
-oka build apk           # → .oka_cache/build/debug/app-debug.apk
-
-adb install -r .oka_cache/build/debug/app-debug.apk
-adb shell am start -n <package>/.MainActivity
-```
-
-Store / release:
+**Build.** In your Flutter project, `oka init` scaffolds the config as a
+typed Dart entrypoint (`tool/oka_pipeline.dart`) — or converts an existing
+`oka.yaml` 1:1 with `oka init --from-yaml`. Then build release, no Gradle:
 
 ```bash
-oka build apk --release
-oka build aab --verify-aab      # bundle + bundletool universal-APK check
-oka explain --deps --network    # resolve the full dependency plan pre-build
+oka init
+oka build apk --release   # → .oka_cache/build/release/app-release.apk
 ```
 
-Existing project on `oka.yaml`? `oka init --from-yaml` converts it 1:1 into
-the typed Dart entrypoint.
+**Run on a device.** One command installs the newest built APK, launches it,
+and scans the device log for failure signatures (`oka launch` = same
+dispatch):
+
+```bash
+oka run device
+```
+
+**Dev loop.** Hot reload / hot restart against an oka-built APK — parity
+check → install → launch → attach session. Humans get `r` / `R` / `q` / `d`;
+agents get `--json` events on stdout and control lines on stdin, or the
+hands-free `--watch` loop:
+
+```bash
+oka dev                 # TTY session: r hot reload · R hot restart · q quit · d detach
+oka dev --watch --json  # agent loop: Dart edits auto-reload; native edits
+                        # print the honest full-rebuild command
+```
+
+Hot reload is Dart-only — native/res/manifest changes always need
+`oka build apk --debug` + reinstall ([ADR-0011](docs/decisions/0011-hot-reload-run-loop.md)).
+
+Existing project on `oka.yaml`? `oka init --from-yaml` converts it 1:1.
+Migrating from Gradle: the [migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration).
+
+## Publishing: targets are project-declared
+
+Play and AppGallery builds are **one Android app, composed differently** —
+not new CLIs, not new platforms ([ADR-0014](docs/decisions/0014-distribution-targets-secrets-model.md)).
+Declare publish targets in `tool/oka_pipeline.dart` and run them with
+`oka run <target>`. Both are **dry-run by default**: the plan names the
+endpoint, track, artifact, and metadata before anything ships, and
+succeeds without credentials. Real, from the [example app](example/tool/oka_pipeline.dart):
+
+```dart
+targets: const [
+  DeviceTarget(),
+  // Dry-run by default: `oka run publish-play` prints the plan, zero HTTP.
+  // Real run: `dryRun: false` + a service-account JSON referenced BY PATH
+  // (tier-2 credential — never a dart-define, never a value).
+  PlayPublishTarget(),
+  // GMS-excluded variant + AppGallery Connect tail: `oka run publish-huawei`.
+  HuaweiPublishTarget(
+    release: HuaweiReleaseConfig(appId: '110012345'),
+  ),
+),
+```
+
+```bash
+oka build aab --release --verify-aab
+oka run publish-play       # oka run publish-huawei
+```
+
+Secrets follow the ADR-0014 tier rule: dart-defines carry app-visible
+non-secrets; credentials are **paths** resolved via typed config →
+`OKA_<TARGET>_*` env var → `~/.oka/credentials/<target>/`. Full console
+setup, file formats, and failure playbook: the
+[publishing guide](https://docs.page/arenukvern/oka/guides/publishing).
 
 ## The agent surface
 
-Every operation is checkable and scriptable — this is what "AI-native" means
-here, not a chat wrapper:
+Every operation is checkable and scriptable — this is what "AI-native"
+means here, not a chat wrapper:
 
-```
 | Command | What an agent gets |
 |---|---|
 | `oka explain` / `oka build --dry-run` | The validated plan: steps, artifact chain, signing, versions — zero tools invoked |
-| `oka explain --deps` | The resolved dependency plan (cache-first; `--network` gates with exit 1) |
+| `oka explain --targets` | Every project-declared target with its compiled step chain (ADR-0015) |
 | `oka debug step <name>` | One pipeline step re-run against `.oka_cache` — 10-minute loops become 30-second probes |
 | `oka compare a.apk b.apk` | Byte-equivalence gate (badging + zip entries) — refactors prove, not claim |
-| `oka doctor` | Full environment + build-health audit |
-| `oka dev` | build-parity check → install → launch → attach session: hot reload / hot restart; `--json` events on stdout, control lines on stdin, `--watch` loop |
-```
+| `oka cache list/gc/why` | Inspectable views over the shared artifact store (ADR-0013) |
+| `oka doctor` | Full environment + build-health audit, including secret-tier and dev-loop readiness |
 
 ## Configuration
 
-Config is a typed Dart entrypoint — programmable, refactorable, agent-writable:
+Config is a typed Dart entrypoint — programmable, refactorable,
+agent-writable:
 
 ```dart
 // tool/oka_pipeline.dart
@@ -173,8 +163,59 @@ Full reference: [build & configuration guide](https://docs.page/arenukvern/oka/g
 7. Layout validation + post-build lint
 
 Every step is a `BuildStep` with declared `requires`/`provides` typed
-artifacts; the whole chain is validated **before any tool runs**. Custom
-pipelines: [example/tool/oka_pipeline.dart](example/tool/oka_pipeline.dart).
+artifacts; the whole chain is validated **before any tool runs**. Copyable
+canonical config: [example/tool/oka_pipeline.dart](example/tool/oka_pipeline.dart).
+
+## FAQ
+
+**Do I need Gradle?**
+No — ever. The default path never falls back to `flutter build apk`
+(enforced by tests). What you give up is real and listed: no full
+Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK), and some
+plugins with complex native Android code fail loudly instead of silently
+([ADR-0001](docs/decisions/0001-no-gradle-default-build-path.md)) — the
+[migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration)
+maps what transfers, what needs config, and what oka does not do.
+
+**Does it work with my Flutter version / SDK layout?**
+Oka drives `flutter assemble` and the Flutter cache, so it tracks your
+installed Flutter SDK (`fvm`-managed included) rather than pinning one. The
+Android build-tools/platforms are self-resolved — `oka get android-sdk`
+bootstraps a managed SDK into `~/.oka/android-sdk`, or point at an existing
+one; resolution order is explicit config → env vars → oka-managed → system,
+printed by `oka doctor`. Run `oka doctor` to verify your layout.
+
+**Where is the cache, and can I inspect it?**
+Yes — that's the contract ([ADR-0013](docs/decisions/0013-toolchain-provisioning-artifact-store.md)).
+The shared store is a plain directory with human-decodable layout
+(`~/.oka/store/aapt2/8.0.2-<hash>/…`), relocatable via `OKA_CACHE`;
+per-project build outputs stay in `.oka_cache/`. Inspect with `ls` — or
+with `oka cache list`, `oka cache gc --older-than=30d`, and
+`oka cache why androidx/annotation-jvm/1.9.1`.
+
+**How do secrets work?**
+By tier ([ADR-0014](docs/decisions/0014-distribution-targets-secrets-model.md)):
+`--dart-define` values are compile-time constants baked into the shipped
+binary — non-secrets only. Credential contents (service-account JSON,
+keystores) are build-host files referenced **by path**, resolved through
+typed config → `OKA_<TARGET>_*` env var → `~/.oka/credentials/<target>/`,
+kept out of git and out of every log, plan, and state dump. `oka doctor`
+audits define keys against secret-ish patterns.
+
+**Why Dart instead of YAML?**
+YAML keys are silent typos; Dart is typed, refactorable, programmable
+(flavor logic, shared bases), and exactly as writable by agents as by
+humans. `oka.yaml` fast-settings still cover the 90% case — and the design
+law is that YAML growth is frozen; everything else is Dart
+([ADR-0010](docs/decisions/0010-typed-dart-project-config.md)).
+
+**Which platforms?**
+Android today — APK and AAB, debug and release, with the full agent dev
+loop. Expansion is **criteria-gated**, not calendar-driven: depth before
+breadth (the dev loop is the product), no platform detail in `oka_core`,
+and a second platform only when an ADR proves the pipeline model maps.
+Store targets (Play, AppGallery) are not platforms — they're compositions
+over the same Android pipeline. See [the long game](#the-long-game).
 
 ## Packages
 
@@ -184,6 +225,8 @@ pipelines: [example/tool/oka_pipeline.dart](example/tool/oka_pipeline.dart).
 | [`oka`](https://pub.dev/packages/oka) | CLI + agent surface (this repo) |
 | [`oka_core`](https://pub.dev/packages/oka_core) | Platform-agnostic contracts: pipeline, artifacts, composition root, typed config |
 | [`oka_android`](https://pub.dev/packages/oka_android) | Android pipelines, toolchain, plugin packaging |
+| [`oka_play`](https://pub.dev/packages/oka_play) | Google Play publish target (dry-run-first, path-based credentials) |
+| [`oka_huawei`](https://pub.dev/packages/oka_huawei) | AppGallery Connect target (GMS-excluded variant + upload tail) |
 ```
 
 ## The long game
@@ -207,15 +250,6 @@ deliberately **criteria-gated**, not calendar-driven:
 
 Full charter: [why oka matters](https://docs.page/arenukvern/oka/start_here/why_this_repo_matters).
 
-## Limitations
-
-- ❌ Full Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK)
-- ❌ Some plugins with complex native Android code
-- ❌ Hot reload during development (in progress — ADR-0011)
-- ❌ iOS/desktop/web targets (criteria-gated, see [the long game](#the-long-game))
-
-Run `oka doctor` to verify your environment.
-
 ## Documentation
 
 Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukvern/oka)**
@@ -223,8 +257,10 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 ```
 | I want to… | Read |
 |---|---|
-| Run/build/test | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
-| Understand boundaries & the north star | [Why this repo matters](https://docs.page/arenukvern/oka/start_here/why_this_repo_matters) |
+| Copy-paste the common loops | [Quick recipes](https://docs.page/arenukvern/oka/start_here/quick_recipes) |
+| Run/build/test/configure | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
+| Publish to Play / AppGallery | [Publishing guide](https://docs.page/arenukvern/oka/guides/publishing) |
+| Migrate an existing Gradle app | [Gradle migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
 | Check phase status | [`docs/PHASE_CHECKLIST.md`](docs/PHASE_CHECKLIST.md) |
 ```

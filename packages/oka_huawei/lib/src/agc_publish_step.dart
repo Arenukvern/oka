@@ -11,7 +11,7 @@ import 'huawei_release_config.dart';
 /// Stages the publish artifact for the Huawei upload tail: resolves the
 /// AAB path (typed [artifactPath] override → an upstream `aab-path` → the
 /// Android build's shared `apk_path` slot → the default oka AAB output
-/// location) and provides it under the target's [artifactId].
+/// location) and provides it under the `aab-path` artifact id.
 ///
 /// Pure with respect to the filesystem: it never checks existence — the
 /// dry-run law requires the stage to run with an empty state and no

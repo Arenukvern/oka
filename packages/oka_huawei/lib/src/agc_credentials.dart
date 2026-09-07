@@ -4,10 +4,10 @@ import 'package:meta/meta.dart';
 
 /// Parsed AppGallery Connect API-client credentials (ADR-0014 P2).
 ///
-/// The credential **file** is resolved by path only (a [CredentialRef]
+/// The credential **file** is resolved by path only (a `CredentialRef`
 /// `huawei/agconnect-credentials`); this class holds the parsed *contents*
 /// and exists solely inside the upload step's local scope: never in
-/// [PipelineState], never in logs, events, or publish plans. [toString]
+/// `PipelineState`, never in logs, events, or publish plans. [toString]
 /// redacts unconditionally — dumping an instance can never leak the secret.
 ///
 /// The expected file is the AppGallery Connect "API client" credential JSON
@@ -54,7 +54,11 @@ class AgcCredentials {
     return AgcCredentials(clientId: clientId, clientSecret: clientSecret);
   }
 
+  /// AGC OAuth2 client id (the `client_id` key of the credential JSON).
   final String clientId;
+
+  /// AGC OAuth2 client secret (the `client_secret` key) — a secret value:
+  /// never logged, never stored, redacted by [toString].
   final String clientSecret;
 
   /// Redacting form: contents are a secret — a dump can never leak them.

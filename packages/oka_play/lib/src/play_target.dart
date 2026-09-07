@@ -30,14 +30,14 @@ enum PlayTrack {
 ///
 /// ```dart
 /// Oka(
-///   pipelines: [AndroidBuild(...)],
+///   pipelines: [AndroidPipeline(config: AndroidBuild(packageName: '...'))],
 ///   targets: [
-///     PlayPublishTarget(dryRun: true),                    // safe default
+///     // ONE target per project (names are unique): dry-run today —
+///     // flip `dryRun: false` when the plan looks right.
 ///     PlayPublishTarget(
-///       dryRun: false,
 ///       packageName: 'dev.example.app',
-///       track: PlayTrack.internal,
-///       serviceAccountPath: 'credentials/play-sa.json',   // path only!
+///       // dryRun: false,
+///       // serviceAccountPath: 'credentials/play-sa.json', // path only!
 ///     ),
 ///   ],
 /// )

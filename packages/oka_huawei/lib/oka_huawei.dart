@@ -20,12 +20,12 @@
 /// );
 /// ```
 ///
-/// With `dryRun: true` the compiled chain produces a [PublishPlan]
+/// With `dryRun: true` the compiled chain produces a `PublishPlan`
 /// describing exactly what a real run would do (endpoint, track, artifact,
 /// metadata) and issues **no HTTP**. With `dryRun: false` the upload tail
 /// runs the AppGallery Connect REST flow — token fetch → upload-url →
 /// artifact upload → submit — with credentials resolved **by path** via
-/// the `huawei/agconnect-credentials` [CredentialRef] policy.
+/// the `huawei/agconnect-credentials` `CredentialRef` policy.
 ///
 /// ## GMS exclusion
 ///
@@ -39,6 +39,10 @@
 ///
 /// * `oka_core` `PublishTarget` — the contract and the conformance laws.
 /// * ADR-0013 (two-axis model), ADR-0014 (targets + secrets model).
+///
+/// A full, compiling composition lives in
+/// `example/oka_pipeline_example.dart` (the quickstart in the package
+/// README is the same code).
 library;
 
 export 'src/huawei_publish_target.dart';

@@ -35,6 +35,7 @@ class HuaweiReleaseConfig {
   /// Release notes as (language, file) pairs — file paths only.
   final List<AgcReleaseNote> releaseNotes;
 
+  /// Returns a copy with the given fields replaced (others untouched).
   HuaweiReleaseConfig copyWith({
     final String? appId,
     final String? track,

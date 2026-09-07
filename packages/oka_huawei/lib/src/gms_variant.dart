@@ -11,9 +11,9 @@ import 'package:oka_android/oka_android.dart';
 /// non-Play artifact. This typed value is the composition-time half of the
 /// target:
 ///
-/// * [gmsFreeOverrides] filters [PipelineOverrides.extraDeps] through
-///   `isGmsCoordinate` (oka_android seam) — GMS coordinates are excluded,
-///   everything else passes through unchanged.
+/// * [gmsFreeOverrides] filters `extraDeps` ([PipelineOverrides.extraDeps])
+///   through `isGmsCoordinate` (oka_android seam) — GMS coordinates are
+///   excluded, everything else passes through unchanged.
 /// * [excludedGmsDeps] names exactly what was dropped — inspectable data,
 ///   printed by diagnostics.
 /// * Composition-time safety: any step that *requires* a
@@ -21,6 +21,9 @@ import 'package:oka_android/oka_android.dart';
 ///   artifact validator ([Pipeline.validate]) in a pipeline composed from
 ///   this variant — **before any tool runs**, because the GMS-providing
 ///   step ([GmsDependencyProviderStep]) is absent by construction.
+///
+/// The overrides live in [HuaweiBuildVariant.overrides] and are read via
+/// `overrides.extraDeps` (or, in compositions, [gmsFreeOverrides]).
 ///
 /// ```dart
 /// const target = HuaweiPublishTarget(
@@ -49,7 +52,8 @@ class HuaweiBuildVariant {
   /// read [gmsFreeOverrides] when composing a pipeline.
   final PipelineOverrides overrides;
 
-  /// [overrides.extraDeps] with GMS-provided coordinates removed.
+  /// The `extraDeps` list of [overrides] with GMS-provided coordinates
+  /// removed.
   List<String> get gmsFreeExtraDeps => splitGmsDependencies(
         overrides.extraDeps,
       ).other;

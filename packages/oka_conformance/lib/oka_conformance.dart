@@ -34,8 +34,10 @@ library;
 
 export 'package:oka_core/oka_core.dart'
     show
+        Artifact,
         BuildContext,
         BuildMode,
+        BuildStep,
         CredentialRef,
         CredentialResolution,
         CredentialResolutionException,
@@ -49,6 +51,7 @@ export 'package:oka_core/oka_core.dart'
         PublishPlan,
         PublishPlanStep,
         PublishTarget,
+        StepResult,
         auditPublishConformance,
         describeTarget,
         expectPublishConformance,

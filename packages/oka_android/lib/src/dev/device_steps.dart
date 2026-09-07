@@ -31,6 +31,7 @@ import 'package:path/path.dart' as p;
 import '../android_artifacts.dart';
 import '../android_state.dart';
 import '../build/toolchain.dart';
+import 'adb_tool.dart';
 
 /// Device-log failure signatures scanned after launch (name → needle).
 ///
@@ -160,7 +161,11 @@ class ResolveNewestApkStep extends BuildStep {
 /// `adb install -r` the resolved APK, with the classic failure
 /// classification (signing-key mismatch, no device).
 class InstallApkStep extends BuildStep {
-  InstallApkStep({this.adbPath, this.toolchain});
+  InstallApkStep({this.deviceId, this.adbPath, this.toolchain});
+
+  /// Device serial — required on multi-device hosts (phone + emulator);
+  /// null lets adb pick (single-device setups only).
+  final String? deviceId;
 
   /// Injectable adb path (tests / explicit config); null → toolchain.
   final String? adbPath;
@@ -191,7 +196,10 @@ class InstallApkStep extends BuildStep {
     }
 
     print('📲 Installing ${p.basename(apk)}');
-    final install = await Process.run(adb, ['install', '-r', apk]);
+    final install = await Process.run(
+      adb,
+      adbInstallArgs(apk, serial: deviceId),
+    );
     if (install.exitCode != 0 ||
         '${install.stdout}${install.stderr}'.contains('Failure')) {
       final output = '${install.stdout}${install.stderr}'.trim();
@@ -220,12 +228,17 @@ class InstallApkStep extends BuildStep {
 /// starts the activity.
 class LaunchAppStep extends BuildStep {
   LaunchAppStep({
+    this.deviceId,
     this.packageOverride,
     this.activityOverride,
     this.adbPath,
     this.aapt2Path,
     this.toolchain,
   });
+
+  /// Device serial — required on multi-device hosts; null = single device.
+  final String? deviceId;
+
 
   /// Typed target config wins over badging (ADR-0015: targets are values).
   final String? packageOverride;
@@ -273,14 +286,11 @@ class LaunchAppStep extends BuildStep {
     final adb = await _findAdb(state);
     // Clear the log buffer first — older runs (or other apps) must not
     // produce false failure signatures in the scan below.
-    await Process.run(adb, ['logcat', '-c']);
-    final start = await Process.run(adb, [
-      'shell',
-      'am',
-      'start',
-      '-n',
-      '$packageName/$activity',
-    ]);
+    await Process.run(adb, adbLogcatClearArgs(serial: deviceId));
+    final start = await Process.run(
+      adb,
+      adbLaunchArgs(packageName, activity, serial: deviceId),
+    );
     if (start.exitCode != 0) {
       return StepResult.failure(
         'am start failed:\n${start.stdout}${start.stderr}',
@@ -322,9 +332,14 @@ class LogcatScanStep extends BuildStep {
   LogcatScanStep({
     this.waitSeconds = 10,
     this.treatMissingProcessAsFailure = true,
+    this.deviceId,
     this.adbPath,
     this.toolchain,
   });
+
+  /// Device serial — required on multi-device hosts; null = single device.
+  final String? deviceId;
+
 
   /// Seconds to wait before scanning (lets the app crash if it will).
   final int waitSeconds;
@@ -363,7 +378,7 @@ class LogcatScanStep extends BuildStep {
       );
     }
     final pid = await _pidOf(adb, packageName);
-    final r = await Process.run(adb, ['logcat', '-d']);
+    final r = await Process.run(adb, adbLogcatDumpArgs(serial: deviceId));
     final scan = scanLogForFailureSignatures('${r.stdout}${r.stderr}');
     _report(packageName: packageName, pid: pid, scan: scan);
 
@@ -381,7 +396,10 @@ class LogcatScanStep extends BuildStep {
   }
 
   Future<String?> _pidOf(final String adb, final String packageName) async {
-    final r = await Process.run(adb, ['shell', 'pidof', packageName]);
+    final r = await Process.run(
+      adb,
+      [...adbSerialArgs(deviceId), 'shell', 'pidof', packageName],
+    );
     return (r.stdout as String).trim();
   }
 

@@ -145,6 +145,7 @@ class DevCommand {
         // a failure throws DevLaunchException, handled by DevFlow.
         await prepareDevLaunch(
           projectPath: projectPath,
+          deviceId: deviceId,
           adbPath: devToolPath,
           verbose: verbose,
         );

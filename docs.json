@@ -70,6 +70,10 @@
         {
           "title": "Docs Map",
           "href": "/start_here/docs_map"
+        },
+        {
+          "title": "Roadmap",
+          "href": "/start_here/roadmap"
         }
       ]
     },
@@ -83,6 +87,10 @@
         {
           "title": "Gradle Migration",
           "href": "/guides/gradle_migration"
+        },
+        {
+          "title": "Publishing",
+          "href": "/guides/publishing"
         },
         {
           "title": "Design FAQ",

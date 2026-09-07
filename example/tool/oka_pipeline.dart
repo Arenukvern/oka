@@ -12,15 +12,25 @@
 /// dart run tool/oka_pipeline.dart            # debug build
 /// dart run tool/oka_pipeline.dart --print-config   # merged config JSON
 /// oka explain                                 # validated plan (no tools)
+/// oka explain --targets                       # declared targets + step chains
+/// oka run device                              # install → launch → log scan
+/// oka run publish-play                        # dry-run publish plan (no HTTP)
+/// oka run publish-huawei                      # dry-run publish plan (no HTTP)
 /// ```
 ///
 /// Precedence reminder: built-in defaults < oka.yaml (if kept) < this file
 /// < CLI args (--release/--aab/--abi/--target/--dart-define).
+///
+/// Copy-paste promise: this file is the whole build config — build steps,
+/// dev-loop target, and publish targets included. Swap the values below for
+/// your own and you have a working no-Gradle app + distribution setup.
 library;
 
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
+import 'package:oka_huawei/oka_huawei.dart';
+import 'package:oka_play/oka_play.dart';
 
 /// Steps shared by APK and AAB builds (identical through dependency
 /// resolution; the packaging tail differs per artifact type).
@@ -117,10 +127,57 @@ Future<void> main(final List<String> args) {
           steps: [..._commonSteps(), ...(wantsAab ? _aabTail() : _apkTail())],
         ),
       ],
-      // ADR-0015: project-declared targets. `oka run device` (alias:
-      // `oka launch`) installs the newest built APK, launches it, and
-      // scans the device log for failure signatures.
-      targets: const [DeviceTarget()],
+      // ─── Targets (ADR-0015): project-declared, discovered by `oka run`.
+      // Publish setup checklist (ADR-0014) — do this once, then flip
+      // `dryRun: false` below to ship for real:
+      //
+      //   1. Build the artifact:
+      //        oka build aab --release --verify-aab
+      //   2. Rehearse without credentials (dry-run is the default;
+      //      zero HTTP, no secret needed):
+      //        oka explain --targets
+      //        oka run publish-play
+      //        oka run publish-huawei
+      //   3. Google Play console setup:
+      //        - Google Cloud service account + JSON key, Android
+      //          Publisher API enabled
+      //        - grant it a release role in Play Console →
+      //          Users and permissions
+      //        - reference the JSON BY PATH (tier-2 credential — never a
+      //          dart-define, never a value), in precedence order:
+      //              PlayPublishTarget(serviceAccountPath: …)
+      //              → OKA_PLAY_SERVICE_ACCOUNT_JSON env var (a path)
+      //              → ~/.oka/credentials/play/service-account-json
+      //   4. Huawei AppGallery setup:
+      //        - create the app in AppGallery Connect (numeric `appId`
+      //          below — not a secret)
+      //        - Users and permissions → API client → download the JSON
+      //          (client_id / client_secret), resolved by path:
+      //              HuaweiPublishTarget(credentialPath: …)
+      //              → OKA_HUAWEI_AGCONNECT_CREDENTIALS env var (a path)
+      //              → ~/.oka/credentials/huawei/agconnect-credentials
+      //   5. Ship: set `dryRun: false` on the target you are releasing to.
+      //
+      // Full walkthrough (consoles, files, env vars, failure playbook):
+      // https://docs.page/arenukvern/oka/guides/publishing
+      targets: const [
+        // `oka run device` (alias: `oka launch`) installs the newest built
+        // APK, launches it, and scans the device log for failure signatures.
+        DeviceTarget(),
+        // Google Play: dry-run is the default (flip to `dryRun: false` to
+        // ship) — the plan prints endpoint, track, artifact, metadata and
+        // succeeds without any credential present.
+        PlayPublishTarget(),
+        // Huawei AppGallery Connect: composes the GMS-excluded build
+        // variant + the AGC upload tail (token → upload-url → submit).
+        // Release notes are file paths, never inlined content:
+        //   releaseNotes: [
+        //     AgcReleaseNote(language: 'en', file: 'whatsnew-en.txt'),
+        //   ]
+        HuaweiPublishTarget(
+          release: HuaweiReleaseConfig(appId: '110012345'),
+        ),
+      ],
     ),
   );
 }

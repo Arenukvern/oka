@@ -37,6 +37,8 @@ dependencies:
   oka:
     path: ..
   oka_android: ^0.1.6
+  oka_huawei: ^0.1.6
+  oka_play: ^0.1.6
 
 dependency_overrides:
   # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
@@ -48,6 +50,10 @@ dependency_overrides:
     path: ../packages/oka_android
   oka_core:
     path: ../packages/oka_core
+  oka_huawei:
+    path: ../packages/oka_huawei
+  oka_play:
+    path: ../packages/oka_play
 
 dev_dependencies:
   flutter_test:

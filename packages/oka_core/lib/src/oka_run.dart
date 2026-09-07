@@ -44,7 +44,14 @@ final _okaRunParser = ArgParser()
   ..addFlag('oka-list-targets', negatable: false, hide: true)
   // ADR-0015 (C2): describe each declared target's compiled step chain —
   // the validated-plan surface, no execution. Used by `oka explain --targets`.
-  ..addFlag('oka-describe-targets', negatable: false, hide: true);
+  ..addFlag('oka-describe-targets', negatable: false, hide: true)
+  // ADR-0015: invocation-time target overrides. `--oka-target-arg key=value`
+  // (repeatable) is the generic typed mechanism — the target validates the
+  // keys itself ([Target.applyInvocationArgs]). `--device`/`-d` is a
+  // convenience alias forwarded as the `device` key (e.g. DeviceTarget),
+  // keeping `oka launch -d` and `oka run device -d` working.
+  ..addMultiOption('oka-target-arg', hide: true)
+  ..addOption('device', abbr: 'd', hide: true);
 
 /// Runs a declarative [Oka] composition from a project hook entrypoint
 /// (ADR-0006: `oka build` delegates to `dart run <entrypoint>` which calls
@@ -143,7 +150,16 @@ Future<void> okaRun(
   final PlatformPipeline? pipeline;
   final requestedTargetName = results['oka-run-target'] as String?;
   if (requestedTargetName != null) {
-    target = _resolveTarget(oka, requestedTargetName);
+    final resolved = _resolveTarget(oka, requestedTargetName);
+    final invocationArgs = {
+      if ((results['device'] as String?)?.trim().isNotEmpty ?? false)
+        'device': (results['device'] as String).trim(),
+      for (final kv in results['oka-target-arg'] as List<String>)
+        ..._parseTargetArg(kv),
+    };
+    target = invocationArgs.isEmpty
+        ? resolved
+        : resolved.applyInvocationArgs(invocationArgs);
     pipeline = null;
   } else {
     target = null;
@@ -189,7 +205,10 @@ Future<void> okaRun(
   if (target != null) {
     // ADR-0015: target pipelines go through the same composition-time
     // artifact validation as platform builds — before any tool runs.
-    final targetPipeline = Pipeline(target.compile(ctx), verbose: verbose);
+    final targetPipeline = Pipeline(
+      target.compile(ctx),
+      verbose: verbose,
+    );
     final validationError = targetPipeline.validate();
     if (validationError != null) {
       stderr.writeln(
@@ -397,6 +416,19 @@ Map<String, String> parseDartDefineFile(final String? path) {
 
 /// Parses a single `key=value` define; a bare key maps to `'true'`
 /// (matching the Flutter tool convention).
+/// Parses `key=value` from a `--oka-target-arg` occurrence (ADR-0015).
+/// Valueless keys map to an empty string so targets can distinguish
+/// presence; `=` inside the value is kept.
+Map<String, String> _parseTargetArg(final String kv) {
+  final i = kv.indexOf('=');
+  if (i <= 0) {
+    throw ArgumentError(
+      'invalid --oka-target-arg "$kv" — expected key=value.',
+    );
+  }
+  return {kv.substring(0, i): kv.substring(i + 1)};
+}
+
 Map<String, String> _parseSingleDefine(final String define) {
   final i = define.indexOf('=');
   if (i < 0) return {define: 'true'};

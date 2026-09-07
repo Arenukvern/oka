@@ -45,10 +45,20 @@ class ScriptedResponse {
     this.bytes,
   });
 
+  /// HTTP status code to answer with (default 200).
   final int status;
+
+  /// Response headers (defaults to an `application/json` content type).
   final Map<String, String> headers;
+
+  /// JSON body (mutually exclusive with [body]/[bytes]).
   final Object? json;
+
+  /// Raw text body (mutually exclusive with [json]/[bytes]).
   final String? body;
+
+  /// Raw byte body, for binary responses (mutually exclusive with the
+  /// other body fields).
   final List<int>? bytes;
 
   /// The response payload as bytes: explicit bytes, then text, then JSON.

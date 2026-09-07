@@ -70,13 +70,30 @@ void main() {
   });
 
   group('launch flags', () {
-    test('--device / -d accepted (forwarded as plain dispatch)', () async {
-      for (final flag in const ['--device', '-d']) {
-        final result = await okaCli(['launch', flag]);
+    test('-d <serial> forwards as the device invocation arg', () async {
+      for (final flagValue in const [
+        ['--device', 'FAKE123'],
+        ['-d', 'FAKE123'],
+      ]) {
+        final result = await okaCli(['launch', ...flagValue]);
         expect(result.exitCode, 0,
-            reason: '$flag: ${result.stderr}');
-        expect(await marker().exists(), isTrue);
+            reason: '${flagValue}: ${result.stderr}');
+        expect(await marker().readAsString(), contains('FAKE123'));
       }
+    });
+
+    test('bare --device is a usage error (option now takes a value)', () async {
+      final result = await okaCli(['launch', '--device']);
+      expect(result.exitCode, isNot(0));
+    });
+
+    test('unknown invocation args are rejected by the target contract', () async {
+      final result = await okaCli([
+        'launch',
+        '--oka-target-arg',
+        'bogus=1',
+      ]);
+      expect(result.exitCode, isNot(0));
     });
 
     test('--verbose is forwarded to the entrypoint', () async {

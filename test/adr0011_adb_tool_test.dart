@@ -405,4 +405,51 @@ void main() {
       );
     });
   });
+  group('device serial (multi-device hosts)', () {
+    test('serial builders prefix -s only when a serial is set', () {
+      expect(adbInstallArgs('/tmp/a.apk', serial: 'R5CX'),
+          ['-s', 'R5CX', 'install', '-r', '/tmp/a.apk']);
+      expect(adbInstallArgs('/tmp/a.apk'), ['install', '-r', '/tmp/a.apk']);
+      expect(adbSerialArgs(null), isEmpty);
+      expect(adbSerialArgs('  '), isEmpty);
+      expect(adbSerialArgs(' emulator-5554 '), ['-s', 'emulator-5554']);
+      expect(adbLaunchArgs('p', 'a', serial: 'S1'),
+          ['-s', 'S1', 'shell', 'am', 'start', '-n', 'p/a']);
+      expect(adbLogcatDumpArgs(serial: 'S1'), ['-s', 'S1', 'logcat', '-d']);
+      expect(adbLogcatClearArgs(), ['logcat', '-c']);
+      expect(
+        adbForwardArgs(devicePort: 4, serial: 'S1'),
+        ['-s', 'S1', 'forward', 'tcp:0', 'tcp:4'],
+      );
+    });
+
+    test('AdbTool threads the serial into every operation', () async {
+      final seen = <List<String>>[];
+      Future<ProcessResult> fake(String exe, List<String> args) async {
+        seen.add(args);
+        // `adb forward tcp:0` prints the chosen local port on stdout.
+        return ProcessResult(
+          0,
+          0,
+          args.contains('forward') ? '41235\n' : '',
+          '',
+        );
+      }
+
+      final tool = AdbTool(adbPath: 'adb', serial: 'S1', runProcess: fake);
+      await tool.install('/tmp/a.apk');
+      await tool.launch('p', 'a');
+      await tool.clearLogcat();
+      await tool.logcatDump();
+      await tool.forwardTcp(devicePort: 9);
+      expect(seen, [
+        ['-s', 'S1', 'install', '-r', '/tmp/a.apk'],
+        ['-s', 'S1', 'shell', 'am', 'start', '-n', 'p/a'],
+        ['-s', 'S1', 'logcat', '-c'],
+        ['-s', 'S1', 'logcat', '-d'],
+        ['-s', 'S1', 'forward', 'tcp:0', 'tcp:9'],
+      ]);
+    });
+  });
+
 }

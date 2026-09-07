@@ -25,6 +25,7 @@ export 'device_steps.dart';
 ///       activity: 'dev.example.app.MainActivity',
 ///       noInstall: true,      // app must already be on the device
 ///       waitSeconds: 15,
+///       deviceId: 'R5CX...',  // multi-device hosts; `-d` forwards here
 ///     ),
 ///   ],
 /// )
@@ -39,6 +40,7 @@ class DeviceTarget extends Target {
     this.activity,
     this.noInstall = false,
     this.waitSeconds = 10,
+    this.deviceId,
     this.adbPath,
     this.aapt2Path,
     this.toolchain,
@@ -59,6 +61,12 @@ class DeviceTarget extends Target {
 
   /// Seconds to wait before the device-log scan.
   final int waitSeconds;
+
+  /// Device serial (`adb -s`) — required on multi-device hosts (phone +
+  /// emulator); null lets adb pick (single-device setups only). Settable
+  /// per-invocation: `oka run device -d <id>` (or `oka launch -d <id>`)
+  /// overrides this via the [applyInvocationArgs] contract.
+  final String? deviceId;
 
   /// Injectable tool paths (tests / explicit config); null → [toolchain].
   final String? adbPath;
@@ -81,8 +89,13 @@ class DeviceTarget extends Target {
   List<BuildStep> compile(final BuildContext ctx) => [
         ResolveNewestApkStep(explicitApk: apk),
         if (!noInstall)
-          InstallApkStep(adbPath: adbPath, toolchain: toolchain),
+          InstallApkStep(
+            deviceId: deviceId,
+            adbPath: adbPath,
+            toolchain: toolchain,
+          ),
         LaunchAppStep(
+          deviceId: deviceId,
           packageOverride: package,
           activityOverride: activity,
           adbPath: adbPath,
@@ -92,8 +105,36 @@ class DeviceTarget extends Target {
         LogcatScanStep(
           waitSeconds: waitSeconds,
           treatMissingProcessAsFailure: !noInstall,
+          deviceId: deviceId,
           adbPath: adbPath,
           toolchain: toolchain,
         ),
       ];
+
+  @override
+  Set<String> get supportedInvocationArgs => const {'device'};
+
+  @override
+  DeviceTarget applyInvocationArgs(final Map<String, String> args) {
+    final unknown = args.keys.toSet().difference(supportedInvocationArgs);
+    if (unknown.isNotEmpty) {
+      throw ArgumentError(
+        'target "device" does not accept invocation arg(s): '
+        '${unknown.join(', ')} — accepted: device=<serial>.',
+      );
+    }
+    final id = args['device'];
+    if (id == null || id.trim().isEmpty) return this;
+    return DeviceTarget(
+      apk: apk,
+      package: package,
+      activity: activity,
+      noInstall: noInstall,
+      waitSeconds: waitSeconds,
+      deviceId: id.trim(),
+      adbPath: adbPath,
+      aapt2Path: aapt2Path,
+      toolchain: toolchain,
+    );
+  }
 }
