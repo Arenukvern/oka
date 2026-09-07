@@ -110,7 +110,8 @@ export 'src/compare.dart';
 export 'src/dependency_plan.dart';
 
 // Device layer (ADR-0015: the device target + DEX probe live here, never
-// in the CLI verb layer).
+// in the CLI verb layer). Provisioning (ADR-0013 T2) is store-backed.
+export 'src/dev/device_provisioning.dart';
 export 'src/dev/device_target.dart';
 export 'src/dev/dex_probe.dart';
 

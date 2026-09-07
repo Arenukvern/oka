@@ -115,6 +115,27 @@ class AndroidToolchain implements Toolchain {
           ToolSource(s.kind, '${s.label} → platform-tools/adb'),
       ];
     }
+    if (name == 'emulator') {
+      return [
+        for (final s in androidSdkPolicy)
+          ToolSource(s.kind, '${s.label} → emulator/emulator'),
+      ];
+    }
+    if (name == 'avdmanager') {
+      return [
+        for (final s in androidSdkPolicy)
+          ToolSource(
+            s.kind,
+            '${s.label} → cmdline-tools/latest/bin/avdmanager',
+          ),
+      ];
+    }
+    if (name == 'system-images') {
+      return [
+        for (final s in androidSdkPolicy)
+          ToolSource(s.kind, '${s.label} → system-images/'),
+      ];
+    }
     if (name == 'kotlinc') {
       return [
         const ToolSource(ToolSourceKind.managed, '~/.oka/tools/kotlin-*/bin'),
@@ -169,6 +190,18 @@ class AndroidToolchain implements Toolchain {
       return 'Install platform-tools (`sdkmanager "platform-tools"`) or run '
           '`oka get android-sdk`.';
     }
+    if (tool == 'emulator') {
+      return 'Install the emulator (`sdkmanager "emulator"`) or run '
+          '`oka get android-sdk`.';
+    }
+    if (tool == 'avdmanager') {
+      return 'Install cmdline-tools (`sdkmanager "cmdline-tools;latest"`) '
+          'or run `oka get android-sdk`.';
+    }
+    if (tool == 'system-images') {
+      return 'Install a system image, e.g. '
+          '`sdkmanager "system-images;android-34;google_apis;x86_64"`.';
+    }
     if (tool == 'r8') {
       return 'Run `oka get r8` to install.';
     }
@@ -198,6 +231,32 @@ class AndroidToolchain implements Toolchain {
         r = await _resolveR8();
       case 'adb':
         r = await _resolveAdb();
+      case 'emulator':
+        r = await _resolveSdkRelative(
+          name: 'emulator',
+          relativeCandidates: [
+            'emulator/emulator',
+            if (Platform.isWindows) 'emulator/emulator.exe',
+          ],
+          problem: 'emulator binary not found in Android SDK (emulator/)',
+        );
+      case 'avdmanager':
+        r = await _resolveSdkRelative(
+          name: 'avdmanager',
+          relativeCandidates: [
+            'cmdline-tools/latest/bin/avdmanager',
+            'tools/bin/avdmanager',
+            if (Platform.isWindows)
+              'cmdline-tools/latest/bin/avdmanager.bat',
+          ],
+          problem: 'avdmanager not found in Android SDK cmdline-tools',
+        );
+      case 'system-images':
+        r = await _resolveSdkRelative(
+          name: 'system-images',
+          relativeCandidates: ['system-images'],
+          problem: 'no system-images directory in Android SDK',
+        );
       case 'kotlinc':
         r = await _resolveKotlinc();
       case 'javac':
@@ -507,32 +566,40 @@ class AndroidToolchain implements Toolchain {
 
   // adb ----------------------------------------------------------------------
 
-  Future<ToolResolution> _resolveAdb() async {
+  Future<ToolResolution> _resolveAdb() => _resolveSdkRelative(
+        name: 'adb',
+        relativeCandidates: ['platform-tools/adb'],
+        problem: 'adb not found in Android SDK platform-tools',
+      );
+
+  /// Generic SDK-root-relative resolution for device tools (adb, emulator,
+  /// avdmanager, system-images): resolve the SDK through the policy, then
+  /// probe the relative candidates in order. Shares the SDK's tried set so
+  /// failures document the whole decision path.
+  Future<ToolResolution> _resolveSdkRelative({
+    required final String name,
+    required final List<String> relativeCandidates,
+    required final String problem,
+  }) async {
     final sdkRes = await resolve(const ToolQuery('android-sdk'));
     if (!sdkRes.ok) return sdkRes;
     final sdk = sdkRes.tool!;
     final tried = <ToolSource>[
       ...sdkRes.tried,
-      ToolSource(
-        sdk.source.kind,
-        '${sdk.source.label} → platform-tools/adb',
-      ),
+      for (final rel in relativeCandidates)
+        ToolSource(sdk.source.kind, '${sdk.source.label} → $rel'),
     ];
-    final adbPath = p.join(sdk.path, 'platform-tools', 'adb');
-    if (await File(adbPath).exists()) {
-      return ToolResolution(
-        tool: ResolvedTool(
-          name: 'adb',
-          path: adbPath,
-          source: sdk.source,
-        ),
-        tried: tried,
-      );
+    for (final rel in relativeCandidates) {
+      final toolPath = p.join(sdk.path, rel);
+      if (await File(toolPath).exists() ||
+          await Directory(toolPath).exists()) {
+        return ToolResolution(
+          tool: ResolvedTool(name: name, path: toolPath, source: sdk.source),
+          tried: tried,
+        );
+      }
     }
-    return ToolResolution(
-      tried: tried,
-      problem: 'adb not found in Android SDK platform-tools',
-    );
+    return ToolResolution(tried: tried, problem: problem);
   }
 
   // kotlinc ------------------------------------------------------------------
@@ -1127,6 +1194,8 @@ class ResolvedToolchain implements Toolchain {
     'zipalign',
     'apksigner',
     'adb',
+    'emulator',
+    'avdmanager',
     'javac',
     'kotlinc',
   ];

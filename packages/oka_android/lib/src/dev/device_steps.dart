@@ -29,7 +29,8 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 import '../android_artifacts.dart';
-import '../build/sdk_locator.dart';
+import '../android_state.dart';
+import '../build/toolchain.dart';
 
 /// Device-log failure signatures scanned after launch (name → needle).
 ///
@@ -78,6 +79,17 @@ Map<String, String> scanLogForFailureSignatures(final String log) {
   }
   return found;
 }
+
+/// Device steps resolve tools through the [ResolvedToolchain] policy
+/// (ADR-0013, T2): explicit constructor path → `state.resolvedToolchain`
+/// (seeded by the platform pipeline when present) → the default policy.
+/// Nothing here calls the deprecated locator wrapper — provisioning of a
+/// missing adb goes through the store-backed AndroidDeviceProvisioner.
+ResolvedToolchain _resolveToolchain(
+  final ResolvedToolchain? injected,
+  final PipelineState state,
+) =>
+    injected ?? state.resolvedToolchain ?? ResolvedToolchain();
 
 /// Newest APK across `.oka_cache/build/*/app-*.apk` (including the
 /// `*-aab` sibling layout), or null when none exists.
@@ -148,10 +160,13 @@ class ResolveNewestApkStep extends BuildStep {
 /// `adb install -r` the resolved APK, with the classic failure
 /// classification (signing-key mismatch, no device).
 class InstallApkStep extends BuildStep {
-  InstallApkStep({this.adbPath});
+  InstallApkStep({this.adbPath, this.toolchain});
 
-  /// Injectable adb path (tests); null resolves through [SdkLocator].
+  /// Injectable adb path (tests / explicit config); null → toolchain.
   final String? adbPath;
+
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T2).
+  final ResolvedToolchain? toolchain;
 
   @override
   String get name => 'device-install';
@@ -167,8 +182,9 @@ class InstallApkStep extends BuildStep {
     final apk = state[apkPath.id]! as String;
     final String adb;
     try {
-      adb = adbPath ?? await SdkLocator().findAdb();
-    } on Exception {
+      adb = adbPath ??
+          await _resolveToolchain(toolchain, state).findAdb();
+    } on ToolchainException {
       return StepResult.failure(
         'adb not found — install platform-tools (oka get android-sdk)',
       );
@@ -208,17 +224,19 @@ class LaunchAppStep extends BuildStep {
     this.activityOverride,
     this.adbPath,
     this.aapt2Path,
+    this.toolchain,
   });
 
   /// Typed target config wins over badging (ADR-0015: targets are values).
   final String? packageOverride;
   final String? activityOverride;
 
-  /// Injectable adb path (tests); null resolves through [SdkLocator].
+  /// Injectable tool paths (tests / explicit config); null → toolchain.
   final String? adbPath;
-
-  /// Injectable aapt2 path (tests); null resolves through [SdkLocator].
   final String? aapt2Path;
+
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T2).
+  final ResolvedToolchain? toolchain;
 
   @override
   String get name => 'device-launch';
@@ -234,7 +252,7 @@ class LaunchAppStep extends BuildStep {
     final apk = state[apkPath.id]! as String;
     var badging = const <String, String>{};
     if (packageOverride == null || activityOverride == null) {
-      badging = await _badging(apk);
+      badging = await _badging(apk, state);
     }
     final packageName = packageOverride ?? badging['package'];
     final activity = activityOverride ?? badging['launchable-activity'];
@@ -252,7 +270,7 @@ class LaunchAppStep extends BuildStep {
     }
 
     print('🚀 Starting $activity');
-    final adb = await _findAdb();
+    final adb = await _findAdb(state);
     // Clear the log buffer first — older runs (or other apps) must not
     // produce false failure signatures in the scan below.
     await Process.run(adb, ['logcat', '-c']);
@@ -272,19 +290,27 @@ class LaunchAppStep extends BuildStep {
     return StepResult.success({'device_package': packageName});
   }
 
-  Future<String> _findAdb() => adbPath != null
+  Future<String> _findAdb(final PipelineState state) => adbPath != null
       ? Future.value(adbPath)
-      : SdkLocator().findAdb();
+      : _resolveToolchain(toolchain, state).findAdb();
 
   /// Minimal `aapt2 dump badging` reader ([parseAapt2Badging]). An absent
   /// aapt2 yields an empty map — the caller reports the actionable error.
-  Future<Map<String, String>> _badging(final String apk) async {
+  Future<Map<String, String>> _badging(
+    final String apk,
+    final PipelineState state,
+  ) async {
     String? aapt2;
-    try {
-      aapt2 = aapt2Path ?? await SdkLocator().findAapt2();
-    } on Exception {
-      return const {};
+    if (aapt2Path != null) {
+      aapt2 = aapt2Path;
+    } else {
+      try {
+        aapt2 = await _resolveToolchain(toolchain, state).findAapt2();
+      } on ToolchainException {
+        return const {};
+      }
     }
+    if (aapt2 == null) return const {};
     final r = await Process.run(aapt2, ['dump', 'badging', apk]);
     return parseAapt2Badging(r.stdout as String);
   }
@@ -297,6 +323,7 @@ class LogcatScanStep extends BuildStep {
     this.waitSeconds = 10,
     this.treatMissingProcessAsFailure = true,
     this.adbPath,
+    this.toolchain,
   });
 
   /// Seconds to wait before scanning (lets the app crash if it will).
@@ -307,8 +334,11 @@ class LogcatScanStep extends BuildStep {
   /// historical `--no-install` semantics.
   final bool treatMissingProcessAsFailure;
 
-  /// Injectable adb path (tests); null resolves through [SdkLocator].
+  /// Injectable adb path (tests / explicit config); null → toolchain.
   final String? adbPath;
+
+  /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T2).
+  final ResolvedToolchain? toolchain;
 
   @override
   String get name => 'device-logcat-scan';
@@ -325,8 +355,9 @@ class LogcatScanStep extends BuildStep {
 
     final String adb;
     try {
-      adb = adbPath ?? await SdkLocator().findAdb();
-    } on Exception {
+      adb = adbPath ??
+          await _resolveToolchain(toolchain, state).findAdb();
+    } on ToolchainException {
       return StepResult.failure(
         'adb not found — install platform-tools (oka get android-sdk)',
       );

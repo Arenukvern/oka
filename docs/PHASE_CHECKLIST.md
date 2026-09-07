@@ -89,10 +89,41 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       `oka doctor` prints the resolved policy (paths + sources + fixes);
       `test/toolchain_policy_test.dart` (19 precedence/version/doctor
       tests, injected env), `dart analyze` clean, determinism test green.
-- [ ] **T2 — Device layer through the store (ADR-0013, with H2).**
+- [x] **T2 — Device layer through the store (ADR-0013, with H2).**
       adb/emulator provisioning as platform-scoped tool providers;
       install/launch steps consume `ResolvedToolchain`. Evidence: emulator
       e2e already required by H2 — extend with store-backed provisioning.
+      Done (T2 scope: provisioning + resolution wiring; the emulator e2e
+      evidence itself lands with H2). Evidence: dev steps migrated off the `SdkLocator` wrapper onto
+      `ResolvedToolchain` (constructor value → `state.resolvedToolchain` →
+      default; `device_steps.dart`, `device_target.dart` — additive
+      `toolchain` param, DeviceTarget public shape otherwise unchanged);
+      device tools added to the T1 policy as data (`toolchain.dart`:
+      `emulator` → `emulator/emulator`, `avdmanager` →
+      `cmdline-tools/latest/bin/avdmanager`, `system-images` dir — ordered
+      candidates + remediation naming the exact `sdkmanager` command);
+      `oka doctor` prints them via the policy value (no CLI change);
+      store-backed provisioning (`dev/device_provisioning.dart`,
+      `AndroidDeviceProvisioner`): adb resolves policy-first, then store
+      (`platform-tools/adb` content key, host-OS-scoped), then a
+      **non-interactive** direct download from dl.google.com registered in
+      the store — prompt-dependent paths fail closed with
+      [ToolchainException] naming the exact command (system images: pointer
+      entry in the store, non-interactive `sdkmanager` only when
+      `<sdk>/licenses/` pre-accepted, stdin never attached); no stdin
+      anywhere. Tests: `test/adr0013_t2_device_store_test.dart` (18 tests:
+      source contract — `dev/**` references no `SdkLocator`; policy
+      resolution with injected env; store round-trip with fake store + fake
+      curl zip — download exactly once, store hit spawns nothing;
+      fail-closed remediation; dev steps + full `DeviceTarget` pipeline on
+      an injected toolchain). `dart analyze` clean, `dart test` 325
+      passing. **Remaining for H2:** real emulator e2e (no emulator
+      installed on the dev machine — `oka doctor` reports
+      `❌ emulator: not found`, and running one is out of T2 scope, not
+      faked); AVD creation/boot steps (`avdmanager create avd` + boot wait)
+      composing over this provisioner; `EmulatorSpec` typed fields on
+      `DeviceTarget` (deferred — not needed until a boot step consumes
+      them, per the no-dead-config rule).
 - [ ] **T3 — Distribution-target ADR (ADR-0014).** Checkpoint for
       `PublishTarget` contract, secrets/auth handling, and target packages
       (`oka_play`, `oka_huawei`, …). Gated on T0/T1. Conformance suite

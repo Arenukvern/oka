@@ -1,5 +1,6 @@
 import 'package:oka_core/oka_core.dart';
 
+import '../build/toolchain.dart';
 import 'device_steps.dart';
 
 export 'device_steps.dart';
@@ -40,6 +41,7 @@ class DeviceTarget extends Target {
     this.waitSeconds = 10,
     this.adbPath,
     this.aapt2Path,
+    this.toolchain,
   });
 
   /// APK to install (default: newest APK under `.oka_cache/build/`).
@@ -58,9 +60,14 @@ class DeviceTarget extends Target {
   /// Seconds to wait before the device-log scan.
   final int waitSeconds;
 
-  /// Injectable tool paths (tests); null resolves through [SdkLocator].
+  /// Injectable tool paths (tests / explicit config); null → [toolchain].
   final String? adbPath;
   final String? aapt2Path;
+
+  /// Injectable toolchain (ADR-0013 T2): null → `state.resolvedToolchain`
+  /// → default policy. Composition roots building on the shared store seed
+  /// one `ResolvedToolchain` here instead of per-step paths.
+  final ResolvedToolchain? toolchain;
 
   @override
   String get name => 'device';
@@ -73,17 +80,20 @@ class DeviceTarget extends Target {
   @override
   List<BuildStep> compile(final BuildContext ctx) => [
         ResolveNewestApkStep(explicitApk: apk),
-        if (!noInstall) InstallApkStep(adbPath: adbPath),
+        if (!noInstall)
+          InstallApkStep(adbPath: adbPath, toolchain: toolchain),
         LaunchAppStep(
           packageOverride: package,
           activityOverride: activity,
           adbPath: adbPath,
           aapt2Path: aapt2Path,
+          toolchain: toolchain,
         ),
         LogcatScanStep(
           waitSeconds: waitSeconds,
           treatMissingProcessAsFailure: !noInstall,
           adbPath: adbPath,
+          toolchain: toolchain,
         ),
       ];
 }
