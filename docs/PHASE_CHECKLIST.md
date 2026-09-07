@@ -127,7 +127,7 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       composing over this provisioner; `EmulatorSpec` typed fields on
       `DeviceTarget` (deferred — not needed until a boot step consumes
       them, per the no-dead-config rule).
-- [ ] **P0 — PublishTarget contract + credential-path policy (ADR-0014).**
+- [x] **P0 — PublishTarget contract + credential-path policy (ADR-0014).**
       `PublishTarget` in `oka_core` (extends `Target`; conformance laws:
       dry-run without credentials, no stdin, no secret values in state/
       logs/events); credential-path resolution policy (explicit config
@@ -136,6 +136,31 @@ A phase is done only when its tests and evidence exist (see `AGENTS.md`).
       matching secret-ish patterns fail with the tier rule); credential
       file inside repo ⇒ must be gitignored. Tests: policy unit tests with
       injected env, audit key-pattern table, dry-run conformance.
+      Done. Evidence: `packages/oka_core/lib/src/publish/`
+      (`publish_target.dart`: `PublishTarget`, `PublishPlan`,
+      `PublishPlanStep` — dry-run is law-as-code: `compile` substitutes
+      the upload tail with the plan step; `conformance.dart`:
+      `auditPublishConformance`/`expectPublishConformance` over the three
+      laws + `FixturePublishTarget`);
+      `packages/oka_core/lib/src/credentials/` (`credential_ref.dart`
+      redacting `CredentialRef`; `credential_policy.dart`: ordered
+      `CredentialResolver` with injected env, tried-candidates +
+      remediation, `describePolicyLines`, doctor discovery + repo
+      hygiene; `secret_audit.dart`: tested `secretishKeyPatterns`
+      constant + pure `auditDartDefines` + `doctorSecretAuditLines`;
+      `repo_hygiene.dart`: gitignore-checker seam + default matcher);
+      doctor wiring is parse-and-delegate only
+      (`lib/src/cli/doctor_command.dart`, `[Secret Audit (ADR-0014)]` +
+      `[Credential Policy (ADR-0014)]` blocks; `[Toolchain Policy]`
+      byte-identical; gate test `test/adr0014_doctor_delegation_test.dart`).
+      Tests: `test/adr0014_credential_policy_test.dart` (precedence,
+      hard-fail on configured-but-missing path, env tilde expansion,
+      tried+fix, doctor lines, gitignore table),
+      `test/adr0014_secret_audit_test.dart` (pattern table, values never
+      echoed), `test/adr0014_publish_conformance_test.dart` (three laws
+      incl. negative cases). `dart analyze` clean; `dart test` 390
+      passing (338 pre-existing + 52 new). Shared-suite extraction stays
+      P1 (per ADR-0014 phased plan).
 - [ ] **P1 — `oka_play` target package (ADR-0014).** Play Publisher API
       upload steps (service-account JSON by path; AAB → internal track);
       `PublishTarget` conformance suite extracted as a shared package for

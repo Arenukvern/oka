@@ -39,7 +39,44 @@ class DoctorCommand {
       print('  $line');
     }
     print('');
-    // ── End toolchain policy block ─────────────────────────────────
+    // ── End toolchain policy block ──────────────────────────────
+
+    // ── Secret audit (ADR-0014 P0) ─────────────────────────────
+    // Parse-and-delegate only: the audit mechanics (secret-ish key
+    // patterns, tier-rule message) live in oka_core; this block parses
+    // the same define flags `oka build` accepts and formats the returned
+    // lines. The [Toolchain Policy] block above stays byte-identical.
+    final inlineDefineArgs = <String>[
+      for (final arg in args)
+        if (arg.startsWith('--dart-define='))
+          arg.substring('--dart-define='.length),
+    ];
+    final defineFilePaths = <String>[
+      for (final arg in args)
+        if (arg.startsWith('--dart-define-from-file='))
+          arg.substring('--dart-define-from-file='.length),
+    ];
+    print('[Secret Audit (ADR-0014)]');
+    for (final line in doctorSecretAuditLines(
+      inlineDefineArgs: inlineDefineArgs,
+      defineFilePaths: defineFilePaths,
+    )) {
+      print('  $line');
+    }
+    print('');
+    // ── End secret audit block ─────────────────────────────────
+
+    // ── Credential policy (ADR-0014 P0) ────────────────────────
+    // Parse-and-delegate only: ordered credential-path policy, OKA_* env
+    // discovery, and repo hygiene live in oka_core.
+    print('[Credential Policy (ADR-0014)]');
+    for (final line in doctorCredentialPolicyLines(
+      projectPath: Directory.current.path,
+    )) {
+      print('  $line');
+    }
+    print('');
+    // ── End credential policy block ───────────────────────────────
 
     final locator = SdkLocator();
     var allGood = true;
