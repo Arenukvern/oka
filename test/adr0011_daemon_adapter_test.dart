@@ -24,6 +24,10 @@ class FakeDaemonTransport implements DaemonTransport {
   ///     ? 'Observable wipe failed' : null`.
   Object? Function(String method)? respondErrorTo;
 
+  /// Methods that never get an auto-response (simulates a daemon that
+  /// stops answering — e.g. the physical-device attach-mode restart hang).
+  final Set<String> silentMethods = {};
+
   void emit(final String line) => _stdout.add(utf8.encode('$line\n'));
 
   void emitEvent(
@@ -89,6 +93,7 @@ class FakeDaemonTransport implements DaemonTransport {
     final decoded = jsonDecode(line) as List;
     final id = (decoded.single as Map)['id'] as int;
     final method = (decoded.single as Map)['method'] as String;
+    if (silentMethods.contains(method)) return;
     final errorResponder = respondErrorTo;
     final err = errorResponder?.call(method);
     if (err != null) {

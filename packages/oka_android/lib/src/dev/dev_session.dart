@@ -170,6 +170,40 @@ class DevLaunchException implements Exception {
   String toString() => message;
 }
 
+// -- VM-service URI artifact (machine-readable discovery) --------------------
+
+/// Path of the live dev-session discovery file:
+/// `<project>/.oka_cache/dev/vm.uri` — one line, the forwarded
+/// `ws://127.0.0.1:<port>/<auth>/ws` endpoint. Verification/inspection
+/// tools (e.g. `flutter_mcp_cli --vm-service-uri`) read this instead of
+/// scraping the `oka dev --json` stream. Absent = no live session.
+String vmUriFilePath(final String projectPath) =>
+    p.join(projectPath, '.oka_cache', 'dev', 'vm.uri');
+
+/// Writes the discovery file (best-effort: a failed write must never break
+/// the dev session).
+Future<void> writeVmUriFile(
+  final String projectPath,
+  final String vmServiceUri,
+) async {
+  try {
+    final f = File(vmUriFilePath(projectPath));
+    await f.parent.create(recursive: true);
+    await f.writeAsString('$vmServiceUri\n', flush: true);
+  } on FileSystemException {
+    // best-effort — the session itself does not depend on the file.
+  }
+}
+
+/// Removes the discovery file (session over → no live endpoint).
+Future<void> clearVmUriFile(final String projectPath) async {
+  try {
+    await File(vmUriFilePath(projectPath)).delete();
+  } on FileSystemException {
+    // already gone — fine.
+  }
+}
+
 /// Runs the device half of `oka dev` through the same validated [Pipeline]
 /// as every other flow (ADR-0002): the [DeviceTarget] steps (resolve newest
 /// APK → install → launch → logcat failure scan) followed by the H2
@@ -238,9 +272,11 @@ Future<DevLaunchPrepared> prepareDevLaunch({
     auth: parsed.path.replaceAll(RegExp(r'^/+|/+$'), ''),
     uri: vmUri,
   );
+  final hostUri = forwardedVmServiceUri(info, localPort);
+  await writeVmUriFile(projectPath, hostUri);
   return DevLaunchPrepared(
     apkPath: state[apkPath.id] as String? ?? '',
-    vmServiceUri: forwardedVmServiceUri(info, localPort),
+    vmServiceUri: hostUri,
     vmServiceLocalPort: localPort,
   );
 }
@@ -311,6 +347,11 @@ enum DevSessionOutcome {
   /// A watched change requires a full rebuild (only with
   /// `--rebuild-on-native`); the flow rebuilds and re-attaches.
   rebuildRequested,
+
+  /// The app stopped during a hot restart (`app.stop` mid-`app.restart`) —
+  /// observed on some physical devices where attach-mode full restart lacks
+  /// relaunch data. The flow relaunches (no rebuild) and re-attaches.
+  relaunchRequested,
 }
 
 // -- Session -----------------------------------------------------------------
@@ -494,8 +535,36 @@ class DevSession {
         final ok = await _dispatch(adapter.reload, label: 'Reload');
         _emit('reload.result', {'ok': ok});
       case DevControlCommand.restart:
-        final ok = await _dispatch(adapter.restart, label: 'Hot restart');
-        _emit('restart.result', {'ok': ok});
+        // Attach-mode full restart can stop the app instead of restarting
+        // it (observed on physical devices: the flutter tool lacks relaunch
+        // data when attached). Race the operation against `app.stop`; on a
+        // mid-restart stop, hand control back to [DevFlow] to relaunch (no
+        // rebuild) and re-attach.
+        final stopped = Completer<void>();
+        late final StreamSubscription<DaemonEvent> stopSub;
+        stopSub = adapter.events.listen((final e) {
+          if (e.event == 'app.stop' && !stopped.isCompleted) {
+            stopped.complete();
+          }
+        });
+        final opFuture = _dispatch(adapter.restart, label: 'Hot restart');
+        final winner = await Future.any<bool?>([
+          opFuture,
+          stopped.future.then((_) => false),
+        ]);
+        await stopSub.cancel();
+        if (winner == null || !winner) {
+          write(
+            '⚠️  The app stopped during hot restart (attach-mode limitation '
+            'on this device) — falling back to relaunch + re-attach…',
+          );
+          _emit('restart.fallback', {});
+          if (!_commandGate.isCompleted) {
+            _commandGate.complete(DevSessionOutcome.relaunchRequested);
+          }
+          return;
+        }
+        _emit('restart.result', {'ok': winner});
       case DevControlCommand.stopApp:
         await _trySend(adapter.stopApp);
         _emit('app.stopped', {});
@@ -535,6 +604,9 @@ class DevSession {
     write('🔁 $label…');
     try {
       final r = await operation();
+      // A fallback (e.g. app stopped mid-restart) may have ended the session
+      // while this operation was in flight — late writes are noise.
+      if (_commandGate.isCompleted) return false;
       if (r.ok) {
         write('✅ $label complete.');
         return true;
@@ -546,6 +618,7 @@ class DevSession {
       );
       return false;
     } on DaemonException catch (e) {
+      if (_commandGate.isCompleted) return false;
       write(
         '❌ $label failed: ${e.message}\n'
         '   fix: if the daemon is gone, re-run `oka dev` '
@@ -682,6 +755,10 @@ class DevFlow {
             );
             return 1;
           }
+        case DevSessionOutcome.relaunchRequested:
+          // Relaunch + re-attach only — no build. `prepare` reinstalls the
+          // same APK (idempotent) and re-attaches with a fresh VM service.
+          stderr.writeln('↩️  Relaunching and re-attaching…');
       }
     }
   }

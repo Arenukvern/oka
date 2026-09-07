@@ -497,5 +497,76 @@ void main() {
       }
       expect(code, 1);
     });
+
+    test('app.stop during hot restart falls back to relaunch + re-attach',
+        () async {
+      var sessions = 0;
+      final controllers = <StreamController<DevControlCommand>>[];
+      final lines = <String>[];
+      final flow = DevFlow(
+        prepare: () async {
+          sessions++;
+          final t = FakeDaemonTransport()
+            ..respondTo = (final String m) => const <String, Object?>{};
+          if (sessions == 1) {
+            // The physical-device failure mode: app.restart never gets a
+            // daemon response; the app just stops.
+            t.silentMethods.add('app.restart');
+          }
+          final control = StreamController<DevControlCommand>.broadcast();
+          controllers.add(control);
+          final session = DevSession(
+            adapter: FlutterDaemonAdapter(transport: t),
+            session: _session,
+            deviceId: 'emulator-5554',
+            json: false,
+            write: lines.add,
+            commands: control.stream,
+            startupTimeout: const Duration(seconds: 5),
+          );
+          t.emitStartup();
+          unawaited(
+            Future<void>.delayed(const Duration(milliseconds: 10)).then((_) {
+              if (sessions == 1) {
+                control.add(DevControlCommand.restart);
+                Future<void>.delayed(const Duration(milliseconds: 30)).then(
+                  (_) => t.emitEvent('app.stop'),
+                );
+              } else {
+                // Session 2 starts after the fallback relaunch; give it
+                // time to subscribe before quitting.
+                Future<void>.delayed(const Duration(milliseconds: 120)).then(
+                  (_) => control.add(DevControlCommand.quit),
+                );
+              }
+            }),
+          );
+          return session;
+        },
+        runBuild: () async => throw StateError('must not rebuild'),
+      );
+      final code = await flow.run().timeout(const Duration(seconds: 10));
+      for (final c in controllers) {
+        await c.close();
+      }
+      expect(sessions, 2, reason: 'fallback relaunches without a rebuild');
+      expect(code, 0);
+      expect(lines.join('\n'), contains('falling back to relaunch'));
+    });
+
+    test('vm.uri discovery file: write + clear round-trip', () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_vm_uri');
+      addTearDown(() async => tmp.delete(recursive: true));
+      final projectPath = tmp.path;
+      expect(File(vmUriFilePath(projectPath)).existsSync(), isFalse);
+      await writeVmUriFile(projectPath, 'ws://127.0.0.1:65000/TOKEN/ws');
+      final f = File(vmUriFilePath(projectPath));
+      expect(f.existsSync(), isTrue);
+      expect(f.readAsStringSync(), 'ws://127.0.0.1:65000/TOKEN/ws\n');
+      await clearVmUriFile(projectPath);
+      expect(f.existsSync(), isFalse);
+      // Clearing twice is fine (best-effort).
+      await clearVmUriFile(projectPath);
+    });
   });
 }

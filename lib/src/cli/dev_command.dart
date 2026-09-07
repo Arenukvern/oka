@@ -183,7 +183,11 @@ class DevCommand {
       verbose: verbose,
     );
 
-    exit(await flow.run());
+    // The discovery artifact must not outlive the session — remove it on
+    // every exit path (quit, detach, daemon exit, rebuild/relaunch loop end).
+    final code = await flow.run();
+    await clearVmUriFile(projectPath);
+    exit(code);
   }
 
   /// The full rebuild for `--rebuild-on-native`: delegates to the project
