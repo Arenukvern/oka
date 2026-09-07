@@ -41,6 +41,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 /// One daemon event (`[{"event": name, "params": {...}}]`).
 class DaemonEvent {
   const DaemonEvent(this.event, {this.params = const {}});
@@ -146,13 +148,25 @@ List<String> flutterAttachMachineArgs({required final String deviceId}) => [
 /// Spawns `<flutterBinary> attach --machine -d <deviceId>` and returns the
 /// transport. [flutterBinary] must be the session manifest's recorded-SDK
 /// binary (never PATH) — the caller enforces that via `checkDevSession`.
+///
+/// [adbPath] (the oka-resolved platform-tools binary) is prepended to the
+/// child's PATH: the flutter tool discovers devices through `adb`, and the
+/// oka-managed SDK dir is often not on the ambient PATH (live e2e finding,
+/// 2026-09-07 — without this, attach reports "No supported devices found").
 Future<DaemonTransport> spawnAttachDaemon({
   required final String flutterBinary,
   required final String deviceId,
+  final String? adbPath,
 }) async {
+  final environment = <String, String>{...Platform.environment};
+  if (adbPath != null && adbPath.isNotEmpty) {
+    final dir = p.dirname(adbPath);
+    environment['PATH'] = '$dir:${environment['PATH'] ?? ''}';
+  }
   final process = await Process.start(
     flutterBinary,
     flutterAttachMachineArgs(deviceId: deviceId),
+    environment: environment,
   );
   return ProcessDaemonTransport(process);
 }
@@ -384,7 +398,9 @@ class FlutterDaemonAdapter {
   /// state loss documented in H5). There is no `_flutter.hotRestart` RPC.
   Future<DaemonResponse> restart() => _appOperation(fullRestart: true);
 
-  Future<DaemonResponse> _appOperation({required final bool fullRestart}) async {
+  Future<DaemonResponse> _appOperation({
+    required final bool fullRestart,
+  }) async {
     // Gate commands behind app.start first — the appId arrives with it.
     if (!appStartReceived) await waitAppStart();
     final id = appId;
@@ -394,18 +410,19 @@ class FlutterDaemonAdapter {
         'has not announced an appId (no app.start event yet)',
       );
     }
-    final response = await send('app.restart', params: {
-      'appId': id,
-      'fullRestart': fullRestart,
-    });
+    final response = await send(
+      'app.restart',
+      params: {'appId': id, 'fullRestart': fullRestart},
+    );
     // Feature-detect (protocol not semver'd): older SDKs exposed hot
     // reload as its own `app.reload` method instead of the
     // `fullRestart: false` spelling.
     if (!response.ok &&
         response.errorText.contains('command not understood: app.restart')) {
-      return send(fullRestart ? 'app.hotRestart' : 'app.reload', params: {
-        'appId': id,
-      });
+      return send(
+        fullRestart ? 'app.hotRestart' : 'app.reload',
+        params: {'appId': id},
+      );
     }
     return response;
   }

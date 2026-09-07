@@ -111,10 +111,21 @@ class DevCommand {
     print('');
 
     // Device selection (zero/multiple devices → errors over the device
-    // layer; failures classified with oka-style fixes).
+    // layer; failures classified with oka-style fixes). The resolved
+    // tool binary path is also prepended to the attach child's PATH —
+    // the flutter tool discovers devices through it, and the oka-managed
+    // SDK dir is often not on the ambient PATH.
+    final devToolchain = ResolvedToolchain();
+    final tools = await resolveDevToolPath(devToolchain);
+    if (tools.path == null) {
+      stderr.writeln(tools.refusal);
+      exit(1);
+    }
+    final devToolPath = tools.path!;
     final selection = await selectDevDevice(
       deviceId: results['device'] as String?,
-      toolchain: ResolvedToolchain(),
+      adbPath: devToolPath,
+      toolchain: devToolchain,
     );
     if (!selection.ok || selection.device == null) {
       stderr.writeln(selection.refusal);
@@ -132,11 +143,16 @@ class DevCommand {
       prepare: () async {
         // Device half first (install/launch/logscan + VM-service steps);
         // a failure throws DevLaunchException, handled by DevFlow.
-        await prepareDevLaunch(projectPath: projectPath, verbose: verbose);
+        await prepareDevLaunch(
+          projectPath: projectPath,
+          adbPath: devToolPath,
+          verbose: verbose,
+        );
         final adapter = FlutterDaemonAdapter(
           transport: await spawnAttachDaemon(
             flutterBinary: flutterBinary,
             deviceId: deviceId,
+            adbPath: devToolPath,
           ),
           verbose: verbose,
         );

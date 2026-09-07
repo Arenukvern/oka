@@ -250,7 +250,7 @@ void main() {
         reason: lines.join('\n'),
       );
       final methods = methodsOf(sent);
-      expect(methods, containsAllInOrder(['app.reload', 'app.stop']));
+      expect(methods, containsAllInOrder(['app.restart', 'app.stop']));
     });
 
     test('human mode: reload dispatch + branded success line', () async {
@@ -267,7 +267,18 @@ void main() {
       expect(lines, contains('🔁 Reload…'));
       expect(lines, contains('✅ Reload complete.'));
       final methods = methodsOf(sent);
-      expect(methods, contains('app.reload'));
+      expect(
+        methods,
+        contains('app.restart'),
+        reason:
+            'hot reload is '
+            'app.restart with fullRestart: false (live-probed interface)',
+      );
+      expect(
+        methods,
+        contains('app.detach'),
+        reason: 'detach is an app-domain command',
+      );
       expect(
         methods,
         isNot(contains('app.stop')),
@@ -300,7 +311,7 @@ void main() {
             control.add(DevControlCommand.quit);
           },
           respondErrorTo: (final method) =>
-              method == 'app.reload' ? 'Observable wipe failed' : null,
+              method == 'app.restart' ? 'Observable wipe failed' : null,
         );
         expect(outcome, DevSessionOutcome.quit);
         final out = lines.join('\n');

@@ -66,8 +66,9 @@ builds ~23s; bundletool-validated release AABs).
   versions fall back to pubspec, dev-only plugins auto-exclude
 - ✅ **Post-build gates** — lint (version, signing, size budget), byte
   equivalence via `oka compare`
-- 🔁 **Dev loop** — `oka dev` (install → launch → hot reload/restart, agent
-  streams) — in progress, [ADR-0011](docs/decisions/0011-hot-reload-run-loop.md)
+- 🔁 **Dev loop** — `oka dev` (build-parity check → install → launch →
+  attach session: hot reload / hot restart) with agent streams (`--json`,
+  `--watch`), [ADR-0011](docs/decisions/0011-hot-reload-run-loop.md)
 
 Not yet (by design, see [the long game](#the-long-game)): iOS, desktop, web.
 
@@ -122,7 +123,7 @@ here, not a chat wrapper:
 | `oka debug step <name>` | One pipeline step re-run against `.oka_cache` — 10-minute loops become 30-second probes |
 | `oka compare a.apk b.apk` | Byte-equivalence gate (badging + zip entries) — refactors prove, not claim |
 | `oka doctor` | Full environment + build-health audit |
-| `oka dev` *(in progress)* | install → launch → hot reload/restart with structured `--json` events |
+| `oka dev` | build-parity check → install → launch → attach session: hot reload / hot restart; `--json` events on stdout, control lines on stdin, `--watch` loop |
 ```
 
 ## Configuration

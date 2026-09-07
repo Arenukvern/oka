@@ -230,21 +230,30 @@ end-to-end on emulator; evidence recorded.
 
 **Goal:** working hot reload for humans and agents.
 
-- [ ] `packages/oka_android/lib/src/dev/daemon_adapter.dart`: spawn
-      `<sdk>/bin/flutter attach --machine` (integration point per H0
-      decision) with session-manifest flags; speak the daemon JSON protocol
-      on stdio: send `app.reload` / `app.restart` / `app.stop` /
-      `daemon.shutdown`; receive events (`app.start`, `app.debugPort`,
-      `app.started`, `app.progress`, `app.reloadRecommended`, errors).
-      Feature-detect: ignore unknown fields/events (protocol is not
-      semver'd); log at `-v` only.
-- [ ] Replace the stub in `lib/src/cli/dev_command.dart`:
+- [x] `packages/oka_android/lib/src/dev/daemon_adapter.dart`: spawn
+      `<sdk>/bin/flutter attach --machine -d <id>` (integration point per H0
+      decision; binary from the session manifest's recorded SDK path, never
+      PATH); speak the daemon JSON protocol on stdio: send `app.restart`
+      (hot reload = `fullRestart: false`, hot restart = `fullRestart: true`,
+      both with the `appId` announced by `app.start`), `app.stop`,
+      `app.detach`, `daemon.shutdown`; receive events (`app.start`,
+      `app.debugPort`, `app.started`, `app.progress`,
+      `app.reloadRecommended`, errors). Feature-detect: ignore unknown
+      fields/events (protocol is not semver'd); log at `-v` only.
+- [x] Replace the stub in `lib/src/cli/dev_command.dart`:
       - default (TTY): oka-rendered progress + `r` (reload), `R` (restart),
-        `q` (quit); **no flutter_tools TUI passthrough** — oka renders.
+        `q` (quit), `d` (detach); **no flutter_tools TUI passthrough** —
+        oka renders.
       - `--json`: one structured event per line on stdout (machine stream,
-        `pipeline_events.dart`-style envelope) for agents.
-      - refuse profile/release; refuse on H1 manifest mismatch.
-- [ ] Map daemon errors → oka diagnostics: reload failures and
+        `pipeline_events.dart`-style envelope) for agents; control lines on
+        stdin (`reload`/`restart`/`stop`/`detach`/`quit`) — the one
+        explicit interactive surface, never a build path.
+      - refuse profile/release (enforced via
+        `RunSessionRequest.buildMode='debug'`); refuse on H1 manifest
+        mismatch; `-d <id>` device selection with zero/multiple-device
+        errors over `AdbTool.devices()` / `AdbDevice.ready`, failures
+        mapped through `classifyAdbFailure`.
+- [x] Map daemon errors → oka diagnostics: reload failures and
       `app.reloadRecommended` events produce oka-branded messages (an agent
       must be able to act from the message alone).
 
@@ -257,19 +266,104 @@ programmatic reload works headless (the agent-usable acceptance test);
 evidence recorded.
 
 > ### H3 evidence
-> *(fill in — emulator transcript, headless `--json` reload transcript)*
+> Filled 2026-09-07 (dev machine; headless AVD `h0test`, API 34 arm64,
+> fvm Flutter beta 3.47.0-0.4.pre). All live.
+>
+> **1. Protocol correction (live probe — supersedes one H0 assumption).**
+> The H0 probe observed the events but never *sent* commands. Driving the
+> raw daemon revealed: **`app.reload` does not exist** in flutter_tools
+> 3.47.0-0.4.pre (`command not understood: app.reload`); the app domain
+> registers only `restart` / `callServiceExtension` / `stop` / `detach`,
+> and every app-domain command **requires the `appId`** announced by
+> `app.start`. So: hot reload = `app.restart {appId, fullRestart: false}`;
+> hot restart = `app.restart {appId, fullRestart: true}`. The adapter
+> implements the live-probed interface and feature-detects the older
+> `app.reload` spelling as a fallback (regression test included).
+> Second live finding: the spawned attach child inherits the CLI
+> environment, where the oka-managed platform-tools dir is not on PATH —
+> attach then reports `No supported devices found`. `spawnAttachDaemon`
+> now prepends the resolved tool directory to the child's PATH.
+>
+> **1b. Env note.** Dev machine paths anonymized here (fvm Flutter beta
+> at `~/fvm/default`, oka-managed SDK at `~/.oka/android-sdk`); the
+> transcripts below quote only device ids, ports, and event payloads.
+>
+> **2. Live e2e (headless emulator, `oka run device` first, then
+> `oka dev --json -d emulator-5554`, agent drives via stdin control
+> lines).** Full transcript in `/tmp/oka_dev_e2e.log`; the decisive
+> lines:
+>
+> ```
+> 📲 Installing app-debug.apk → ✅ Installed
+> 🚀 Starting com.example.example.MainActivity → ✅ Process alive →
+> ✅ No failure signatures in device log
+> 🔎 Waiting for the Dart VM service announcement (logcat)...
+> 🔌 VM service: http://127.0.0.1:43075/2IDAxNy9rWQ=
+> ↔️  Forwarded localhost:58484 → device:43075
+> {"scope":"dev","event":"session.start",..."device":"emulator-5554"...}
+> {"scope":"dev","event":"daemon.daemon.connected","params":{"version":"0.6.1"...}}
+> {"scope":"dev","event":"daemon.app.start","params":{"appId":"881fe2c9-…","launchMode":"attach","mode":"debug"...}}
+> {"scope":"dev","event":"daemon.app.debugPort","params":{"port":58501,"wsUri":"ws://127.0.0.1:58501/X2PWkZpfNZo=/ws"...}}
+> {"scope":"dev","event":"daemon.app.started",...}
+> {"scope":"dev","event":"session.ready","params":{"device":"emulator-5554","wsUri":"ws://127.0.0.1:58501/…/ws"}}
+> 🔁 Reload…
+> {"scope":"dev","event":"daemon.app.progress","params":{..."progressId":"hot.reload","message":"Performing hot reload..."...}}
+> {"scope":"dev","event":"daemon.app.progress","params":{..."progressId":"hot.reload","finished":true...}}
+> ✅ Reload complete.
+> {"scope":"dev","event":"reload.result","params":{"ok":true}}
+> 🔁 Hot restart…
+> {"scope":"dev","event":"daemon.app.progress","params":{..."progressId":"hot.restart","finished":true...}}
+> ✅ Hot restart complete.
+> {"scope":"dev","event":"restart.result","params":{"ok":true}}
+> {"scope":"dev","event":"daemon.app.stop","params":{"appId":"881fe2c9-…"}}   ← `quit` stops the app
+> ```
+>
+> The agent-usable acceptance test — headless `--json` + programmatic
+> reload completing with `ok:true` — passes on the emulator.
+>
+> **3. Implementation surface (parse-and-delegate, per ADR-0015).**
+> `daemon_adapter.dart` (the only file that knows wire details);
+> `dev_session.dart` (`selectDevDevice`, `resolveDevToolPath`,
+> `prepareDevLaunch` — the DeviceTarget device steps + the H2
+> await-VM-service/forward steps composed in one validated `Pipeline` —,
+> `DevSession` render/control loop, `DevFlow` outer loop);
+> `lib/src/cli/dev_command.dart` stays a flag parser + wiring shim (the
+> platform-leakage gate stays green). Refusals: profile/release, manifest
+> mismatch, `-d` selection (zero/multiple/unauthorized devices map
+> through `classifyAdbFailure`).
+>
+> **4. Tests (scripted fakes — no real flutter, no device):**
+> `test/adr0011_daemon_adapter_test.dart` (12 tests: argv builder; pinned
+> event sequence incl. `daemon.connected` 0.6.1 / `app.start` /
+> `app.debugPort` wsUri; bare-object + chatter tolerance; unknown
+> events/fields preserved; command gating behind `app.start`; single-
+> element-array command shape with `appId` + `fullRestart`; error
+> responses typed with actionable text; daemon exit fails pending sends;
+> live-probed reload/restart/stop/detach/shutdown interface; older-layout
+> `app.reload` fallback). `test/adr0011_dev_session_test.dart` (23 tests:
+> keyboard/line control tables; device-selection table incl. zero/
+> multiple/unauthorized/unknown-id; human + `--json` rendering; headless
+> programmatic reload; reload-failure diagnostics; `app.reloadRecommended`
+> tip; rebuild routing with and without `--rebuild-on-native`; daemon
+> exit; app.start timeout; `DevFlow` rebuild-then-reattach + build-failure
+> stop).
 
 ## H4 — `--watch`: change classification & automatic dispatch
 
 **Goal:** agents (and lazy humans) get reload-on-save with honest routing.
 
-- [ ] File watcher (promote `watcher` to a direct dependency) over `lib/`,
-      target file, `android/`, `oka.yaml`, assets — debounced.
-- [ ] Classify: Dart-only → daemon `app.reload`; native/res/manifest/oka.yaml
-      → **stop suggesting reload**: print "requires `oka build apk --debug` +
-      reinstall" with the exact command; offer `--rebuild-on-native` to do it
-      automatically (build → reinstall → relaunch → re-attach).
-- [ ] `--watch` implies non-TTY-safe operation (no keyboard; `--json`
+- [x] File watcher (`watcher` promoted to a direct dependency of
+      `oka_android`) over `lib/`, target file, `android/`, `assets/`,
+      `oka.yaml`, `pubspec.yaml` — debounced (quiet-period batching; a
+      save storm is one dispatch).
+- [x] Classify (`watch.dart: classifyChanges`, table-driven): Dart-only →
+      daemon hot reload (`app.restart` fullRestart: false); native/res/
+      manifest/config/pubspec → **stop suggesting reload**: print
+      "requires `oka build apk --debug` + reinstall" with the exact
+      command (`fullRebuildMessage`); `--rebuild-on-native` ends the
+      session so [DevFlow] does it automatically (build → reinstall →
+      relaunch → re-attach).
+- [x] `--watch` implies non-TTY-safe operation (no keyboard; `--json`
       compatible) — this is the agent default loop.
 
 **Tests:** classification table tests (fixture trees); debounce tests;
@@ -278,21 +372,102 @@ e2e: edit Dart under `--watch --json` → reload event observed.
 **Exit:** classification tests green; headless watch loop demonstrated on
 emulator.
 
+> ### H4 evidence
+> Filled 2026-09-07.
+>
+> **1. Live headless watch loop on the emulator.** `oka run device`, then
+> `oka dev --watch --json -d emulator-5554` (no keyboard), from another
+> shell: append a comment to `lib/main.dart` → the watcher classifies and
+> the session reloads automatically:
+>
+> ```
+> 👀 Watch: lib/main.dart → Dart (reload)
+> {"scope":"dev","event":"daemon.app.progress","params":{..."progressId":"hot.reload","finished":true...}}
+> {"scope":"dev","event":"reload.result","params":{"ok":true}}
+> ```
+>
+> Then touch `android/app/src/main/AndroidManifest.xml` → honest
+> full-rebuild routing (reload never suggested):
+>
+> ```
+> 👀 Watch: android/app/src/main/AndroidManifest.xml → native/res/config (full rebuild)
+> 🧱 This change needs a full rebuild — hot reload is Dart-only (ADR-0011 §5).
+>    fix: `oka build apk --debug` then `oka run device` (or re-run `oka dev`)
+>    tip: `oka dev --watch --rebuild-on-native` does it automatically
+>    (build → reinstall → relaunch → re-attach).
+> {"scope":"dev","event":"rebuild.required","params":{"automatic":false}}
+> ```
+>
+> **2. Tests (scripted, no device):** `test/adr0011_watch_test.dart` (17
+> tests): classification table over file-event fixtures (Dart under
+> `lib/` → reload; non-Dart under `lib/` → bundled-asset rebuild;
+> test/tool/bin → ignore; manifest/gradle/kt/java/so/aar/pro, assets,
+> oka.yaml, pubspec → rebuild; build/meta/dot files → ignore; absolute +
+> Windows path normalization; strongest action wins in mixed batches);
+> quiet-period debounce (save storm → one batch; separated events stay
+> separate; trailing batch flushes); classification → command routing;
+> `computeDevWatchPaths` fixture-tree coverage (missing dirs skipped,
+> target covered by its root, external target watched); one real-watcher
+> smoke test (edit a Dart file → debounced hot-reload batch, generous
+> timeout for macOS FSEvents latency).
+
 ## H5 — Hot restart semantics & polish
 
 **Goal:** restart behaves correctly and docs are true.
 
-- [ ] `app.restart` mapping (full non-incremental kernel compile + restart —
-      flutter_tools semantics; there is no `_flutter.hotRestart` RPC). Confirm
-      state-loss messaging matches what actually happens.
-- [ ] Update user-facing docs (`build_and_config.md` → Dev loop section,
+- [x] `app.restart` mapping — hot restart = `app.restart {appId,
+      fullRestart: true}` (live-probed; there is no `_flutter.hotRestart`
+      RPC): a full non-incremental kernel compile + app restart under
+      flutter_tools semantics. State-loss messaging matches what actually
+      happens: the TTY help and `--json` usage text say "R hot restart
+      (state loss)", the docs say the counter/state resets (see the Dev
+      loop section in [build_and_config.md](build_and_config.md)).
+- [x] Update user-facing docs (`build_and_config.md` → Dev loop section,
       `quick_recipes.md`, README) — docs link to behavior, never paraphrase.
-- [ ] `oka doctor`: add hot-reload readiness checks (debug kernel present,
-      adb present, device reachable) so failures surface before `oka dev`.
+      The three device-flow surfaces are documented as one story: `oka run
+      device` (= `oka launch`) is the one-shot install+launch+logscan
+      smoke test with **no session**; `oka dev` adds build-parity check +
+      VM-service reachability + the attach session.
+- [x] `oka doctor`: hot-reload readiness checks (`devLoopDoctorChecks` in
+      oka_android; the command formats the lines — parse-and-delegate):
+      newest built APK carries a debug session manifest (schema 1), the
+      recorded-SDK flutter binary exists, adb resolves and a device is
+      ready. Manifest/binary failures are blocking (doctor summary fails);
+      a missing device is advisory (⚠️) since phones are often
+      intentionally unplugged.
 
 **Tests:** restart e2e; doctor checks unit-tested.
 
 **Exit:** PHASE_CHECKLIST entry for ADR-0010 moved to Done with evidence.
+
+> ### H5 evidence
+> Filled 2026-09-07.
+>
+> **1. Hot restart e2e (live, headless emulator):** see the H3 transcript
+> above — `🔁 Hot restart…` → `progressId: hot.restart` finished →
+> `restart.result ok:true`. State loss is inherent (kernel recompile +
+> process restart); the messaging says so.
+>
+> **2. Doctor checks (unit-tested, scripted fakes — no device needed):**
+> `test/adr0011_dev_doctor_test.dart` (7 tests): ready fixture (manifest +
+> recorded binary + ready device), no-APK / pre-manifest / recorded
+> profile-mode / missing-recorded-binary → blocking failures naming the
+> fix, no ready device → advisory (not blocking), `checkDevice: false`
+> skips the device check. Live run on the dev machine (`oka doctor` in
+> `example/`):
+>
+> ```
+> [Dev Loop (ADR-0011)]
+>   ✅ dev session manifest: .oka_cache/build/debug/app-debug.apk
+>      (target=lib/main.dart, mode=debug, engine f88005a259ba)
+>   ✅ session flutter binary: ~/fvm/default/bin/flutter (recorded SDK)
+>   ✅ device: emulator-5554 ready for attach
+> ```
+>
+> **3. The ADR-0011 protocol correction is recorded in the H3 evidence
+> block** (`app.reload` does not exist in the probed SDK; hot reload /
+> hot restart are `app.restart` with `fullRestart` false / true and a
+> required `appId`).
 
 ## Gotchas (encode these, regardless of phase)
 

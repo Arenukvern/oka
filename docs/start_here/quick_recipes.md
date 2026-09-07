@@ -13,15 +13,29 @@ oka get android-sdk     # bootstrap SDK into ~/.oka/android-sdk (or use existing
 oka doctor              # verify everything
 ```
 
-## Build & install loop
+## Build & install loop (three flows, one story)
 
 ```bash
 cd example && flutter pub get
-oka build apk                                   # → .oka_cache/build/debug/app-debug.apk
-adb install -r .oka_cache/build/debug/app-debug.apk
-adb shell am start -n com.example.example/.MainActivity
-adb logcat -d -b crash | grep com.example       # crash check
+oka build apk --debug          # → .oka_cache/build/debug/app-debug.apk
+                               #    (+ run_session.json flag-parity record)
+
+# Flow A — smoke test (one-shot; no session; `oka launch` = same dispatch):
+oka run device                 # install → launch → failure-signature scan
+
+# Flow B — dev session (hot reload / hot restart):
+oka dev                        # parity check → install → launch → attach
+#   human TTY:  r hot reload · R hot restart (state loss) · q quit · d detach
+#   agent:      oka dev --json      (events on stdout; stdin lines
+#               reload/restart/stop/detach/quit after `session.ready`)
+#   agent loop: oka dev --watch --json   (Dart edits → auto reload;
+#               native edits → honest full-rebuild command)
 ```
+
+Hot reload is Dart-only: native/res/manifest/asset/config changes always
+need `oka build apk --debug` + reinstall (ADR-0011 §5) — `--watch` prints
+the exact command, `--watch --rebuild-on-native` runs it for you.
+Docs: [Dev Loop Station](../guides/build_and_config.md#-dev-loop-station-adr-0011).
 
 ## Release
 

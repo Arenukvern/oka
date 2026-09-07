@@ -64,11 +64,7 @@ class FakeDaemonTransport implements DaemonTransport {
   void respond(final int id, {final Object? result, final Object? error}) =>
       emit(
         jsonEncode([
-          {
-            'id': id,
-            'result': ?result,
-            'error': ?error,
-          },
+          {'id': id, 'result': ?result, 'error': ?error},
         ]),
       );
 
@@ -314,25 +310,26 @@ void main() {
       adapter.dispose();
     });
 
-    test('older-layout fallback: app.restart not understood → app.reload',
-        () async {
-      final methods = <String>[];
-      final t = FakeDaemonTransport()
-        ..respondErrorTo = (final method) {
-          return method == 'app.restart'
-              ? 'command not understood: app.restart'
-              : null;
-        }
-        ..respondTo = (final method) {
+    test(
+      'older-layout fallback: app.restart not understood → app.reload',
+      () async {
+        final methods = <String>[];
+        final t = FakeDaemonTransport();
+        t.respondErrorTo = (method) =>
+            method == 'app.restart'
+                ? 'command not understood: app.restart'
+                : null;
+        t.respondTo = (method) {
           methods.add(method);
           return const <String, Object?>{};
         };
-      final adapter = FlutterDaemonAdapter(transport: t);
-      t.emitStartup();
-      final r = await adapter.reload();
-      expect(r.ok, isTrue);
-      expect(methods, ['app.reload']);
-      adapter.dispose();
-    });
+        final adapter = FlutterDaemonAdapter(transport: t);
+        t.emitStartup();
+        final r = await adapter.reload();
+        expect(r.ok, isTrue);
+        expect(methods, ['app.reload']);
+        adapter.dispose();
+      },
+    );
   });
 }

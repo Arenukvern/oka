@@ -261,6 +261,50 @@ android:
 Hooks override it wholesale via `ManifestSpec.copyWith`. The user `res/`
 tree (themes, splash, mipmaps) merges via `android.res_dirs`.
 
+## 🔁 Dev Loop Station (ADR-0011)
+
+Three device-flow surfaces, one story — `oka launch` is an alias of `oka run
+device`, and `oka dev` reuses the same device steps (install → launch →
+logcat failure scan) plus the VM-service session steps, through the same
+validated pipeline machinery. Behavior SSOT: [hot_reload_plan.md](hot_reload_plan.md),
+[ADR-0011](../decisions/0011-hot-reload-run-loop.md).
+
+```bash
+oka build apk --debug          # 1. oka owns assemble → package → sign;
+                               #    records run_session.json (flag parity)
+oka run device                 # 2. one-shot: install + launch + failure-
+                               #    signature scan. No session. (oka launch
+                               #    = same dispatch)
+oka dev                        # 3. parity check → install → launch → logscan
+                               #    → VM service scrape + forward → attach
+                               #    session: hot reload / hot restart
+```
+
+`oka dev` controls:
+
+- **Human TTY**: `r` hot reload · `R` hot restart (**loses app state** —
+  full kernel recompile + restart) · `q` quit (stops the app) · `d` detach
+  (app keeps running). Oka renders all progress — never the flutter TUI.
+- **Agent (`--json`)**: structured events on stdout
+  (`{"scope":"dev","event":"session.ready"…}`); control lines on stdin:
+  `reload` / `restart` / `stop` / `detach` / `quit` (wait for
+  `session.ready` before sending).
+- **Agent (`--watch`)**: non-TTY watcher (no keyboard). Dart-only changes
+  reload automatically; native/res/manifest/asset/config changes print the
+  honest full-rebuild command (hot reload is Dart-only — never a dex push,
+  ADR-0011 §5). `--watch --rebuild-on-native` runs it automatically:
+  rebuild → reinstall → relaunch → re-attach.
+
+Flag parity is enforced: `oka dev` validates the requested target/defines
+against the recorded `run_session.json` and refuses mismatches naming the
+differing fields; the session flutter binary always comes from the recorded
+SDK path, never `PATH`. Profile/release refuse loudly — debug (JIT) only.
+
+```bash
+oka doctor                     # [Dev Loop (ADR-0011)] readiness checks:
+                               # manifest, recorded-SDK binary, device ready
+```
+
 ## ⚡ Incremental build cache
 
 `plugin-packaging`, `flutter-assemble`, `release-aot` and `compile-and-dex`

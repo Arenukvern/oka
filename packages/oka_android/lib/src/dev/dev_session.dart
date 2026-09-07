@@ -116,6 +116,29 @@ Future<DevDeviceSelection> selectDevDevice({
   return DevDeviceSelection._(ready.single);
 }
 
+/// Resolves the session tool path via the toolchain policy; returns a
+/// typed refusal (oka-branded fix) instead of throwing — the CLI prints it
+/// verbatim (parse-and-delegate, ADR-0015).
+Future<({String? path, String? refusal})> resolveDevToolPath(
+  final ResolvedToolchain? toolchain,
+) async {
+  try {
+    return (
+      path: await (toolchain ?? ResolvedToolchain()).findAdb(),
+      refusal: null,
+    );
+  } on ToolchainException {
+    return (
+      path: null,
+      refusal:
+          '❌ Platform tools not found — the dev session needs adb '
+          'for install/launch and the attach child needs its directory on '
+          'PATH.\n'
+          '   fix: install platform-tools (`oka get android-sdk`).',
+    );
+  }
+}
+
 // -- Device steps (reuse DeviceTarget machinery) -----------------------------
 
 /// Result of [prepareDevLaunch]: the device-side launch is done and the VM
@@ -155,6 +178,11 @@ class DevLaunchException implements Exception {
 Future<DevLaunchPrepared> prepareDevLaunch({
   required final String projectPath,
   final ResolvedToolchain? toolchain,
+
+  /// Injectable tool paths (tests / explicit config); null → [toolchain].
+  /// Forwarded to the device steps and to the attach spawn (the flutter
+  /// tool discovers devices through the platform-tools dir on PATH).
+  final String? adbPath,
   final int waitSeconds = 3,
   final bool verbose = false,
 }) async {
@@ -169,9 +197,13 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   // DeviceTarget machinery (ADR-0015) — install/launch/logscan are the
   // exact steps `oka run device` runs; no duplicated device logic.
   final steps = [
-    ...DeviceTarget(waitSeconds: waitSeconds).compile(ctx),
-    AwaitVmServiceStep(toolchain: toolchain),
-    ForwardVmServiceStep(toolchain: toolchain),
+    ...DeviceTarget(
+      waitSeconds: waitSeconds,
+      adbPath: adbPath,
+      toolchain: toolchain,
+    ).compile(ctx),
+    AwaitVmServiceStep(adbPath: adbPath, toolchain: toolchain),
+    ForwardVmServiceStep(adbPath: adbPath, toolchain: toolchain),
   ];
   final pipeline = Pipeline(steps);
   final validationError = pipeline.validate();
@@ -454,10 +486,10 @@ class DevSession {
   Future<void> _applyCommand(final DevControlCommand c) async {
     switch (c) {
       case DevControlCommand.reload:
-        final ok = await _dispatch('app.reload', label: 'Reload');
+        final ok = await _dispatch(adapter.reload, label: 'Reload');
         _emit('reload.result', {'ok': ok});
       case DevControlCommand.restart:
-        final ok = await _dispatch('app.restart', label: 'Hot restart');
+        final ok = await _dispatch(adapter.restart, label: 'Hot restart');
         _emit('restart.result', {'ok': ok});
       case DevControlCommand.stopApp:
         await _trySend(adapter.stopApp);
@@ -486,16 +518,18 @@ class DevSession {
     }
   }
 
-  /// Sends a command and renders the response; returns success. Reload
-  /// failures and errors map to oka-branded messages an agent can act on
-  /// from the message alone (H3 checklist).
+  /// Runs a daemon operation and renders the response; returns success.
+  /// Reload failures and errors map to oka-branded messages an agent can
+  /// act on from the message alone (H3 checklist). The operation goes
+  /// through the adapter's typed methods (never a raw method string) —
+  /// the adapter owns the wire details.
   Future<bool> _dispatch(
-    final String method, {
+    final Future<DaemonResponse> Function() operation, {
     required final String label,
   }) async {
     write('🔁 $label…');
     try {
-      final r = await adapter.send(method);
+      final r = await operation();
       if (r.ok) {
         write('✅ $label complete.');
         return true;
@@ -516,9 +550,7 @@ class DevSession {
     }
   }
 
-  Future<void> _trySend(
-    final Future<DaemonResponse> Function() send,
-  ) async {
+  Future<void> _trySend(final Future<DaemonResponse> Function() send) async {
     try {
       await send().timeout(const Duration(seconds: 10));
     } on Exception {
