@@ -15,15 +15,22 @@
 ///   `[{"id": N, "result"/"error": ...}]` for responses. Bare JSON objects
 ///   and non-JSON chatter lines are tolerated (feature-detect).
 /// * `daemon.connected` (version 0.6.1 on the probed SDK) arrives first;
-///   `app.start` (`launchMode: attach`) announces the session; commands are
-///   sent only **after** `app.start`.
+///   `app.start` (`launchMode: attach`) announces the session and carries
+///   the `appId` all app-domain commands require; commands are sent only
+///   **after** `app.start`.
 /// * Events seen in the probe: `app.start`, `app.debugPort` (usable
 ///   `wsUri`), `app.devTools`, `app.dtd`, `app.progress` (`progressId`,
-///   `finished`), `app.started`. Errors arrive as `app.error` /
-///   response-level `error`. **Unknown events and unknown fields are
-///   ignored** — the protocol is not semver'd (ADR-0011 §2).
-/// * Commands: `app.reload` / `app.restart` / `app.stop` /
-///   `daemon.shutdown` on stdin.
+///   `finished`), `app.started`. Errors arrive as response-level `error`.
+///   **Unknown events and unknown fields are ignored** — the protocol is
+///   not semver'd (ADR-0011 §2).
+/// * Commands (live-probed 2026-09-07 against flutter_tools 3.47.0-0.4.pre,
+///   daemon.dart AppDomain registers only restart/stop/detach/
+///   callServiceExtension): **hot reload = `app.restart` with
+///   `{appId, fullRestart: false}`**; **hot restart = `app.restart` with
+///   `{appId, fullRestart: true}`**; `app.stop {appId}`; `app.detach
+///   {appId}`; `daemon.shutdown` (daemon domain, no appId). The H0
+///   probe's `app.reload` spelling does **not** exist in this SDK — the
+///   adapter feature-detects it as a fallback for older layouts.
 ///
 /// The transport is injectable so protocol tests run against scripted
 /// stdio fixtures — no real flutter binary, no device (see
@@ -130,11 +137,11 @@ class ProcessDaemonTransport implements DaemonTransport {
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
 /// [spawnAttachDaemon]).
 List<String> flutterAttachMachineArgs({required final String deviceId}) => [
-      'attach',
-      '--machine',
-      '-d',
-      deviceId,
-    ];
+  'attach',
+  '--machine',
+  '-d',
+  deviceId,
+];
 
 /// Spawns `<flutterBinary> attach --machine -d <deviceId>` and returns the
 /// transport. [flutterBinary] must be the session manifest's recorded-SDK
@@ -157,9 +164,8 @@ class FlutterDaemonAdapter {
   FlutterDaemonAdapter({
     required final DaemonTransport transport,
     this.verbose = false,
-    void Function(String line)? onChatter,
-  }) : _transport = transport,
-       _onChatter = onChatter {
+    this.onChatter,
+  }) : _transport = transport {
     _subscriptions.add(
       transport.stdout.transform(utf8.decoder).listen(_onStdoutData),
     );
@@ -173,7 +179,7 @@ class FlutterDaemonAdapter {
 
   final DaemonTransport _transport;
   final bool verbose;
-  final void Function(String line)? _onChatter;
+  final void Function(String line)? onChatter;
 
   final _events = StreamController<DaemonEvent>.broadcast();
   final _subscriptions = <StreamSubscription<void>>[];
@@ -190,6 +196,10 @@ class FlutterDaemonAdapter {
   /// Whether the daemon announced `app.start` (attach session accepted).
   bool get appStartReceived => _seen.containsKey('app.start');
 
+  /// The daemon's app-instance id (from `app.start`) — required by every
+  /// app-domain command (`app.restart` / `app.stop` / `app.detach`).
+  String? get appId => lastEvent('app.start')?.field('appId') as String?;
+
   /// Whether the daemon process has exited.
   bool get exited => _exited;
 
@@ -200,8 +210,7 @@ class FlutterDaemonAdapter {
   DaemonEvent? lastEvent(final String name) => _seen[name];
 
   /// The `wsUri` from the newest `app.debugPort` event, or null.
-  String? get wsUri =>
-      lastEvent('app.debugPort')?.field('wsUri') as String?;
+  String? get wsUri => lastEvent('app.debugPort')?.field('wsUri') as String?;
 
   /// Daemon version from `daemon.connected`, or null.
   String? get daemonVersion =>
@@ -209,24 +218,21 @@ class FlutterDaemonAdapter {
 
   // -- Inbound ---------------------------------------------------------------
 
-  void _onStdoutData(final String chunk) {
-    for (final line in chunk.split('\n')) {
-      _handleLine(line);
-    }
-  }
+  void _onStdoutData(final String chunk) =>
+      chunk.split('\n').forEach(_handleLine);
 
   void _onStderrData(final String chunk) {
     if (!verbose) return;
     for (final line in chunk.split('\n')) {
       final t = line.trim();
-      if (t.isNotEmpty) _onChatter?.call('[daemon:err] $t');
+      if (t.isNotEmpty) onChatter?.call('[daemon:err] $t');
     }
   }
 
   void _onExit(final int code) {
     _exited = true;
     _failAllPending('flutter attach exited (code $code)');
-    if (!_events.isClosed) _events.close();
+    if (!_events.isClosed) unawaited(_events.close());
   }
 
   /// Handles one stdout line. Single-element JSON arrays are the pinned
@@ -260,8 +266,10 @@ class FlutterDaemonAdapter {
         _handleEvent(
           DaemonEvent(
             item['event'] as String,
-            params: (item['params'] as Map?)?.cast<String, Object?>() ??
-                const {},
+            params: item['params'] is Map
+                ? (item['params'] as Map<Object?, Object?>)
+                      .cast<String, Object?>()
+                : const {},
           ),
         );
       } else if (item['id'] is int) {
@@ -273,8 +281,9 @@ class FlutterDaemonAdapter {
   }
 
   void _handleEvent(final DaemonEvent event) {
+    final firstOfKind = !_seen.containsKey(event.event);
     _seen[event.event] = event;
-    if (event.event == 'app.start' && !appStartReceived) {
+    if (event.event == 'app.start' && firstOfKind) {
       _appStart?.complete();
       _appStart = null;
     }
@@ -282,8 +291,8 @@ class FlutterDaemonAdapter {
     if (!_events.isClosed) _events.add(event);
   }
 
-  void _handleResponse(final Map item) {
-    final id = item['id'] as int;
+  void _handleResponse(final Map<Object?, Object?> item) {
+    final id = item['id']! as int;
     final pending = _pending.remove(id);
     final response = DaemonResponse(
       id: id,
@@ -296,7 +305,7 @@ class FlutterDaemonAdapter {
   }
 
   void _chatter(final String line) {
-    if (verbose) _onChatter?.call(line);
+    if (verbose) onChatter?.call(line);
   }
 
   // -- Outbound ---------------------------------------------------------------
@@ -326,7 +335,7 @@ class FlutterDaemonAdapter {
       throw DaemonException(
         timedOut
             ? 'flutter attach did not announce app.start within '
-            '${timeout.inSeconds}s — is a debug build running on the device?'
+                  '${timeout.inSeconds}s — is a debug build running on the device?'
             : 'flutter attach exited before app.start',
       );
     }
@@ -353,24 +362,74 @@ class FlutterDaemonAdapter {
         {'id': id, 'method': method, 'params': params},
       ]),
     );
-    final response = await completer.future.timeout(timeout, onTimeout: () {
-      _pending.remove(id);
-      throw DaemonException(
-        'daemon did not answer $method within ${timeout.inSeconds}s',
-      );
-    });
+    final response = await completer.future.timeout(
+      timeout,
+      onTimeout: () {
+        _pending.remove(id);
+        throw DaemonException(
+          'daemon did not answer $method within ${timeout.inSeconds}s',
+        );
+      },
+    );
     return response;
   }
 
-  /// Hot reload (`app.reload`) — Dart-only changes.
-  Future<DaemonResponse> reload() => send('app.reload');
+  /// Hot reload — Dart-only changes. Live-probed interface: `app.restart`
+  /// with `fullRestart: false` (no `app.reload` method exists in the
+  /// probed SDK; feature-detected as a fallback for older layouts).
+  Future<DaemonResponse> reload() => _appOperation(fullRestart: false);
 
-  /// Hot restart (`app.restart`) — full non-incremental kernel compile +
-  /// app restart (flutter_tools semantics; state loss documented in H5).
-  Future<DaemonResponse> restart() => send('app.restart');
+  /// Hot restart — full non-incremental kernel compile + app restart
+  /// (`app.restart` with `fullRestart: true`; flutter_tools semantics;
+  /// state loss documented in H5). There is no `_flutter.hotRestart` RPC.
+  Future<DaemonResponse> restart() => _appOperation(fullRestart: true);
 
-  /// Stops the running app (`app.stop`).
-  Future<DaemonResponse> stopApp() => send('app.stop');
+  Future<DaemonResponse> _appOperation({required final bool fullRestart}) async {
+    // Gate commands behind app.start first — the appId arrives with it.
+    if (!appStartReceived) await waitAppStart();
+    final id = appId;
+    if (id == null || id.isEmpty) {
+      throw DaemonException(
+        'cannot ${fullRestart ? 'hot-restart' : 'hot-reload'} — the daemon '
+        'has not announced an appId (no app.start event yet)',
+      );
+    }
+    final response = await send('app.restart', params: {
+      'appId': id,
+      'fullRestart': fullRestart,
+    });
+    // Feature-detect (protocol not semver'd): older SDKs exposed hot
+    // reload as its own `app.reload` method instead of the
+    // `fullRestart: false` spelling.
+    if (!response.ok &&
+        response.errorText.contains('command not understood: app.restart')) {
+      return send(fullRestart ? 'app.hotRestart' : 'app.reload', params: {
+        'appId': id,
+      });
+    }
+    return response;
+  }
+
+  /// Stops the running app (`app.stop`, appId required).
+  Future<DaemonResponse> stopApp() async {
+    if (!appStartReceived) await waitAppStart();
+    final id = appId;
+    return send(
+      'app.stop',
+      params: {if (id != null && id.isNotEmpty) 'appId': id},
+    );
+  }
+
+  /// Detaches from the running app (`app.detach`, appId required) — the
+  /// app keeps running; the daemon session ends.
+  Future<DaemonResponse> detachApp() async {
+    if (!appStartReceived) await waitAppStart();
+    final id = appId;
+    return send(
+      'app.detach',
+      params: {if (id != null && id.isNotEmpty) 'appId': id},
+    );
+  }
 
   /// Shuts the daemon down (`daemon.shutdown`); the attach process exits.
   Future<DaemonResponse> shutdown() => send('daemon.shutdown');
@@ -391,9 +450,9 @@ class FlutterDaemonAdapter {
       _transport.kill();
     }
     for (final s in _subscriptions) {
-      s.cancel();
+      unawaited(s.cancel());
     }
-    if (!_events.isClosed) _events.close();
+    if (!_events.isClosed) unawaited(_events.close());
   }
 
   void _failAllPending(final String why) {

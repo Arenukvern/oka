@@ -115,10 +115,14 @@ export 'src/dependency_plan.dart';
 // in the CLI verb layer). Provisioning (ADR-0013 T2) is store-backed.
 // ADR-0011 H1/H2: session manifest + adb tool layer.
 export 'src/dev/adb_tool.dart';
+export 'src/dev/daemon_adapter.dart';
+export 'src/dev/dev_doctor.dart';
+export 'src/dev/dev_session.dart';
 export 'src/dev/device_provisioning.dart';
 export 'src/dev/device_target.dart';
 export 'src/dev/dex_probe.dart';
 export 'src/dev/run_session.dart';
+export 'src/dev/watch.dart';
 
 // GMS-dependency artifact seam (ADR-0013 two-axis law; additive for P2).
 export 'src/gms_artifacts.dart';

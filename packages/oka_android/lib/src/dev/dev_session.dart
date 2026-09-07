@@ -17,19 +17,23 @@
 ///   structured JSON event stream for agents (`--json`; control lines
 ///   `reload` / `restart` / `stop` / `detach` / `quit` on stdin — the one
 ///   explicit interactive surface, never a build path).
-/// * [DevFlow] — the outer loop: session → (watch native change and
-///   `--rebuild-on-native`? rebuild → reinstall → relaunch → re-attach) →
+/// * [DevFlow] — the outer loop: session → (native change with
+///   `--rebuild-on-native`? build → reinstall → relaunch → re-attach) →
 ///   session again.
 library;
 
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:oka_core/oka_core.dart';
+import 'dart:io';
 
+import 'package:oka_core/oka_core.dart';
+import 'package:path/path.dart' as p;
+
+import '../android_artifacts.dart';
+import '../build/toolchain.dart';
 import 'adb_tool.dart';
 import 'daemon_adapter.dart';
-import 'device_steps.dart';
 import 'device_target.dart';
 import 'run_session.dart';
 
@@ -58,13 +62,19 @@ Future<DevDeviceSelection> selectDevDevice({
   final String? deviceId,
   final String? adbPath,
   final ResolvedToolchain? toolchain,
+
+  /// Injectable [AdbTool] (tests point it at an injectable process
+  /// runner; production resolves from [adbPath] → [toolchain]).
+  final AdbTool? tool,
 }) async {
-  final tool = AdbTool(
-    adbPath: adbPath ?? await (toolchain ?? ResolvedToolchain()).findAdb(),
-  );
+  final adb =
+      tool ??
+      AdbTool(
+        adbPath: adbPath ?? await (toolchain ?? ResolvedToolchain()).findAdb(),
+      );
   final List<AdbDevice> devices;
   try {
-    devices = await tool.devices();
+    devices = await adb.devices();
   } on AdbToolException catch (e) {
     return DevDeviceSelection.refused('❌ Device listing failed.\n   $e');
   }
@@ -89,10 +99,10 @@ Future<DevDeviceSelection> selectDevDevice({
   }
   final ready = devices.where((final d) => d.ready).toList();
   if (ready.isEmpty) {
-    final unauthorized = devices.isNotEmpty;
+    final attached = devices.isNotEmpty;
     return DevDeviceSelection.refused(
-      '❌ No ready device${unauthorized ? ' (${devices.length} attached but '
-          'not ready)' : ''}.\n'
+      '❌ No ready device${attached ? ' (${devices.length} attached but '
+                'not ready)' : ''}.\n'
       '   fix: connect a device with USB debugging, or start the emulator '
       '(`emulator -avd <name>`), then re-run.',
     );
@@ -119,12 +129,22 @@ class DevLaunchPrepared {
 
   final String apkPath;
 
-  /// Host-reachable VM service URI (`ws://127.0.0.1:<local>/<auth>`,
-  /// from `forwardedVmServiceUri`).
+  /// Host-reachable VM service endpoint (`ws://127.0.0.1:<local>/<auth>`,
+  /// via the pure [forwardedVmServiceUri] helper of the H2 adb layer).
   final String vmServiceUri;
 
   /// The local adb-forwarded port ([vmServiceLocalPort] artifact).
   final int vmServiceLocalPort;
+}
+
+/// Thrown when the device half of `oka dev` fails; the message is
+/// oka-branded and actionable (step failures already are).
+class DevLaunchException implements Exception {
+  DevLaunchException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 /// Runs the device half of `oka dev` through the same validated [Pipeline]
@@ -138,10 +158,9 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   final int waitSeconds = 3,
   final bool verbose = false,
 }) async {
-  final buildDir = p.join(projectPath, '.oka_cache', 'build', 'debug');
   final ctx = BuildContext(
     projectPath: projectPath,
-    buildDir: buildDir,
+    buildDir: p.join(projectPath, '.oka_cache', 'build', 'debug'),
     mode: BuildMode.debug,
     config: OkaConfig.empty,
     cacheDir: p.join(projectPath, '.oka_cache'),
@@ -150,48 +169,43 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   // DeviceTarget machinery (ADR-0015) — install/launch/logscan are the
   // exact steps `oka run device` runs; no duplicated device logic.
   final steps = [
-    ...const DeviceTarget(waitSeconds: waitSeconds).compile(ctx),
+    ...DeviceTarget(waitSeconds: waitSeconds).compile(ctx),
     AwaitVmServiceStep(toolchain: toolchain),
     ForwardVmServiceStep(toolchain: toolchain),
   ];
   final pipeline = Pipeline(steps);
-  final error = pipeline.validate();
-  if (error != null) {
-    throw DevLaunchException(error);
+  final validationError = pipeline.validate();
+  if (validationError != null) {
+    throw DevLaunchException(validationError);
   }
-  final result = await pipeline.run(ctx);
+  final state = PipelineState();
+  final result = await pipeline.run(ctx, initialState: state);
   if (!result.ok) {
     throw DevLaunchException(result.error ?? 'device launch failed');
   }
-  final uri = ctx.dartDefines.isEmpty ? null : null; // no-op; see below
-  final state = result.data;
-  final vmUri = state['vm_service_uri'] as String?;
-  final localPort = state['vm_service_local_port'] as int?;
+  final vmUri = state[vmServiceUri.id] as String?;
+  final localPort = state[vmServiceLocalPort.id] as int?;
   if (vmUri == null || localPort == null) {
     throw DevLaunchException(
-      'device steps completed without VM service artifacts '
+      'device steps completed without the VM service artifacts '
       '(vm_service_uri=$vmUri, vm_service_local_port=$localPort)',
     );
   }
-  // Rebuild the host-reachable endpoint from the forwarded port (pure
-  // helper from the H2 adb layer).
-  final info = parseVmServiceUri('Dart VM service listening on $vmUri')!;
-  final hostUri = forwardedVmServiceUri(info, localPort);
+  // Rebuild the host-reachable endpoint from the forwarded port (pure H2
+  // helper — the forward rewired host→loopback).
+  final parsed = Uri.parse(vmUri);
+  final info = VmServiceInfo(
+    scheme: parsed.scheme,
+    host: parsed.host,
+    port: parsed.port,
+    auth: parsed.path.replaceAll(RegExp(r'^/+|/+$'), ''),
+    uri: vmUri,
+  );
   return DevLaunchPrepared(
-    apkPath: state['apk_path'] as String? ?? '',
-    vmServiceUri: uri ?? hostUri,
+    apkPath: state[apkPath.id] as String? ?? '',
+    vmServiceUri: forwardedVmServiceUri(info, localPort),
     vmServiceLocalPort: localPort,
   );
-}
-
-/// Thrown when the device half of `oka dev` fails; the message is
-/// oka-branded and actionable (step failures already are).
-class DevLaunchException implements Exception {
-  DevLaunchException(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
 }
 
 // -- Control surface ---------------------------------------------------------
@@ -200,7 +214,8 @@ class DevLaunchException implements Exception {
 /// (`r`/`R`/`q`/`d` — see [devCommandFromKey]), the `--json` stdin line
 /// protocol (`reload`/`restart`/`stop`/`detach`/`quit` — see
 /// [devCommandFromLine]), and the `--watch` dispatcher (Dart change →
-/// [DevControlCommand.reload]; native change → [rebuildRouting]).
+/// [DevControlCommand.reload]; native change → [DevControlCommand
+/// .rebuildRouting]).
 enum DevControlCommand {
   /// Hot reload (Dart-only changes).
   reload,
@@ -226,20 +241,19 @@ enum DevControlCommand {
 /// Maps the human TTY keyboard loop to commands (`r` reload, `R` hot
 /// restart, `q` quit, `d` detach). Returns null for unrecognized keys.
 DevControlCommand? devCommandFromKey(final String key) => switch (key) {
-      'r' => DevControlCommand.reload,
-      'R' => DevControlCommand.restart,
-      'q' => DevControlCommand.quit,
-      'd' => DevControlCommand.detach,
-      _ => null,
-    };
+  'r' => DevControlCommand.reload,
+  'R' => DevControlCommand.restart,
+  'q' => DevControlCommand.quit,
+  'd' => DevControlCommand.detach,
+  _ => null,
+};
 
 /// Maps a `--json` stdin control line to a command. Returns null for
 /// blank/unknown lines (unknown lines are answered with the key list).
-DevControlCommand? devCommandFromLine(final String line) => switch (
-      line.trim().toLowerCase()
-    ) {
+DevControlCommand? devCommandFromLine(final String line) =>
+    switch (line.trim().toLowerCase()) {
       'reload' || 'r' => DevControlCommand.reload,
-      'restart' || 'r+' => DevControlCommand.restart,
+      'restart' => DevControlCommand.restart,
       'stop' => DevControlCommand.stopApp,
       'detach' => DevControlCommand.detach,
       'quit' || 'exit' => DevControlCommand.quit,
@@ -310,7 +324,9 @@ class DevSession {
 
   final Duration startupTimeout;
 
-  Future<void>? _exitSubscriptionDone;
+  final _commandGate = Completer<DevSessionOutcome>();
+  final _queued = <DevControlCommand>[];
+  bool _draining = false;
 
   /// Runs the session to completion: wait `app.start` → `app.started` →
   /// serve control commands and render daemon events.
@@ -322,36 +338,50 @@ class DevSession {
       'target': session.targetFile,
     });
 
+    // A daemon exit must end the session even with no commands flowing.
+    final exitSub = adapter.exitCode
+        .then((final code) {
+          if (!_commandGate.isCompleted) {
+            _commandGate.complete(DevSessionOutcome.daemonExited);
+          }
+        })
+        .asStream()
+        .listen((_) {});
+
+    DevSessionOutcome outcome;
     try {
-      await adapter.waitAppStart(timeout: startupTimeout);
-    } on DaemonException catch (e) {
-      write('❌ ${e.message}');
-      adapter.dispose();
-      return DevSessionOutcome.daemonExited;
-    }
+      try {
+        await adapter.waitAppStart(timeout: startupTimeout);
+      } on DaemonException catch (e) {
+        write('❌ ${e.message}');
+        return DevSessionOutcome.daemonExited;
+      }
 
-    // Wait for app.started (bounded) — attach syncs files first.
-    final started = await _waitForEvent(
-      'app.started',
-      timeout: startupTimeout,
-    );
-    if (!started) {
-      write(
-        '❌ flutter attach did not reach app.started within '
-        '${startupTimeout.inSeconds}s. Is the app running on $deviceId?\n'
-        '   fix: `oka run device` first (installs + launches the '
-        'oka-built debug APK), then re-run `oka dev`.',
+      // Wait for app.started (bounded) — attach syncs files first.
+      final started = await _waitForEvent(
+        'app.started',
+        timeout: startupTimeout,
       );
-      adapter.dispose();
-      return DevSessionOutcome.daemonExited;
-    }
-    _emit('session.ready', {
-      'device': deviceId,
-      if (adapter.wsUri != null) 'wsUri': adapter.wsUri,
-    });
+      if (!started) {
+        write(
+          '❌ flutter attach did not reach app.started within '
+          '${startupTimeout.inSeconds}s. Is the app running on $deviceId?\n'
+          '   fix: `oka run device` first (installs + launches the '
+          'oka-built debug APK), then re-run `oka dev`.',
+        );
+        return DevSessionOutcome.daemonExited;
+      }
+      _emit('session.ready', {
+        'device': deviceId,
+        if (adapter.wsUri != null) 'wsUri': adapter.wsUri,
+      });
 
-    final outcome = await _serveCommands();
-    await eventSub.cancel();
+      outcome = await _serveCommands();
+    } finally {
+      await eventSub.cancel();
+      await exitSub.cancel();
+      adapter.dispose();
+    }
     return outcome;
   }
 
@@ -363,30 +393,24 @@ class DevSession {
     final completer = Completer<bool>();
     late final StreamSubscription<DaemonEvent> sub;
     sub = adapter.events.listen((final e) {
-      if (e.event != name || completer.isCompleted) return;
-      completer.complete(true);
+      if (e.event == name && !completer.isCompleted) {
+        completer.complete(true);
+      }
     });
-    adapter.exitCodeTimeoutHack(timeout, () {
+    final timer = Timer(timeout, () {
       if (!completer.isCompleted) completer.complete(false);
     });
     final result = await completer.future;
+    timer.cancel();
     await sub.cancel();
     return result;
   }
 
   Future<DevSessionOutcome> _serveCommands() async {
-    final exitWatch = adapter.transportExitCode.then((final code) {
-      // Daemon exited on its own (crash, or killed externally).
-      if (!_commandGate.isCompleted) _commandGate.complete(
-          DevSessionOutcome.daemonExited,
-        );
-    });
-    _exitSubscriptionDone = exitWatch;
-
     StreamSubscription<DevControlCommand>? cmdSub;
     if (commands != null) {
       cmdSub = commands!.listen(
-        (final c) => _handleCommand(c),
+        _handleCommand,
         onDone: () {
           if (!_commandGate.isCompleted) {
             _commandGate.complete(DevSessionOutcome.daemonExited);
@@ -397,50 +421,46 @@ class DevSession {
     final outcome = await _commandGate.future;
     await cmdSub?.cancel();
 
-    // Tear-down per outcome.
+    // Tear-down per outcome. dispose() (in run()'s finally) sends
+    // daemon.shutdown + kills the process as a backstop; quit first stops
+    // the app (`app.stop`) so the device shows a clean exit; detach first
+    // detaches (`app.detach`) — the app keeps running.
     if (outcome == DevSessionOutcome.quit) {
-      await _trySend('app.stop', label: 'stop');
-      adapter.dispose();
-    } else if (outcome == DevSessionOutcome.detached) {
+      await _trySend(adapter.stopApp);
+    }
+    if (outcome == DevSessionOutcome.detached) {
+      await _trySend(adapter.detachApp);
       write('👋 Detaching — the app keeps running on $deviceId.');
-      adapter.dispose();
     }
     return outcome;
   }
 
-  final _commandGate = Completer<DevSessionOutcome>();
-
-  Future<void> get transportExitCode => adapter.transport.exitCode;
-
-  bool _handling = false;
-  final _queued = <DevControlCommand>[];
-
   void _handleCommand(final DevControlCommand c) {
     if (_commandGate.isCompleted) return;
     _queued.add(c);
-    _drainQueued();
+    unawaited(_drainQueued());
   }
 
   Future<void> _drainQueued() async {
-    if (_handling) return;
-    _handling = true;
+    if (_draining) return;
+    _draining = true;
     while (_queued.isNotEmpty && !_commandGate.isCompleted) {
       final c = _queued.removeAt(0);
       await _applyCommand(c);
     }
-    _handling = false;
+    _draining = false;
   }
 
   Future<void> _applyCommand(final DevControlCommand c) async {
     switch (c) {
       case DevControlCommand.reload:
-        final r = await _dispatch('app.reload', label: 'reload');
-        _emit('reload.result', {'ok': r});
+        final ok = await _dispatch('app.reload', label: 'Reload');
+        _emit('reload.result', {'ok': ok});
       case DevControlCommand.restart:
-        final r = await _dispatch('app.restart', label: 'hot restart');
-        _emit('restart.result', {'ok': r});
+        final ok = await _dispatch('app.restart', label: 'Hot restart');
+        _emit('restart.result', {'ok': ok});
       case DevControlCommand.stopApp:
-        await _trySend('app.stop', label: 'stop');
+        await _trySend(adapter.stopApp);
         _emit('app.stopped', {});
       case DevControlCommand.detach:
         if (!_commandGate.isCompleted) {
@@ -469,7 +489,10 @@ class DevSession {
   /// Sends a command and renders the response; returns success. Reload
   /// failures and errors map to oka-branded messages an agent can act on
   /// from the message alone (H3 checklist).
-  Future<bool> _dispatch(final String method, {required final String label}) async {
+  Future<bool> _dispatch(
+    final String method, {
+    required final String label,
+  }) async {
     write('🔁 $label…');
     try {
       final r = await adapter.send(method);
@@ -480,7 +503,7 @@ class DevSession {
       write(
         '❌ $label failed: ${r.errorText}\n'
         '   fix: resolve the error above (most often a Dart compile error — '
-        'check the edited file), then retry `r`.',
+        'check the edited file), then retry.',
       );
       return false;
     } on DaemonException catch (e) {
@@ -494,11 +517,10 @@ class DevSession {
   }
 
   Future<void> _trySend(
-    final String method, {
-    required final String label,
-  }) async {
+    final Future<DaemonResponse> Function() send,
+  ) async {
     try {
-      await adapter.send(method, timeout: const Duration(seconds: 10));
+      await send().timeout(const Duration(seconds: 10));
     } on Exception {
       // Best-effort tear-down; dispose() kills the process as a backstop.
     }
@@ -515,15 +537,15 @@ class DevSession {
         final message = e.field('message')?.toString() ?? e.event;
         if (!finished) write('⏳ $message');
       case 'app.started':
-        // Rendered once at session.ready; the daemon may repeat it after
-        // restart — acknowledge quietly.
         write('✅ App started.');
       case 'app.debugPort' || 'app.devTools' || 'app.dtd' || 'daemon.connected':
         if (verbose) write('[daemon] ${e.event}: ${e.params}');
       case 'app.reloadRecommended':
+        final reason =
+            e.field('reason')?.toString() ??
+            'files changed outside the session';
         write(
-          '💡 flutter_tools recommends a reload (${e.field('reason') ?? '
-          'files changed outside the session}).\n'
+          '💡 flutter_tools recommends a reload ($reason).\n'
           '   → press `r` (or send `reload` with --json).',
         );
       case 'app.stop' || 'app.start':
@@ -551,11 +573,10 @@ class DevSession {
           'q quit · d detach',
         );
       case 'session.ready':
-        write('✅ Connected. Watching for session commands…');
-      case 'reload.result' || 'restart.result':
-        break; // dispatch already rendered
-      case 'app.stopped' || 'rebuild.required':
-        break;
+        write('✅ Connected. Session commands ready.');
+      case 'reload.result' || 'restart.result' || 'app.stopped':
+      case 'rebuild.required':
+        break; // dispatch / rebuild routing already rendered
     }
   }
 
@@ -588,10 +609,7 @@ String fullRebuildMessage() =>
 /// parity flags the session was validated against), then re-attach.
 /// Quit/detach/daemon-exit end the flow.
 class DevFlow {
-  DevFlow({
-    required this.prepare,
-    required this.runBuild,
-  });
+  DevFlow({required this.prepare, required this.runBuild});
 
   /// Prepares the device (install/launch/VM-service steps) and spawns one
   /// attach session. Called once per attach (again after each rebuild).
@@ -614,7 +632,6 @@ class DevFlow {
       final outcome = await session.run();
       switch (outcome) {
         case DevSessionOutcome.quit:
-          return 0;
         case DevSessionOutcome.detached:
           return 0;
         case DevSessionOutcome.daemonExited:

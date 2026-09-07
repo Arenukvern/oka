@@ -34,8 +34,7 @@ class DoctorCommand {
     // migration — keep edits inside this marked block.
     print('[Toolchain Policy (ADR-0013)]');
     final policyToolchain = ResolvedToolchain();
-    for (final line
-        in await policyToolchain.describePolicyLines()) {
+    for (final line in await policyToolchain.describePolicyLines()) {
       print('  $line');
     }
     print('');
@@ -135,7 +134,8 @@ class DoctorCommand {
         print('  ✅ r8: ${p.basename(p.dirname(r8Path))}');
       } else {
         print(
-            '  ⚠️  r8: Not found (optional, but recommended for release builds)');
+          '  ⚠️  r8: Not found (optional, but recommended for release builds)',
+        );
         print('      💡 Run "oka get r8" to install');
       }
     } else {
@@ -156,8 +156,9 @@ class DoctorCommand {
         print('  ℹ️  $versionOutput');
 
         // Extract major version
-        final versionMatch = RegExp(r'version "(\d+)\.?(\d*)\.?(\d*)[_\-]?.*?"')
-            .firstMatch(versionOutput);
+        final versionMatch = RegExp(
+          r'version "(\d+)\.?(\d*)\.?(\d*)[_\-]?.*?"',
+        ).firstMatch(versionOutput);
 
         if (versionMatch != null) {
           final major = versionMatch.group(1)!;
@@ -177,7 +178,8 @@ class DoctorCommand {
 
                 if (currentInt > requiredInt) {
                   print(
-                      '  ⚠️  Warning: Current Java ($currentMajor) is newer than required ($requiredVersion)');
+                    '  ⚠️  Warning: Current Java ($currentMajor) is newer than required ($requiredVersion)',
+                  );
                   if (kotlinVersion != null) {
                     print('     Kotlin $kotlinVersion may not be compatible');
                   }
@@ -208,8 +210,8 @@ class DoctorCommand {
     if (versionManager != null) {
       print('  ✅ ${versionManager.name} detected');
 
-      final installedVersions =
-          await versionManager.listInstalledJavaVersions();
+      final installedVersions = await versionManager
+          .listInstalledJavaVersions();
       if (installedVersions.isNotEmpty) {
         print('  ℹ️  Installed Java versions:');
         for (final version in installedVersions.take(5)) {
@@ -222,7 +224,8 @@ class DoctorCommand {
     } else {
       print('  ⚠️  No version manager detected');
       print(
-          '     Consider installing SDKMAN! (Linux/macOS) or using winget (Windows)');
+        '     Consider installing SDKMAN! (Linux/macOS) or using winget (Windows)',
+      );
       print('     This allows automatic Java version switching');
     }
     print('');
@@ -259,7 +262,8 @@ class DoctorCommand {
 
     if (Platform.isMacOS) {
       print(
-          '  ℹ️  Running on macOS - Foundation Models will be used when available');
+        '  ℹ️  Running on macOS - Foundation Models will be used when available',
+      );
     }
     print('');
 
@@ -277,16 +281,39 @@ class DoctorCommand {
     }
     print('');
 
+    // ── Dev-loop readiness (ADR-0011 H5) ────────────────────────
+    // Parse-and-delegate only: the checks (session manifest present,
+    // recorded-SDK flutter binary, device ready) live in oka_android's
+    // dev layer; this block formats the returned lines. Device absence
+    // is advisory (⚠️) — only blocking (environment) failures count
+    // toward the summary below.
+    print('[Dev Loop (ADR-0011)]');
+    final devLoop = await devLoopDoctorChecks(
+      projectPath: Directory.current.path,
+      toolchain: locator,
+    );
+    devLoop.lines.forEach(print);
+    if (!devLoop.blocking) {
+      print(
+        '  ℹ️  Run `oka dev` to start the hot-reload attach session '
+        '(docs: docs/guides/hot_reload_plan.md)',
+      );
+    }
+    print('');
+    // ── End dev-loop readiness block ─────────────────────────────
+
     // ADR-0007: incremental + self-resolution state
     print('[Build Health (ADR-0007)]');
 
     // Kotlin compiler (auto-install available)
     try {
       final kotlinc = await locator.findKotlinc();
-      print(kotlinc != null
-          ? '  ✅ kotlinc: $kotlinc'
-          : '  ⚠️  kotlinc not found — builds auto-install on demand\n'
-              '     💡 Pre-install: "oka get kotlin"');
+      print(
+        kotlinc != null
+            ? '  ✅ kotlinc: $kotlinc'
+            : '  ⚠️  kotlinc not found — builds auto-install on demand\n'
+                  '     💡 Pre-install: "oka get kotlin"',
+      );
     } catch (_) {
       print('  ⚠️  kotlinc not found — builds auto-install on demand');
     }
@@ -336,7 +363,8 @@ class DoctorCommand {
     }
     print('');
 
-    // Summary
+    // Summary (advisory-only dev-loop findings never fail it — the
+    // blocking failure was already counted above).
     if (allGood) {
       print("✅ All checks passed! You're ready to use Oka.");
     } else {
