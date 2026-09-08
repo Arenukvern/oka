@@ -79,15 +79,17 @@ class PublishPlan {
   final bool artifactIsDirectory;
 
   /// Human/agent-readable description of exactly what a real run would do.
-  List<String> describeLines() => [
-        'target: $target${dryRun ? ' (dry run — nothing was uploaded)' : ''}',
-        'endpoint: $endpoint',
-        'track: $track',
-        'artifact: $artifactId → $artifactPath'
-            '${artifactIsDirectory ? ' (directory)' : ''}',
-        for (final e in metadata.entries) 'metadata.${e.key}: ${e.value}',
-        for (final c in credentials) 'credential: $c',
-      ];
+  List<String> describeLines() {
+    final artifactKind = artifactIsDirectory ? ' (directory)' : '';
+    return [
+      'target: $target${dryRun ? ' (dry run — nothing was uploaded)' : ''}',
+      'endpoint: $endpoint',
+      'track: $track',
+      'artifact: $artifactId → $artifactPath$artifactKind',
+      for (final e in metadata.entries) 'metadata.${e.key}: ${e.value}',
+      for (final c in credentials) 'credential: $c',
+    ];
+  }
 
   Map<String, dynamic> toJson() => {
         'target': target,

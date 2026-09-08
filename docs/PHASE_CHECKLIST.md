@@ -19,17 +19,33 @@ with evidence, not into a checked box.
 
 ## Now (unblocked, code-ready)
 
-- **W0: `oka_web` shell station package** (ADR-0016). Typed
-  `WebShellSpec`/`WebShellContribution` values (ordered head/body entries
-  with phases), replaceable `ShellEmitter` with two first-party
-  implementations (generate — default; inject — marker-based, day one),
-  emit + zip steps, `web-shell` / `web-build` (explicit
-  `flutter build web` delegation) targets, conformance + unit tests.
-  Gate: ADR-0016. Evidence: tests + a composed-shell `oka explain` render.
-- **W1: shell drift gate + station guide.** `oka explain --targets`
-  renders the composed shell; drift check validates emitter-owned regions;
-  `docs/guides/web_shell_station.md` documents the legacy migration path
-  (markers → inject → optional generate). Gate: W0.
+- **Done (ADR-0016 W0–W2, pending archive with evidence):**
+  **W0** — `oka_web` shell station package (typed spec/contribution/entries,
+  generate + inject emitters, emit + zip steps, `web-shell`/`web-build`
+  targets). Evidence: `packages/oka_web` tests. **W1** — shell drift gate
+  (pure `checkShellDrift` + post-emit idempotency check in
+  `EmitWebShellStep`), `oka explain --targets` shell render via the generic
+  `Target.explainDetails` hook, `docs/guides/web_shell_station.md`. Evidence:
+  `packages/oka_web/test/drift_test.dart`, `test/adr0015_explain_targets_test.dart`
+  + this suite. **W2** — `publish-gh-pages`, `publish-itch`, `WebZipStep`,
+  directory-artifact convention asserted in conformance. Evidence:
+  `packages/oka_web/test/{gh_pages,itch}_target_test.dart`.
+- **S0: Chrome session target (ADR-0017).** `BrowserSessionSpec` +
+  `DebugProtocol` + `profilePersistence` typed values, okaOwned launcher
+  (spawn with `--remote-debugging-port`, `/json/version` readiness probe,
+  idempotent reuse, ephemeral teardown), `chrome-session` target producing
+  `session-chrome-<name>-handle` / `session-chrome-<name>-cdp-port`
+  artifacts, `chromeWebMcp` profile const, pure launch-args construction.
+  No CDP client, no new deps, Chrome only (Servo/Ladybird and matrices
+  deferred by ADR-0017). Gate: ADR-0017. Evidence: scripted-fake + unit
+  tests in `packages/oka_web/test/`.
+- **S1: browser doctor + provisioning.** `oka doctor` browser detection
+  (engines, versions, flag support); chrome-for-testing into the ADR-0013
+  artifact store. Gate: S0.
+- **S2: dev-loop session + delegated retirement.** `oka dev` composes a
+  long-lived chrome session; `flutterDelegated` shrinks to the documented
+  migration path; `EmulatorTarget` gains the `session-<name>-handle`
+  conforming alias (non-breaking). Gate: S0 + dev-loop evidence.
 
 - **`oka dev --control-port` (delegation channel) — shipped with
   evidence; archive on next checklist pass.** The oka side of the frozen
@@ -54,10 +70,7 @@ with evidence, not into a checked box.
   `docs/guides/hot_reload_plan.md` → "Wiring an editor or agent to the
   delegation channel".
 
-- **W2: web deploy targets (ADR-0016).** `publish-gh-pages`,
-  `publish-itch` (butler), generic `WebZipStep`; directory-artifact
-  convention asserted in the publish conformance suite. Gate: W0.
-- **Web icon rasterization decision.** Web manifest icons need PNGs
+- **Web icon rasterization decision.**- **Web icon rasterization decision.** Web manifest icons need PNGs
   (unlike Android's vector XML, ADR-0003); decide the image toolkit for
   generating sized PNGs from one source. Gate: image-toolkit checkpoint.
 - **Real store uploads (Play + AppGallery).** Flip `PlayPublishTarget` /
@@ -90,15 +103,25 @@ with evidence, not into a checked box.
 
 ## Next (needs a checkpoint / ADR)
 
+- **Session matrices / mesh (ADR-gated, future).** N concurrent
+  cross-engine sessions with rendezvous artifacts (the mesh case: one app
+  alive in several browsers) as a composition over ADR-0017
+  `session-<name>-handle` artifacts. Gate: S0 evidence + its own ADR —
+  parallelism, failure isolation, and teardown-on-partial-failure are
+  explicit decisions, not defaults.
 - **iOS platform candidate.** First second-platform: an `oka_ios` package
   with typed `IosBuild` + pipeline, per the north-star criteria. Gate:
   design fork → checkpoint + ADR before coding (which parts of
   `flutter assemble`/Xcode CLI tools oka owns vs delegates; no-Gradle law
   needs an iOS analogue).
-- **W3: store-contribution pilot (ADR-0016).** Ship a const
-  `WebShellContribution` from a store package (Yandex Games first) and
-  delete a per-store release branch in a production app as evidence that
-  branch-per-store collapses to targets. Gate: W0 + a willing app.
+- **W3: store-contribution pilot (ADR-0016) — done as pilot; store-package
+  adoption still pending.** The in-repo flagship
+  (`packages/oka_web/example/crazygames/`) and a real-world adoption
+  (word_by_word_game adopted the shell contribution into its own repo via
+  the inject emitter) prove the §3 pattern. Still open: shipping a const
+  `WebShellContribution` from an actual store package — gated on `oka_web`
+  publishing to pub.dev (store packages must not depend on unpublished
+  packages).
 - **RuStore / Yandex publish targets.** `oka_rustore` / `oka_yandex`
   following the `oka_play`/`oka_huawei` package shape (`PublishTarget` +
   conformance suite + injectable client). Gate: same checkpoint/ADR
@@ -115,6 +138,14 @@ with evidence, not into a checked box.
 
 ## Later (north-star alignment)
 
+- **Container & server session instances (ADR-0017 future).** Extend the
+  `session-<name>-handle` convention beyond browsers: `apple/container` /
+  Docker sessions (images via the ADR-0013 artifact store; handle =
+  container ID + mapped ports — enables Linux testing of oka and Dart
+  packages) and Dart server process sessions (handle = base URL + health
+  probe — serves intentcall/mcp-server targets). Independent targets
+  conforming to the convention; no base class. Gate: S0 evidence + a
+  lightweight checkpoint per instance.
 - **Second/third platform beyond iOS.** Each new platform per the
   north-star criteria: typed values, validated pipelines, no hidden glue,
   agent-operable from oka's messages alone. Gate: platform evidence (the

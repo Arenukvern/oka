@@ -78,6 +78,17 @@ class WebShellTarget extends Target {
     ];
   }
 
+  /// ADR-0016 W1: the composed-shell render for `oka explain --targets` —
+  /// pure (no I/O, no execution); the same value the emit step writes.
+  @override
+  List<String> explainDetails(final BuildContext ctx) {
+    final shell = compose();
+    final header = 'composed web shell (emitter "${emitter.name}" owns: '
+        '${emitter.ownedPaths.join(', ')}; post-emit drift gate: re-render '
+        'must be a no-op):';
+    return [header, ...shell.describeLines()];
+  }
+
   @override
   String toString() =>
       'WebShellTarget(${emitter.name}, ${contributions.length} contributions)';

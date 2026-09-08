@@ -32,6 +32,7 @@ follow links.
 | Compose a custom pipeline in Dart | `example/tool/oka_pipeline.dart`; contracts in `lib/src/pipeline/pipeline.dart` |
 | Icons, deeplinks, extra assets config | Build guide → Assets & Icon Station |
 | Enable hot reload / dev loop (`oka dev`) | `docs/decisions/0011-hot-reload-run-loop.md`, `docs/guides/hot_reload_plan.md` |
+| Launch/declare browser sessions (Chrome, WebMCP flags) for testing | `docs/decisions/0017-browser-session-targets.md`, `packages/oka_web/lib/src/session/` |
 | Cut a release / version sync | `docs/contributing/contribution_guide.md` → Releases; bundled skill `oka-maintenance` |
 | Install agent skills | `npx skills add Arenukvern/oka --skill oka-maintenance` |
 

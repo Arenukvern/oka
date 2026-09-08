@@ -48,6 +48,7 @@ class TargetChainDescription {
     required this.name,
     required this.description,
     required this.steps,
+    this.details = const [],
     this.validationError,
   });
 
@@ -62,6 +63,9 @@ class TargetChainDescription {
             ),
         ],
         validationError: json['validationError']?.toString(),
+        details: [
+          for (final d in (json['details'] as List? ?? const [])) d.toString(),
+        ],
       );
 
   /// Target name ([Target.name]).
@@ -73,6 +77,10 @@ class TargetChainDescription {
   /// The compiled step chain, in order.
   final List<TargetStepDescription> steps;
 
+  /// Pure, platform-agnostic explain details ([Target.explainDetails]) —
+  /// extra lines `oka explain --targets` prints after the step chain.
+  final List<String> details;
+
   /// Composition-time validation failure from [Pipeline.validate], or null
   /// when the chain is valid.
   final String? validationError;
@@ -83,6 +91,7 @@ class TargetChainDescription {
         'name': name,
         'description': description,
         'steps': [for (final s in steps) s.toJson()],
+        'details': details,
         'validationError': validationError,
       };
 }
@@ -110,6 +119,9 @@ TargetChainDescription describeTarget(
           provides: [for (final a in s.provides) a.id],
         ),
     ],
+    // Pure explain details (ADR-0016 W1) — from composition, never
+    // execution.
+    details: target.explainDetails(ctx),
     validationError: pipeline.validate(),
   );
 }

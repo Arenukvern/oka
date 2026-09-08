@@ -157,8 +157,12 @@ class WebScriptEntry extends WebHeadEntry {
   /// Render the `async` attribute (external scripts only).
   final bool async;
 
-  /// Global this SDK script is expected to define (e.g. `YandexGames`).
-  /// Purely declarative metadata for the doctor/gate — never executed.
+  /// Global this SDK script is expected to define (e.g. `CrazyGames`,
+  /// `YaGames`). Purely declarative metadata for the doctor/gate — never
+  /// executed. Surfaced by [WebShell.describeLines] (and therefore
+  /// `oka explain --targets`, ADR-0016 W1) so the build-time declaration
+  /// is visible wherever the composition is shown, and reconciled with
+  /// the runtime adapter's `expectedSdkGlobal` instead of duplicated.
   final String? requiredSdkGlobal;
 
   /// Stable identity key for duplicate detection.
@@ -167,5 +171,7 @@ class WebScriptEntry extends WebHeadEntry {
       src != null ? 'src=$src' : 'inline#${content.hashCode}';
 
   @override
-  String toString() => 'WebScriptEntry($identityKey, phase=$phase)';
+  String toString() =>
+      'WebScriptEntry($identityKey, phase=$phase'
+      '${requiredSdkGlobal == null ? '' : ', requiredSdkGlobal=$requiredSdkGlobal'})';
 }

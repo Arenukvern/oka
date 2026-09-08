@@ -93,6 +93,10 @@
           "href": "/guides/publishing"
         },
         {
+          "title": "Web Shell Station",
+          "href": "/guides/web_shell_station"
+        },
+        {
           "title": "Design FAQ",
           "href": "/guides/design_faq"
         }

@@ -17,6 +17,11 @@ class ChainTarget extends Target {
 
   @override
   List<BuildStep> compile(final BuildContext ctx) => [AssembleStep(), SignStep()];
+
+  @override
+  List<String> explainDetails(final BuildContext ctx) => const [
+        'test detail: pure composition line',
+      ];
 }
 
 class AssembleStep extends BuildStep {

@@ -171,7 +171,7 @@ void main() {
         channel: 'html5',
         sourceDir: source.path,
       );
-      final runner = _ScriptedRunner((final _) => ProcOutcome(
+      final runner = _ScriptedRunner((final _) => const ProcOutcome(
             exitCode: 0,
             stdout: 'pushed to example-user/my-game:html5',
             stderr: '',
@@ -217,7 +217,7 @@ void main() {
         sourceDir: source.path,
       );
       final runner = _ScriptedRunner((final _) =>
-          ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
+          const ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
       final state = PipelineState();
       final result = await Pipeline([
         StageWebDirectoryStep(
@@ -275,7 +275,7 @@ void main() {
         apiKeyPath: keyFile.path,
       );
       final runner = _ScriptedRunner((final _) =>
-          ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
+          const ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
       final state = PipelineState();
       final result = await Pipeline([
         StageWebDirectoryStep(
@@ -314,7 +314,7 @@ void main() {
         sourceDir: source.path,
       );
       final runner = _ScriptedRunner((final _) =>
-          ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
+          const ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
       final state = PipelineState();
       final result = await Pipeline([
         StageWebDirectoryStep(

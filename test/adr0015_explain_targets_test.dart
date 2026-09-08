@@ -55,6 +55,8 @@ void main() {
                 'provides': <String>[],
               },
             ],
+            // ADR-0016 W1: pure explain details ride the same report.
+            'details': ['test detail: pure composition line'],
             'validationError': null,
           },
         ],
@@ -95,6 +97,13 @@ void main() {
           ['chain-assemble', 'chain-sign']);
       expect(described.steps[0].provides, ['chain-out']);
       expect(described.steps[1].requires, ['chain-out']);
+      // ADR-0016 W1: explainDetails flows through describeTarget; the
+      // default is empty (targets that need no details need no override).
+      expect(described.details, ['test detail: pure composition line']);
+      expect(
+        describeTarget(const _PlainTarget(), ctx).details,
+        isEmpty,
+      );
     });
   });
 
@@ -152,6 +161,10 @@ void main() {
       expect(out, contains('echo'));
       expect(out, contains('Test-only no-op target'));
       expect(out, contains('artifact chain valid'));
+      // ADR-0016 W1: the target's pure explain details are printed
+      // verbatim (the CLI never interprets them).
+      expect(out, contains('details:'));
+      expect(out, contains('test detail: pure explain line'));
     });
 
     test('describes but never executes targets (no tool invocation)',
@@ -229,6 +242,24 @@ class _ChainTarget extends Target {
   @override
   List<BuildStep> compile(final BuildContext ctx) =>
       [_AssembleStep(), _SignStep()];
+
+  @override
+  List<String> explainDetails(final BuildContext ctx) =>
+      const ['test detail: pure composition line'];
+}
+
+/// A target with no explainDetails override — the default is no details.
+class _PlainTarget extends Target {
+  const _PlainTarget();
+
+  @override
+  String get name => 'plain';
+
+  @override
+  String get description => 'test plain';
+
+  @override
+  List<BuildStep> compile(final BuildContext ctx) => [_AssembleStep()];
 }
 
 class _AssembleStep extends BuildStep {

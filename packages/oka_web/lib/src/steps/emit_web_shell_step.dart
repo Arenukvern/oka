@@ -7,6 +7,7 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 import '../composition.dart';
+import '../drift.dart';
 import '../emitter.dart';
 import '../validation.dart';
 
@@ -108,6 +109,30 @@ class EmitWebShellStep extends BuildStep {
       file.writeAsStringSync(entry.value);
       written.add(entry.key);
     }
+
+    // Post-emit drift gate (ADR-0016 W1): re-reading the owned paths from
+    // disk and re-rendering must be a no-op — the written bytes ARE the
+    // composition's render. A failure here names the drift per owned
+    // path (never silently succeeds with non-idempotent output).
+    final driftReport = checkShellDrift(
+      shell: shell,
+      emitter: emitter,
+      currentFiles: {
+        for (final owned in emitter.ownedPaths)
+          owned: () {
+            final f = File(p.join(webDir, owned));
+            return f.existsSync() ? f.readAsStringSync() : null;
+          }(),
+      },
+    );
+    if (!driftReport.isClean) {
+      return StepResult.failure(
+        'post-emit drift gate failed — the written output is not the '
+        "composition's re-render:\n"
+        '${driftReport.describeLines().map((final l) => '  $l').join('\n')}',
+      );
+    }
+
     state[webShellFiles.id] = List<String>.unmodifiable(written);
     state[webDirArtifact.id] = webDir;
     return StepResult.success({
@@ -117,6 +142,7 @@ class EmitWebShellStep extends BuildStep {
       // anything is written (ADR-0016 W1 wires explain to this).
       'web-shell': shell.describeLines().join('\n'),
       'notes': output.notes.join('\n'),
+      'drift': 'clean (post-emit re-render is a no-op)',
     });
   }
 }

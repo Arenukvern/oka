@@ -49,7 +49,7 @@ class _ScriptedRunner implements ProcessRunner {
   }
 }
 
-final ProcOutcome _ok = ProcOutcome(exitCode: 0, stdout: '', stderr: '');
+const ProcOutcome _ok = ProcOutcome(exitCode: 0, stdout: '', stderr: '');
 
 ProcOutcome _okOut(final String stdout) =>
     ProcOutcome(exitCode: 0, stdout: stdout, stderr: '');
@@ -204,13 +204,11 @@ void main() {
     test('first deploy: orphan branch path — exact argv sequence', () async {
       final source = _source(tmp);
       final target = GhPagesDeployTarget(dryRun: false, sourceDir: source.path);
-      final runner = _ScriptedRunner((final call) {
-        return switch (call.arguments.first) {
-          'rev-parse' => ProcOutcome(exitCode: 128, stdout: '', stderr: ''),
-          'fetch' => ProcOutcome(exitCode: 128, stdout: '', stderr: ''),
+      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
+          'rev-parse' => const ProcOutcome(exitCode: 128, stdout: '', stderr: ''),
+          'fetch' => const ProcOutcome(exitCode: 128, stdout: '', stderr: ''),
           'status' => _okOut('A  index.html\n'),
           _ => _ok,
-        };
       });
       final state = PipelineState();
       final result =
@@ -280,12 +278,10 @@ void main() {
         () async {
       final source = _source(tmp);
       final target = GhPagesDeployTarget(dryRun: false, sourceDir: source.path);
-      final runner = _ScriptedRunner((final call) {
-        return switch (call.arguments.first) {
+      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
           'rev-parse' => _ok,
           'status' => _okOut('M  index.html\n'),
           _ => _ok,
-        };
       });
       final state = PipelineState();
       final result =
@@ -317,12 +313,10 @@ void main() {
         () async {
       final source = _source(tmp);
       final target = GhPagesDeployTarget(dryRun: false, sourceDir: source.path);
-      final runner = _ScriptedRunner((final call) {
-        return switch (call.arguments.first) {
+      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
           'rev-parse' => _ok,
           'status' => _okOut(''),
           _ => _ok,
-        };
       });
       final state = PipelineState();
       final result =
@@ -350,12 +344,10 @@ void main() {
         sourceDir: source.path,
         subdirectory: 'assets',
       );
-      final runner = _ScriptedRunner((final call) {
-        return switch (call.arguments.first) {
+      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
           'rev-parse' => _ok,
           'status' => _okOut('A  app.js\n'),
           _ => _ok,
-        };
       });
       final state = PipelineState();
       final result =

@@ -270,10 +270,12 @@ void main() {
   group('directory-artifact convention (ADR-0016 W2)', () {
     test('artifactIsDirectory defaults to false (file targets unchanged)', () {
       expect(const FixturePublishTarget().artifactIsDirectory, isFalse);
-      final state = PipelineState();
-      expect(const FixturePublishTarget().plan(_ctx(tmp), artifactPath: 'x'),
-          isNot(
-              predicate<PublishPlan>((final p) => p.artifactIsDirectory)));
+      expect(
+        const FixturePublishTarget()
+            .plan(_ctx(tmp), artifactPath: 'x')
+            .artifactIsDirectory,
+        isFalse,
+      );
     });
 
     test('a directory target with a real directory passes the suite',

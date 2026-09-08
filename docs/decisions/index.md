@@ -22,3 +22,4 @@ docs live in `README.md` and `docs/guides/build_and_config.md`.
 | [0014](0014-distribution-targets-secrets-model.md) | Distribution targets + three-tier secrets model (defines for app config, credential paths for build-host secrets) | accepted |
 | [0015](0015-cli-verb-target-split.md) | CLI verb/target split and project-declared target discovery (`oka run`) | accepted |
 | [0016](0016-web-shell-station-store-contributions.md) | Web shell station + store contribution contract (not a platform) | accepted |
+| [0017](0017-browser-session-targets.md) | Browser session targets (Chrome first) + session-handle artifact convention; matrices deferred | accepted |

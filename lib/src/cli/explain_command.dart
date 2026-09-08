@@ -260,6 +260,15 @@ class ExplainCommand {
           '${prov.isEmpty ? '' : '→ [$prov]'}',
         );
       }
+      // ADR-0016 W1: pure, platform-agnostic detail lines the target
+      // itself provides (composition render, deploy posture, …). The CLI
+      // prints them without knowing what they describe.
+      if (target.details.isNotEmpty) {
+        print('    details:');
+        for (final line in target.details) {
+          print('      $line');
+        }
+      }
       print(
         '    ${target.isValid ? '✅ artifact chain valid' : '❌ ${target.validationError}'}',
       );
@@ -301,6 +310,7 @@ class DescribedTarget {
     required this.name,
     required this.description,
     this.steps = const [],
+    this.details = const [],
     this.validationError,
     this.error,
   });
@@ -315,6 +325,9 @@ class DescribedTarget {
         ],
         validationError: json['validationError']?.toString(),
         error: json['error']?.toString(),
+        details: [
+          for (final d in (json['details'] as List? ?? const [])) d.toString(),
+        ],
       );
 
   final String name;
@@ -322,6 +335,10 @@ class DescribedTarget {
   final List<DescribedTargetStep> steps;
   final String? validationError;
   final String? error;
+
+  /// Pure detail lines ([Target.explainDetails], ADR-0016 W1) — printed
+  /// verbatim; the CLI never interprets them.
+  final List<String> details;
 
   bool get isValid => validationError == null;
 }

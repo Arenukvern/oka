@@ -154,4 +154,49 @@ void main() {
       });
     });
   });
+
+  group('explainDetails (ADR-0016 W1, pure)', () {
+    test('WebShellTarget: the composed-shell render, no execution', () {
+      final description = describeTarget(
+        const WebShellTarget(
+          spec: WebShellSpec(title: 'Example'),
+          contributions: [
+            SimpleWebShellContribution(
+              head: [
+                WebScriptEntry(
+                  src: 'https://store.example/sdk.js',
+                  phase: WebHeadPhase.storeSdk,
+                  requiredSdkGlobal: 'StoreSdk',
+                ),
+              ],
+            ),
+          ],
+        ),
+        ctx(),
+      );
+      expect(description.isValid, isTrue);
+      final details = description.details.join('\n');
+      expect(details, contains('shell: "Example"'));
+      expect(details, contains('requiredSdkGlobal=StoreSdk'));
+      expect(details, contains('post-emit drift gate'));
+    });
+
+    test('GhPagesDeployTarget: dry-run default named as the deploy posture',
+        () {
+      final details = const GhPagesDeployTarget()
+          .explainDetails(ctx())
+          .join('\n');
+      expect(details, contains('directory-artifact convention'));
+      expect(details, contains('dry run: yes'));
+      expect(details, contains('flip dryRun: false'));
+    });
+
+    test('ItchDeployTarget: channel address and dry-run posture', () {
+      final details = const ItchDeployTarget(user: 'u', game: 'g')
+          .explainDetails(ctx())
+          .join('\n');
+      expect(details, contains('u/g:web'));
+      expect(details, contains('dry run: yes'));
+    });
+  });
 }

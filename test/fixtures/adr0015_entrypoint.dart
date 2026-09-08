@@ -19,6 +19,11 @@ class EchoTarget extends Target {
 
   @override
   List<BuildStep> compile(final BuildContext ctx) => [EchoStep()];
+
+  @override
+  List<String> explainDetails(final BuildContext ctx) => const [
+        'test detail: pure explain line (never executes the step)',
+      ];
 }
 
 class EchoStep extends BuildStep {

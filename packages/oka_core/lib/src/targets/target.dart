@@ -117,6 +117,18 @@ abstract class Target {
   /// artifact chain before executing anything.
   List<BuildStep> compile(final BuildContext ctx);
 
+  /// Generic, platform-agnostic explain hook (ADR-0016 W1): extra pure
+  /// detail lines `oka explain --targets` prints for this target, in
+  /// addition to the compiled step chain (composition render, deploy
+  /// plan posture, …).
+  ///
+  /// Pure — a function of the target value + [ctx]: no I/O, no tool
+  /// invocation, no execution of compiled steps (details must come from
+  /// composition, never execution). Default: no details. The CLI prints
+  /// these lines verbatim without knowing what platform or store a target
+  /// serves — the verb never learns platforms (ADR-0015).
+  List<String> explainDetails(final BuildContext ctx) => const [];
+
   /// Invocation-arg keys this target accepts via `oka run <target>`
   /// --oka-target-arg key=value` (and verb shims that forward, e.g.
   /// `oka launch -d <id>` → `device=<id>`). Empty by default — a target

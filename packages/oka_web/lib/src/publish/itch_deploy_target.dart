@@ -174,6 +174,24 @@ class ItchDeployTarget extends PublishTarget {
   @override
   String toString() => 'ItchDeployTarget($channelAddress'
       '${dryRun ? ' [dry-run]' : ''})';
+
+  /// ADR-0016 W1: pure deploy-posture lines for `oka explain --targets` —
+  /// no I/O, no plan resolution (the artifact path resolves at run time).
+  @override
+  List<String> explainDetails(final BuildContext ctx) {
+    final artifactLine = 'artifact: $artifactId '
+        '(directory — ADR-0016 directory-artifact convention)';
+    final dryRunLine = dryRun
+        ? 'dry run: yes — nothing is pushed; flip dryRun: false to deploy '
+            'for real'
+        : 'dry run: NO — a real butler push runs';
+    return [
+      'deploy plan: $endpoint',
+      artifactLine,
+      'channel: $channelAddress',
+      dryRunLine,
+    ];
+  }
 }
 
 /// Safe itch.io identifier: letters/digits then letters, digits, `.`, `-`,

@@ -42,6 +42,11 @@ Work is grouped by horizon, not by date:
   one-time transcript. The emulator lifecycle is now composable
   (`oka run emulator`, `EmulatorTarget` — create-if-missing, idempotent
   boot, serial artifact), so the CI tier composes the same target.
+- **Chrome session targets (S0, ADR-0017).** Browser sessions as
+  composable targets in `oka_web` — the second instance of the
+  `EmulatorTarget` ensure-running pattern (typed spec, idempotent boot,
+  handle artifacts) — replacing the launch-script glue consumer repos use
+  today for pinned-flag (WebMCP) and headless testing. Gate: ADR-0017.
 - **`oka dev --control-port` (delegation channel) — shipped.** The
   loopback JSON-lines control server maps reload / restart / stop / status
   onto the owning flutter-tool daemon session (the only compile-capable
@@ -86,6 +91,11 @@ Work is grouped by horizon, not by date:
 
 ## Later
 
+- **Runtime sessions beyond browsers.** The ADR-0017 handle convention
+  extended to `apple/container`/Docker sessions (Linux testing for oka
+  and Dart packages; images via the artifact store) and Dart server
+  process sessions (base-URL handles for intentcall/mcp-server targets)
+  — each an independent target, no session framework.
 - **Every platform, same laws.** The north star is one code for every
   platform build: typed values, validated pipelines, no hidden glue, and
   an agent that can set up and fix a build from oka's messages alone. Each

@@ -179,6 +179,19 @@ class GhPagesDeployTarget extends PublishTarget {
   @override
   String toString() => 'GhPagesDeployTarget($remote/$branch'
       '${dryRun ? ' [dry-run]' : ''})';
+
+  /// ADR-0016 W1: pure deploy-posture lines for `oka explain --targets` —
+  /// no I/O, no plan resolution (the artifact path resolves at run time).
+  @override
+  List<String> explainDetails(final BuildContext ctx) {
+    final artifactLine = 'artifact: $artifactId '
+        '(directory — ADR-0016 directory-artifact convention)';
+    final dryRunLine = dryRun
+        ? 'dry run: yes — nothing is pushed; flip dryRun: false to deploy '
+            'for real'
+        : 'dry run: NO — a real git push to $remote/$branch runs';
+    return ['deploy plan: $endpoint', artifactLine, 'track: $track', dryRunLine];
+  }
 }
 
 /// Safe git ref name: letters/digits then letters, digits, `.`, `-`, `_`,
@@ -233,7 +246,7 @@ extension GhPagesGitCommands on GhPagesDeployTarget {
 }
 
 /// The real upload tail: sync the source directory into a temporary
-/// worktree of the [remote]/[branch] checkout and push the deployment
+/// worktree of the remote/branch checkout and push the deployment
 /// commit.
 ///
 /// Sequence (every call through `ctx.runner`, no shell, no interactive

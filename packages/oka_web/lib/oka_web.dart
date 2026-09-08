@@ -21,11 +21,24 @@
 ///
 /// Targets ([WebShellTarget], [WebBuildTarget]) compile to
 /// build-step chains validated by oka_core's composition-time artifact
-/// check — before any tool runs (ADR-0015).
+/// check — before any tool runs (ADR-0015). The W1 drift gate
+/// ([checkShellDrift]) is a pure comparator over the emitter's owned
+/// paths, wired as a post-emit idempotency check in [EmitWebShellStep]
+/// and surfaced to `oka explain --targets` through the generic
+/// `Target.explainDetails` hook (ADR-0016 W1). The flagship third-party
+/// example lives in `example/crazygames/` (ADR-0016 §3).
+///
+/// Browser session targets (ADR-0017): [ChromeSessionTarget] ensures a
+/// Chrome session answering CDP (idempotent reuse, plain-HTTP readiness
+/// probe — never a CDP client) and provides the session-handle artifacts
+/// (`session-chrome-<name>-handle`, `session-chrome-<name>-cdp-port`) over
+/// the same Target + artifact contract; [BrowserSessionSpec] is the typed
+/// "what" seam and [chromeWebMcp] the first-party profile.
 library;
 
 export 'src/composition.dart';
 export 'src/contribution.dart';
+export 'src/drift.dart';
 export 'src/emitter.dart';
 export 'src/emitters/generate_emitter.dart';
 export 'src/emitters/inject_emitter.dart';
@@ -33,6 +46,9 @@ export 'src/emitters/render.dart';
 export 'src/publish/gh_pages_deploy_target.dart';
 export 'src/publish/itch_deploy_target.dart';
 export 'src/publish/stage_web_dir_step.dart';
+export 'src/session/browser_session_spec.dart';
+export 'src/session/chrome_session_target.dart';
+export 'src/session/profiles.dart';
 export 'src/spec/body_entry.dart';
 export 'src/spec/head_entry.dart';
 export 'src/spec/web_shell_spec.dart';

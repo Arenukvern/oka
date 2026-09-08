@@ -1,9 +1,11 @@
 name: oka_web
 description: >-
   Web shell station for oka (ADR-0016): typed shell composition
-  (WebShellContribution), replaceable emitters (generate + inject), and
-  web-shell / web-build targets. Web is explicitly NOT a PlatformPipeline.
-version: 0.1.0
+  (WebShellContribution), replaceable emitters (generate + inject),
+  web-shell / web-build targets, and web deploy targets (GitHub Pages,
+  itch.io) over the directory-artifact convention. Web is explicitly NOT a
+  PlatformPipeline.
+version: 0.2.0
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_web
 issue_tracker: https://github.com/Arenukvern/oka/issues
