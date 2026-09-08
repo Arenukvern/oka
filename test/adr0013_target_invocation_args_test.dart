@@ -1,13 +1,12 @@
 // ADR-0013/0015: invocation-time target overrides (`--oka-target-arg`,
 // `oka launch -d`) — typed contract + DeviceTarget wiring.
 import 'package:oka_android/oka_android.dart';
-import 'package:oka_core/oka_core.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('Target.applyInvocationArgs default', () {
     test('rejects any arg with an actionable message', () {
-      final t = _NoArgsTarget();
+      const t = _NoArgsTarget();
       expect(
         () => t.applyInvocationArgs({'bogus': '1'}),
         throwsArgumentError,
@@ -49,7 +48,7 @@ void main() {
   });
 }
 
-BuildContext _ctx() => BuildContext(
+BuildContext _ctx() => const BuildContext(
       projectPath: '/tmp/x',
       buildDir: '/tmp/x/.oka_cache',
       mode: BuildMode.debug,

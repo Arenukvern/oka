@@ -13,7 +13,11 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
+      # --no-example: example/ is a Flutter app; plain-dart resolution of it
+      # fails (flutter_test is sdk-sourced). Dart >= 3.13 resolves example/
+      # by default. The root test suite skips gracefully without the
+      # Flutter/Android SDKs (the determinism_test skip pattern).
+      - run: dart pub get --no-example
       - run: dart analyze --fatal-infos
       - run: dart test
 
@@ -38,5 +42,8 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
-      - run: dart publish --dry-run
+      - run: dart pub get --no-example
+      # The root package archive includes packages/ (workspace members);
+      # the synthetic Play test key is flagged by pub's leak detector and
+      # allow-listed via false_secrets in pubspec.yaml.
+      - run: dart pub publish --dry-run

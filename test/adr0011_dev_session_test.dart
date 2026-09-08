@@ -507,7 +507,7 @@ void main() {
         prepare: () async {
           sessions++;
           final t = FakeDaemonTransport()
-            ..respondTo = (final String m) => const <String, Object?>{};
+            ..respondTo = (final m) => const <String, Object?>{};
           if (sessions == 1) {
             // The physical-device failure mode: app.restart never gets a
             // daemon response; the app just stops.
@@ -560,7 +560,7 @@ void main() {
 
     test('vm.uri discovery file: write + clear round-trip', () async {
       final tmp = await Directory.systemTemp.createTemp('oka_vm_uri');
-      addTearDown(() async => tmp.delete(recursive: true));
+      addTearDown(() => tmp.delete(recursive: true));
       final projectPath = tmp.path;
       expect(File(vmUriFilePath(projectPath)).existsSync(), isFalse);
       await writeVmUriFile(projectPath, 'ws://127.0.0.1:65000/TOKEN/ws');

@@ -4,10 +4,9 @@
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
-import 'package:oka_core/oka_core.dart';
 import 'package:test/test.dart';
 
-BuildContext _ctx() => BuildContext(
+BuildContext _ctx() => const BuildContext(
       projectPath: '/tmp/x',
       buildDir: '/tmp/x/.oka_cache',
       mode: BuildMode.debug,
@@ -21,7 +20,7 @@ typedef ScriptedReply = ProcessResult Function(String exe, List<String> args);
 
 class FakeRunner {
   final sent = <String>[];
-  ScriptedReply reply = (_, __) => ProcessResult(0, 0, '', '');
+  ScriptedReply reply = (_, _) => ProcessResult(0, 0, '', '');
 
   Future<ProcessResult> call(final String exe, final List<String> args) async {
     sent.add([exe, ...args].join(' '));
@@ -79,7 +78,7 @@ void main() {
   group('EnsureAvdStep', () {
     test('existing AVD is a no-op success', () async {
       final fake = FakeRunner()
-        ..reply = (_, __) =>
+        ..reply = (_, _) =>
             ProcessResult(0, 0, 'Name: oka-emulator\nPath: /x\n', '');
       final step = EnsureAvdStep(
         avdName: 'oka-emulator',
@@ -94,7 +93,7 @@ void main() {
 
     test('missing AVD + createIfMissing runs avdmanager create', () async {
       final fake = FakeRunner()
-        ..reply = (_, __) => ProcessResult(0, 0, '', '');
+        ..reply = (_, _) => ProcessResult(0, 0, '', '');
       final step = EnsureAvdStep(
         avdName: 'oka-emulator',
         systemImage: 'system-images;android-34;google_apis;arm64-v8a',
@@ -109,7 +108,7 @@ void main() {
     test('missing system image fails closed naming the sdkmanager command',
         () async {
       final fake = FakeRunner()
-        ..reply = (_, __) => ProcessResult(
+        ..reply = (_, _) => ProcessResult(
               1,
               0,
               '',
@@ -128,7 +127,7 @@ void main() {
 
     test('createIfMissing=false fails naming the manual command', () async {
       final fake = FakeRunner()
-        ..reply = (_, __) => ProcessResult(0, 0, '', '');
+        ..reply = (_, _) => ProcessResult(0, 0, '', '');
       final step = EnsureAvdStep(
         avdName: 'gone',
         systemImage: 'sys',
@@ -154,7 +153,7 @@ void main() {
           }
           return ProcessResult(0, 0, '', '');
         };
-      final step = BootEmulatorStep(avdName: 'oka-emulator', runProcess: fake.call, startProcess: (_, __) async => throw 'never spawn');
+      final step = BootEmulatorStep(avdName: 'oka-emulator', runProcess: fake.call, startProcess: (_, _) async => throw StateError('never spawn'));
       final state = PipelineState();
       final r = await step.run(_ctx(), state);
       expect(r.ok, isTrue);
@@ -191,9 +190,9 @@ void main() {
         bootTimeout: const Duration(seconds: 20),
         pollInterval: const Duration(milliseconds: 10),
         runProcess: fake.call,
-        startProcess: (_, __) async {
+        startProcess: (_, _) {
           spawned = true;
-          throw StateError('fake: process handle unused');
+          return Future<Never>.error(StateError('fake: process handle unused'));
         },
       );
       final state = PipelineState();

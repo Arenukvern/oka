@@ -67,6 +67,8 @@ class _Harness {
     final transport = FakeDaemonTransport()
       ..silentMethods.addAll(silentMethods)
       ..respondTo = (final _) => const <String, Object?>{};
+    // Closed in [_Harness.teardown]; the analyzer cannot see the hand-off.
+    // ignore: close_sinks
     final control = StreamController<DevControlCommand>.broadcast();
     final server = await DevControlServer.start(
       port: port,
@@ -142,7 +144,7 @@ class _ControlClient {
     _sub = _socket
         .map(utf8.decode)
         .transform(const LineSplitter())
-        .listen(_lines.add, onDone: () => _done.complete());
+        .listen(_lines.add, onDone: _done.complete);
   }
 
   final Socket _socket;
@@ -204,14 +206,16 @@ void main() {
       final responseFuture = client.request({'id': 7, 'method': 'restart'});
       // The physical-device failure mode: app.restart never answers; the
       // app just stops mid-restart → the session takes the fallback.
-      Future<void>.delayed(const Duration(milliseconds: 50)).then(
-        (_) => h.transport.emitEvent('app.stop'),
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 50)).then(
+          (_) => h.transport.emitEvent('app.stop'),
+        ),
       );
       final r = await responseFuture.timeout(const Duration(seconds: 5));
       expect(r['id'], 7);
       expect(r['ok'], isFalse);
       expect(r['fallback'], isTrue, reason: '$r');
-      expect((r['error'] as String), contains('re-attaching'));
+      expect(r['error']! as String, contains('re-attaching'));
 
       // The fallback ends the session (relaunch + re-attach); when the
       // owner closes the server the client must observe EOF (it re-reads
@@ -287,6 +291,9 @@ void main() {
 
     test('malformed JSON → per-id error, connection stays open', () async {
       final h = await _Harness.start();
+      // The connection staying open is the subject of this test; it is
+      // intentionally never closed here.
+      // ignore: close_sinks
       final socket = await Socket.connect('127.0.0.1', h.server.port);
       final client = _ControlClient(socket);
       socket.write('this is not json\n');
@@ -375,8 +382,8 @@ void main() {
           .timeout(const Duration(seconds: 5));
       expect(r['id'], 21);
       expect(r['ok'], isFalse);
-      expect((r['error'] as String), contains('no result within'));
-      expect((r['error'] as String), contains('runner-session.json'));
+      expect(r['error']! as String, contains('no result within'));
+      expect(r['error']! as String, contains('runner-session.json'));
       await client.close();
       await h.teardown();
       h.projectDir.deleteSync(recursive: true);
@@ -395,7 +402,7 @@ void main() {
       );
       final r = await client.request({'id': 1, 'method': 'status'});
       expect(r['ok'], isTrue);
-      expect((r['result'] as Map)['device'], discovery.deviceId);
+      expect((r['result']! as Map)['device'], discovery.deviceId);
       await client.close();
       await h.teardown();
       h.projectDir.deleteSync(recursive: true);

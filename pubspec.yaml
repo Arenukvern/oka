@@ -15,6 +15,13 @@ topics:
   - cli
   - gradle
 
+# The Play publish-target test fixture contains a SYNTHETIC RSA key
+# (generated for tests only — never a real credential). pub's leak
+# detector flags it when publishing the root archive, which includes
+# packages/ (workspace members).
+false_secrets:
+  - packages/oka_play/test/synthetic_credentials.dart
+
 workspace:
   - packages/*
 

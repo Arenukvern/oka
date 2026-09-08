@@ -77,7 +77,7 @@ void main() {
       ]) {
         final result = await okaCli(['launch', ...flagValue]);
         expect(result.exitCode, 0,
-            reason: '${flagValue}: ${result.stderr}');
+            reason: '$flagValue: ${result.stderr}');
         expect(await marker().readAsString(), contains('FAKE123'));
       }
     });
