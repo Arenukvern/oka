@@ -47,9 +47,12 @@ class WebShellTarget extends Target {
   /// The composed shell (pure — reused by [compile] and tooling).
   WebShell compose() => WebShell(spec: spec, contributions: contributions);
 
+  /// Target name: `web-shell`.
   @override
   String get name => 'web-shell';
 
+  /// Explain-text: what the target composes/emits, with the emitter name
+  /// and owned paths.
   @override
   String get description =>
       'Compose and emit the web shell (${emitter.name} emitter: '
@@ -66,6 +69,7 @@ class WebShellTarget extends Target {
         },
       };
 
+  /// Compile to the validate → emit step chain (no Flutter invocation).
   @override
   List<BuildStep> compile(final BuildContext ctx) {
     final shell = compose();
@@ -89,6 +93,7 @@ class WebShellTarget extends Target {
     return [header, ...shell.describeLines()];
   }
 
+  /// Debug string: emitter name plus contribution count.
   @override
   String toString() =>
       'WebShellTarget(${emitter.name}, ${contributions.length} contributions)';
@@ -130,9 +135,12 @@ class WebBuildTarget extends Target {
     return baseHref;
   }
 
+  /// Target name: `web-build`.
   @override
   String get name => 'web-build';
 
+  /// Explain-text: names the delegation to `flutter build web` honestly —
+  /// never claimed as an oka-owned pipeline.
   @override
   String get description =>
       'delegates to flutter build web (not an oka-owned pipeline) — '
@@ -147,10 +155,12 @@ class WebBuildTarget extends Target {
         },
       };
 
+  /// Compile to the [FlutterWebBuildStep] delegation.
   @override
   List<BuildStep> compile(final BuildContext ctx) =>
       [FlutterWebBuildStep(baseHref: effectiveBaseHref, extraArgs: extraArgs)];
 
+  /// Debug string: effective base href plus the delegation marker.
   @override
   String toString() =>
       "WebBuildTarget(baseHref: '$effectiveBaseHref', delegation)";

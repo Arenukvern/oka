@@ -10,6 +10,7 @@ import 'package:meta/meta.dart';
 /// One declarative `<body>` element.
 @immutable
 sealed class WebBodyEntry {
+  /// Const constructor for const entries.
   const WebBodyEntry();
 }
 
@@ -20,11 +21,13 @@ sealed class WebBodyEntry {
 /// raw snippets bypass duplicate detection.
 @immutable
 class WebHtmlEntry extends WebBodyEntry {
+  /// Wraps the raw [html] snippet.
   const WebHtmlEntry(this.html);
 
   /// Raw HTML, inserted as-is.
   final String html;
 
+  /// Debug string: character count of the snippet.
   @override
   String toString() => 'WebHtmlEntry(${html.length} chars)';
 }
@@ -58,6 +61,7 @@ class WebElementEntry extends WebBodyEntry {
   /// Stable identity key for duplicate detection.
   String get identityKey => '$tag#${id ?? ''}';
 
+  /// Debug string: the identity key.
   @override
   String toString() => 'WebElementEntry($identityKey)';
 }

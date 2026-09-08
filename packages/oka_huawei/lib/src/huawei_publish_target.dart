@@ -86,35 +86,46 @@ class HuaweiPublishTarget extends PublishTarget {
     kind: 'agconnect-credentials',
   );
 
+  /// Target name: `publish-huawei`.
   @override
   String get name => 'publish-huawei';
 
+  /// Explain-text: the GMS-excluded variant posture and track.
   @override
   String get description =>
       'Upload the AAB to Huawei AppGallery Connect '
       '(GMS-excluded variant, track ${release.track})';
 
+  /// Remote endpoint summary for the deploy plan.
   @override
   String get endpoint => 'AppGallery Connect Publishing API '
       '(${endpoints.baseUrl})';
 
+  /// Publish track: the release config's track.
   @override
   String get track => release.track;
 
+  /// Consumed artifact: the staged AAB path.
   @override
   String get artifactId => HuaweiStageAabStep.aabPath.id;
 
+  /// Publish metadata from the release config (non-secret).
   @override
   Map<String, String> get metadata => release.planMetadata;
 
+  /// Credentials consumed by the upload tail: the redacting AGC
+  /// credentials path reference.
   @override
   List<CredentialRef> get credentialRefs => [_credentialRef(credentialPath)];
 
+  /// Staging steps: the Huawei AAB stage with the typed path override.
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) => [
         HuaweiStageAabStep(artifactPath: artifactPath),
       ];
 
+  /// The upload tail: [AgcPublishStep] with the release config and
+  /// credential reference.
   @override
   BuildStep uploadStep(final BuildContext ctx) => AgcPublishStep(
         release: release,
@@ -123,6 +134,7 @@ class HuaweiPublishTarget extends PublishTarget {
         httpFactory: httpFactory,
       );
 
+  /// Debug string: app id, track, dry-run marker, and variant.
   @override
   String toString() => 'HuaweiPublishTarget(${release.appId}, '
       'track ${release.track}${dryRun ? ' [dry-run]' : ''}, '

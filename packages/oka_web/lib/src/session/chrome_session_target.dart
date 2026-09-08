@@ -201,6 +201,7 @@ typedef SessionProcessStarter = Future<SessionProcess> Function(
 );
 
 final class _IoSessionProcess implements SessionProcess {
+  /// Wraps a real [Process] as a [SessionProcess].
   _IoSessionProcess(this._process);
 
   final Process _process;
@@ -243,9 +244,12 @@ class ChromeSessionTarget extends Target {
   /// already the CLI identifier (`chrome-session`).
   final String sessionName;
 
+  /// Target name: `chrome-session`.
   @override
   String get name => 'chrome-session';
 
+  /// Explain-text: idempotency posture, probe mechanism, profile
+  /// persistence, and the provided session-handle artifact.
   @override
   String get description =>
       'Ensure a Chrome browser session is running (idempotent CDP reuse, '
@@ -254,11 +258,13 @@ class ChromeSessionTarget extends Target {
       '${chromeSessionHandleArtifactId(sessionName)} '
       '(ADR-0017 session-handle convention)';
 
+  /// Compile to the ensure step (single step; stop is a separate target).
   @override
   List<BuildStep> compile(final BuildContext ctx) => [
         EnsureChromeSessionStep(spec: spec, sessionName: sessionName),
       ];
 
+  /// Debug string: session name plus browser binary basename.
   @override
   String toString() =>
       'ChromeSessionTarget($sessionName, ${p.basename(spec.binaryPath)})';
@@ -321,6 +327,7 @@ class EnsureChromeSessionStep extends BuildStep {
   late final Artifact<String> profileDirArtifact =
       Artifact<String>(chromeSessionProfileDirArtifactId(sessionName));
 
+  /// Step name: `ensure-chrome-session`.
   @override
   String get name => 'ensure-chrome-session';
 
@@ -472,6 +479,7 @@ class StopChromeSessionStep extends BuildStep {
 
   final bool Function(int pid) _killProcess;
 
+  /// Step name: `stop-chrome-session`.
   @override
   String get name => 'stop-chrome-session';
 

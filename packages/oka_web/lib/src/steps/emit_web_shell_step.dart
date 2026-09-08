@@ -15,6 +15,7 @@ import '../validation.dart';
 /// provides the composed shell downstream (ADR-0016: validation before
 /// any I/O / emit).
 class ValidateWebShellStep extends BuildStep {
+  /// Wraps the composed shell and the web directory used for icon checks.
   ValidateWebShellStep({required this.shell, required this.webDir});
 
   /// The composed-shell artifact consumed by [EmitWebShellStep].
@@ -26,12 +27,17 @@ class ValidateWebShellStep extends BuildStep {
   /// Absolute web directory (icon paths resolve under it).
   final String webDir;
 
+  /// Step name: `validate-web-shell`.
   @override
   String get name => 'validate-web-shell';
 
+  /// Provides the composed shell downstream.
   @override
   Set<Artifact<Object>> get provides => {webShellComposed};
 
+  /// Runs the pure shell validation (plus icon existence checks under
+  /// [webDir]); fails with actionable issues before any emit, or provides
+  /// the composed shell.
   @override
   Future<StepResult> run(
     final BuildContext ctx,
@@ -53,6 +59,7 @@ class ValidateWebShellStep extends BuildStep {
 /// output files. I/O lives ONLY here — emitters are pure string
 /// renderers (ADR-0016).
 class EmitWebShellStep extends BuildStep {
+  /// Wraps the emitter and target web directory.
   EmitWebShellStep({required this.emitter, required this.webDir});
 
   /// Written file paths (web-dir-relative), e.g. `index.html`.
@@ -69,15 +76,21 @@ class EmitWebShellStep extends BuildStep {
   /// Absolute web directory to write into (created if missing).
   final String webDir;
 
+  /// Step name: `emit-web-shell`.
   @override
   String get name => 'emit-web-shell';
 
+  /// Requires the composed shell from [ValidateWebShellStep].
   @override
   Set<Artifact<Object>> get requires => {ValidateWebShellStep.webShellComposed};
 
+  /// Provides the written file list and the web directory artifact.
   @override
   Set<Artifact<Object>> get provides => {webShellFiles, webDirArtifact};
 
+  /// Renders via [emitter], writes the files (the only I/O in the shell
+  /// pipeline), then runs the post-emit drift gate — a failed gate means
+  /// the written bytes are not the composition's render.
   @override
   Future<StepResult> run(
     final BuildContext ctx,

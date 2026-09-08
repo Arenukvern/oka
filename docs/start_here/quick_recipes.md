@@ -37,6 +37,37 @@ need `oka build apk --debug` + reinstall (ADR-0011 §5) — `--watch` prints
 the exact command, `--watch --rebuild-on-native` runs it for you.
 Docs: [Dev Loop Station](../guides/build_and_config.md#-dev-loop-station-adr-0011).
 
+## Devices & emulators (Android)
+
+`oka run device` works with any adb-visible device — a plugged-in phone or
+a running AVD emulator. Oka reuses what's already running (same semantics
+as every oka session) and does not provision emulator binaries themselves
+(those are sdkmanager-bound; create one with Android Studio or
+`avdmanager`):
+
+```bash
+emulator -avd my-avd &          # or plug in a device / start Studio emulator
+oka run device                  # install → launch → failure-signature scan
+oka launch -d emulator-5554     # target a specific device id
+oka doctor                      # verifies adb + device + build health
+```
+
+## Web (shell station)
+
+Web targets come from `oka_web` — declare them in your composition root
+(`tool/oka_pipeline.dart`), then:
+
+```bash
+oka run web-shell          # compose + emit web/index.html (typed, drift-checked)
+oka explain --targets      # renders the composed shell BEFORE anything writes
+oka run web-build          # honest delegation: flutter build web → build/web
+oka run publish-gh-pages   # dry-run plan by default; flip dryRun: false to push
+```
+
+Store contributions (CrazyGames, Yandex Games, …) are const values your
+composition composes — no per-store branches. Docs:
+[Web Shell Station](../guides/web_shell_station.md).
+
 ## Release
 
 ```bash

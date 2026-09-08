@@ -72,15 +72,21 @@ class PlayUploadStep extends BuildStep {
   static const Artifact<int> playVersionCode =
       Artifact<int>('play-version-code');
 
+  /// Step name: `play-upload`.
   @override
   String get name => 'play-upload';
 
+  /// Requires the staged AAB.
   @override
   Set<Artifact<Object>> get requires => {StageAabStep.aab};
 
+  /// Provides the assigned version code.
   @override
   Set<Artifact<Object>> get provides => {playVersionCode};
 
+  /// Resolves the AAB and credentials, then runs the Edits flow via the
+  /// injectable transport; fails actionably on missing artifact, missing
+  /// AAB file, invalid config, or API errors.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final aabPath = state[StageAabStep.aab.id] as String?;

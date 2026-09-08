@@ -17,8 +17,13 @@ class RecordedRequest {
     required this.body,
   });
 
+  /// HTTP method, e.g. `POST`.
   final String method;
+
+  /// Full request URL.
   final Uri url;
+
+  /// Request headers as sent.
   final Map<String, String> headers;
 
   /// Request body as bytes (binary uploads such as AABs stay byte-exact).
@@ -30,6 +35,7 @@ class RecordedRequest {
   /// Body decoded as JSON (for JSON requests).
   Object? get bodyJson => jsonDecode(bodyText);
 
+  /// Debug string: method, URL, and body size (never the body itself).
   @override
   String toString() => '$method $url (${body.length} bytes)';
 }
@@ -157,6 +163,8 @@ class FakeHttpTransport extends http.BaseClient {
     return p.allMatches(urlText).isNotEmpty;
   }
 
+  /// Body bytes of [request]: direct for [http.Request], drained from
+  /// the finalized stream for wrapped/streamed requests.
   static Future<List<int>> _drain(final http.BaseRequest request) async {
     if (request is http.Request) return request.bodyBytes;
     // Auth wrappers (e.g. googleapis_auth's AuthenticatedClient) re-wrap
@@ -179,6 +187,7 @@ class FakeHttpTransport extends http.BaseClient {
     }
   }
 
+  /// No-op — the fake owns no sockets.
   @override
   void close() {}
 }

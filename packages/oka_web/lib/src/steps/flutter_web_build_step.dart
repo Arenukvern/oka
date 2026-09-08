@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 /// - extra args from [extraArgs] (appended verbatim, e.g. `--wasm`).
 @immutable
 class FlutterWebBuildStep extends BuildStep {
+  /// Wraps the base href and extra args.
   FlutterWebBuildStep({this.baseHref = '', this.extraArgs = const []});
 
   /// The build output directory artifact (`build/web`).
@@ -30,9 +31,11 @@ class FlutterWebBuildStep extends BuildStep {
   /// Extra args appended verbatim (e.g. `--wasm`, `--source-maps`).
   final List<String> extraArgs;
 
+  /// Step name: `flutter-web-build`.
   @override
   String get name => 'flutter-web-build';
 
+  /// Provides the `build/web` directory artifact.
   @override
   Set<Artifact<Object>> get provides => {webBuildOutput};
 

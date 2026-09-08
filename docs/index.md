@@ -10,6 +10,7 @@ configuration tax on every build.
 | Audience | Start here |
 | --- | --- |
 | Build an app now | [Quick recipes](/start_here/quick_recipes) |
+| Operate oka as an AI agent | [`AGENTS.md`](https://github.com/Arenukvern/oka/blob/main/AGENTS.md) — the agent router |
 | Publish to Google Play / AppGallery | [Publishing guide](/guides/publishing) |
 | Ship a web app to stores / hosting | [Web shell station guide](/guides/web_shell_station) |
 | Understand the project | [Why this repo matters](/start_here/why_this_repo_matters) |

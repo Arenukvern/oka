@@ -8,10 +8,17 @@ class ProcOutcome {
     required this.stdout,
     required this.stderr,
   });
+
+  /// Exit code of the child process.
   final int exitCode;
+
+  /// Standard output, decoded.
   final String stdout;
+
+  /// Standard error, decoded.
   final String stderr;
 
+  /// `true` when the process exited cleanly.
   bool get ok => exitCode == 0;
 }
 
@@ -20,6 +27,8 @@ class ProcOutcome {
 /// enforced uniformly.
 // ignore: one_member_abstracts
 abstract class ProcessRunner {
+  /// Runs [executable] with [arguments]; returns the outcome. [timeout]
+  /// defaults to 30 minutes in the default implementation.
   Future<ProcOutcome> run(
     final String executable,
     final List<String> arguments, {
@@ -31,6 +40,7 @@ abstract class ProcessRunner {
 
 /// Default runner: dart:io [Process.run] with an optional timeout.
 class SystemProcessRunner implements ProcessRunner {
+  /// Const constructor — stateless.
   const SystemProcessRunner();
 
   @override

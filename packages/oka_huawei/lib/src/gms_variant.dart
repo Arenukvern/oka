@@ -67,16 +67,19 @@ class HuaweiBuildVariant {
   PipelineOverrides get gmsFreeOverrides =>
       overrides.copyWith(extraDeps: gmsFreeExtraDeps);
 
+  /// Debug string: package name plus the exclusion count.
   @override
   String toString() => 'HuaweiBuildVariant(${android.packageName}, '
       'gms-excluded: ${excludedGmsDeps.length} dep(s))';
 
+  /// Field-wise equality.
   @override
   bool operator ==(final Object other) =>
       other is HuaweiBuildVariant &&
       other.android == android &&
       other.overrides == overrides;
 
+  /// Hash over both fields.
   @override
   int get hashCode => Object.hash(android, overrides);
 }

@@ -37,12 +37,14 @@ class Artifact<T> {
   /// Optional human-readable description for diagnostics.
   final String? description;
 
+  /// Debug string: artifact id with its type argument.
   @override
   String toString() => 'Artifact<$T>($id)';
 
   @override
   bool operator ==(final Object other) => other is Artifact<T> && other.id == id;
 
+  /// Hash of id + type (equality is id + type based).
   @override
   int get hashCode => Object.hash(id, T);
 }

@@ -11,6 +11,7 @@ class PlanShapeException implements Exception {
   /// Human-readable mismatches — one entry per failed expectation.
   final List<String> mismatches;
 
+  /// Multi-line failure text: mismatches plus the plan render.
   @override
   String toString() =>
       'publish plan does not have the expected shape:\n'

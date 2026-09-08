@@ -31,14 +31,19 @@ enum ToolSourceKind {
 /// printed by `oka doctor` and in [ToolchainException] output.
 @immutable
 class ToolSource {
+  /// Wraps the source kind and its label.
   const ToolSource(this.kind, this.label);
 
+  /// Which policy tier this source is.
   final ToolSourceKind kind;
+
+  /// Human-decodable name (a path, env var name, or `system`).
   final String label;
 
   /// Printable kind prefix, e.g. `env OKA_ANDROID_SDK`.
   String get qualified => '${kind.name} $label';
 
+  /// Debug string: the qualified form.
   @override
   String toString() => qualified;
 
@@ -46,6 +51,7 @@ class ToolSource {
   bool operator ==(final Object other) =>
       other is ToolSource && other.kind == kind && other.label == label;
 
+  /// Hash of kind + label (equality is field-wise).
   @override
   int get hashCode => Object.hash(kind, label);
 }
@@ -53,10 +59,13 @@ class ToolSource {
 /// Name of a tool to resolve, e.g. `aapt2`, `d8`, `javac`, `kotlinc`, `adb`.
 @immutable
 class ToolQuery {
+  /// Wraps the tool name.
   const ToolQuery(this.name);
 
+  /// Tool name to resolve (e.g. `aapt2`).
   final String name;
 
+  /// Debug string: the tool name.
   @override
   String toString() => name;
 
@@ -64,6 +73,7 @@ class ToolQuery {
   bool operator ==(final Object other) =>
       other is ToolQuery && other.name == name;
 
+  /// Hash of the name (equality is name based).
   @override
   int get hashCode => name.hashCode;
 }
@@ -92,6 +102,7 @@ class ResolvedTool {
   /// Which candidate source resolved it.
   final ToolSource source;
 
+  /// Debug string: name → path with the source prefix.
   @override
   String toString() => '$name → $path (${source.qualified})';
 
@@ -103,6 +114,7 @@ class ResolvedTool {
       other.version == version &&
       other.source == source;
 
+  /// Hash over all fields (equality is field-wise).
   @override
   int get hashCode => Object.hash(name, path, version, source);
 }
@@ -114,16 +126,23 @@ class ResolvedTool {
 /// decision path.
 @immutable
 class ToolResolution {
+  /// Wraps the resolved tool (null on failure), the ordered candidates
+  /// tried, and the failure headline.
   const ToolResolution({this.tool, this.tried = const <ToolSource>[], this.problem});
 
+  /// The resolved tool, or null when resolution failed.
   final ResolvedTool? tool;
+
+  /// Every candidate tried, in policy order.
   final List<ToolSource> tried;
 
   /// Why resolution failed (headline for errors/doctor); null on success.
   final String? problem;
 
+  /// `true` when the tool resolved.
   bool get ok => tool != null;
 
+  /// Debug string: the tool on success, the failure headline otherwise.
   @override
   String toString() => ok ? tool.toString() : (problem ?? 'not found (tried: $tried)');
 }
@@ -151,6 +170,7 @@ class ToolchainException implements Exception {
   /// with a domain-specific headline (e.g. `Android SDK not found.`).
   final String? problem;
 
+  /// Multi-line failure text: headline, the tried candidates, and the fix.
   @override
   String toString() {
     final b = StringBuffer(problem ?? "Tool '$tool' not found.");

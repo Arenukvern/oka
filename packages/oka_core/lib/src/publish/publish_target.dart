@@ -26,6 +26,7 @@ class PublishPlan {
     this.credentials = const [],
   });
 
+  /// Decodes from the plan payload (also what [PublishPlanStep] stores).
   factory PublishPlan.fromJson(final Map<String, dynamic> json) => PublishPlan(
         target: json['target']?.toString() ?? '',
         endpoint: json['endpoint']?.toString() ?? '',
@@ -91,6 +92,7 @@ class PublishPlan {
     ];
   }
 
+  /// Encodes to the plan payload.
   Map<String, dynamic> toJson() => {
         'target': target,
         'endpoint': endpoint,
@@ -125,6 +127,7 @@ class PublishPlan {
       _mapsEqual(other.metadata, metadata) &&
       _listsEqual(other.credentials, credentials);
 
+  /// Hash over all plan fields (equality is field-wise).
   @override
   int get hashCode => Object.hash(
         target,
@@ -138,6 +141,7 @@ class PublishPlan {
         Object.hashAll(credentials),
       );
 
+  /// Debug string: target → endpoint, track, dry-run marker.
   @override
   String toString() => 'PublishPlan($target → $endpoint, track $track, '
       'artifact $artifactId'
@@ -160,6 +164,7 @@ bool _listsEqual(final List<CredentialRef> a, final List<CredentialRef> b) =>
 /// the full artifact path — the plan proves the real run would have
 /// something to upload.
 class PublishPlanStep extends BuildStep {
+  /// Wraps [target].
   PublishPlanStep(this.target);
 
   /// The plan artifact, consumable by tooling and `oka explain`.
@@ -168,15 +173,20 @@ class PublishPlanStep extends BuildStep {
   /// The [PublishTarget] whose plan this step produces.
   final PublishTarget target;
 
+  /// Step name: `publish-plan`.
   @override
   String get name => 'publish-plan';
 
+  /// Requires the artifact the plan describes.
   @override
   Set<Artifact<Object>> get requires => {Artifact<String>(target.artifactId)};
 
+  /// Provides the plan artifact.
   @override
   Set<Artifact<Object>> get provides => {plan};
 
+  /// Resolves the artifact path from state and produces [target]'s plan;
+  /// fails actionably when the artifact is missing.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final artifact = state[target.artifactId];
@@ -208,10 +218,11 @@ class PublishPlanStep extends BuildStep {
 ///    [CredentialRef]s (path references) and booleans. State can be dumped
 ///    by tooling; treat it as public.
 ///
-/// Target packages ([P1] `oka_play`, [P2] `oka_huawei`) extend this class
+/// Target packages (`[P1]` `oka_play`, `[P2]` `oka_huawei`) extend this class
 /// and assert the laws via `expectPublishConformance` — a shared suite any
 /// target must pass, mirroring the `universal_storage_conformance` pattern.
 abstract class PublishTarget extends Target {
+  /// Const constructor for const target values.
   const PublishTarget();
 
   /// Typed dry-run flag — part of the publishing contract. When true, the
@@ -275,12 +286,15 @@ abstract class PublishTarget extends Target {
         artifactIsDirectory: artifactIsDirectory,
       );
 
+  /// Compile to the publish contract: staging steps, then the plan step
+  /// (dry run) or the real upload tail.
   @override
   List<BuildStep> compile(final BuildContext ctx) => [
         ...publishSteps(ctx),
         if (dryRun) PublishPlanStep(this) else uploadStep(ctx),
       ];
 
+  /// Debug string: target name plus dry-run marker.
   @override
   String toString() => 'PublishTarget($name${dryRun ? ' [dry-run]' : ''})';
 }

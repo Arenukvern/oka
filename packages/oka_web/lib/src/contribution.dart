@@ -37,6 +37,7 @@ import 'spec/web_shell_spec.dart';
 /// }
 /// ```
 abstract class WebShellContribution {
+  /// Const constructor so store packages can ship const contributions.
   const WebShellContribution();
 
   /// Head entries this contribution contributes. Ordered among all
@@ -81,18 +82,25 @@ class SimpleWebShellContribution extends WebShellContribution {
     this.dartDefines = const {},
   });
 
+  /// Head entries this contribution ships.
   @override
   final List<WebHeadEntry> head;
 
+  /// Body entries this contribution ships.
   @override
   final List<WebBodyEntry> body;
 
+  /// PWA manifest field overrides to apply (null = none).
   @override
   final PwaManifestOverride? manifest;
 
+  /// Base-href override (e.g. a store serves the game from a subpath);
+  /// null = no override.
   @override
   final String? baseHref;
 
+  /// Dart-define overrides for `flutter build web` (last declaration
+  /// wins).
   @override
   final Map<String, String> dartDefines;
 }

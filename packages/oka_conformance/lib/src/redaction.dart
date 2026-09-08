@@ -14,6 +14,7 @@ class SecretMaterialException implements Exception {
   /// Human-readable findings (what leaked and where).
   final List<String> findings;
 
+  /// Multi-line failure text: context plus every finding.
   @override
   String toString() =>
       'secret material leaked into $context:\n'

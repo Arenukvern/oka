@@ -93,26 +93,34 @@ class GhPagesDeployTarget extends PublishTarget {
   /// Must be a relative path without `..` segments.
   final String? subdirectory;
 
+  /// Publishes a directory artifact, not a single file.
   @override
   bool get artifactIsDirectory => true;
 
+  /// Target name: `publish-gh-pages`.
   @override
   String get name => 'publish-gh-pages';
 
+  /// Explain-text: where the build directory goes, the auth model, and
+  /// whether it's a dry run.
   @override
   String get description =>
       'Push the web build directory to GitHub Pages ($remote/$branch, '
       'ambient git auth${dryRun ? ', dry run' : ''})';
 
+  /// Remote endpoint summary for the deploy plan.
   @override
   String get endpoint => 'GitHub Pages (git push to $remote/$branch)';
 
+  /// Publish track: the target branch.
   @override
   String get track => branch;
 
+  /// Consumed artifact: the staged web build directory.
   @override
   String get artifactId => directoryArtifactId;
 
+  /// Publish metadata: branch, remote, and optional subdirectory.
   @override
   Map<String, String> get metadata => {
         'branch': branch,
@@ -121,6 +129,8 @@ class GhPagesDeployTarget extends PublishTarget {
           'subdirectory': subdirectory!,
       };
 
+  /// Stages the consumed directory artifact from typed config or the
+  /// default `build/web` location.
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) => [
         StageWebDirectoryStep(
@@ -129,6 +139,7 @@ class GhPagesDeployTarget extends PublishTarget {
         ),
       ];
 
+  /// The upload tail: [GhPagesUploadStep].
   @override
   BuildStep uploadStep(final BuildContext ctx) => GhPagesUploadStep(this);
 
@@ -176,6 +187,7 @@ class GhPagesDeployTarget extends PublishTarget {
     return issues;
   }
 
+  /// Debug string: remote/branch plus dry-run marker.
   @override
   String toString() => 'GhPagesDeployTarget($remote/$branch'
       '${dryRun ? ' [dry-run]' : ''})';
@@ -235,13 +247,17 @@ extension GhPagesGitCommands on GhPagesDeployTarget {
   /// → the deploy step fails actionably instead of committing nothing).
   List<String> statusPorcelainArgs() => ['status', '--porcelain'];
 
+  /// Deployment commit arguments.
   List<String> commitArgs() => ['commit', '-m', commitMessage];
 
+  /// Push arguments: the worktree HEAD to the remote branch.
   List<String> pushArgs() => ['push', remote, 'HEAD:refs/heads/$branch'];
 
+  /// Worktree removal arguments (cleanup, run with `--force`).
   List<String> worktreeRemoveArgs(final String worktreeDir) =>
       ['worktree', 'remove', '--force', worktreeDir];
 
+  /// Worktree prune arguments (cleanup of stale worktree metadata).
   List<String> worktreePruneArgs() => ['worktree', 'prune'];
 }
 
@@ -266,14 +282,17 @@ extension GhPagesGitCommands on GhPagesDeployTarget {
 /// 6. `commit -m <message>`, `push <remote> HEAD:refs/heads/<branch>`.
 /// 7. Cleanup (best effort): `worktree remove --force`, then `prune`.
 class GhPagesUploadStep extends BuildStep {
+  /// Wraps [target].
   GhPagesUploadStep(this.target);
 
   /// The deploy target whose config this step executes.
   final GhPagesDeployTarget target;
 
+  /// Step name: `gh-pages-upload`.
   @override
   String get name => 'gh-pages-upload';
 
+  /// Requires the staged web build directory artifact.
   @override
   Set<Artifact<Object>> get requires =>
       {Artifact<String>(target.directoryArtifactId)};
@@ -286,6 +305,9 @@ class GhPagesUploadStep extends BuildStep {
         'GIT_TERMINAL_PROMPT': '0',
       };
 
+  /// Executes the deploy sequence documented on this class: validate →
+  /// resolve artifact/source → worktree setup → content sync → commit →
+  /// push → cleanup. Fails actionably at each stage.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final configIssues = target.validateConfig();

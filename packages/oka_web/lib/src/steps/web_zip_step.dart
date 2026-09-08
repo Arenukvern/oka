@@ -19,6 +19,7 @@ import 'package:path/path.dart' as p;
 /// consume [EmitWebShellStep] outputs (`web-dir` → `web-zip-path`).
 @immutable
 class WebZipStep extends BuildStep {
+  /// Wraps the configurable artifact ids and optional output path.
   WebZipStep({
     this.inputArtifact = const Artifact<String>('web-dir'),
     this.outputArtifact = const Artifact<String>('web-zip-path'),
@@ -34,15 +35,20 @@ class WebZipStep extends BuildStep {
   /// Explicit output zip path override (null → `<inputDir>.zip`).
   final String? outputZipPath;
 
+  /// Step name: `web-zip`.
   @override
   String get name => 'web-zip';
 
+  /// Requires the input directory artifact.
   @override
   Set<Artifact<Object>> get requires => {inputArtifact};
 
+  /// Produces the output zip file artifact.
   @override
   Set<Artifact<Object>> get provides => {outputArtifact};
 
+  /// Zips the directory deterministically (sorted relative entry order,
+  /// ADR-0007) and records the zip path in [PipelineState].
   @override
   Future<StepResult> run(
     final BuildContext ctx,

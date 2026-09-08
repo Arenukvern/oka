@@ -10,8 +10,13 @@ enum BuildMode {
   release,
   profile;
 
+  /// Convenience predicate.
   bool get isDebug => this == BuildMode.debug;
+
+  /// Convenience predicate.
   bool get isRelease => this == BuildMode.release;
+
+  /// Convenience predicate.
   bool get isProfile => this == BuildMode.profile;
 }
 
@@ -62,6 +67,8 @@ class BuildContext {
     this.onEvent,
   });
 
+  /// Decodes from the runner/CLI context payload (unknown mode strings
+  /// fall back to [BuildMode.debug]).
   factory BuildContext.fromJson(final Object? json) {
     final map = jsonDecodeMap(json);
     final modeStr = jsonDecodeString(map['mode']);
@@ -171,6 +178,7 @@ class BuildContext {
       ? 'lib/main.dart'
       : config.flutter.entrypoint;
 
+  /// Encodes back to the runner/CLI context payload.
   Map<String, dynamic> toJson() => {
     'project_path': projectPath,
     'build_dir': buildDir,
@@ -238,6 +246,7 @@ class BuildContext {
 
 /// Extension type for build artifacts.
 extension type const BuildArtifact(Map<String, dynamic> value) {
+  /// Decodes from the artifact payload map.
   factory BuildArtifact.fromJson(final Object? json) =>
       BuildArtifact(jsonDecodeMap(json));
 
@@ -263,6 +272,7 @@ extension type const BuildArtifact(Map<String, dynamic> value) {
   /// Error message if build failed.
   String get error => jsonDecodeString(value['error']);
 
+  /// Encodes back to the payload map (identity).
   Map<String, dynamic> toJson() => value;
 
   static const empty = BuildArtifact({});

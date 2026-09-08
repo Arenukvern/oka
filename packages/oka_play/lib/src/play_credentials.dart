@@ -39,8 +39,10 @@ const Set<String> requiredServiceAccountFields = {
 class ServiceAccountFormatException implements Exception {
   ServiceAccountFormatException({required this.problem});
 
+  /// Which fields are missing or malformed (names only, never values).
   final String problem;
 
+  /// Error text naming the shape problem.
   @override
   String toString() => 'invalid service-account JSON: $problem';
 }

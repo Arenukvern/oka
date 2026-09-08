@@ -14,6 +14,7 @@ import 'agc_credentials.dart';
 class AgcEndpoints {
   const AgcEndpoints({this.baseUrl = defaultBaseUrl});
 
+  /// Production AGC publishing API base URL.
   static const String defaultBaseUrl = 'https://connect-api.cloud.huawei.com';
 
   /// The base URL every endpoint path is resolved against.
@@ -30,6 +31,7 @@ class AgcEndpoints {
   /// Submission endpoint.
   Uri submitUrl() => Uri.parse('$baseUrl/api/publish/v2/app-submit');
 
+  /// Debug string: the base URL.
   @override
   String toString() => 'AgcEndpoints($baseUrl)';
 }
@@ -54,9 +56,11 @@ class AgcToken {
   String toString() =>
       'AgcToken([redacted], expires in ${expiresInSeconds}s)';
 
+  /// Identity equality — tokens never compare by value (secret hygiene).
   @override
   bool operator ==(final Object other) => identical(this, other);
 
+  /// Identity hash (pairs with the identity equality).
   @override
   int get hashCode => identityHashCode(this);
 }
@@ -73,15 +77,18 @@ class AgcUploadSession {
   /// The session id the `app-submit` call references (not a secret).
   final String session;
 
+  /// Debug string: session id (the upload URL is not echoed).
   @override
   String toString() => 'AgcUploadSession(session: $session)';
 
+  /// Field-wise equality (neither field is a secret).
   @override
   bool operator ==(final Object other) =>
       other is AgcUploadSession &&
       other.uploadUrl == uploadUrl &&
       other.session == session;
 
+  /// Hash over both fields.
   @override
   int get hashCode => Object.hash(uploadUrl, session);
 }
@@ -97,16 +104,19 @@ class AgcSubmitReceipt {
   /// AGC submission id (useful for support requests / audit trails).
   final String submitId;
 
+  /// Debug string: version and submit id.
   @override
   String toString() =>
       'AgcSubmitReceipt(version: $version, submitId: $submitId)';
 
+  /// Field-wise equality.
   @override
   bool operator ==(final Object other) =>
       other is AgcSubmitReceipt &&
       other.version == version &&
       other.submitId == submitId;
 
+  /// Hash over both fields.
   @override
   int get hashCode => Object.hash(version, submitId);
 }
@@ -137,6 +147,8 @@ class AgcApiException implements Exception {
   /// AGC API error message from the response `ret.msg` field, if present.
   final String? retMessage;
 
+  /// Multi-line actionable failure text (HTTP status, AGC ret code/msg,
+  /// and the fix).
   @override
   String toString() {
     final b = StringBuffer(
@@ -175,7 +187,10 @@ class AgcApiException implements Exception {
 class AgcClient {
   AgcClient({required this.client, this.endpoints = const AgcEndpoints()});
 
+  /// Injected HTTP transport (production: a real client; tests: fake).
   final http.Client client;
+
+  /// Endpoints the four calls are made against.
   final AgcEndpoints endpoints;
 
   /// Step 1 — exchange API-client credentials for an access token.

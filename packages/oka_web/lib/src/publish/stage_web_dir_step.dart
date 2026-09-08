@@ -24,6 +24,7 @@ import '../steps/flutter_web_build_step.dart';
 /// anything. Deploy steps own the existence checks so a dry run succeeds
 /// without a build.
 class StageWebDirectoryStep extends BuildStep {
+  /// Wraps the artifact id and optional typed source override.
   StageWebDirectoryStep({
     required this.artifactId,
     this.sourceDir,
@@ -40,12 +41,17 @@ class StageWebDirectoryStep extends BuildStep {
   /// Flutter's default web output location.
   final String? sourceDir;
 
+  /// Step name: `stage-web-dir`.
   @override
   String get name => 'stage-web-dir';
 
+  /// Produces the directory artifact.
   @override
   Set<Artifact<Object>> get provides => {Artifact<String>(artifactId)};
 
+  /// Resolves the publish path (typed override → state → default web
+  /// output) and records it in [PipelineState]; never touches the
+  /// filesystem.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
     final path = sourceDir ?? _resolveStaged(ctx, state);

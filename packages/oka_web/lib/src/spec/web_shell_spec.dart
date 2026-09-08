@@ -47,6 +47,7 @@ class WebIconSpec {
         if (favicon.isNotEmpty) favicon: 'any',
       };
 
+  /// Debug string: declared icon paths.
   @override
   String toString() =>
       'WebIconSpec(192: $icon192, 512: $icon512, maskable: $maskable, '
@@ -103,6 +104,7 @@ class PwaManifestOverride {
   /// Override `prefer_related_applications`.
   final bool? preferRelatedApplications;
 
+  /// Debug string: the most commonly overridden fields only.
   @override
   String toString() => 'PwaManifestOverride(display: $display, '
       'orientation: $orientation)';
@@ -170,6 +172,7 @@ class PwaManifestSpec {
             override.preferRelatedApplications ?? preferRelatedApplications,
       );
 
+  /// Debug string: name and display.
   @override
   String toString() => 'PwaManifestSpec(name: $name, display: $display)';
 }
@@ -233,6 +236,7 @@ class WebShellSpec {
   /// PWA manifest field defaults (contribution overrides compose over it).
   final PwaManifestSpec manifest;
 
+  /// Debug string: title and base href.
   @override
   String toString() => "WebShellSpec(title: '$title', baseHref: '$baseHref')";
 }

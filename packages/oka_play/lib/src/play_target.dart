@@ -107,20 +107,25 @@ class PlayPublishTarget extends PublishTarget {
         envVar: serviceAccountEnvVar,
       );
 
+  /// Target name: `publish-play`.
   @override
   String get name => 'publish-play';
 
+  /// Explain-text: track and dry-run posture.
   @override
   String get description =>
       'Upload the AAB to Google Play '
       '(${releaseTrack.apiName} track${dryRun ? ', dry run' : ''})';
 
+  /// Remote endpoint summary for the deploy plan.
   @override
   String get endpoint => 'Google Play Publisher API (androidpublisher/v3)';
 
+  /// Publish track: the release track's API name.
   @override
   String get track => releaseTrack.apiName;
 
+  /// Consumed artifact: the staged AAB path.
   @override
   String get artifactId => 'aab-path';
 
@@ -132,13 +137,17 @@ class PlayPublishTarget extends PublishTarget {
           'userFraction': userFraction!.toStringAsFixed(2),
       };
 
+  /// Credentials consumed by the upload tail: the redacting service
+  /// account path reference.
   @override
   List<CredentialRef> get credentialRefs => [serviceAccountRef];
 
+  /// Staging steps: the AAB stage with the typed path override.
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) =>
       [StageAabStep(artifactPath: artifactPath)];
 
+  /// The upload tail: [PlayUploadStep].
   @override
   BuildStep uploadStep(final BuildContext ctx) => PlayUploadStep(this);
 
@@ -163,6 +172,7 @@ class PlayPublishTarget extends PublishTarget {
     return issues;
   }
 
+  /// Debug string: track plus dry-run marker.
   @override
   String toString() =>
       'PlayPublishTarget(${releaseTrack.apiName}${dryRun ? ' [dry-run]' : ''})';
@@ -180,6 +190,7 @@ class PlayPublishTarget extends PublishTarget {
 /// [PlayUploadStep] (dry-run must succeed without a produced AAB — the
 /// plan describes what a real run would upload).
 class StageAabStep extends BuildStep {
+  /// Wraps the optional typed path override.
   StageAabStep({this.artifactPath});
 
   /// The publish artifact the upload tail consumes.
@@ -188,12 +199,16 @@ class StageAabStep extends BuildStep {
   /// Typed-config path override (null → state / default layout).
   final String? artifactPath;
 
+  /// Step name: `stage-aab`.
   @override
   String get name => 'stage-aab';
 
+  /// Provides the AAB path artifact.
   @override
   Set<Artifact<Object>> get provides => {aab};
 
+  /// Resolves the AAB path (typed override → state → default AAB output)
+  /// and records it in [PipelineState]; never touches the filesystem.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
     final path = artifactPath ?? _resolveStaged(ctx, state);

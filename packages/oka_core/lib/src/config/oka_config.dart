@@ -12,6 +12,7 @@ import 'flutter_config.dart';
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const OkaConfig(Map<String, dynamic> value) {
 
+  /// Decodes from the `oka.yaml` payload map.
   factory OkaConfig.fromJson(final Object? json) => OkaConfig(jsonDecodeMap(json));
   static const empty = OkaConfig({});
 
@@ -43,5 +44,6 @@ extension type const OkaConfig(Map<String, dynamic> value) {
   /// Project version
   String get version => jsonDecodeString(value['version']);
 
+  /// Encodes back to the `oka.yaml` payload map (identity).
   Map<String, dynamic> toJson() => value;
 }

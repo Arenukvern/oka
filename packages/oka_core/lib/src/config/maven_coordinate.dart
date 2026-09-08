@@ -13,6 +13,8 @@ class MavenCoordinate {
     this.packaging = 'jar',
   });
 
+  /// Decodes from oka.yaml-style JSON/YAML maps (accepts `groupId`/`group`
+  /// and `artifactId`/`artifact` aliases).
   factory MavenCoordinate.fromJson(final Object? json) {
     final map = json is Map
         ? json.cast<String, dynamic>()
@@ -28,8 +30,13 @@ class MavenCoordinate {
     );
   }
 
+  /// Maven group id (e.g. `com.example`).
   final String groupId;
+
+  /// Maven artifact id.
   final String artifactId;
+
+  /// Maven version.
   final String version;
 
   /// Artifact packaging: jar | aar | pom.
@@ -48,18 +55,23 @@ class MavenCoordinate {
     );
   }
 
+  /// Maven repository path segment: `group/path/artifact/version`.
   String get pathSegment =>
       '${groupId.replaceAll('.', '/')}/$artifactId/$version';
 
+  /// Downloaded file name (`<artifact>-<version>.<packaging>`; pom keeps
+  /// the `.pom` extension).
   String get fileName => packaging == 'pom'
       ? '$artifactId-$version.pom'
       : '$artifactId-$version.$packaging';
 
+  /// Cache key: coordinate plus packaging.
   String get cacheKey => '$groupId:$artifactId:$version:$packaging';
 
   /// Full coordinate string (group:artifact:version).
   String get coordinate => '$groupId:$artifactId:$version';
 
+  /// Encodes back to the canonical map shape (`groupId`/`artifactId`).
   Map<String, dynamic> toJson() => {
         'groupId': groupId,
         'artifactId': artifactId,
@@ -67,6 +79,7 @@ class MavenCoordinate {
         'packaging': packaging,
       };
 
+  /// Debug string: coordinate plus packaging.
   @override
   String toString() => '$groupId:$artifactId:$version@$packaging';
 
@@ -74,6 +87,7 @@ class MavenCoordinate {
   bool operator ==(final Object other) =>
       other is MavenCoordinate && other.cacheKey == cacheKey;
 
+  /// Hash of the cache key (equality is cache-key based).
   @override
   int get hashCode => cacheKey.hashCode;
 }

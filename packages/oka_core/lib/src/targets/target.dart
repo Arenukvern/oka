@@ -96,6 +96,7 @@ String? validateTargetName(
 /// unknown verbs dispatch to targets).
 @immutable
 abstract class Target {
+  /// Const constructor for const target values.
   const Target();
 
   /// Lowercase identifier used in `oka run <target>`. Validated by
@@ -147,6 +148,7 @@ abstract class Target {
     );
   }
 
+  /// Debug string: the target name.
   @override
   String toString() => 'Target($name)';
 }
@@ -155,10 +157,13 @@ abstract class Target {
 /// reserved verb, invalid or duplicate name). Carries an actionable,
 /// user-facing message — catch it to print the message without a trace.
 class TargetResolutionException implements Exception {
+  /// Carries the actionable, user-facing message.
   const TargetResolutionException(this.message);
 
+  /// The actionable message (why resolution failed and what to do).
   final String message;
 
+  /// The message itself — print this, don't wrap it.
   @override
   String toString() => message;
 }

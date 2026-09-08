@@ -32,6 +32,7 @@ class ShellDrift {
   /// What's owned, what differs, what to run.
   final String message;
 
+  /// Debug string: `path: message`.
   @override
   String toString() => '$path: $message';
 }
@@ -77,6 +78,7 @@ class ShellDriftReport {
     ];
   }
 
+  /// Report lines joined by newlines.
   @override
   String toString() => describeLines().join('\n');
 }

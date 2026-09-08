@@ -25,14 +25,19 @@ enum CredentialSourceKind {
 /// failure — same inspectable shape as the T1 tool policy ([ToolSource]).
 @immutable
 class CredentialSource {
+  /// Wraps the source kind and its label.
   const CredentialSource(this.kind, this.label);
 
+  /// Which policy tier this source is.
   final CredentialSourceKind kind;
+
+  /// Human-readable label (a path, env var name, or well-known name).
   final String label;
 
   /// Printable form, e.g. `env OKA_PLAY_SERVICE_ACCOUNT_JSON`.
   String get qualified => '${kind.name} $label';
 
+  /// Debug string: the qualified form.
   @override
   String toString() => qualified;
 
@@ -40,6 +45,7 @@ class CredentialSource {
   bool operator ==(final Object other) =>
       other is CredentialSource && other.kind == kind && other.label == label;
 
+  /// Hash of kind + label (equality is field-wise).
   @override
   int get hashCode => Object.hash(kind, label);
 }
@@ -72,6 +78,7 @@ class CredentialResolution {
   /// Human-readable failure reason; null on success.
   final String? problem;
 
+  /// `true` when the credential path resolved.
   bool get ok => path != null;
 }
 
@@ -81,9 +88,13 @@ class CredentialResolution {
 class CredentialResolutionException implements Exception {
   CredentialResolutionException({required this.ref, required this.resolution});
 
+  /// The ref that failed to resolve.
   final CredentialRef ref;
+
+  /// The full resolution detail (every candidate tried).
   final CredentialResolution resolution;
 
+  /// Multi-line failure text: headline, the tried candidates, and the fix.
   @override
   String toString() {
     final b = StringBuffer(
@@ -119,6 +130,7 @@ class CredentialResolver {
       : environment = environment ?? Platform.environment,
         home = home ?? _defaultHome(environment ?? Platform.environment);
 
+  /// Production resolver over `Platform.environment`.
   factory CredentialResolver.platform() => CredentialResolver();
 
   /// Injected environment (tests); production is `Platform.environment`.

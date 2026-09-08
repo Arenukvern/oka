@@ -7,6 +7,7 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const AndroidConfig(Map<String, dynamic> value) {
+  /// Decodes from the `android:` section of the oka.yaml payload.
   factory AndroidConfig.fromJson(final Object? json) =>
       AndroidConfig(jsonDecodeMap(json));
 
@@ -70,6 +71,7 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
     return version.isEmpty ? null : version;
   }
 
+  /// Encodes back to the `android:` payload map (identity).
   Map<String, dynamic> toJson() => value;
 
   static const empty = AndroidConfig({});

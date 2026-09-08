@@ -260,9 +260,13 @@ class PublishConformanceException implements Exception {
     required this.violations,
   });
 
+  /// Name of the offending publish target.
   final String target;
+
+  /// Every violated law, one actionable line each.
   final List<String> violations;
 
+  /// Multi-line failure text: headline plus the violation list.
   @override
   String toString() =>
       'publish target "$target" violates the ADR-0014 publishing '
@@ -282,7 +286,12 @@ class FixturePublishTarget extends PublishTarget {
     this.polluteState = false,
   });
 
+  /// Overrides [PublishTarget.dryRun] (default `true` — the audit only
+  /// runs dry pipelines).
   final bool dryRunOverride;
+
+  /// When true, [publishSteps] is empty — the artifact is never produced,
+  /// for asserting the missing-artifact law.
   final bool missingArtifact;
 
   /// Makes the staging step write a secret-ish state key and a non-allowed
@@ -296,21 +305,27 @@ class FixturePublishTarget extends PublishTarget {
     explicitPath: 'credentials/fixture-sa.json',
   );
 
+  /// Target name: `publish-fixture`.
   @override
   String get name => 'publish-fixture';
 
+  /// Explain-text: marks this as the conformance fixture.
   @override
   String get description => 'Fixture publish target for conformance tests';
 
+  /// Dry-run flag from [dryRunOverride].
   @override
   bool get dryRun => dryRunOverride;
 
+  /// Endpoint summary: the fake publisher API.
   @override
   String get endpoint => 'Fake Publisher API v1';
 
+  /// Publish track: `internal`.
   @override
   String get track => 'internal';
 
+  /// Consumed artifact: the fixture AAB path.
   @override
   String get artifactId => 'aab-path';
 
@@ -323,10 +338,13 @@ class FixturePublishTarget extends PublishTarget {
   @override
   List<CredentialRef> get credentialRefs => const [serviceAccount];
 
+  /// Staging steps: the pure fixture stage (or nothing when
+  /// [missingArtifact]).
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) =>
       missingArtifact ? const [] : [FixtureStageAabStep(pollute: polluteState)];
 
+  /// Upload tail: [FixtureUploadStep] (never executed by the audit).
   @override
   BuildStep uploadStep(final BuildContext ctx) => FixtureUploadStep();
 }
@@ -340,14 +358,19 @@ class FixtureStageAabStep extends BuildStep {
   /// map value) — used to prove the audit catches them.
   final bool pollute;
 
+  /// The fixture AAB artifact.
   static const aab = Artifact<String>('aab-path');
 
+  /// Step name: `fixture-stage-aab`.
   @override
   String get name => 'fixture-stage-aab';
 
+  /// Provides the fixture AAB.
   @override
   Set<Artifact<Object>> get provides => {aab};
 
+  /// Records a fake AAB path (and, when [pollute], law-3 violations) into
+  /// state.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
     state[aab.id] = '${ctx.buildDir}/app-release.aab';
@@ -365,14 +388,19 @@ class FixtureStageAabStep extends BuildStep {
 class FixtureUploadStep extends BuildStep {
   FixtureUploadStep();
 
+  /// The fixture AAB artifact.
   static const aab = Artifact<String>('aab-path');
 
+  /// Step name: `fixture-upload`.
   @override
   String get name => 'fixture-upload';
 
+  /// Requires the fixture AAB.
   @override
   Set<Artifact<Object>> get requires => {aab};
 
+  /// Always throws — proof the conformance audit never reaches a real
+  /// upload step.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
     // A real target would upload here. The conformance audit must never

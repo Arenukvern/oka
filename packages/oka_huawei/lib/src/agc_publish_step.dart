@@ -27,12 +27,16 @@ class HuaweiStageAabStep extends BuildStep {
   /// Typed-config path override (null → state / default layout).
   final String? artifactPath;
 
+  /// Step name: `huawei-stage-aab`.
   @override
   String get name => 'huawei-stage-aab';
 
+  /// Provides the staged AAB path.
   @override
   Set<Artifact<Object>> get provides => {aabPath};
 
+  /// Resolves the AAB path and records it in [PipelineState] (no
+  /// existence check — dry-run law).
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final path = artifactPath ?? _resolveStaged(ctx, state);
@@ -98,12 +102,17 @@ class AgcPublishStep extends BuildStep {
   /// [http.Client]).
   final http.Client Function()? httpFactory;
 
+  /// Step name: `agc-publish`.
   @override
   String get name => 'agc-publish';
 
+  /// Requires the staged AAB path.
   @override
   Set<Artifact<Object>> get requires => {HuaweiStageAabStep.aabPath};
 
+  /// Enforces artifact existence, resolves the credential file by path,
+  /// then runs the four AGC calls via the injectable transport; fails
+  /// actionably at each stage (never interactive).
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final artifactPath = state[HuaweiStageAabStep.aabPath.id] as String?;

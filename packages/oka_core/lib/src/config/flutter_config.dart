@@ -8,6 +8,7 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const FlutterConfig(Map<String, dynamic> value) {
 
+  /// Decodes from the `flutter:` section of the oka.yaml payload.
   factory FlutterConfig.fromJson(final Object? json) =>
       FlutterConfig(jsonDecodeMap(json));
   static const empty = FlutterConfig({});
@@ -51,5 +52,6 @@ extension type const FlutterConfig(Map<String, dynamic> value) {
   /// Whether to enable Flutter's tree shaking for smaller APKs
   bool get treeShakeIcons => jsonDecodeBool(value['tree_shake_icons']);
 
+  /// Encodes back to the `flutter:` payload map (identity).
   Map<String, dynamic> toJson() => value;
 }

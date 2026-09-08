@@ -25,14 +25,19 @@ const String generatedBanner =
 /// stable Flutter web template (`flutter_bootstrap.js`).
 @immutable
 class GenerateShellEmitter extends ShellEmitter {
+  /// Const constructor — ships as `const GenerateShellEmitter()`.
   const GenerateShellEmitter();
 
+  /// Emitter name: `generate`.
   @override
   String get name => 'generate';
 
+  /// Owns the whole `index.html` and `manifest.json` files.
   @override
   Set<String> get ownedPaths => const {'index.html', 'manifest.json'};
 
+  /// Renders both owned files from scratch — [existingIndexHtml] is
+  /// ignored (a non-empty one only produces a replacement note).
   @override
   ShellOutput emit(
     final WebShell shell, {

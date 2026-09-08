@@ -7,6 +7,7 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const Dependency(Map<String, dynamic> value) {
+  /// Decodes from a dependency entry map (maven coordinate + natives).
   factory Dependency.fromJson(final Object? json) => Dependency(jsonDecodeMap(json));
 
   /// Dependency name (e.g., "androidx.core:core-ktx" or "my-library")
@@ -54,6 +55,7 @@ extension type const Dependency(Map<String, dynamic> value) {
   /// Whether this comes from a Flutter plugin
   bool get isPlugin => source == 'plugin';
 
+  /// Encodes back to the dependency entry map (identity).
   Map<String, dynamic> toJson() => value;
 
   static const empty = Dependency({});

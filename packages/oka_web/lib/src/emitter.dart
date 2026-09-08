@@ -19,6 +19,7 @@ import 'composition.dart';
 /// directory) plus notes for the plan/summary.
 @immutable
 class ShellOutput {
+  /// Const constructor; [files] is required, [notes] defaults to empty.
   const ShellOutput({required this.files, this.notes = const []});
 
   /// Rendered files, keyed by web-directory-relative path (e.g.
@@ -28,6 +29,7 @@ class ShellOutput {
   /// Non-fatal notes (what was injected, what was preserved).
   final List<String> notes;
 
+  /// Debug string: the owned file keys.
   @override
   String toString() => 'ShellOutput(${files.keys.join(', ')})';
 }
@@ -36,11 +38,13 @@ class ShellOutput {
 /// (markers absent, unbalanced, or the file missing). Carries an
 /// actionable, user-facing message — catch and print, never swallow.
 class ShellInjectionException implements Exception {
+  /// Carries the actionable, user-facing message.
   const ShellInjectionException(this.message);
 
   /// The actionable message (includes how to fix).
   final String message;
 
+  /// The message itself — print this, don't wrap it.
   @override
   String toString() => message;
 }
@@ -62,6 +66,7 @@ class ShellInjectionException implements Exception {
 /// }
 /// ```
 abstract class ShellEmitter {
+  /// Const constructor for const emitter instances.
   const ShellEmitter();
 
   /// Stable emitter name (config surface: `emitter:`).

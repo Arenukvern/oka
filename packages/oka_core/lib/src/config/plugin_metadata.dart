@@ -9,6 +9,7 @@ import 'dependency.dart';
 ///
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const PluginMetadata(Map<String, dynamic> value) {
+  /// Decodes from a plugin metadata map (pubspec-style plugin section).
   factory PluginMetadata.fromJson(final Object? json) =>
       PluginMetadata(jsonDecodeMap(json));
 
@@ -52,6 +53,7 @@ extension type const PluginMetadata(Map<String, dynamic> value) {
   List<String> get supportedAbis =>
       jsonDecodeListAs<String>(value['supported_abis']);
 
+  /// Encodes back to the payload map (identity).
   Map<String, dynamic> toJson() => value;
 
   static const empty = PluginMetadata({});

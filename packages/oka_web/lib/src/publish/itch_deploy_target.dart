@@ -96,26 +96,34 @@ class ItchDeployTarget extends PublishTarget {
   /// The butler push channel address: `<user>/<game>:<channel>`.
   String get channelAddress => '$user/$game:$channel';
 
+  /// Publishes a directory artifact, not a single file.
   @override
   bool get artifactIsDirectory => true;
 
+  /// Target name: `publish-itch`.
   @override
   String get name => 'publish-itch';
 
+  /// Explain-text: where the build directory goes and whether it's a dry
+  /// run.
   @override
   String get description =>
       'Push the web build directory to itch.io ($channelAddress via '
       'butler${dryRun ? ', dry run' : ''})';
 
+  /// Remote endpoint summary for the deploy plan.
   @override
   String get endpoint => 'itch.io (butler push)';
 
+  /// Publish track: the itch.io channel.
   @override
   String get track => channel;
 
+  /// Consumed artifact: the staged web build directory.
   @override
   String get artifactId => directoryArtifactId;
 
+  /// Publish metadata: user, game, and channel.
   @override
   Map<String, String> get metadata => {
         'user': user,
@@ -123,9 +131,13 @@ class ItchDeployTarget extends PublishTarget {
         'channel': channel,
       };
 
+  /// Credentials consumed by the upload tail: the redacting butler API
+  /// key reference.
   @override
   List<CredentialRef> get credentialRefs => [apiKeyRef];
 
+  /// Stages the consumed directory artifact from typed config or the
+  /// default `build/web` location.
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) => [
         StageWebDirectoryStep(
@@ -134,6 +146,7 @@ class ItchDeployTarget extends PublishTarget {
         ),
       ];
 
+  /// The upload tail: [ButlerUploadStep].
   @override
   BuildStep uploadStep(final BuildContext ctx) => ButlerUploadStep(this);
 
@@ -171,6 +184,7 @@ class ItchDeployTarget extends PublishTarget {
     return issues;
   }
 
+  /// Debug string: channel address plus dry-run marker.
   @override
   String toString() => 'ItchDeployTarget($channelAddress'
       '${dryRun ? ' [dry-run]' : ''})';
@@ -222,6 +236,8 @@ extension ButlerCommands on ItchDeployTarget {
 /// [PipelineState], step data, logs, or events. When nothing resolves, the
 /// step fails actionably (butler must never be left to prompt).
 class ButlerUploadStep extends BuildStep {
+  /// Wraps [target]; [environment] defaults to the host environment
+  /// (injectable for tests).
   ButlerUploadStep(this.target, {final Map<String, String>? environment})
       : environment = environment ?? Platform.environment;
 
@@ -233,13 +249,19 @@ class ButlerUploadStep extends BuildStep {
   /// from a file.
   final Map<String, String> environment;
 
+  /// Step name: `butler-push`.
   @override
   String get name => 'butler-push';
 
+  /// Requires the staged web build directory artifact.
   @override
   Set<Artifact<Object>> get requires =>
       {Artifact<String>(target.directoryArtifactId)};
 
+  /// Validates config, resolves the directory artifact and API key, then
+  /// runs `butler push` via [BuildContext.runner] (no shell, no
+  /// interactive input). Fails actionably on missing config/artifact/key
+  /// or non-zero butler exit.
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
     final configIssues = target.validateConfig();

@@ -95,6 +95,7 @@ class ContentKey {
   /// Stable store identifier.
   String get id => relativePath;
 
+  /// Debug string: the store-relative path (same as [id]).
   @override
   String toString() => relativePath;
 
@@ -107,6 +108,7 @@ class ContentKey {
       other.contentHash == contentHash &&
       other.platform == platform;
 
+  /// Hash over all key fields (equality is field-wise).
   @override
   int get hashCode =>
       Object.hash(category, name, version, contentHash, platform);
@@ -126,6 +128,7 @@ class ArtifactStoreEntry {
     this.sweepDir,
   });
 
+  /// The content key addressing this entry.
   final ContentKey key;
 
   /// Absolute path of the artifact file on disk.
@@ -341,6 +344,9 @@ class LocalArtifactStore implements ArtifactStore {
     return dest;
   }
 
+  /// Looks up [key] via its own directory index first, then (for
+  /// foreign-layout entries like Maven's version dirs) by scanning
+  /// discovered entries. Null when absent.
   @override
   Future<ArtifactStoreEntry?> find(final ContentKey key) async {
     // Fast path: the key addresses its own directory.
@@ -359,6 +365,8 @@ class LocalArtifactStore implements ArtifactStore {
     return null;
   }
 
+  /// Discovers all indexed entries under [root] (by walking
+  /// [indexFileName] files); empty when the store does not exist.
   @override
   Future<List<ArtifactStoreEntry>> entries() async {
     final rootDir = Directory(root);
@@ -415,6 +423,8 @@ class LocalArtifactStore implements ArtifactStore {
     return true;
   }
 
+  /// Deletes the entry addressed by [key] (its sweep directory); `false`
+  /// when the key is unknown.
   @override
   Future<bool> delete(final ContentKey key) async {
     final entry = await find(key);

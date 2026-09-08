@@ -82,6 +82,7 @@ class WebMetaEntry extends WebHeadEntry {
       ? 'charset'
       : 'name=$name|property=$property|http-equiv=$httpEquiv';
 
+  /// Debug string: identity key plus content preview presence.
   @override
   String toString() => 'WebMetaEntry($identityKey${content.isEmpty ? '' : ' content=$content'})';
 }
@@ -117,6 +118,7 @@ class WebLinkEntry extends WebHeadEntry {
   @override
   String get identityKey => 'rel=$rel|href=$href';
 
+  /// Debug string: the identity key.
   @override
   String toString() => 'WebLinkEntry($identityKey)';
 }
@@ -170,6 +172,7 @@ class WebScriptEntry extends WebHeadEntry {
   String get identityKey =>
       src != null ? 'src=$src' : 'inline#${content.hashCode}';
 
+  /// Debug string: identity key, phase, and required SDK global.
   @override
   String toString() =>
       'WebScriptEntry($identityKey, phase=$phase'

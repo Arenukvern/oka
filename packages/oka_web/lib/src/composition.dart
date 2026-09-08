@@ -131,6 +131,7 @@ class WebShell {
     ];
   }
 
+  /// Debug string: title plus contribution count.
   @override
   String toString() =>
       'WebShell("$title", ${contributions.length} contributions)';

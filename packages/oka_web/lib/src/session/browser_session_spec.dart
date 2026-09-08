@@ -203,6 +203,8 @@ class BrowserSessionSpec {
     return issues;
   }
 
+  /// Debug string: browser basename, profile persistence, debug protocol,
+  /// and headless marker.
   @override
   String toString() =>
       'BrowserSessionSpec(${p.basename(binaryPath)}, '

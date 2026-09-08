@@ -66,9 +66,11 @@ class AgcCredentials {
   String toString() => 'AgcCredentials(client_id: [redacted], '
       'client_secret: [redacted])';
 
+  /// Identity equality — credentials never compare by value.
   @override
   bool operator ==(final Object other) => identical(this, other);
 
+  /// Identity hash (pairs with the identity equality).
   @override
   int get hashCode => identityHashCode(this);
 }

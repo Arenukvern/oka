@@ -7,6 +7,7 @@ never paraphrase implementation.
 |---|---|---|
 | Charter | [why_this_repo_matters](why_this_repo_matters.md) | What oka owns, invariants, success criteria |
 | How-to | [`docs/guides/build_and_config.md`](../guides/build_and_config.md) | Run, build, test, configure, troubleshoot |
+| Web | [`docs/guides/web_shell_station.md`](../guides/web_shell_station.md) | Web shell composition, store contributions, deploy targets |
 | Why | [`docs/guides/design_faq.md`](../guides/design_faq.md) | Design rationale per area |
 | Decisions | [`docs/decisions/`](../decisions/index.md) | Settled architecture decisions (ADRs) |
 | Status | [`docs/PHASE_CHECKLIST.md`](../PHASE_CHECKLIST.md) | Phase plan + test evidence map |

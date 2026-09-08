@@ -12,6 +12,7 @@ class TargetStepDescription {
     required this.provides,
   });
 
+  /// Decodes from the `oka explain --json` payload shape.
   factory TargetStepDescription.fromJson(final Map<String, dynamic> json) =>
       TargetStepDescription(
         name: json['name']?.toString() ?? '',
@@ -32,6 +33,7 @@ class TargetStepDescription {
   /// Artifact ids this step provides to downstream steps.
   final List<String> provides;
 
+  /// Encodes to the `oka explain --json` payload shape.
   Map<String, dynamic> toJson() => {
         'name': name,
         'requires': requires,
@@ -52,6 +54,7 @@ class TargetChainDescription {
     this.validationError,
   });
 
+  /// Decodes from the `oka explain --json` payload shape.
   factory TargetChainDescription.fromJson(final Map<String, dynamic> json) =>
       TargetChainDescription(
         name: json['name']?.toString() ?? '',
@@ -85,8 +88,10 @@ class TargetChainDescription {
   /// when the chain is valid.
   final String? validationError;
 
+  /// `true` when the compiled chain passed composition-time validation.
   bool get isValid => validationError == null;
 
+  /// Encodes to the `oka explain --json` payload shape.
   Map<String, dynamic> toJson() => {
         'name': name,
         'description': description,

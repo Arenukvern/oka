@@ -26,11 +26,19 @@ class PlayApiException implements Exception {
     required this.responseBody,
   });
 
+  /// HTTP method of the failed request.
   final String method;
+
+  /// URL of the failed request.
   final Uri url;
+
+  /// HTTP status returned.
   final int status;
+
+  /// Response body (Google API error payloads are not secret).
   final String responseBody;
 
+  /// Multi-line error text: method, URL, status, and response body.
   @override
   String toString() =>
       'Play Publisher API error: $method $url → HTTP $status\n'
@@ -51,6 +59,7 @@ class PlayEditResult {
   /// Version code assigned by the bundle upload.
   final int versionCode;
 
+  /// Debug string: edit id and version code.
   @override
   String toString() => 'PlayEditResult(edit $editId, versionCode '
       '$versionCode)';

@@ -320,9 +320,9 @@ PlatformPipeline _selectPipeline(final Oka oka, final String platform) {
   );
 }
 
-/// Resolves [name] against [oka.targets] (ADR-0015).
+/// Resolves `name` against `Oka.targets` (ADR-0015).
 ///
-/// Throws [TargetResolutionException] when [name] matches no declared
+/// Throws [TargetResolutionException] when `name` matches no declared
 /// target — the message lists the available targets, or explains that the
 /// composition root declares none.
 Target findTarget(final Oka oka, final String name) {

@@ -81,6 +81,7 @@ class HuaweiReleaseConfig {
         },
       };
 
+  /// Field-wise equality (release notes compared pairwise).
   @override
   bool operator ==(final Object other) =>
       other is HuaweiReleaseConfig &&
@@ -90,6 +91,7 @@ class HuaweiReleaseConfig {
       other.releaseDate == releaseDate &&
       _notesEqual(other.releaseNotes, releaseNotes);
 
+  /// Hash over all config fields.
   @override
   int get hashCode => Object.hash(
         appId,
@@ -99,6 +101,7 @@ class HuaweiReleaseConfig {
         Object.hashAll(releaseNotes),
       );
 
+  /// Debug string: app id, track, phase, and note paths.
   @override
   String toString() => 'HuaweiReleaseConfig(appId: $appId, track: $track, '
       'phasePercent: $phasePercent%, notes: '
@@ -121,15 +124,18 @@ class AgcReleaseNote {
   /// Project-relative path to the note text file, e.g. `whatsnew-en.txt`.
   final String file;
 
+  /// Debug string: language and file path.
   @override
   String toString() => 'AgcReleaseNote($language: $file)';
 
+  /// Field-wise equality.
   @override
   bool operator ==(final Object other) =>
       other is AgcReleaseNote &&
       other.language == language &&
       other.file == file;
 
+  /// Hash over both fields.
   @override
   int get hashCode => Object.hash(language, file);
 }

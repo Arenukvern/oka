@@ -39,12 +39,19 @@ class AndroidBuild {
 
   /// Compile/target/min SDK API levels (e.g. `'34'`). Empty → consumer default.
   final String compileSdk;
+
+  /// Target SDK API level. Empty → consumer default.
   final String targetSdk;
+
+  /// Minimum SDK API level. Empty → consumer default.
   final String minSdk;
 
   /// Version injected into the manifest. `0`/`''` → pubspec fallback
   /// (ADR-0007) or consumer default.
   final int versionCode;
+
+  /// Version name injected into the manifest. `''` → pubspec fallback or
+  /// consumer default.
   final String versionName;
 
   /// Java/Kotlin source directories (project-relative). Empty → consumer
@@ -65,6 +72,8 @@ class AndroidBuild {
 
   /// ProGuard/R8 optimization toggles.
   final bool enableOptimization;
+
+  /// ProGuard rule files (project-relative). Empty → consumer defaults.
   final List<String> proguardFiles;
 
   AndroidBuild copyWith({
@@ -182,6 +191,8 @@ class FlutterBuild {
 
   /// Custom Flutter engine artifacts path/version (advanced).
   final String enginePath;
+
+  /// Custom Flutter engine version pin (advanced; empty → tool default).
   final String engineVersion;
 
   FlutterBuild copyWith({

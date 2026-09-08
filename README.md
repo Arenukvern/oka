@@ -1,24 +1,27 @@
-# Oka — declarative, AI-native builds for Flutter. Starting with no-Gradle Android.
+# Oka — one code for every platform build
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-docs.page-02569B)](https://docs.page/arenukvern/oka)
 [![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
 
-**Oka replaces Gradle for Flutter Android builds.** One typed, copyable Dart
-file describes the whole platform build — manifest, SDK levels, icons,
-plugins, signing, publish targets — and oka executes it with `flutter
-assemble` + direct Android SDK tools: no Gradle daemon, no AGP, no 30-second
-configuration tax, incremental builds ~23s. Three words carry the design:
+**Oka is a declarative, compositional, AI-native build system.** Platform
+build configs are locked, scattered, and endlessly repeated — gradle DSL,
+XML manifests, plists, per-store `index.html` surgery. Oka collapses them
+into one typed, copyable Dart surface that both humans and agents run,
+inspect, and fix. The promise is kept **deepest for Android** — a no-Gradle
+pipeline (`flutter assemble` + direct Android SDK tools: no daemon, no AGP) — and extends to
+**web distribution** (the shell station: per-store `web/index.html` as
+typed, drift-checked Dart + deploy targets). Three words carry the design:
 
 - **Declarative** — the build is typed values (`AndroidBuild`,
-  `PipelineOverrides`, `ManifestSpec`) composed in a project-owned Dart
+  `ManifestSpec`, `WebShellSpec`, …) composed in a project-owned Dart
   entrypoint. Config is code: checkable, diffable, copyable between projects.
 - **Compositional** — every capability is a `BuildStep` or typed value; the
-  whole chain is validated before any tool runs. A store target or platform
-  is another package over the same kernel.
+  whole chain is validated before any tool runs. A store target, a platform,
+  or a deploy flow is another package over the same kernel.
 - **AI-native** — self-describing plans (`oka explain`), single-step probes,
-  byte-equivalence gates, and failures that name the fix. *An agent can set
-  up and fix a platform build from oka's messages alone.*
+  byte-equivalence gates, and failures that name the fix. _An agent can set
+  up and fix a platform build from oka's messages alone._
 
 Production-validated on real apps (18-plugin production app;
 bundletool-validated release AABs).
@@ -128,6 +131,7 @@ the [web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_
 Every operation is checkable and scriptable — this is what "AI-native"
 means here, not a chat wrapper:
 
+```
 | Command | What an agent gets |
 |---|---|
 | `oka explain` / `oka build --dry-run` | The validated plan: steps, artifact chain, signing, versions — zero tools invoked |
@@ -136,6 +140,7 @@ means here, not a chat wrapper:
 | `oka compare a.apk b.apk` | Byte-equivalence gate (badging + zip entries) — refactors prove, not claim |
 | `oka cache list/gc/why` | Inspectable views over the shared artifact store (ADR-0013) |
 | `oka doctor` | Full environment + build-health audit, including secret-tier and dev-loop readiness |
+```
 
 ## Configuration
 
@@ -232,23 +237,28 @@ law is that YAML growth is frozen; everything else is Dart
 ([ADR-0010](docs/decisions/0010-typed-dart-project-config.md)).
 
 **Which platforms?**
-Android today — APK and AAB, debug and release, with the full agent dev
-loop. Expansion is **criteria-gated**, not calendar-driven: depth before
-breadth (the dev loop is the product), no platform detail in `oka_core`,
-and a second platform only when an ADR proves the pipeline model maps.
-Store targets (Play, AppGallery) are not platforms — they're compositions
-over the same Android pipeline. See [the long game](#the-long-game).
+Android is the first and deepest platform — APK and AAB, debug and release,
+with the full agent dev loop. Web is served at the
+configuration-and-distribution layer (the shell station + deploy targets,
+ADR-0016) — the web compile stays an honest delegation to
+`flutter build web`. Further platforms (iOS, desktop) are
+**criteria-gated**, not calendar-driven: depth before breadth (the dev loop
+is the product), no platform detail in `oka_core`, and a new platform only
+when an ADR proves the pipeline model maps. Store targets (Play,
+AppGallery) are not platforms — they're compositions over the same Android
+pipeline. See [the long game](#the-long-game).
 
 ## Packages
 
 ```
-| Package | Pub | Purpose |
-|---|---|---|
+| Package | Purpose |
+|---|---|
 | [`oka`](https://pub.dev/packages/oka) | CLI + agent surface (this repo) |
 | [`oka_core`](https://pub.dev/packages/oka_core) | Platform-agnostic contracts: pipeline, artifacts, composition root, typed config |
 | [`oka_android`](https://pub.dev/packages/oka_android) | Android pipelines, toolchain, plugin packaging |
 | [`oka_play`](https://pub.dev/packages/oka_play) | Google Play publish target (dry-run-first, path-based credentials) |
 | [`oka_huawei`](https://pub.dev/packages/oka_huawei) | AppGallery Connect target (GMS-excluded variant + upload tail) |
+| [`oka_web`](https://pub.dev/packages/oka_web) | Web shell station: per-store `web/index.html` as typed Dart, emitters, deploy targets |
 ```
 
 ## The long game
@@ -268,7 +278,9 @@ deliberately **criteria-gated**, not calendar-driven:
    highest Flutter demand, signing/provisioning is exactly what agents need
    help with) — gated on an ADR proving the pipeline model maps
    (assemble → compile → codesign → validate). Desktop (MSIX et al.) is the
-   cheap third; web needs nothing oka-shaped.
+   cheap third. Web's compile step needs nothing oka-shaped — but its
+   configuration and store layer does, served by the ADR-0016 shell
+   station without a platform pipeline.
 
 Full charter: [why oka matters](https://docs.page/arenukvern/oka/start_here/why_this_repo_matters).
 
@@ -282,6 +294,7 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 | Copy-paste the common loops | [Quick recipes](https://docs.page/arenukvern/oka/start_here/quick_recipes) |
 | Run/build/test/configure | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
 | Publish to Play / AppGallery | [Publishing guide](https://docs.page/arenukvern/oka/guides/publishing) |
+| Ship a web app to stores / hosting | [Web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station) |
 | Migrate an existing Gradle app | [Gradle migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
 | Check phase status | [`docs/PHASE_CHECKLIST.md`](docs/PHASE_CHECKLIST.md) |

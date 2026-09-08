@@ -86,6 +86,7 @@ class CredentialRef {
       other.envVarName == envVarName &&
       other.wellKnownFileNameOrDefault == wellKnownFileNameOrDefault;
 
+  /// Hash over all ref fields (equality is field-wise).
   @override
   int get hashCode => Object.hash(
         target,

@@ -15,11 +15,16 @@ import '../emitter.dart';
 import 'render.dart';
 
 /// Head injection markers.
+/// Begin marker for the head injection region.
 const String headBeginMarker = '<!-- oka:begin:head -->';
+
+/// End marker for the head injection region.
 const String headEndMarker = '<!-- oka:end:head -->';
 
-/// Body injection markers.
+/// Begin marker for the body injection region.
 const String bodyBeginMarker = '<!-- oka:begin:body -->';
+
+/// End marker for the body injection region.
 const String bodyEndMarker = '<!-- oka:end:body -->';
 
 /// The inject emitter: injects composed entries into an existing,
@@ -30,14 +35,20 @@ const String bodyEndMarker = '<!-- oka:end:body -->';
 /// remains the source of truth for everything outside the markers.
 @immutable
 class InjectShellEmitter extends ShellEmitter {
+  /// Const constructor — ships as `const InjectShellEmitter()`.
   const InjectShellEmitter();
 
+  /// Emitter name: `inject`.
   @override
   String get name => 'inject';
 
+  /// Owns only the marker-delimited regions of `index.html`.
   @override
   Set<String> get ownedPaths => const {'index.html'};
 
+  /// Injects composed entries into the marker regions of
+  /// [existingIndexHtml]; throws [ShellInjectionException] when the file
+  /// is missing or its markers are absent/unbalanced.
   @override
   ShellOutput emit(
     final WebShell shell, {
