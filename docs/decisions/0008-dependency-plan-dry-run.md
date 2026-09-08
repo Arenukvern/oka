@@ -52,6 +52,6 @@ requests during a "dry-run", so it is opt-in, not default; explain now can
 exit non-zero under `--deps --network` (previously it never failed).
 
 **Authoritative source:** `packages/oka_android/lib/src/dependency_plan.dart`,
-`lib/src/cli/explain_command.dart`, `packages/oka_android/lib/src/build/
+`packages/oka/lib/src/cli/explain_command.dart`, `packages/oka_android/lib/src/build/
 plugin_packager.dart` (`collectDeclaredDeps`), `maven_resolver.dart`
 (`onFailure`).

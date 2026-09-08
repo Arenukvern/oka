@@ -51,5 +51,5 @@ Bad / Neutral: auto-install mutates `~/.oka` mid-build (bounded, opt-out);
 dev-only exclusion changes default behavior for release artifacts (desired);
 lint hard-fails require an escape flag for exotic store flows.
 
-**Authoritative source:** `lib/src/cli/`, `packages/oka_android/lib/src/`,
+**Authoritative source:** `packages/oka/lib/src/cli/`, `packages/oka_android/lib/src/`,
 `docs/guides/hardening_roadmap.md`.

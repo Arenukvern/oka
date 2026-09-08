@@ -1,0 +1,54 @@
+include: package:xsoulspace_lints/library.yaml
+
+analyzer:
+  exclude:
+    # The example is a Flutter app: analyzed by `flutter analyze` in example/.
+    - example/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    # xsoulspace_lints 0.1.2 enables prefer_final_parameters, deprecated in
+    # Dart 3.13; we disable the rule below and silence the deprecation
+    # diagnostic until the lint set is updated.
+    deprecated_lint: ignore
+    missing_required_param: error
+    missing_return: error
+    todo: ignore
+
+linter:
+  rules:
+    # Deprecated upstream (Dart 3.13); house style keeps parameters
+    # non-final — silencing avoids ~150 mechanical rewrites.
+    prefer_final_parameters: false
+    # oka is a CLI build tool: stdout progress reporting is part of the UX.
+    avoid_print: false
+    # The build pipeline deliberately uses synchronous dart:io for small,
+    # deterministic file operations inside build steps.
+    avoid_slow_async_io: false
+    # Build steps report tool failures as build errors; broad catch clauses
+    # are intentional at tool boundaries.
+    avoid_catches_without_on_clauses: false
+    # Retrofitting ~200 one-line `if` bodies would churn history without
+    # safety value; keep the existing house style.
+    always_put_control_body_on_new_line: false
+    # Doc comments contain long URLs and tool output verbatim.
+    lines_longer_than_80_chars: false
+    # Sequential builder calls read clearer than cascades in pipeline code.
+    cascade_invocations: false
+    always_declare_return_types: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_final_fields: true
+    prefer_final_locals: true
+    unnecessary_null_checks: true
+    use_super_parameters: true

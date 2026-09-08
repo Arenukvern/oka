@@ -1,26 +1,12 @@
-name: oka
+# Workspace root — the packages ARE the release artifacts; the root itself is
+# not published (the `oka` CLI lives in packages/oka). Tests that span
+# packages (ADR conformance suites, real-pipeline evidence) live in test/ and
+# run against the workspace members via dev_dependencies.
+name: oka_workspace
 description: >-
-  No-Gradle build system for Flutter Android. Runs `flutter assemble` with
-  direct Android SDK tools (aapt2, d8, apksigner) — no Gradle daemon — with
-  plugin packaging, AAB support, and dependency recovery.
-version: 0.1.6
-homepage: https://github.com/Arenukvern/oka
-repository: https://github.com/Arenukvern/oka
-issue_tracker: https://github.com/Arenukvern/oka/issues
-documentation: https://docs.page/arenukvern/oka
-topics:
-  - flutter
-  - android
-  - build-system
-  - cli
-  - gradle
-
-# The Play publish-target test fixture contains a SYNTHETIC RSA key
-# (generated for tests only — never a real credential). pub's leak
-# detector flags it when publishing the root archive, which includes
-# packages/ (workspace members).
-false_secrets:
-  - packages/oka_play/test/synthetic_credentials.dart
+  Workspace root for the oka build system packages. Not published — see
+  packages/oka for the CLI.
+publish_to: none
 
 workspace:
   - packages/*
@@ -28,19 +14,16 @@ workspace:
 environment:
   sdk: ^3.12.0
 
-dependencies:
+dev_dependencies:
+  # Test fixtures exercise AAR/zip processing exported from oka_android;
+  # the ADR conformance suites import oka_android/oka_core directly.
+  archive: ^4.0.9
   args: ^2.5.0
+  lints: ^6.1.0
+  oka: ^0.1.6
   oka_android: ^0.1.6
   oka_core: ^0.1.6
   path: ^1.9.0
-  yaml: ^3.1.2
-
-dev_dependencies:
-  # Test fixtures exercise AAR/zip processing exported from oka_android.
-  archive: ^4.0.9
-  lints: ^6.1.0
   test: ^1.25.0
   xsoulspace_lints: ^0.1.2
-
-executables:
-  oka:
+  yaml: ^3.1.2

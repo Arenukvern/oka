@@ -26,7 +26,7 @@ done only when its tests and evidence exist.
       provisioning through the store (`sdk_locator.dart`,
       `auto_resolve.dart`), legacy flat caches still resolve read-only;
       Maven resolver registers entries into the store index
-      (`maven_resolver.dart`); `lib/src/cli/cache_command.dart` (`oka cache
+      (`maven_resolver.dart`); `packages/oka/lib/src/cli/cache_command.dart` (`oka cache
       list/gc/why` — `bin/oka.dart` wiring pending, see file header);
       `test/artifact_store_test.dart` (22 tests). `dart analyze` clean,
       `dart test` 245 passing. Stdin prompts removed from AndroidX
@@ -107,7 +107,7 @@ done only when its tests and evidence exist.
       constant + pure `auditDartDefines` + `doctorSecretAuditLines`;
       `repo_hygiene.dart`: gitignore-checker seam + default matcher);
       doctor wiring is parse-and-delegate only
-      (`lib/src/cli/doctor_command.dart`, `[Secret Audit (ADR-0014)]` +
+      (`packages/oka/lib/src/cli/doctor_command.dart`, `[Secret Audit (ADR-0014)]` +
       `[Credential Policy (ADR-0014)]` blocks; `[Toolchain Policy]`
       byte-identical; gate test `test/adr0014_doctor_delegation_test.dart`).
       Tests: `test/adr0014_credential_policy_test.dart` (precedence,
@@ -236,7 +236,7 @@ done only when its tests and evidence exist.
       Done. Evidence: `test/adr0015_target_dispatch_test.dart` (18 tests:
       dispatch, collision/validation, unknown-verb listing, no-entrypoint);
       `packages/oka_core/lib/src/targets/target.dart`,
-      `lib/src/cli/run_command.dart`. Deferred (latency only, not a
+      `packages/oka/lib/src/cli/run_command.dart`. Deferred (latency only, not a
       correctness gate): snapshot-cached entrypoint evaluation keyed on
       content hash — current dispatch shells out to `dart run` like `oka
       build` already does.
@@ -250,7 +250,7 @@ done only when its tests and evidence exist.
       resolve-newest-APK → install → launch → logcat failure-signature scan,
       compiled to a validated pipeline; dex probe moved to
       `oka_android/lib/src/dev/dex_probe.dart` (pure Dart zip read); `oka
-      launch` shim (`lib/src/cli/launch_command.dart`) delegates to `oka run
+      launch` shim (`packages/oka/lib/src/cli/launch_command.dart`) delegates to `oka run
       device` with zero platform logic (moved flags → typed target config).
       Gate: `test/adr0015_cli_platform_leakage_gate_test.dart` (C1-folded
       files clean; ratchet emptied by the ADR-0015 follow-up — build,
@@ -268,7 +268,7 @@ done only when its tests and evidence exist.
       output for a project declaring a custom target. Done:
       `describeTarget` (pure, `packages/oka_core/lib/src/targets/describe.dart`)
       + `--oka-describe-targets` machine mode in `okaRun`;
-      `oka explain --targets` in `lib/src/cli/explain_command.dart` (no tool
+      `oka explain --targets` in `packages/oka/lib/src/cli/explain_command.dart` (no tool
       execution, no device probing; entrypoint-less → `oka init`);
       `test/adr0015_explain_targets_test.dart` (chains, no-execution,
       validation failures, plain-explain regression).
@@ -318,7 +318,7 @@ done only when its tests and evidence exist.
       no-APK / pre-manifest builds, flag mismatches (target/defines/mode/app
       id), engine drift at the recorded path, missing flutter binary — and
       resolves the session flutter binary from the **recorded SDK path**,
-      never PATH. CLI stays parse-and-delegate (`lib/src/cli/dev_command.dart`):
+      never PATH. CLI stays parse-and-delegate (`packages/oka/lib/src/cli/dev_command.dart`):
       live transcripts — happy path validates and prints the session line;
       `oka dev --dart-define=STORE=sideload` refuses with
       `dart_defines (STORE): recorded "", requested "STORE=sideload"`, exit 1;

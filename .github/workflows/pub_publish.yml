@@ -37,28 +37,33 @@ jobs:
           fi
           bash tool/release/check_version_sync.sh
 
-      - run: dart pub get
+      # --no-example: example/ is a Flutter app; dart >= 3.13 resolves it by
+      # default, which fails under plain Dart (flutter_test is sdk-sourced).
+      - run: dart pub get --no-example
 
       # Split packages (ADR-0006) publish in dependency order:
-      # oka_core -> oka_android -> oka. Hosted deps resolve against pub.dev,
-      # so the first release trains publish core before android/root.
+      # oka_core -> oka_android -> oka (the CLI, packages/oka). Hosted deps
+      # resolve against pub.dev, so the first release trains publish core
+      # before android/cli.
       - name: Publish oka_core (dry-run preflight)
         working-directory: packages/oka_core
-        run: dart publish --dry-run
+        run: dart pub publish --dry-run
       - name: Publish oka_android (dry-run preflight)
         working-directory: packages/oka_android
-        run: dart publish --dry-run
+        run: dart pub publish --dry-run
       - name: Publish oka (dry-run preflight)
-        run: dart publish --dry-run
+        working-directory: packages/oka
+        run: dart pub publish --dry-run
 
       - name: Publish oka_core
         if: github.event_name == 'push'
         working-directory: packages/oka_core
-        run: dart publish --force
+        run: dart pub publish --force
       - name: Publish oka_android
         if: github.event_name == 'push'
         working-directory: packages/oka_android
-        run: dart publish --force
+        run: dart pub publish --force
       - name: Publish oka
         if: github.event_name == 'push'
-        run: dart publish --force
+        working-directory: packages/oka
+        run: dart pub publish --force

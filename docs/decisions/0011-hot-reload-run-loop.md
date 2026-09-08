@@ -142,6 +142,6 @@ tolerate-unknown-fields, and keep `--tui` escape hatch); initial compile is
 serial after install until/unless Option C is justified later; hot-restart
 semantics follow flutter_tools, not a custom contract.
 
-**Authoritative source:** `lib/src/cli/dev_command.dart`,
+**Authoritative source:** `packages/oka/lib/src/cli/dev_command.dart`,
 `packages/oka_android/lib/src/` (device layer, session manifest),
 [hot reload plan](../guides/hot_reload_plan.md).

@@ -39,7 +39,7 @@ void main() {
       p.join(Directory.current.path, 'test/fixtures/adr0015_device_entrypoint.dart'),
     ).copySync(p.join(sandbox.path, 'tool', 'oka_pipeline.dart'));
     relBin = p.relative(
-      p.join(Directory.current.path, 'bin', 'oka.dart'),
+      p.join(Directory.current.path, 'packages', 'oka', 'bin', 'oka.dart'),
       from: sandbox.path,
     );
   });

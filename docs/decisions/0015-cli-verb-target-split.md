@@ -61,7 +61,7 @@ targets — with a hard law: verbs never know platforms.**
    alias of `oka run device` (device target shipped by `oka_android`); the
    Android nouns of `get` route through ADR-0013 tool providers; `debug dex`
    moves behind the Android package. Verb implementations in `bin/` and
-   `lib/src/cli/` contain no platform logic.
+   `packages/oka/lib/src/cli/` contain no platform logic.
 
 ## Alternatives considered
 
@@ -99,6 +99,6 @@ Tracked in `docs/PHASE_CHECKLIST.md` (C0–C2). C0/C1 are gated on nothing;
 C2's explain integration builds on C0. ADR-0014 (distribution targets)
 defines the first non-trivial targets.
 
-**Authoritative source:** `bin/oka.dart`, `lib/src/cli/`,
+**Authoritative source:** `bin/oka.dart`, `packages/oka/lib/src/cli/`,
 `packages/oka_core` (Target contract), this ADR,
 `docs/PHASE_CHECKLIST.md` (progress).

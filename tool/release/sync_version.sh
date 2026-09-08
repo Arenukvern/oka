@@ -54,9 +54,11 @@ fi
 repo_version="$(tr -d '[:space:]' < "$VERSION_FILE")"
 [[ -n "$repo_version" ]] || fail "VERSION file is empty"
 
-# pubspec.yaml
-sed -i.bak -E "s/^version:.*/version: ${repo_version}/" "$ROOT_DIR/pubspec.yaml"
-rm -f "$ROOT_DIR/pubspec.yaml.bak"
+# packages/oka/pubspec.yaml (the published CLI; the workspace root is not
+# published)
+cli_pubspec="$ROOT_DIR/packages/oka/pubspec.yaml"
+sed -i.bak -E "s/^version:.*/version: ${repo_version}/" "$cli_pubspec"
+rm -f "$cli_pubspec.bak"
 
 # plugin manifests (jsonpath $.version — top-level only)
 for manifest in \

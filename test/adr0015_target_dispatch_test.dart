@@ -10,7 +10,7 @@
 // * unknown-verb dispatch naming the available targets;
 // * the entrypoint-less project case (points at `oka init`).
 //
-// The dispatch tests run the real CLI (`dart run bin/oka.dart …`) against a
+// The dispatch tests run the real CLI (`dart run packages/oka/bin/oka.dart …`) against a
 // sandbox project under `.oka_cache/` (gitignored) whose entrypoint is the
 // fixture `test/fixtures/adr0015_entrypoint.dart`. `dart run` resolves the
 // workspace package config by walking up from the sandbox, so no `pub get`
@@ -215,7 +215,7 @@ void main() {
       File(p.join(Directory.current.path, 'test/fixtures/adr0015_entrypoint.dart'))
           .copySync(p.join(sandbox.path, 'tool', 'oka_pipeline.dart'));
       relBin = p.relative(
-        p.join(Directory.current.path, 'bin', 'oka.dart'),
+        p.join(Directory.current.path, 'packages', 'oka', 'bin', 'oka.dart'),
         from: sandbox.path,
       );
     });

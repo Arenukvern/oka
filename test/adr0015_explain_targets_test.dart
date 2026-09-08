@@ -11,7 +11,7 @@
 // * regression: plain `oka explain` (non-flags path) output is unchanged —
 //   build-plan sections present, no target listing.
 //
-// The CLI tests run the real CLI (`dart run bin/oka.dart …`) against sandbox
+// The CLI tests run the real CLI (`dart run packages/oka/bin/oka.dart …`) against sandbox
 // projects under `.oka_cache/` (gitignored) whose entrypoints are the test
 // fixtures, mirroring test/adr0015_target_dispatch_test.dart.
 
@@ -137,7 +137,7 @@ void main() {
         ),
       ).copySync(p.join(sandbox.path, 'tool', 'oka_pipeline.dart'));
       relBin = p.relative(
-        p.join(Directory.current.path, 'bin', 'oka.dart'),
+        p.join(Directory.current.path, 'packages', 'oka', 'bin', 'oka.dart'),
         from: sandbox.path,
       );
     });

@@ -19,11 +19,13 @@ ok() {
 repo_version="$(tr -d '[:space:]' < "$VERSION_FILE")"
 [[ -n "$repo_version" ]] || fail "VERSION file is empty"
 
+# The published CLI lives in packages/oka; the workspace root is not a
+# published package (publish_to: none).
 pubspec_version="$(
-  sed -nE 's/^version:[[:space:]]*([^[:space:]#]+).*/\1/p' "$ROOT_DIR/pubspec.yaml" | head -1
+  sed -nE 's/^version:[[:space:]]*([^[:space:]#]+).*/\1/p' "$ROOT_DIR/packages/oka/pubspec.yaml" | head -1
 )"
 [[ "$pubspec_version" == "$repo_version" ]] ||
-  fail "pubspec.yaml version ($pubspec_version) != VERSION ($repo_version)"
+  fail "packages/oka version ($pubspec_version) != VERSION ($repo_version)"
 
 # Split packages (ADR-0006): publishable with the same release train.
 for pkg in packages/oka_core packages/oka_android; do

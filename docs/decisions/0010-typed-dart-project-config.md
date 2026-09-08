@@ -104,4 +104,4 @@ sources must understand precedence (documented + printed).
 **Authoritative source:** `packages/oka_core/lib/src/config/` (new typed
 values), `packages/oka_core/lib/src/oka_run.dart` (merge),
 `packages/oka_android/lib/src/android_pipeline.dart` (`config:`),
-`lib/src/cli/` (discovery, `oka init --from-yaml`).
+`packages/oka/lib/src/cli/` (discovery, `oka init --from-yaml`).

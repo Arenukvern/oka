@@ -28,7 +28,14 @@ bundletool-validated release AABs).
 
 ## Quickstart: first build in under two minutes
 
-Install once, then:
+Install once — either the one-liner (installs via `dart pub global
+activate`; requires Dart, not Flutter):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Arenukvern/oka/main/install.sh | bash
+```
+
+or directly:
 
 ```bash
 dart pub global activate oka

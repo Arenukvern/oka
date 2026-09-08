@@ -63,7 +63,7 @@ Gradle debugging (oka has none).
 | Launcher icons (name/manifest_ref, user-icon precedence) | `lib/src/build/launcher_icon.dart`, skip logic in `pipeline/steps/host_steps.dart` |
 | Config sources (oka.yaml / pubspec `oka:` / Dart entrypoint) | `loadOkaYaml` in `packages/oka_core/lib/src/oka_run.dart` |
 | Artifact diff gate | `lib/src/compare.dart` + `oka compare` |
-| Device smoke test | `oka launch` (`lib/src/cli/launch_command.dart`) |
+| Device smoke test | `oka launch` (`packages/oka/lib/src/cli/launch_command.dart`) |
 | DEX symbol check | `oka debug dex <apk> --find <Class>` |
 | Launcher icons | `lib/src/build/launcher_icon.dart` |
 | Extra assets / deeplinks | `lib/src/pipeline/steps/asset_steps.dart` |
@@ -74,7 +74,7 @@ Gradle debugging (oka has none).
 
 ```bash
 export ANDROID_SDK_ROOT=~/.oka/android-sdk
-cd example && dart ../bin/oka.dart build apk
+cd example && dart ../packages/oka/bin/oka.dart build apk
 oka launch                                   # install newest APK + launch + logcat scan
 oka debug dex .oka_cache/build/debug/app-debug.apk --find some.pkg.Class
 oka compare gradle-built.apk .oka_cache/build/debug/app-debug.apk

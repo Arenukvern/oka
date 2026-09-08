@@ -194,7 +194,7 @@ New command for dependency management:
 6. `lib/src/maven/aar_processor.dart` - AAR handler
 7. `lib/src/maven/plugin_scanner.dart` - Plugin discovery
 8. `lib/src/maven/cache_manager.dart` - Cache management
-9. `lib/src/cli/deps_command.dart` - CLI command
+9. `packages/oka/lib/src/cli/deps_command.dart` - CLI command
 
 ## Files to Modify
 

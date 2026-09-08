@@ -91,11 +91,11 @@ done only when its tests and evidence exist.
       badging` diff (package, versionCode/Name, permissions, intent-filter
       metadata) + zip entry diff (only-in / crc32-changed); exit 1 on
       differences, `--quiet` escape — `packages/oka_android/lib/src/compare.dart`,
-      `lib/src/cli/compare_command.dart`, `test/compare_test.dart`
+      `packages/oka/lib/src/cli/compare_command.dart`, `test/compare_test.dart`
 - [x] `oka debug step <name>` single-step probe runner: default-pipeline prefix
       (upstream artifact providers) against the project's `.oka_cache`,
       okaRun-identical context, `--list` discovery from
-      `AndroidPipeline.defaultSteps` — `lib/src/cli/debug_command.dart`,
+      `AndroidPipeline.defaultSteps` — `packages/oka/lib/src/cli/debug_command.dart`,
       `test/debug_command_test.dart`
 - [x] Conditional-dep dedup: `inConditional`/`conditionalGroup` on
       `ParsedGradleDep` (if/else scope tracking in the parser); if/else variants

@@ -42,6 +42,8 @@ void main() {
       final src = await File(
         p.join(
           Directory.current.path,
+          'packages',
+          'oka',
           'lib',
           'src',
           'cli',

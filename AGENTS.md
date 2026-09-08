@@ -25,7 +25,7 @@ follow links.
 | Migrate an existing Gradle app | `docs/guides/gradle_migration.md` (works / needs config / unsupported + verification loop) |
 | Check phase status & evidence | `docs/PHASE_CHECKLIST.md` |
 | Browse the docs site | `docs/` (published via docs.page) |
-| See CLI commands | `bin/oka.dart`, `lib/src/cli/` |
+| See CLI commands | `packages/oka/bin/oka.dart`, `packages/oka/lib/src/cli/` |
 | Understand/extend the build pipeline | `lib/src/pipeline/` (steps in `pipeline/steps/`, tool invocations in `pipeline/toolchain.dart`) — see ADR 0002 |
 | Add a dependency / fix missing-class crashes | Build guide → Dependencies Station; table in `lib/src/build/dependency_suggest.dart` |
 | Local .aar files / AAR natives & res | Build guide → Assets & Icon Station (`local_aars`); `extractAarPayload` in `dependency_cache.dart` |

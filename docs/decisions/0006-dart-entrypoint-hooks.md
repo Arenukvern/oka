@@ -149,5 +149,5 @@ Bad / Neutral:
 - `dart run` adds ~1–3 s cold-start to hooked builds (kernel-cached after)
 
 **Authoritative source:** `lib/src/pipeline/` (contracts), `lib/oka.dart`
-(barrel), `bin/oka.dart` + `lib/src/cli/build_command.dart` (delegation),
+(barrel), `bin/oka.dart` + `packages/oka/lib/src/cli/build_command.dart` (delegation),
 `oka_android/` (platform package).

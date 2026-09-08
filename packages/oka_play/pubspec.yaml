@@ -14,6 +14,11 @@ topics:
   - flutter
   - google-play
 
+# The test fixture contains a SYNTHETIC RSA key (generated for tests only —
+# never a real credential). pub's leak detector flags it; allow-list it.
+false_secrets:
+  - test/synthetic_credentials.dart
+
 resolution: workspace
 
 environment:

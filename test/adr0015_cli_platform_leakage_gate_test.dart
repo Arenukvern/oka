@@ -68,8 +68,9 @@ const _documentedExceptions = <String, Map<String, String>>{
 };
 
 List<File> _cliFiles() => [
-      File(p.join(Directory.current.path, 'bin', 'oka.dart')),
-      ...Directory(p.join(Directory.current.path, 'lib', 'src', 'cli'))
+      File(p.join(Directory.current.path, 'packages', 'oka', 'bin', 'oka.dart')),
+      ...Directory(p.join(
+              Directory.current.path, 'packages', 'oka', 'lib', 'src', 'cli'))
           .listSync()
           .whereType<File>()
           .where((f) => f.path.endsWith('.dart')),
@@ -91,6 +92,7 @@ Map<String, List<String>> _scan(final File file) {
 
 void main() {
   test('C1-folded files contain no platform implementation logic', () {
+    // CLI paths are relative to packages/oka (the published CLI package).
     const mustBeClean = [
       'bin/oka.dart',
       'lib/src/cli/launch_command.dart',
@@ -101,7 +103,8 @@ void main() {
       'lib/src/cli/cache_command.dart',
     ];
     for (final rel in mustBeClean) {
-      final file = File(p.join(Directory.current.path, rel));
+      final file = File(p.join(
+          Directory.current.path, 'packages', 'oka', p.split(rel).join(p.separator)));
       expect(file.existsSync(), isTrue, reason: '$rel missing');
       final hits = _scan(file);
       expect(
@@ -154,7 +157,8 @@ void main() {
       'lib/src/cli/get_command.dart',
     ];
     for (final rel in emptied) {
-      final file = File(p.join(Directory.current.path, rel));
+      final file = File(p.join(
+          Directory.current.path, 'packages', 'oka', p.split(rel).join(p.separator)));
       expect(file.existsSync(), isTrue, reason: '$rel missing');
       final hits = _scan(file);
       expect(
@@ -170,7 +174,8 @@ void main() {
 
   test('compare_command: only the --skip-badging flag name may match', () {
     final file = File(
-      p.join(Directory.current.path, 'lib', 'src', 'cli', 'compare_command.dart'),
+      p.join(Directory.current.path, 'packages', 'oka', 'lib', 'src', 'cli',
+          'compare_command.dart'),
     );
     final hits = _scan(file);
     expect(

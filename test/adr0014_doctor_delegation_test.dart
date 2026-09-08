@@ -11,7 +11,7 @@ import 'package:test/test.dart';
 
 void main() {
   final cliFile = File(
-    p.join(Directory.current.path, 'lib', 'src', 'cli', 'doctor_command.dart'),
+    p.join(Directory.current.path, 'packages', 'oka', 'lib', 'src', 'cli', 'doctor_command.dart'),
   );
   final source = cliFile.readAsStringSync();
 

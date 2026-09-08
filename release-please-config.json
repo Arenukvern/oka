@@ -4,7 +4,7 @@
     ".": {
       "release-type": "simple",
       "package-name": "oka",
-      "changelog-path": "CHANGELOG.md",
+      "changelog-path": "packages/oka/CHANGELOG.md",
       "version-file": "VERSION",
       "include-component-in-tag": false,
       "pull-request-title-pattern": "chore${scope}: release ${version}",
@@ -20,7 +20,7 @@
       "extra-files": [
         {
           "type": "generic",
-          "path": "pubspec.yaml"
+          "path": "packages/oka/pubspec.yaml"
         },
         {
           "type": "json",

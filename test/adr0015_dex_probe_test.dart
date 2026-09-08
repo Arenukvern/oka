@@ -119,7 +119,7 @@ void main() {
   group('oka debug dex CLI delegation', () {
     Future<ProcessResult> cli(final List<String> args) => Process.run(
           'dart',
-          ['run', 'bin/oka.dart', 'debug', 'dex', ...args],
+          ['run', 'packages/oka/bin/oka.dart', 'debug', 'dex', ...args],
           workingDirectory: Directory.current.path,
         );
 

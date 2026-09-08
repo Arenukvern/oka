@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CHANGELOG="$ROOT_DIR/CHANGELOG.md"
+CHANGELOG="$ROOT_DIR/packages/oka/CHANGELOG.md"
 
 fail() {
   echo "check_changelog_markdown: $*" >&2

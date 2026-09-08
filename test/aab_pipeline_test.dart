@@ -33,7 +33,7 @@ void main() {
     expect(builder, contains('defaultAabPipeline'));
 
     final cli = await File(
-      p.join('lib', 'src', 'cli', 'build_command.dart'),
+      p.join('packages', 'oka', 'lib', 'src', 'cli', 'build_command.dart'),
     ).readAsString();
     // The old "limited AAB" warning must be gone.
     expect(cli, isNot(contains('not the primary path yet')));

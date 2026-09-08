@@ -8,14 +8,13 @@ default:
 install:
     dart pub get
 
-# Rebuild and install global version (clears snapshot cache)
+# Rebuild and install global version from packages/oka (clears snapshot cache)
 global:
     @echo "🔄 Deactivating current version..."
     @dart pub global deactivate oka 2>/dev/null || true
     @echo "🗑️  Clearing snapshot cache..."
-    @rm -rf .dart_tool/pub/bin/oka
     @echo "📦 Installing global version..."
-    @dart pub global activate --source path .
+    @dart pub global activate --source path packages/oka
     @echo "✅ Done! Test with: oka --version"
 
 # Clean build artifacts and caches
@@ -24,9 +23,10 @@ clean:
     @rm -rf build
     @echo "✅ Cleaned build artifacts"
 
-# Run tests
+# Run tests: root cross-package suite + every package suite
 test:
     dart test
+    for pkg in packages/*/; do if [ -d "$pkg/test" ]; then echo "=== $pkg"; (cd "$pkg" && dart test) || exit 1; fi; done
 
 # Run linter (workspace members via dart analyze; example via flutter analyze)
 lint:
@@ -45,17 +45,17 @@ sync-version:
 bench:
     bash tool/benchmarks/build_benchmarks.sh example
 
-# Dry-run pub.dev publish
+# Dry-run pub.dev publish (the CLI package)
 publish-dry-run:
-    dart publish --dry-run
+    cd packages/oka && dart pub publish --dry-run
 
 # Publish to pub.dev (requires publisher auth)
 publish:
-    dart publish --force
+    cd packages/oka && dart pub publish --force
 
 # Run oka locally without global install
 dev:
-    dart run bin/oka.dart
+    dart run packages/oka/bin/oka.dart
 
 # View logcat
 logcat:

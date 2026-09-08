@@ -240,7 +240,7 @@ end-to-end on emulator; evidence recorded.
       `app.debugPort`, `app.started`, `app.progress`,
       `app.reloadRecommended`, errors). Feature-detect: ignore unknown
       fields/events (protocol is not semver'd); log at `-v` only.
-- [x] Replace the stub in `lib/src/cli/dev_command.dart`:
+- [x] Replace the stub in `packages/oka/lib/src/cli/dev_command.dart`:
       - default (TTY): oka-rendered progress + `r` (reload), `R` (restart),
         `q` (quit), `d` (detach); **no flutter_tools TUI passthrough** —
         oka renders.
@@ -327,7 +327,7 @@ evidence recorded.
 > `prepareDevLaunch` — the DeviceTarget device steps + the H2
 > await-VM-service/forward steps composed in one validated `Pipeline` —,
 > `DevSession` render/control loop, `DevFlow` outer loop);
-> `lib/src/cli/dev_command.dart` stays a flag parser + wiring shim (the
+> `packages/oka/lib/src/cli/dev_command.dart` stays a flag parser + wiring shim (the
 > platform-leakage gate stays green). Refusals: profile/release, manifest
 > mismatch, `-d` selection (zero/multiple/unauthorized devices map
 > through `classifyAdbFailure`).
@@ -528,7 +528,7 @@ already-registered services, so reloads sent directly over the VM wire are
 > clear-on-exit lifecycle is covered alongside (spec v2: `.flutter_mcp/
 > runner-session.json` with the `runner` field; the toolkit's `state.json`
 > untouched; the old `.oka_cache/dev/session.json` path no longer written).
-> The CLI surface is parse-and-delegate only (`lib/src/cli/dev_command.dart`),
+> The CLI surface is parse-and-delegate only (`packages/oka/lib/src/cli/dev_command.dart`),
 > so the ADR-0015 leakage gate stays green.
 
 ## Gotchas (encode these, regardless of phase)
