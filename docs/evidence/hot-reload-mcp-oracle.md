@@ -11,6 +11,14 @@ edited Dart — a raw VM-service reload is a kernel no-op) and emits
 mcp_flutter) attaches to that URI and reads the Flutter **semantics tree**,
 which uiautomator cannot (Flutter renders text via Skia).
 
+Discovery is the spec-v2 runner-session file: `oka dev` writes
+`.flutter_mcp/runner-session.json` at `session.ready` (with the
+`runner: "oka-dev"` display field) and deletes it on exit — oka is the
+first conforming runner of the toolkit-neutral Dart dev session contract;
+the toolkit's adapter consumes the file (`--runner-session-file`
+overridable) and never learns oka's name. Internal `vm.uri` verification
+tools keep reading `.oka_cache/dev/vm.uri`.
+
 ## Transcript facts
 
 1. `reload.result {"ok":true}` after editing `lib/main.dart` — semantic

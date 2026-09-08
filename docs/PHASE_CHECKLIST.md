@@ -39,14 +39,18 @@ with evidence, not into a checked box.
   daemon session — the only compile-capable channel (VM-service
   `ServiceRegistered` events never replay already-registered services, so
   late-attach tool reloads are silent no-ops). The chosen port and the
-  forwarded `vm_service_uri` are published to `.oka_cache/dev/session.json`
-  at each `session.ready` and both discovery files are cleared on every
-  exit path. Evidence: `test/adr0011_control_server_test.dart` (real
+  forwarded `vm_service_uri` are published to the spec-v2
+  `.flutter_mcp/runner-session.json` (toolkit-neutral Dart dev session
+  contract; `runner: "oka-dev"` display metadata, schema 1) at each
+  `session.ready` and both discovery files are cleared on every exit
+  path. Evidence: `test/adr0011_control_server_test.dart` (real
   loopback sockets: reload/restart incl. fallback-then-EOF, stop, status,
   malformed JSON, unknown method, sequential clients, timeout,
-  port-from-session.json), session.json schema rejection + lifecycle
-  (`readSessionJsonFile` rejects unknown schema; write-on-ready /
-  clear-on-exit), `just lint` + `just test` green. Editor/agent wiring:
+  port-from-runner-session), runner-session schema rejection + lifecycle
+  (`readRunnerSessionFile` rejects unknown schema; write-on-ready /
+  clear-on-exit; the toolkit's `.flutter_mcp/state.json` untouched; the
+  old `.oka_cache/dev/session.json` path no longer written), `just lint` +
+  `just test` green. Editor/agent wiring:
   `docs/guides/hot_reload_plan.md` → "Wiring an editor or agent to the
   delegation channel".
 

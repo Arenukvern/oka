@@ -480,13 +480,17 @@ already-registered services, so reloads sent directly over the VM wire are
 
 1. **Run the session with the channel on:** `oka dev --control-port <port>`
    (or omit the flag for an ephemeral port).
-2. **Discover the session:** read `.oka_cache/dev/session.json` under the
-   project while `oka dev` runs. All fields are required; `schema` is `1`
-   (readers must reject unknown schema values). The file is deleted on
-   session exit — an absent file means no live session. `vm_service_uri`
-   is the forwarded, host-reachable endpoint (the same line
-   `.oka_cache/dev/vm.uri` carries); `control_port` is the delegation
-   channel; `pid` lets you detect a dead owner.
+2. **Discover the session:** read the spec-v2 runner-session file —
+   `.flutter_mcp/runner-session.json` under the project (sibling of the
+   toolkit's `state.json`; overridable via the toolkit's
+   `--runner-session-file` flag) — while `oka dev` runs. All fields are
+   required; `schema` is `1` (readers must reject unknown schema values);
+   `runner` (`"oka-dev"`) is display metadata only — oka is the first
+   conforming runner of the toolkit-neutral Dart dev session contract.
+   The file is deleted on session exit — an absent file means no live
+   session. `vm_service_uri` is the forwarded, host-reachable endpoint
+   (the same line `.oka_cache/dev/vm.uri` carries); `control_port` is the
+   delegation channel; `pid` lets you detect a dead owner.
 3. **Give the toolkit the VM endpoint for reads** (widgets, screenshots,
    evaluate): pass the toolkit's connection override with the exact URI
    from the file — `connection: {"mode": "uri", "uri":
@@ -508,9 +512,9 @@ already-registered services, so reloads sent directly over the VM wire are
    (`{"id": …, "ok": false, "error": "<fix>"}`); malformed JSON and
    unknown methods answer in-band and keep the connection open.
    `status` answers from session metadata (device/target/mode).
-5. **Handle EOF by re-reading session.json.** The connection may close on
-   fallback / session end; a new session owns a new `vm_service_uri` and a
-   new `control_port`.
+5. **Handle EOF by re-reading runner-session.json.** The connection may
+   close on fallback / session end; a new session owns a new
+   `vm_service_uri` and a new `control_port`.
 
 > ### Delegation-channel evidence (filled 2026-09-08)
 >
@@ -520,10 +524,12 @@ already-registered services, so reloads sent directly over the VM wire are
 > response then EOF on server close; stop; status (no daemon round-trip);
 > malformed JSON / unknown method → per-id error with the connection kept
 > open; sequential clients; bounded timeout; port discovered from
-> session.json. The session.json schema-rejection + write-on-ready /
-> clear-on-exit lifecycle is covered alongside. The CLI surface is
-> parse-and-delegate only (`lib/src/cli/dev_command.dart`), so the
-> ADR-0015 leakage gate stays green.
+> runner-session.json. The runner-session schema-rejection + write-on-ready /
+> clear-on-exit lifecycle is covered alongside (spec v2: `.flutter_mcp/
+> runner-session.json` with the `runner` field; the toolkit's `state.json`
+> untouched; the old `.oka_cache/dev/session.json` path no longer written).
+> The CLI surface is parse-and-delegate only (`lib/src/cli/dev_command.dart`),
+> so the ADR-0015 leakage gate stays green.
 
 ## Gotchas (encode these, regardless of phase)
 

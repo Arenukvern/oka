@@ -204,20 +204,25 @@ Future<void> clearVmUriFile(final String projectPath) async {
   }
 }
 
-/// Path of the live dev-session discovery file:
-/// `<project>/.oka_cache/dev/session.json` — the delegation-channel
-/// discovery record written at each `session.ready` and deleted on session
-/// exit. Readers reject unknown `schema` values; absent file = no live
-/// session.
-String sessionJsonFilePath(final String projectPath) =>
-    p.join(projectPath, '.oka_cache', 'dev', 'session.json');
+/// Path of the live dev-session discovery file (spec v2 — the
+/// toolkit-neutral Dart dev session contract):
+/// `<project>/.flutter_mcp/runner-session.json` — the sibling of the
+/// toolkit's own `.flutter_mcp/state.json` (overridable on the toolkit
+/// side via its `--runner-session-file` flag). Written by the RUNNER (oka
+/// is the first conforming runner) at each `session.ready` and deleted on
+/// session exit. Readers reject unknown `schema` values; absent file = no
+/// live delegable session. The `runner` field is display metadata only.
+String runnerSessionFilePath(final String projectPath) =>
+    p.join(projectPath, '.flutter_mcp', 'runner-session.json');
 
-/// Writes the session discovery file (best-effort, same law as the
-/// vm.uri file: a failed write must never break the dev session).
-/// `vmServiceUri` is the FORWARDED host-reachable endpoint (same value
-/// the vm.uri file carries); `controlPort` is the loopback delegation
-/// server's chosen port (ephemeral by default — only discoverable here).
-Future<void> writeSessionJsonFile(
+/// Writes the runner-session discovery file per spec v2 (best-effort,
+/// same law as the vm.uri file: a failed write must never break the dev
+/// session). `vmServiceUri` is the FORWARDED host-reachable endpoint
+/// (same value the vm.uri file carries); `controlPort` is the loopback
+/// delegation server's chosen port (ephemeral by default — only
+/// discoverable here). Creating `.flutter_mcp/` never touches an existing
+/// sibling `state.json`.
+Future<void> writeRunnerSessionFile(
   final String projectPath, {
   required final String vmServiceUri,
   required final int controlPort,
@@ -226,10 +231,11 @@ Future<void> writeSessionJsonFile(
   final DateTime? startedAt,
 }) async {
   try {
-    final f = File(sessionJsonFilePath(projectPath));
+    final f = File(runnerSessionFilePath(projectPath));
     await f.parent.create(recursive: true);
     final map = <String, Object?>{
       'schema': 1,
+      'runner': 'oka-dev',
       'vm_service_uri': vmServiceUri,
       'control_port': controlPort,
       'device_id': deviceId,
@@ -246,17 +252,19 @@ Future<void> writeSessionJsonFile(
   }
 }
 
-/// Removes the session discovery file (session over → no live channel).
-Future<void> clearSessionJsonFile(final String projectPath) async {
+/// Removes the runner-session discovery file (session over → no live
+/// channel). Only the file is deleted — never the `.flutter_mcp/`
+/// directory or any sibling file (e.g. the toolkit's `state.json`).
+Future<void> clearRunnerSessionFile(final String projectPath) async {
   try {
-    await File(sessionJsonFilePath(projectPath)).delete();
+    await File(runnerSessionFilePath(projectPath)).delete();
   } on FileSystemException {
     // already gone — fine.
   }
 }
 
-/// Typed view of `.oka_cache/dev/session.json` (see
-/// [readSessionJsonFile]).
+/// Typed view of `.flutter_mcp/runner-session.json` (see
+/// [readRunnerSessionFile]).
 class DevSessionDiscovery {
   const DevSessionDiscovery({
     required this.vmServiceUri,
@@ -281,15 +289,15 @@ class DevSessionDiscovery {
 /// Reads the session discovery file: `null` when absent (no live
 /// session); [FormatException] when the file exists but is unreadable or
 /// carries an unknown `schema` (readers reject unknown schema values).
-DevSessionDiscovery? readSessionJsonFile(final String projectPath) {
-  final f = File(sessionJsonFilePath(projectPath));
+DevSessionDiscovery? readRunnerSessionFile(final String projectPath) {
+  final f = File(runnerSessionFilePath(projectPath));
   if (!f.existsSync()) return null;
   late final Map<String, Object?> json;
   try {
     json = (jsonDecode(f.readAsStringSync()) as Map).cast<String, Object?>();
   } on FormatException catch (e) {
     throw FormatException(
-      'Unreadable ${sessionJsonFilePath(projectPath)}: ${e.message}\n'
+      'Unreadable ${runnerSessionFilePath(projectPath)}: ${e.message}\n'
       '   fix: delete the stale file (or let the owning `oka dev` exit — '
       'it clears it) and re-run.',
     );
@@ -297,7 +305,7 @@ DevSessionDiscovery? readSessionJsonFile(final String projectPath) {
   final schema = json['schema'];
   if (schema != 1) {
     throw FormatException(
-      'Unsupported session.json schema: $schema (supported: 1).\n'
+      'Unsupported runner-session.json schema: $schema (supported: 1).\n'
       '   fix: re-run `oka dev` to rewrite the file with the current '
       'schema, or upgrade the reader.',
     );
@@ -313,7 +321,7 @@ DevSessionDiscovery? readSessionJsonFile(final String projectPath) {
       pid is! int ||
       startedAt is! String) {
     throw FormatException(
-      'Incomplete ${sessionJsonFilePath(projectPath)} — all fields '
+      'Incomplete ${runnerSessionFilePath(projectPath)} — all fields '
       '(schema, vm_service_uri, control_port, device_id, pid, '
       'started_at) are required.\n'
       '   fix: re-run `oka dev` to rewrite the file.',
@@ -529,8 +537,8 @@ class DevSession {
   final Duration startupTimeout;
 
   /// Invoked once the session reaches `session.ready` (the discovery-file
-  /// hook — `oka dev` writes `.oka_cache/dev/session.json` here). Purely
-  /// additive: rendering is unchanged.
+  /// hook — `oka dev` writes `.flutter_mcp/runner-session.json` here).
+  /// Purely additive: rendering is unchanged.
   final void Function()? onReady;
 
   /// Structured result hook for out-of-process delegation (the loopback

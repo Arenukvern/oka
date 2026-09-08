@@ -18,7 +18,8 @@
 /// * reload/restart carry the ACTUAL daemon outcome (`fallback: true`
 ///   when the attach-mode restart fallback — relaunch + re-attach —
 ///   triggered). The connection may close on fallback/session end:
-///   clients must handle EOF by re-reading `.oka_cache/dev/session.json`.
+///   clients must handle EOF by re-reading
+///   `.flutter_mcp/runner-session.json`.
 /// * stop stops the app; the session keeps running.
 /// * status answers from session metadata (no daemon round-trip).
 /// * Unknown method / malformed JSON → per-id error response; the
@@ -29,7 +30,8 @@
 /// control stream the keyboard/stdin/watch sources share), fed session
 /// outcomes through [DevControlServer.handleSessionResult] (wired to
 /// [DevSession.onResult]), and closed after the flow ends on every exit
-/// path — alongside both discovery files (`vm.uri`, `session.json`).
+/// paths — alongside both discovery files (`vm.uri`,
+/// `runner-session.json`).
 library;
 
 import 'dart:async';
@@ -106,14 +108,14 @@ class DevControlServer {
   bool _closed = false;
 
   /// The chosen (possibly ephemeral) control port — published only via
-  /// `.oka_cache/dev/session.json` (`control_port`).
+  /// `.flutter_mcp/runner-session.json` (`control_port`).
   int get port => _serverSocket.port;
 
   /// Bind host (always loopback).
   String get host => _serverSocket.address.host;
 
   /// Binds `127.0.0.1:<port>` (port 0 → ephemeral; the chosen port is only
-  /// known via [port] → session.json) and starts accepting clients.
+  /// known via [port] → runner-session.json) and starts accepting clients.
   static Future<DevControlServer> start({
     required final DevControlSessionInfo info,
     required final void Function(DevControlCommand command) onCommand,
@@ -316,8 +318,8 @@ class DevControlServer {
           'error':
               '$method sent no result within ${timeout.inSeconds}s — the '
               'owning `oka dev` session may have ended or is stuck. '
-              'Re-read .oka_cache/dev/session.json (a fresh session owns a '
-              'new endpoint); if its pid is gone, re-run `oka dev`.',
+              'Re-read .flutter_mcp/runner-session.json (a fresh session '
+              'owns a new endpoint); if its pid is gone, re-run `oka dev`.',
         });
         return;
       }
@@ -350,7 +352,7 @@ class DevControlServer {
               'The app stopped during hot restart (attach-mode limitation '
               'on this device) — `oka dev` is relaunching and re-attaching. '
               'Wait for the new session, then re-read '
-              '.oka_cache/dev/session.json for the new vm_service_uri.',
+              '.flutter_mcp/runner-session.json for the new vm_service_uri.',
         };
       case 'app.stopped':
         // The event itself is the success signal (stop is fire-and-forget

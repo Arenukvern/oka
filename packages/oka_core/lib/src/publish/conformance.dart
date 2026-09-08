@@ -117,6 +117,38 @@ Future<List<String>> auditPublishConformance(
           );
         }
       }
+      // Directory-artifact convention (ADR-0016 §2): a target declaring
+      // artifactIsDirectory must produce a plan that says so, and — when
+      // the artifact path exists on disk (the suite runs against a real
+      // path) — the path must BE a directory, never a file. A missing path
+      // is fine: the dry-run law forbids requiring a produced build.
+      if (target.artifactIsDirectory) {
+        if (!plan.artifactIsDirectory) {
+          violations.add(
+            'directory-artifact convention: target "${target.name}" '
+            'declares artifactIsDirectory but its plan does not report the '
+            'artifact as a directory',
+          );
+        }
+        final artifactType = FileSystemEntity.typeSync(plan.artifactPath);
+        if (artifactType == FileSystemEntityType.file) {
+          violations.add(
+            'directory-artifact convention: target "${target.name}" '
+            'declares a directory artifact but "${plan.artifactPath}" is '
+            'a file — artifactPath must reference a directory',
+          );
+        }
+      } else {
+        final artifactType = FileSystemEntity.typeSync(plan.artifactPath);
+        if (artifactType == FileSystemEntityType.directory) {
+          violations.add(
+            'directory-artifact convention: target "${target.name}" does '
+            'not declare artifactIsDirectory but "${plan.artifactPath}" '
+            'is a directory — declare the convention so consumers know the '
+            'artifact kind (ADR-0016 §2)',
+          );
+        }
+      }
     }
     dryRunState = state;
   }

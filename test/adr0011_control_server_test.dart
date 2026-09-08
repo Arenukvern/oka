@@ -1,13 +1,15 @@
 // ADR-0011 roadmap Now — the `oka dev` delegation channel: the loopback
 // TCP JSON-lines control server against real loopback sockets and the
 // scripted-fake DevSession machinery (no real flutter, no device), plus
-// the session.json discovery-file lifecycle (write at session.ready,
-// both discovery files cleared on session exit).
+// the spec-v2 runner-session discovery-file lifecycle (write at
+// session.ready incl. the `runner` field, both discovery files cleared on
+// session exit, the toolkit's `.flutter_mcp/state.json` untouched).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import 'adr0011_daemon_adapter_test.dart' show FakeDaemonTransport;
@@ -33,7 +35,7 @@ RunSession get _session => RunSession.fromJson(_sessionJson);
 /// One wired delegation channel: a scripted-fake [DevSession] whose
 /// results feed a real loopback [DevControlServer] through the same hooks
 /// `oka dev` uses (commands in via the shared control stream, outcomes in
-/// via `onResult`, session.json written at `session.ready`).
+/// via `onResult`, the runner-session file written at `session.ready`).
 class _Harness {
   _Harness._(
     this.server,
@@ -96,7 +98,7 @@ class _Harness {
       onReady: () {
         if (!h.ready.isCompleted) h.ready.complete();
         unawaited(
-          writeSessionJsonFile(
+          writeRunnerSessionFile(
             projectDir.path,
             vmServiceUri: 'ws://127.0.0.1:65462/XZgHLBJKpIA=/ws',
             controlPort: server.port,
@@ -130,7 +132,7 @@ class _Harness {
     await control.close();
     await server.close();
     await clearVmUriFile(projectDir.path);
-    await clearSessionJsonFile(projectDir.path);
+    await clearRunnerSessionFile(projectDir.path);
   }
 }
 
@@ -213,7 +215,7 @@ void main() {
 
       // The fallback ends the session (relaunch + re-attach); when the
       // owner closes the server the client must observe EOF (it re-reads
-      // session.json for the new session).
+      // runner-session.json for the new session).
       await h.teardown();
       await client.eof.timeout(const Duration(seconds: 5));
       h.projectDir.deleteSync(recursive: true);
@@ -374,18 +376,18 @@ void main() {
       expect(r['id'], 21);
       expect(r['ok'], isFalse);
       expect((r['error'] as String), contains('no result within'));
-      expect((r['error'] as String), contains('session.json'));
+      expect((r['error'] as String), contains('runner-session.json'));
       await client.close();
       await h.teardown();
       h.projectDir.deleteSync(recursive: true);
     });
 
-    test('port is discoverable via session.json (port-from-session.json)',
-        () async {
+    test('port is discoverable via runner-session.json '
+        '(port-from-runner-session)', () async {
       final h = await _Harness.start();
-      // session.json was written at session.ready with the chosen
+      // runner-session.json was written at session.ready with the chosen
       // (ephemeral) port — a reader must be able to connect from it alone.
-      final discovery = readSessionJsonFile(h.projectDir.path);
+      final discovery = readRunnerSessionFile(h.projectDir.path);
       expect(discovery, isNotNull);
       expect(discovery!.controlPort, h.server.port);
       final client = _ControlClient(
@@ -400,12 +402,13 @@ void main() {
     });
   });
 
-  group('session.json discovery file', () {
-    test('write + read round-trip carries every required field', () async {
-      final tmp = await Directory.systemTemp.createTemp('oka_session_json');
+  group('runner-session.json discovery file (spec v2)', () {
+    test('write + read round-trip carries every spec field incl. runner',
+        () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_runner_session');
       addTearDown(() => tmp.delete(recursive: true));
-      expect(readSessionJsonFile(tmp.path), isNull);
-      await writeSessionJsonFile(
+      expect(readRunnerSessionFile(tmp.path), isNull);
+      await writeRunnerSessionFile(
         tmp.path,
         vmServiceUri: 'ws://127.0.0.1:65250/TOKEN/ws',
         controlPort: 59871,
@@ -413,26 +416,57 @@ void main() {
         processPid: 12345,
         startedAt: DateTime.parse('2026-09-08T00:00:00.000Z'),
       );
-      final d = readSessionJsonFile(tmp.path)!;
+      // Spec v2 location: <project>/.flutter_mcp/runner-session.json —
+      // the sibling of the toolkit's state file, NOT .oka_cache.
+      final f = File(runnerSessionFilePath(tmp.path));
+      expect(f.path, p.join(tmp.path, '.flutter_mcp', 'runner-session.json'));
+      expect(f.existsSync(), isTrue);
+      final d = readRunnerSessionFile(tmp.path)!;
       expect(d.vmServiceUri, 'ws://127.0.0.1:65250/TOKEN/ws');
       expect(d.controlPort, 59871);
       expect(d.deviceId, 'emulator-5554');
       expect(d.pid, 12345);
       expect(d.startedAt.toIso8601String(), '2026-09-08T00:00:00.000Z');
-      final raw = jsonDecode(
-        File(sessionJsonFilePath(tmp.path)).readAsStringSync(),
-      ) as Map;
+      final raw = jsonDecode(f.readAsStringSync()) as Map;
       expect(raw['schema'], 1);
-      await clearSessionJsonFile(tmp.path);
-      expect(File(sessionJsonFilePath(tmp.path)).existsSync(), isFalse);
+      expect(raw['runner'], 'oka-dev', reason: 'spec v2 display metadata');
+      expect(raw['vm_service_uri'], 'ws://127.0.0.1:65250/TOKEN/ws');
+      expect(raw['control_port'], 59871);
+      expect(raw['device_id'], 'emulator-5554');
+      expect(raw['pid'], 12345);
+      expect(raw['started_at'], '2026-09-08T00:00:00.000Z');
+      await clearRunnerSessionFile(tmp.path);
+      expect(f.existsSync(), isFalse);
       // Clearing twice is fine (best-effort).
-      await clearSessionJsonFile(tmp.path);
+      await clearRunnerSessionFile(tmp.path);
+    });
+
+    test('a pre-existing .flutter_mcp/state.json is untouched by the write',
+        () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_runner_session');
+      addTearDown(() => tmp.delete(recursive: true));
+      final mcpDir = Directory(p.join(tmp.path, '.flutter_mcp'))
+        ..createSync(recursive: true);
+      final stateFile = File(p.join(mcpDir.path, 'state.json'))
+        ..writeAsStringSync('{"toolkit":"state"}\n');
+      await writeRunnerSessionFile(
+        tmp.path,
+        vmServiceUri: 'ws://127.0.0.1:65250/TOKEN/ws',
+        controlPort: 59871,
+        deviceId: 'emulator-5554',
+      );
+      expect(stateFile.existsSync(), isTrue);
+      expect(stateFile.readAsStringSync(), '{"toolkit":"state"}\n');
+      // Clearing the runner file never removes the directory or siblings.
+      await clearRunnerSessionFile(tmp.path);
+      expect(mcpDir.existsSync(), isTrue);
+      expect(stateFile.existsSync(), isTrue);
     });
 
     test('readers reject unknown schema values', () async {
-      final tmp = await Directory.systemTemp.createTemp('oka_session_json');
+      final tmp = await Directory.systemTemp.createTemp('oka_runner_session');
       addTearDown(() => tmp.delete(recursive: true));
-      final f = File(sessionJsonFilePath(tmp.path));
+      final f = File(runnerSessionFilePath(tmp.path));
       await f.parent.create(recursive: true);
       f.writeAsStringSync(
         jsonEncode({
@@ -445,7 +479,7 @@ void main() {
         }),
       );
       expect(
-        () => readSessionJsonFile(tmp.path),
+        () => readRunnerSessionFile(tmp.path),
         throwsA(
           isA<FormatException>().having(
             (final e) => e.message,
@@ -457,21 +491,22 @@ void main() {
     });
 
     test('incomplete files are rejected with the field list', () async {
-      final tmp = await Directory.systemTemp.createTemp('oka_session_json');
+      final tmp = await Directory.systemTemp.createTemp('oka_runner_session');
       addTearDown(() => tmp.delete(recursive: true));
-      final f = File(sessionJsonFilePath(tmp.path));
+      final f = File(runnerSessionFilePath(tmp.path));
       await f.parent.create(recursive: true);
       f.writeAsStringSync(jsonEncode({'schema': 1}));
       expect(
-        () => readSessionJsonFile(tmp.path),
+        () => readRunnerSessionFile(tmp.path),
         throwsA(isA<FormatException>()),
       );
     });
   });
 
-  group('vm.uri + session.json lifecycle (write on ready, both cleared on exit)',
-      () {
-    test('onReady writes session.json; teardown clears both files',
+  group('vm.uri + runner-session.json lifecycle (write on ready, both cleared '
+      'on exit)', () {
+    test('onReady writes the spec-v2 file; teardown clears both files; the '
+        'old .oka_cache/dev/session.json path is no longer written',
         () async {
       final h = await _Harness.start();
       await h.waitReady();
@@ -479,11 +514,18 @@ void main() {
       // lifecycle round-trip.
       await writeVmUriFile(h.projectDir.path, 'ws://127.0.0.1:65462/TOK/ws');
       expect(
-        File(sessionJsonFilePath(h.projectDir.path)).existsSync(),
+        File(runnerSessionFilePath(h.projectDir.path)).existsSync(),
         isTrue,
-        reason: 'session.json is written at session.ready',
+        reason: 'runner-session.json is written at session.ready',
       );
-      final d = readSessionJsonFile(h.projectDir.path)!;
+      // The contract moved — the old .oka_cache/dev/session.json must not
+      // come back.
+      expect(
+        File(p.join(h.projectDir.path, '.oka_cache', 'dev', 'session.json'))
+            .existsSync(),
+        isFalse,
+      );
+      final d = readRunnerSessionFile(h.projectDir.path)!;
       expect(d.controlPort, h.server.port);
       expect(d.deviceId, 'emulator-5554');
       expect(d.pid, greaterThan(0));
@@ -493,7 +535,7 @@ void main() {
       await h.teardown();
       expect(File(vmUriFilePath(h.projectDir.path)).existsSync(), isFalse);
       expect(
-        File(sessionJsonFilePath(h.projectDir.path)).existsSync(),
+        File(runnerSessionFilePath(h.projectDir.path)).existsSync(),
         isFalse,
       );
       h.projectDir.deleteSync(recursive: true);

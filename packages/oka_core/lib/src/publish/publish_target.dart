@@ -21,6 +21,7 @@ class PublishPlan {
     required this.artifactId,
     required this.artifactPath,
     required this.dryRun,
+    this.artifactIsDirectory = false,
     this.metadata = const {},
     this.credentials = const [],
   });
@@ -44,6 +45,7 @@ class PublishPlan {
             ),
         ],
         dryRun: json['dryRun']?.toString() == 'true',
+        artifactIsDirectory: json['artifactIsDirectory']?.toString() == 'true',
       );
 
   /// Target name ([Target.name]).
@@ -70,12 +72,19 @@ class PublishPlan {
   /// Whether this plan describes a dry run.
   final bool dryRun;
 
+  /// Whether [artifactPath] refers to a **directory** rather than a single
+  /// file — the directory-artifact convention (ADR-0016 §2): web deploy
+  /// targets reference a directory path (e.g. `build/web`) as the publish
+  /// artifact; file targets (AAB uploads, zips) leave this false.
+  final bool artifactIsDirectory;
+
   /// Human/agent-readable description of exactly what a real run would do.
   List<String> describeLines() => [
         'target: $target${dryRun ? ' (dry run — nothing was uploaded)' : ''}',
         'endpoint: $endpoint',
         'track: $track',
-        'artifact: $artifactId → $artifactPath',
+        'artifact: $artifactId → $artifactPath'
+            '${artifactIsDirectory ? ' (directory)' : ''}',
         for (final e in metadata.entries) 'metadata.${e.key}: ${e.value}',
         for (final c in credentials) 'credential: $c',
       ];
@@ -86,6 +95,7 @@ class PublishPlan {
         'track': track,
         'artifactId': artifactId,
         'artifactPath': artifactPath,
+        if (artifactIsDirectory) 'artifactIsDirectory': true,
         'metadata': metadata,
         'credentials': [
           for (final c in credentials)
@@ -108,6 +118,7 @@ class PublishPlan {
       other.track == track &&
       other.artifactId == artifactId &&
       other.artifactPath == artifactPath &&
+      other.artifactIsDirectory == artifactIsDirectory &&
       other.dryRun == dryRun &&
       _mapsEqual(other.metadata, metadata) &&
       _listsEqual(other.credentials, credentials);
@@ -119,6 +130,7 @@ class PublishPlan {
         track,
         artifactId,
         artifactPath,
+        artifactIsDirectory,
         dryRun,
         Object.hashAll(metadata.keys),
         Object.hashAll(credentials),
@@ -126,7 +138,9 @@ class PublishPlan {
 
   @override
   String toString() => 'PublishPlan($target → $endpoint, track $track, '
-      'artifact $artifactId${dryRun ? ', dry run' : ''})';
+      'artifact $artifactId'
+      '${artifactIsDirectory ? ' (directory)' : ''}'
+      '${dryRun ? ', dry run' : ''})';
 }
 
 bool _mapsEqual(final Map<String, String> a, final Map<String, String> b) =>
@@ -214,6 +228,18 @@ abstract class PublishTarget extends Target {
   /// by [publishSteps] so the dry-run chain validates the artifact path.
   String get artifactId;
 
+  /// Whether [artifactId] references a **directory** rather than a single
+  /// file — the directory-artifact convention (ADR-0016 §2).
+  ///
+  /// Convention: web/static-site deploy targets (GitHub Pages, itch.io
+  /// via butler, generic store zips over `WebZipStep`) reference a
+  /// directory path (`build/web`) as the publish artifact; file targets
+  /// (AAB uploads, zip files) are unchanged and keep this `false` (the
+  /// default). The conformance suite (`auditPublishConformance`) asserts
+  /// the declared kind when the artifact path exists on disk: a
+  /// directory-artifact target must never point at a file.
+  bool get artifactIsDirectory => false;
+
   /// Non-secret upload metadata (version, release notes reference, …).
   Map<String, String> get metadata => const {};
 
@@ -244,6 +270,7 @@ abstract class PublishTarget extends Target {
         metadata: Map.unmodifiable(metadata),
         credentials: List.unmodifiable(credentialRefs),
         dryRun: dryRun,
+        artifactIsDirectory: artifactIsDirectory,
       );
 
   @override

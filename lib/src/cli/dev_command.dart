@@ -77,7 +77,7 @@ class DevCommand {
             'TCP port for the loopback JSON-lines control server (the '
             'delegation channel for out-of-process tools — no auth, '
             'localhost-only). Default: ephemeral; the chosen port is '
-            'written to .oka_cache/dev/session.json',
+            'written to .flutter_mcp/runner-session.json',
       )
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
       ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help');
@@ -173,7 +173,7 @@ class DevCommand {
       stderr.writeln(
         '[control] loopback delegation channel on '
         '127.0.0.1:${controlServer.port} (no auth, localhost-only; '
-        'discovered via .oka_cache/dev/session.json)',
+        'discovered via .flutter_mcp/runner-session.json)',
       );
     }
 
@@ -207,11 +207,11 @@ class DevCommand {
           commands: control.stream,
           verbose: verbose,
           rebuildOnNative: results['rebuild-on-native'] as bool,
-          // Delegation channel: session.json at each ready (the forwarded
-          // host-reachable endpoint of THIS attach round), real outcomes
-          // fed back to waiting control clients.
+          // Delegation channel: the spec-v2 runner-session file at each
+          // ready (the forwarded host-reachable endpoint of THIS attach
+          // round), real outcomes fed back to waiting control clients.
           onReady:
-              () => writeSessionJsonFile(
+              () => writeRunnerSessionFile(
                 projectPath,
                 vmServiceUri: prepared.vmServiceUri,
                 controlPort: controlServer.port,
@@ -244,7 +244,7 @@ class DevCommand {
     } finally {
       await controlServer.close();
       await clearVmUriFile(projectPath);
-      await clearSessionJsonFile(projectPath);
+      await clearRunnerSessionFile(projectPath);
     }
     exit(code);
   }
@@ -397,7 +397,9 @@ stdin: reload / restart / stop / detach / quit.
 Delegation channel (--control-port): a loopback JSON-lines TCP server
 (no auth — localhost-only dev tool) that drives reload/restart/stop
 through the owning session; port + forwarded VM endpoint are published
-to .oka_cache/dev/session.json at session.ready and deleted on exit.
+to .flutter_mcp/runner-session.json (the toolkit-neutral Dart dev session
+contract, spec v2 — oka is the first conforming runner) at session.ready
+and deleted on exit.
 
 The session manifest (run_session.json, recorded by `oka build apk
 --debug`) is validated against the requested flags; a mismatch refuses

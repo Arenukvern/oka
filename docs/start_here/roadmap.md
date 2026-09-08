@@ -46,12 +46,18 @@ Work is grouped by horizon, not by date:
   loopback JSON-lines control server maps reload / restart / stop / status
   onto the owning flutter-tool daemon session (the only compile-capable
   channel; late-attach VM-service reloads are silent no-ops), with
-  `.oka_cache/dev/session.json` discovery and no-auth localhost binding
-  documented as such. Evidence: `test/adr0011_control_server_test.dart`
-  (real loopback sockets against the scripted-fake session), the
-  session.json lifecycle in `test/adr0011_dev_session_test.dart`, and the
-  editor wiring in `docs/guides/hot_reload_plan.md` — prerequisite for the
-  mcp_flutter `OkaDevSession` runner adapter.
+  discovery per the frozen spec v2 Dart dev session contract and no-auth
+  localhost binding documented as such. The spec-v2 runner-session file
+  (`<project>/.flutter_mcp/runner-session.json` — sibling of the
+  toolkit's `state.json`, overridable via the toolkit's
+  `--runner-session-file`; written at `session.ready` with the
+  `runner: "oka-dev"` display field, deleted on every exit path) makes
+  oka the FIRST CONFORMING RUNNER: the toolkit never learns oka's name —
+  its adapter consumes the file. Evidence:
+  `test/adr0011_control_server_test.dart` (real loopback sockets against
+  the scripted-fake session), the runner-session lifecycle in
+  `test/adr0011_dev_session_test.dart`, and the editor wiring in
+  `docs/guides/hot_reload_plan.md`.
 - **Doctor and cache polish.** The secret audit and `oka cache gc` are
   live; they grow only where real gaps show up (new secret-ish key
   patterns) or where the store already records the data (age/size

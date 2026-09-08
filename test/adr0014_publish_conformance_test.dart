@@ -266,4 +266,105 @@ void main() {
           'PublishTarget(publish-fixture [dry-run])');
     });
   });
+
+  group('directory-artifact convention (ADR-0016 W2)', () {
+    test('artifactIsDirectory defaults to false (file targets unchanged)', () {
+      expect(const FixturePublishTarget().artifactIsDirectory, isFalse);
+      final state = PipelineState();
+      expect(const FixturePublishTarget().plan(_ctx(tmp), artifactPath: 'x'),
+          isNot(
+              predicate<PublishPlan>((final p) => p.artifactIsDirectory)));
+    });
+
+    test('a directory target with a real directory passes the suite',
+        () async {
+      final web = Directory(p.join(tmp.path, 'build', 'web'))
+        ..createSync(recursive: true);
+      File(p.join(web.path, 'index.html')).writeAsStringSync('<html/>');
+      final violations = await auditPublishConformance(
+        DirectoryArtifactTarget(artifactPath: web.path),
+        _ctx(tmp),
+      );
+      expect(violations, isEmpty);
+    });
+
+    test('a directory target pointing at a file violates the convention',
+        () async {
+      final file = File(p.join(tmp.path, 'artifact.zip'))
+        ..writeAsStringSync('zip');
+      final violations = await auditPublishConformance(
+        DirectoryArtifactTarget(artifactPath: file.path),
+        _ctx(tmp),
+      );
+      expect(violations.join(' '), contains('directory-artifact convention'));
+    });
+
+    test('a directory target with a missing path still passes (law 1)',
+        () async {
+      final violations = await auditPublishConformance(
+        DirectoryArtifactTarget(
+            artifactPath: p.join(tmp.path, 'never-built', 'web')),
+        _ctx(tmp),
+      );
+      expect(violations, isEmpty);
+    });
+  });
+}
+
+/// Fixture: a directory-artifact publish target (ADR-0016 §2) whose staging
+/// step records [artifactPath] verbatim — for asserting the conformance
+/// suite checks the declared artifact kind.
+class DirectoryArtifactTarget extends PublishTarget {
+  const DirectoryArtifactTarget({required this.artifactPath});
+
+  final String artifactPath;
+
+  @override
+  bool get dryRun => true;
+
+  @override
+  bool get artifactIsDirectory => true;
+
+  @override
+  String get name => 'publish-directory-fixture';
+
+  @override
+  String get description => 'Fixture directory-artifact target';
+
+  @override
+  String get endpoint => 'Directory Deploy API';
+
+  @override
+  String get track => 'web';
+
+  @override
+  String get artifactId => 'web-dir';
+
+  @override
+  List<BuildStep> publishSteps(final BuildContext ctx) =>
+      [_StageDirectoryStep(artifactPath)];
+
+  @override
+  BuildStep uploadStep(final BuildContext ctx) =>
+      throw UnimplementedError('never executed: conformance is dry-run only');
+}
+
+class _StageDirectoryStep extends BuildStep {
+  _StageDirectoryStep(this.path);
+
+  static const dir = Artifact<String>('web-dir');
+
+  final String path;
+
+  @override
+  String get name => 'stage-directory';
+
+  @override
+  Set<Artifact<Object>> get provides => {dir};
+
+  @override
+  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+    state[dir.id] = path;
+    return Future<StepResult>.value(StepResult.success());
+  }
 }

@@ -26,5 +26,7 @@ dependencies:
 
 dev_dependencies:
   lints: ^6.1.0
+  # The conformance suite every publish target must pass in tests.
+  oka_conformance: ^0.1.6
   test: ^1.25.0
   xsoulspace_lints: ^0.1.2
