@@ -1,0 +1,179 @@
+# 0016 — Web shell station and store contribution contract (not a platform)
+
+- **Status:** accepted
+- **Date:** 2026-09-07
+- **Decision-makers:** Anton, oka agent
+
+## Context
+
+Web app distribution is fragmented across many "stores" — Yandex Games,
+CrazyGames, VK Play, itch.io, Discord Activities, Snap, Steam — plus plain
+hosting (GitHub Pages, Firebase Hosting). Each store requires its own
+`web/index.html` edits (SDK `<script>` tags with ordering constraints, ads
+harnesses, meta), its own base href, and often its own dart-defines. The
+compile step (`flutter build web`) needs nothing oka-shaped — the north-star
+doc is right about that — but the **configuration and distribution layer**
+exhibits oka's exact target pathology, with production evidence:
+
+- **Branch-per-store drift** (word_by_word_game): long-lived `release/web`,
+  `release/ya-games`, `release/crazy-games`, `release/itch`, `release/vkplay`,
+  `release/snapstore` branches exist *only* to hold per-store `web/` diffs.
+  The `release/ya-games` branch carries a Flutter template frozen at branch
+  time (old `flutter.js`/`serviceWorkerVersion` bootstrap) — every store
+  branch pays the Flutter-template-version tax separately and blocks Flutter
+  upgrades. Integrations are toggled by commenting/uncommenting `<script>`
+  blocks in hand-edited HTML.
+- **Runtime-loader duplication** (dart_flutter_packages/pkgs): the store
+  adapter packages (`xsoulspace_platform_yandex_games`,
+  `xsoulspace_platform_crazygames`, `xsoulspace_platform_vkplay`, …) each
+  re-implement the same `sdkUrl` / `autoLoadSdk` / `sdkScriptLoader` /
+  `expectedSdkGlobal` escape hatch — a runtime workaround for the missing
+  build-time layer, duplicated N times, and too late to fix script ordering.
+- **README-driven index.html edits**: each `_js` package documents a
+  "prerequisite in `web/index.html`" snippet that humans and agents
+  hand-copy — untyped, unverifiable, drift-prone.
+
+The two-axis law (ADR-0013) already solved this shape for native stores:
+stores are **distribution targets composed over one platform build**, never
+platform forks. Web stores are the same — with one twist: a store
+contributes **build-time configuration artifacts** (ordered script/link
+entries, SDK globals, per-store base href and defines), not just an upload.
+
+## Decision
+
+Chosen: **a web shell station package (`oka_web`) — typed shell
+composition with a replaceable emitter — plus store contributions and web
+deploy targets. Web is explicitly NOT a `PlatformPipeline`.**
+
+### 1. Two seams: contribution (what) × emitter (how)
+
+- **`WebShellContribution`** — typed, const-constructible values describing
+  *what* goes into the shell: ordered head entries (meta, links, scripts
+  with declarative phases: `preconnect` → `storeSdk` → `app`), body entries
+  (loading containers, noscript), PWA manifest fields, and base-href /
+  dart-define overrides. Provided by the project, by store packages (const
+  factories, composed by the user in the entrypoint — no hidden merging,
+  per ADR-0010), and by oka's own stations (icons, PWA manifest).
+- **`ShellEmitter`** — the *how* seam, a replaceable default (ADR-0007
+  resolver-service law). The emitter is fully responsible for rendering the
+  composed shell and **declares what it owns**; the drift gate validates
+  owned regions against the composition. Three implementations are
+  first-party from day one:
+  1. **Generate emitter (default)** — oka owns `web/index.html` +
+     `web/manifest.json`, written with generated-content banners. Template
+     version-coupling to Flutter is contained *inside* this one class.
+  2. **Inject emitter (first-party, day one)** — for existing apps with
+     hand-maintained `web/index.html` (production reality: custom JS, ads,
+     analytics). Injects composed entries between explicit markers
+     (`<!-- oka:begin:head -->` … `<!-- oka:end:head -->`); fails with an
+     actionable message when markers are absent — never silently rewrites
+     unowned regions.
+  3. **Custom emitters** — projects may replace the "how" entirely; the
+     contribution contract stays stable across emitters.
+
+### 2. Targets, not verbs, not pipelines
+
+Shipped as `Target`s (ADR-0015), composed from the entrypoint:
+
+- **`web-shell`** — compose + emit the shell (dry-runnable: `oka explain`
+  renders the composed shell and the plan before anything writes).
+- **`web-build`** — an *explicit, honest delegation* to `flutter build web`.
+  This does not violate the no-Gradle law (ADR-0001 governs the Android
+  default path; web has no oka-owned path to protect). Delegation is named
+  as delegation, never claimed as an oka pipeline.
+- **Deploy targets (P2)** — `publish-gh-pages`, `publish-itch` (butler),
+  generic zip packaging, per ADR-0014 `PublishTarget` with the
+  **directory-artifact convention**: `artifactId` may reference a directory;
+  `WebZipStep` produces file artifacts for stores that upload zips.
+
+### 3. Store contributions as the third-party extension point pilot
+
+Store/runtime packages export const `WebShellContribution`s alongside their
+runtime adapters (the `xsoulspace_platform_*` ecosystem is the pilot). The
+contribution declares the store's SDK script (URL, phase, required global);
+`oka doctor` and the shell gate verify the composed output provides the
+required global — build-time and run-time knowledge reconciled instead of
+duplicated.
+
+### 4. Icons: declare, don't rasterize (yet)
+
+`WebIconSpec` declares existing PNG paths per required size (192, 512,
+maskable, favicon); validation checks existence and dimensions. Generating
+PNGs from a single vector source requires an image-toolkit decision (ADR-0003
+avoided PNG tooling for Android adaptive icons because they are vector XML;
+web manifest icons are not) — deferred, tracked in PHASE_CHECKLIST.
+
+### Out of scope (explicit)
+
+- A web `PlatformPipeline` — `flutter build web` stays delegated.
+- JS bundling, workbox configuration, service-worker logic — store SDK
+  scripts are declarative entries; their build tooling stays theirs.
+- Store API clients / upload credentials — deploy targets follow ADR-0014's
+  credential-ref model; dashboards stay a valid path.
+- Absorbing runtime adapters (`expectedSdkGlobal` probing, capability
+  negotiation) — those remain in the platform/runtime packages.
+
+## Alternatives considered
+
+- **Full web platform pipeline** — rejected: reimplements nothing oka
+  needs to own, violates depth-before-breadth, and the compile step has no
+  lock-in to abolish (north-star point 6 stands for the compile path).
+- **Generation only (no inject emitter)** — rejected: big-bang migration
+  wall for every existing app with hand-tuned index.html; adoption dies at
+  the first legacy script block.
+- **Injection only** — rejected as the sole path: preserves hand-written
+  HTML as untyped source of truth; store packages cannot reason about it;
+  drift persists.
+- **Status quo (runtime-only SDK loading, branch-per-store)** — rejected:
+  this *is* the evidence. Ordering constraints unfixable at runtime; every
+  store branch pays the template-upgrade tax separately; N duplicated
+  script loaders.
+- **Marker-comment injection into user HTML as the oka-native path** —
+  rejected: string surgery on untyped files is the drift oka exists to
+  kill; kept only as the migration emitter.
+
+## Consequences
+
+Good:
+- Branch-per-store collapses to per-store targets over one codebase; store
+  additions stop being index.html surgery.
+- Flutter template coupling is contained in one replaceable class with a
+  drift gate; store branches stop blocking Flutter upgrades.
+- The target-package extension point (open PHASE_CHECKLIST question,
+  previously framed around `oka_rustore`) is proven with real consumers —
+  the store packages ship contributions, not forks.
+- `oka explain` renders the composed shell before anything writes; the
+  agent contract extends to web distribution.
+
+Bad / Neutral:
+- `oka_web` is a new quasi-public API surface (`WebShellContribution`,
+  `ShellEmitter`, entry types) → semver discipline applies.
+- The default emitter must track Flutter's web template evolution — a
+  standing maintenance tax, now explicit and localized instead of scattered
+  across store branches.
+- Injection depends on marker discipline in legacy files; first-run
+  migration is a manual (documented, agent-doable) step.
+- Directory-artifact convention in `PublishTarget` is a contract loosening
+  (path may be a directory) — conformance suites must assert the declared
+  kind.
+
+## Phased plan
+
+Tracked in `docs/PHASE_CHECKLIST.md` (W0–W3).
+
+- **W0 — `oka_web` package**: typed spec/contribution/entry values,
+  generate + inject emitters, emit + zip steps, `web-shell` / `web-build`
+  targets, conformance + unit tests. Gate: ADR-0016 (this document).
+- **W1 — drift gate + guide**: `oka explain --targets` renders the shell;
+  drift check compares owned regions; `docs/guides/web_shell_station.md`
+  with the migration path (markers → inject → optional generate).
+- **W2 — deploy targets**: `publish-gh-pages`, `publish-itch` (butler),
+  `WebZipStep`; directory-artifact convention asserted in conformance.
+  Gate: W0.
+- **W3 — store-contribution pilot**: ship const contributions from one
+  store package (Yandex Games), delete a store branch in a real app as
+  evidence. Gate: W0 + a willing production app.
+
+**Authoritative source:** `packages/oka_web/` (once W0 lands), this ADR,
+`docs/PHASE_CHECKLIST.md` (progress), `docs/guides/web_shell_station.md`
+(usage, W1).

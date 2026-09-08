@@ -115,6 +115,7 @@ export 'src/dependency_plan.dart';
 // in the CLI verb layer). Provisioning (ADR-0013 T2) is store-backed.
 // ADR-0011 H1/H2: session manifest + adb tool layer.
 export 'src/dev/adb_tool.dart';
+export 'src/dev/control_server.dart';
 export 'src/dev/daemon_adapter.dart';
 export 'src/dev/dev_doctor.dart';
 export 'src/dev/dev_session.dart';

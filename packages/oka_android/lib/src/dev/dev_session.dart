@@ -204,6 +204,130 @@ Future<void> clearVmUriFile(final String projectPath) async {
   }
 }
 
+/// Path of the live dev-session discovery file:
+/// `<project>/.oka_cache/dev/session.json` — the delegation-channel
+/// discovery record written at each `session.ready` and deleted on session
+/// exit. Readers reject unknown `schema` values; absent file = no live
+/// session.
+String sessionJsonFilePath(final String projectPath) =>
+    p.join(projectPath, '.oka_cache', 'dev', 'session.json');
+
+/// Writes the session discovery file (best-effort, same law as the
+/// vm.uri file: a failed write must never break the dev session).
+/// `vmServiceUri` is the FORWARDED host-reachable endpoint (same value
+/// the vm.uri file carries); `controlPort` is the loopback delegation
+/// server's chosen port (ephemeral by default — only discoverable here).
+Future<void> writeSessionJsonFile(
+  final String projectPath, {
+  required final String vmServiceUri,
+  required final int controlPort,
+  required final String deviceId,
+  final int? processPid,
+  final DateTime? startedAt,
+}) async {
+  try {
+    final f = File(sessionJsonFilePath(projectPath));
+    await f.parent.create(recursive: true);
+    final map = <String, Object?>{
+      'schema': 1,
+      'vm_service_uri': vmServiceUri,
+      'control_port': controlPort,
+      'device_id': deviceId,
+      'pid': processPid ?? pid,
+      'started_at':
+          (startedAt ?? DateTime.now().toUtc()).toIso8601String(),
+    };
+    await f.writeAsString(
+      '${const JsonEncoder.withIndent('  ').convert(map)}\n',
+      flush: true,
+    );
+  } on FileSystemException {
+    // best-effort — the session itself does not depend on the file.
+  }
+}
+
+/// Removes the session discovery file (session over → no live channel).
+Future<void> clearSessionJsonFile(final String projectPath) async {
+  try {
+    await File(sessionJsonFilePath(projectPath)).delete();
+  } on FileSystemException {
+    // already gone — fine.
+  }
+}
+
+/// Typed view of `.oka_cache/dev/session.json` (see
+/// [readSessionJsonFile]).
+class DevSessionDiscovery {
+  const DevSessionDiscovery({
+    required this.vmServiceUri,
+    required this.controlPort,
+    required this.deviceId,
+    required this.pid,
+    required this.startedAt,
+  });
+
+  /// The FORWARDED host-reachable VM service endpoint — pass it as the
+  /// flutter MCP toolkit connection override `{mode: 'uri', uri: ...}`.
+  final String vmServiceUri;
+
+  /// Loopback delegation-channel port (no auth — localhost-only tool).
+  final int controlPort;
+
+  final String deviceId;
+  final int pid;
+  final DateTime startedAt;
+}
+
+/// Reads the session discovery file: `null` when absent (no live
+/// session); [FormatException] when the file exists but is unreadable or
+/// carries an unknown `schema` (readers reject unknown schema values).
+DevSessionDiscovery? readSessionJsonFile(final String projectPath) {
+  final f = File(sessionJsonFilePath(projectPath));
+  if (!f.existsSync()) return null;
+  late final Map<String, Object?> json;
+  try {
+    json = (jsonDecode(f.readAsStringSync()) as Map).cast<String, Object?>();
+  } on FormatException catch (e) {
+    throw FormatException(
+      'Unreadable ${sessionJsonFilePath(projectPath)}: ${e.message}\n'
+      '   fix: delete the stale file (or let the owning `oka dev` exit — '
+      'it clears it) and re-run.',
+    );
+  }
+  final schema = json['schema'];
+  if (schema != 1) {
+    throw FormatException(
+      'Unsupported session.json schema: $schema (supported: 1).\n'
+      '   fix: re-run `oka dev` to rewrite the file with the current '
+      'schema, or upgrade the reader.',
+    );
+  }
+  final uri = json['vm_service_uri'];
+  final port = json['control_port'];
+  final device = json['device_id'];
+  final pid = json['pid'];
+  final startedAt = json['started_at'];
+  if (uri is! String ||
+      port is! int ||
+      device is! String ||
+      pid is! int ||
+      startedAt is! String) {
+    throw FormatException(
+      'Incomplete ${sessionJsonFilePath(projectPath)} — all fields '
+      '(schema, vm_service_uri, control_port, device_id, pid, '
+      'started_at) are required.\n'
+      '   fix: re-run `oka dev` to rewrite the file.',
+    );
+  }
+  return DevSessionDiscovery(
+    vmServiceUri: uri,
+    controlPort: port,
+    deviceId: device,
+    pid: pid,
+    startedAt: DateTime.parse(startedAt),
+  );
+}
+
 /// Runs the device half of `oka dev` through the same validated [Pipeline]
 /// as every other flow (ADR-0002): the [DeviceTarget] steps (resolve newest
 /// APK → install → launch → logcat failure scan) followed by the H2
@@ -373,6 +497,8 @@ class DevSession {
     this.verbose = false,
     this.rebuildOnNative = false,
     this.startupTimeout = const Duration(seconds: 90),
+    this.onReady,
+    this.onResult,
   });
 
   /// The spawned daemon adapter (real process or scripted fake).
@@ -401,6 +527,17 @@ class DevSession {
   final bool rebuildOnNative;
 
   final Duration startupTimeout;
+
+  /// Invoked once the session reaches `session.ready` (the discovery-file
+  /// hook — `oka dev` writes `.oka_cache/dev/session.json` here). Purely
+  /// additive: rendering is unchanged.
+  final void Function()? onReady;
+
+  /// Structured result hook for out-of-process delegation (the loopback
+  /// control server): invoked from [_emit] for `reload.result`,
+  /// `restart.result`, `restart.fallback`, and `app.stopped` with the
+  /// event's data. Purely additive: rendering is unchanged.
+  final void Function(String event, Map<String, Object?> data)? onResult;
 
   final _commandGate = Completer<DevSessionOutcome>();
   final _queued = <DevControlCommand>[];
@@ -668,6 +805,16 @@ class DevSession {
   }
 
   void _emit(final String event, final Map<String, Object?> data) {
+    // Additive hooks (delegation channel) — never affect rendering.
+    switch (event) {
+      case 'session.ready':
+        onReady?.call();
+      case 'reload.result' ||
+          'restart.result' ||
+          'restart.fallback' ||
+          'app.stopped':
+        onResult?.call(event, data);
+    }
     if (json) {
       _emitJson(event, data);
       return;

@@ -42,15 +42,16 @@ Work is grouped by horizon, not by date:
   one-time transcript. The emulator lifecycle is now composable
   (`oka run emulator`, `EmulatorTarget` — create-if-missing, idempotent
   boot, serial artifact), so the CI tier composes the same target.
-- **`oka dev --control-port` (delegation channel).** The flutter MCP
-  toolkit's hot reload is a compile-capable operation only through the
-  owning flutter-tool daemon; out-of-process tools need a control channel
-  (small TCP JSON-lines server mapping to the daemon protocol). Prerequisite
-  for the mcp_flutter `OkaDevSession` runner adapter — see
-  mcp_flutter `docs/guides/dev-session-delegation-roadmap.mdx` (root cause:
-  VM-service `ServiceRegistered` events never replay already-registered
-  services, so late-attach tool reloads are silent no-ops; delegation to the
-  owning session is the only correct compile channel).
+- **`oka dev --control-port` (delegation channel) — shipped.** The
+  loopback JSON-lines control server maps reload / restart / stop / status
+  onto the owning flutter-tool daemon session (the only compile-capable
+  channel; late-attach VM-service reloads are silent no-ops), with
+  `.oka_cache/dev/session.json` discovery and no-auth localhost binding
+  documented as such. Evidence: `test/adr0011_control_server_test.dart`
+  (real loopback sockets against the scripted-fake session), the
+  session.json lifecycle in `test/adr0011_dev_session_test.dart`, and the
+  editor wiring in `docs/guides/hot_reload_plan.md` — prerequisite for the
+  mcp_flutter `OkaDevSession` runner adapter.
 - **Doctor and cache polish.** The secret audit and `oka cache gc` are
   live; they grow only where real gaps show up (new secret-ish key
   patterns) or where the store already records the data (age/size

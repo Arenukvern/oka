@@ -80,8 +80,13 @@ Dart file and running one command.
 ## What oka does not own
 
 - Full Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK).
-- iOS/desktop/web builds — **not yet, and criteria-gated** (below); the core
+- iOS/desktop builds — **not yet, and criteria-gated** (below); the core
   contracts are already platform-agnostic (ADR-0006 package split).
+- **A web platform pipeline** — web compiles via delegated
+  `flutter build web` (`oka run web-build`), never an oka-owned path.
+  What oka *does* own for web is the configuration and distribution layer:
+  the typed shell station + store contribution contract + deploy targets
+  ([ADR 0016](decisions/0016-web-shell-station-store-contributions.md)).
 - **Store API clients and credentials** — publishing targets (Play,
   AppGallery, RuStore) are separate packages composed on top of a platform
   build, with their own ADR (ADR-0013's two-axis law: distribution targets
@@ -119,8 +124,11 @@ One platform proves the model; the model is built for many. Expansion is
    handle worst. Gated on an ADR proving the pipeline model maps
    (assemble → compile → codesign → validate) plus real demand signal.
 6. **Cheap third: desktop** (e.g. Windows MSIX — production projects already
-   use it). **Web needs nothing oka-shaped** — `flutter build web` is
-   already declarative and fast; oka adds no value there.
+   use it). **Web's compile step needs nothing oka-shaped** — `flutter build
+   web` is already declarative and fast — but its configuration and store
+   layer does (branch-per-store drift, per-store index.html surgery):
+   served by the ADR-0016 shell station + store contributions, explicitly
+   not a platform pipeline.
 7. **Stay in the wedge.** Oka is not a general build orchestrator (that's
    bazel/just/melos territory). The wedge is Flutter + agent-native +
    no-Gradle. Every expansion should tighten that wedge, not dilute it.

@@ -469,6 +469,62 @@ emulator.
 > hot restart are `app.restart` with `fullRestart` false / true and a
 > required `appId`).
 
+## Wiring an editor or agent to the delegation channel
+
+Out-of-process tools (the flutter MCP toolkit's `OkaDevSession` adapter,
+editors) must drive reload / restart through the **owning** `oka dev`
+session — the only compile-capable channel. A late-attached VM-service
+connection cannot compile: `ServiceRegistered` events never replay
+already-registered services, so reloads sent directly over the VM wire are
+**silent no-ops**. The delegation channel exists for exactly this.
+
+1. **Run the session with the channel on:** `oka dev --control-port <port>`
+   (or omit the flag for an ephemeral port).
+2. **Discover the session:** read `.oka_cache/dev/session.json` under the
+   project while `oka dev` runs. All fields are required; `schema` is `1`
+   (readers must reject unknown schema values). The file is deleted on
+   session exit — an absent file means no live session. `vm_service_uri`
+   is the forwarded, host-reachable endpoint (the same line
+   `.oka_cache/dev/vm.uri` carries); `control_port` is the delegation
+   channel; `pid` lets you detect a dead owner.
+3. **Give the toolkit the VM endpoint for reads** (widgets, screenshots,
+   evaluate): pass the toolkit's connection override with the exact URI
+   from the file — `connection: {"mode": "uri", "uri":
+   "<vm_service_uri>"}` (`mode: 'uri'` + `uri` is the toolkit's safest
+   selector; it preserves the tokenized VM path exactly — never use
+   `host:port` as `targetId`). URI-shaped `targetId` values are also
+   accepted.
+4. **Delegate reload/restart/stop through the control port** (raw TCP to
+   `127.0.0.1:<control_port>`, JSON lines, **no auth — localhost-only dev
+   tool**):
+
+   ```json
+   {"id": 1, "method": "reload"}
+   ```
+
+   → `{"id": 1, "ok": true, "result": {}}` carries the ACTUAL daemon
+   outcome. `restart` answers `"fallback": true` when the attach-mode
+   fallback (relaunch + re-attach) triggered. Errors are per-id
+   (`{"id": …, "ok": false, "error": "<fix>"}`); malformed JSON and
+   unknown methods answer in-band and keep the connection open.
+   `status` answers from session metadata (device/target/mode).
+5. **Handle EOF by re-reading session.json.** The connection may close on
+   fallback / session end; a new session owns a new `vm_service_uri` and a
+   new `control_port`.
+
+> ### Delegation-channel evidence (filled 2026-09-08)
+>
+> `test/adr0011_control_server_test.dart` drives the server over real
+> loopback sockets against the scripted-fake DevSession: reload → the real
+> daemon outcome; restart with a silent `app.restart` → `fallback: true`
+> response then EOF on server close; stop; status (no daemon round-trip);
+> malformed JSON / unknown method → per-id error with the connection kept
+> open; sequential clients; bounded timeout; port discovered from
+> session.json. The session.json schema-rejection + write-on-ready /
+> clear-on-exit lifecycle is covered alongside. The CLI surface is
+> parse-and-delegate only (`lib/src/cli/dev_command.dart`), so the
+> ADR-0015 leakage gate stays green.
+
 ## Gotchas (encode these, regardless of phase)
 
 - Debug (JIT) only — refuse profile/release loudly.

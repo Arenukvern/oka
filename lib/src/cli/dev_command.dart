@@ -70,6 +70,15 @@ class DevCommand {
             'With --watch: automatically rebuild + reinstall + relaunch '
             '+ re-attach on native changes',
       )
+      ..addOption(
+        'control-port',
+        defaultsTo: '0',
+        help:
+            'TCP port for the loopback JSON-lines control server (the '
+            'delegation channel for out-of-process tools — no auth, '
+            'localhost-only). Default: ephemeral; the chosen port is '
+            'written to .oka_cache/dev/session.json',
+      )
       ..addFlag('verbose', abbr: 'v', negatable: false, help: 'Verbose output')
       ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help');
 
@@ -88,6 +97,18 @@ class DevCommand {
     final json = results['json'] as bool;
     final watch = results['watch'] as bool;
     final verbose = results['verbose'] as bool;
+    final controlPortArg = (results['control-port'] as String?)?.trim();
+    final controlPort =
+        controlPortArg == null || controlPortArg.isEmpty
+            ? 0
+            : int.tryParse(controlPortArg);
+    if (controlPort == null || controlPort < 0 || controlPort > 65535) {
+      stderr.writeln(
+        '❌ --control-port must be an integer between 0 and 65535 '
+        '(0 = ephemeral).',
+      );
+      exit(2);
+    }
 
     print('🚀 Oka Development Mode\n');
 
@@ -133,8 +154,28 @@ class DevCommand {
     }
     final deviceId = selection.device!.id;
 
-    // One control-command source shared by keyboard / stdin / watcher.
+    // One control-command source shared by keyboard / stdin / watcher /
+    // the loopback control server (delegation channel).
     final control = StreamController<DevControlCommand>.broadcast();
+
+    // The delegation channel binds before the flow runs and closes after
+    // it ends (every exit path clears it plus both discovery files).
+    final controlServer = await DevControlServer.start(
+      port: controlPort,
+      info: DevControlSessionInfo(
+        deviceId: deviceId,
+        target: session.targetFile,
+        mode: session.buildMode,
+      ),
+      onCommand: control.add,
+    );
+    if (verbose) {
+      stderr.writeln(
+        '[control] loopback delegation channel on '
+        '127.0.0.1:${controlServer.port} (no auth, localhost-only; '
+        'discovered via .oka_cache/dev/session.json)',
+      );
+    }
 
     final flow = DevFlow(
       // Device half (install/launch/logscan via the DeviceTarget steps +
@@ -143,7 +184,7 @@ class DevCommand {
       prepare: () async {
         // Device half first (install/launch/logscan + VM-service steps);
         // a failure throws DevLaunchException, handled by DevFlow.
-        await prepareDevLaunch(
+        final prepared = await prepareDevLaunch(
           projectPath: projectPath,
           deviceId: deviceId,
           adbPath: devToolPath,
@@ -166,6 +207,17 @@ class DevCommand {
           commands: control.stream,
           verbose: verbose,
           rebuildOnNative: results['rebuild-on-native'] as bool,
+          // Delegation channel: session.json at each ready (the forwarded
+          // host-reachable endpoint of THIS attach round), real outcomes
+          // fed back to waiting control clients.
+          onReady:
+              () => writeSessionJsonFile(
+                projectPath,
+                vmServiceUri: prepared.vmServiceUri,
+                controlPort: controlServer.port,
+                deviceId: deviceId,
+              ),
+          onResult: controlServer.handleSessionResult,
         );
       },
       // Full rebuild on native changes (with the exact parity flags the
@@ -183,10 +235,17 @@ class DevCommand {
       verbose: verbose,
     );
 
-    // The discovery artifact must not outlive the session — remove it on
-    // every exit path (quit, detach, daemon exit, rebuild/relaunch loop end).
-    final code = await flow.run();
-    await clearVmUriFile(projectPath);
+    // The discovery artifacts and the control server must not outlive the
+    // session — cleared/closed on every exit path (quit, detach, daemon
+    // exit, rebuild/relaunch loop end, unexpected throw).
+    int? code;
+    try {
+      code = await flow.run();
+    } finally {
+      await controlServer.close();
+      await clearVmUriFile(projectPath);
+      await clearSessionJsonFile(projectPath);
+    }
     exit(code);
   }
 
@@ -335,6 +394,10 @@ state — a full kernel recompile + restart) · q quit (stops the app) ·
 d detach (keeps the app running).
 Agent stream (--json): structured events on stdout; control lines on
 stdin: reload / restart / stop / detach / quit.
+Delegation channel (--control-port): a loopback JSON-lines TCP server
+(no auth — localhost-only dev tool) that drives reload/restart/stop
+through the owning session; port + forwarded VM endpoint are published
+to .oka_cache/dev/session.json at session.ready and deleted on exit.
 
 The session manifest (run_session.json, recorded by `oka build apk
 --debug`) is validated against the requested flags; a mismatch refuses

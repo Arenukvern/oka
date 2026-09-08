@@ -144,7 +144,14 @@ class VmServiceInfo {
   final String uri;
 
   /// Full ws URI for the VM service (ws + auth path), ready for a client.
-  String get wsUri => uri.replaceFirst('http://', 'ws://');
+  /// The websocket endpoint. Newer Flutter versions announce only the plain
+  /// `http://host:port/TOKEN/` form — the ws endpoint is the same path plus
+  /// `/ws` (Dart VM service convention); older versions announce `ws://`
+  /// directly.
+  String get wsUri {
+    final ws = uri.replaceFirst('http://', 'ws://').replaceFirst('https://', 'wss://');
+    return ws.endsWith('/ws') ? ws : '$ws/ws';
+  }
 }
 
 /// Scrapes the newest `Dart VM Service listening on <uri>` announcement from
@@ -544,6 +551,12 @@ class ForwardVmServiceStep extends BuildStep {
 String forwardedVmServiceUri(
   final VmServiceInfo info,
   final int localPort,
-) =>
-    '${info.scheme == 'https' ? 'wss' : 'ws'}://127.0.0.1:$localPort/'
-    '${info.auth}';
+) {
+  final scheme = info.scheme == 'https' ? 'wss' : 'ws';
+  // The plain HTTP announcement carries no `/ws` path — the Dart VM
+  // service websocket endpoint is the same token path plus `/ws`.
+  final authPath = info.auth.endsWith('/ws')
+      ? info.auth
+      : '${info.auth}/ws';
+  return '$scheme://127.0.0.1:$localPort/$authPath';
+}

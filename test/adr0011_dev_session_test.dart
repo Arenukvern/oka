@@ -529,14 +529,18 @@ void main() {
             Future<void>.delayed(const Duration(milliseconds: 10)).then((_) {
               if (sessions == 1) {
                 control.add(DevControlCommand.restart);
-                Future<void>.delayed(const Duration(milliseconds: 30)).then(
-                  (_) => t.emitEvent('app.stop'),
+                unawaited(
+                  Future<void>.delayed(const Duration(milliseconds: 30)).then(
+                    (_) => t.emitEvent('app.stop'),
+                  ),
                 );
               } else {
                 // Session 2 starts after the fallback relaunch; give it
                 // time to subscribe before quitting.
-                Future<void>.delayed(const Duration(milliseconds: 120)).then(
-                  (_) => control.add(DevControlCommand.quit),
+                unawaited(
+                  Future<void>.delayed(const Duration(milliseconds: 120)).then(
+                    (_) => control.add(DevControlCommand.quit),
+                  ),
                 );
               }
             }),

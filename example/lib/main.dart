@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'Reload v4 via fifo'),
+      home: const MyHomePage(title: 'Delegated reload via control port'),
     );
 }
 

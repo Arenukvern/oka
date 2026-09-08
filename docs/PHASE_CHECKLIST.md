@@ -19,6 +19,43 @@ with evidence, not into a checked box.
 
 ## Now (unblocked, code-ready)
 
+- **W0: `oka_web` shell station package** (ADR-0016). Typed
+  `WebShellSpec`/`WebShellContribution` values (ordered head/body entries
+  with phases), replaceable `ShellEmitter` with two first-party
+  implementations (generate — default; inject — marker-based, day one),
+  emit + zip steps, `web-shell` / `web-build` (explicit
+  `flutter build web` delegation) targets, conformance + unit tests.
+  Gate: ADR-0016. Evidence: tests + a composed-shell `oka explain` render.
+- **W1: shell drift gate + station guide.** `oka explain --targets`
+  renders the composed shell; drift check validates emitter-owned regions;
+  `docs/guides/web_shell_station.md` documents the legacy migration path
+  (markers → inject → optional generate). Gate: W0.
+
+- **`oka dev --control-port` (delegation channel) — shipped with
+  evidence; archive on next checklist pass.** The oka side of the frozen
+  contract is live: a loopback (`127.0.0.1`-only, **no auth** — a
+  localhost-only dev tool, documented as such) TCP JSON-lines server maps
+  `reload` / `restart` / `stop` / `status` onto the owning flutter-tool
+  daemon session — the only compile-capable channel (VM-service
+  `ServiceRegistered` events never replay already-registered services, so
+  late-attach tool reloads are silent no-ops). The chosen port and the
+  forwarded `vm_service_uri` are published to `.oka_cache/dev/session.json`
+  at each `session.ready` and both discovery files are cleared on every
+  exit path. Evidence: `test/adr0011_control_server_test.dart` (real
+  loopback sockets: reload/restart incl. fallback-then-EOF, stop, status,
+  malformed JSON, unknown method, sequential clients, timeout,
+  port-from-session.json), session.json schema rejection + lifecycle
+  (`readSessionJsonFile` rejects unknown schema; write-on-ready /
+  clear-on-exit), `just lint` + `just test` green. Editor/agent wiring:
+  `docs/guides/hot_reload_plan.md` → "Wiring an editor or agent to the
+  delegation channel".
+
+- **W2: web deploy targets (ADR-0016).** `publish-gh-pages`,
+  `publish-itch` (butler), generic `WebZipStep`; directory-artifact
+  convention asserted in the publish conformance suite. Gate: W0.
+- **Web icon rasterization decision.** Web manifest icons need PNGs
+  (unlike Android's vector XML, ADR-0003); decide the image toolkit for
+  generating sized PNGs from one source. Gate: image-toolkit checkpoint.
 - **Real store uploads (Play + AppGallery).** Flip `PlayPublishTarget` /
   `HuaweiPublishTarget` from dry-run to a real upload with maintainer
   service-account / AGC credentials and record one live upload each as
@@ -54,6 +91,10 @@ with evidence, not into a checked box.
   design fork → checkpoint + ADR before coding (which parts of
   `flutter assemble`/Xcode CLI tools oka owns vs delegates; no-Gradle law
   needs an iOS analogue).
+- **W3: store-contribution pilot (ADR-0016).** Ship a const
+  `WebShellContribution` from a store package (Yandex Games first) and
+  delete a per-store release branch in a production app as evidence that
+  branch-per-store collapses to targets. Gate: W0 + a willing app.
 - **RuStore / Yandex publish targets.** `oka_rustore` / `oka_yandex`
   following the `oka_play`/`oka_huawei` package shape (`PublishTarget` +
   conformance suite + injectable client). Gate: same checkpoint/ADR
