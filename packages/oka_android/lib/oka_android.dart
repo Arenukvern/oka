@@ -121,6 +121,7 @@ export 'src/dev/dev_session.dart';
 export 'src/dev/device_provisioning.dart';
 export 'src/dev/device_target.dart';
 export 'src/dev/dex_probe.dart';
+export 'src/dev/emulator_target.dart';
 export 'src/dev/run_session.dart';
 export 'src/dev/watch.dart';
 

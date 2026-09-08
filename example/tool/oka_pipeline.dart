@@ -164,6 +164,10 @@ Future<void> main(final List<String> args) {
         // `oka run device` (alias: `oka launch`) installs the newest built
         // APK, launches it, and scans the device log for failure signatures.
         DeviceTarget(),
+        // `oka run emulator` boots the AVD idempotently (creates it when
+        // missing, reuses a running instance) — compose it before device
+        // flows in custom targets so tests always have a device.
+        EmulatorTarget(),
         // Google Play: dry-run is the default (flip to `dryRun: false` to
         // ship) — the plan prints endpoint, track, artifact, metadata and
         // succeeds without any credential present.
