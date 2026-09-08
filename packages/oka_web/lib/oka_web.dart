@@ -20,7 +20,7 @@
 ///    into hand-maintained files; fails actionably without markers).
 ///
 /// Targets ([WebShellTarget], [WebBuildTarget]) compile to
-/// [BuildStep] chains validated by oka_core's composition-time artifact
+/// build-step chains validated by oka_core's composition-time artifact
 /// check — before any tool runs (ADR-0015).
 library;
 

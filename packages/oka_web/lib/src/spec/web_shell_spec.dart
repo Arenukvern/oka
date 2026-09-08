@@ -56,7 +56,7 @@ class WebIconSpec {
 /// PWA manifest field overrides a [WebShellContribution] may apply.
 ///
 /// Every field is nullable: null = "do not override the project spec
-/// value". Pure value — no I/O, no merging beyond [apply].
+/// value". Pure value — no I/O; `PwaManifestSpec.apply` resolves overrides.
 @immutable
 class PwaManifestOverride {
   const PwaManifestOverride({
