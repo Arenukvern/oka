@@ -39,7 +39,18 @@ Work is grouped by horizon, not by date:
 - **CI emulator tier.** The dev-loop evidence (`oka run device` →
   `oka dev` → reload/restart) is real but machine-local. Running it on a
   KVM-capable CI runner makes the dev loop a regression gate instead of a
-  one-time transcript.
+  one-time transcript. The emulator lifecycle is now composable
+  (`oka run emulator`, `EmulatorTarget` — create-if-missing, idempotent
+  boot, serial artifact), so the CI tier composes the same target.
+- **`oka dev --control-port` (delegation channel).** The flutter MCP
+  toolkit's hot reload is a compile-capable operation only through the
+  owning flutter-tool daemon; out-of-process tools need a control channel
+  (small TCP JSON-lines server mapping to the daemon protocol). Prerequisite
+  for the mcp_flutter `OkaDevSession` runner adapter — see
+  mcp_flutter `docs/guides/dev-session-delegation-roadmap.mdx` (root cause:
+  VM-service `ServiceRegistered` events never replay already-registered
+  services, so late-attach tool reloads are silent no-ops; delegation to the
+  owning session is the only correct compile channel).
 - **Doctor and cache polish.** The secret audit and `oka cache gc` are
   live; they grow only where real gaps show up (new secret-ish key
   patterns) or where the store already records the data (age/size
