@@ -28,6 +28,19 @@ class FakeRunner {
   }
 }
 
+/// Skip guard (determinism_test pattern): BootEmulatorStep resolves adb and
+/// emulator from PATH (or toolchain) before the injected runner matters, so
+/// these tests need the real binaries present even though every process call
+/// is scripted.
+bool _adbAndEmulatorOnPath() {
+  final dirs = Platform.environment['PATH']?.split(Platform.isWindows ? ';' : ':') ?? const [];
+  bool has(final String cmd) => dirs.any(
+        (final d) =>
+            File('$d/$cmd').existsSync() || File('$d/$cmd.exe').existsSync(),
+      );
+  return has('adb') && has('emulator');
+}
+
 void main() {
   group('pure argv builders', () {
     test('emulator launch args: headless by default', () {
@@ -143,6 +156,12 @@ void main() {
 
   group('BootEmulatorStep', () {
     test('reuses an already-running emulator for the same AVD', () async {
+      if (!_adbAndEmulatorOnPath()) {
+        // ignore: avoid_print
+        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        return;
+      }
+
       final fake = FakeRunner()
         ..reply = (_, args) {
           if (args.join(' ') == 'devices -l') {
@@ -163,6 +182,12 @@ void main() {
     });
 
     test('boots a new emulator and waits for sys.boot_completed', () async {
+      if (!_adbAndEmulatorOnPath()) {
+        // ignore: avoid_print
+        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        return;
+      }
+
       var bootPropCalls = 0;
       var spawned = false;
       final fake = FakeRunner()
@@ -203,6 +228,12 @@ void main() {
     });
 
     test('boot timeout fails with an actionable message', () async {
+      if (!_adbAndEmulatorOnPath()) {
+        // ignore: avoid_print
+        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        return;
+      }
+
       final fake = FakeRunner()
         ..reply = (_, args) {
           final a = args.join(' ');
@@ -222,6 +253,12 @@ void main() {
     });
 
     test('deviceId override waits on THAT serial', () async {
+      if (!_adbAndEmulatorOnPath()) {
+        // ignore: avoid_print
+        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        return;
+      }
+
       final fake = FakeRunner()
         ..reply = (_, args) {
           final a = args.join(' ');
