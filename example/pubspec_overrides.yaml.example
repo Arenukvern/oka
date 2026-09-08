@@ -1,0 +1,5 @@
+# Maintainer-local dependency overrides (sibling checkouts, dogfood packages).
+# Copy this file to pubspec_overrides.yaml — it is git-ignored.
+dependency_overrides:
+  # mcp_toolkit:
+  #   path: ~/mcp/mcp_flutter/mcp_toolkit

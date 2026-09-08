@@ -10,7 +10,7 @@ pubspec.lock
 *.iml
 *.ipr
 *.iws
-
+rust_wrapper/flutter_assets/
 # Build cache
 .oka_cache/
 
@@ -26,4 +26,8 @@ coverage/
 
 # Local configuration
 *.local.yaml
+example/pubspec_overrides.yaml
 
+
+# Skill Steward benchmark evidence (machine-local)
+.steward/benchmark-summaries/*.json

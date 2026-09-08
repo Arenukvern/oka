@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "runner": "oka-dev",
+  "vm_service_uri": "ws://127.0.0.1:53149/D_i4CTS9IlY=/ws",
+  "control_port": 53113,
+  "device_id": "emulator-5554",
+  "pid": 74694,
+  "started_at": "2026-09-08T02:51:43.470986Z"
+}

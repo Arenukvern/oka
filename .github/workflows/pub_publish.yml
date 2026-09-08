@@ -1,0 +1,69 @@
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pub-dev-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Assert release tag matches VERSION
+        if: github.event_name == 'push'
+        run: |
+          tag="${{ github.ref_name }}"
+          version="$(tr -d '[:space:]' < VERSION)"
+          tag_version="${tag#v}"
+          if [[ "$tag_version" != "$version" ]]; then
+            echo "FAIL: tag ($tag) does not match VERSION ($version)" >&2
+            exit 1
+          fi
+          bash tool/release/check_version_sync.sh
+
+      # --no-example: example/ is a Flutter app; dart >= 3.13 resolves it by
+      # default, which fails under plain Dart (flutter_test is sdk-sourced).
+      - run: dart pub get --no-example
+
+      # Split packages (ADR-0006) publish in dependency order:
+      # oka_core -> oka_android -> oka (the CLI, packages/oka). Hosted deps
+      # resolve against pub.dev, so the first release trains publish core
+      # before android/cli.
+      - name: Publish oka_core (dry-run preflight)
+        working-directory: packages/oka_core
+        run: dart pub publish --dry-run
+      - name: Publish oka_android (dry-run preflight)
+        working-directory: packages/oka_android
+        run: dart pub publish --dry-run
+      - name: Publish oka (dry-run preflight)
+        working-directory: packages/oka
+        run: dart pub publish --dry-run
+
+      - name: Publish oka_core
+        if: github.event_name == 'push'
+        working-directory: packages/oka_core
+        run: dart pub publish --force
+      - name: Publish oka_android
+        if: github.event_name == 'push'
+        working-directory: packages/oka_android
+        run: dart pub publish --force
+      - name: Publish oka
+        if: github.event_name == 'push'
+        working-directory: packages/oka
+        run: dart pub publish --force

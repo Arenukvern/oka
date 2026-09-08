@@ -1,0 +1,28 @@
+{
+  "name": "oka",
+  "owner": {
+    "name": "Arenukvern",
+    "url": "https://github.com/Arenukvern/oka"
+  },
+  "plugins": [
+    {
+      "name": "oka",
+      "source": "./plugin",
+      "description": "No-Gradle Flutter Android build system: flutter assemble + direct Android SDK tools for 3-5x faster incremental builds, with plugin packaging, AAB support, and dependency recovery. Bundles agent skills.",
+      "version": "0.1.6",
+      "keywords": [
+        "flutter",
+        "android",
+        "build-system",
+        "gradle",
+        "apk",
+        "aab",
+        "dart",
+        "cli"
+      ],
+      "skills": [
+        "./skills"
+      ]
+    }
+  ]
+}

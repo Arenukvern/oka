@@ -1,0 +1,40 @@
+name: oka_play
+description: >-
+  Google Play publish target for oka (ADR-0014): PlayPublishTarget composes
+  the Play Publisher API upload tail (service-account JSON by path, JWT →
+  OAuth token exchange, Edits API flow) onto any oka Android AAB build.
+version: 0.1.6
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_play
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - build-system
+  - cli
+  - flutter
+  - google-play
+
+# The test fixture contains a SYNTHETIC RSA key (generated for tests only —
+# never a real credential). pub's leak detector flags it; allow-list it.
+false_secrets:
+  - test/synthetic_credentials.dart
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  googleapis_auth: ^2.3.0
+  http: ^1.2.1
+  meta: ^1.14.0
+  oka_core: ^0.1.6
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  # The example composes PlayPublishTarget into a real Android pipeline.
+  oka_android: ^0.1.6
+  oka_conformance: ^0.1.6
+  test: ^1.25.0
+  xsoulspace_lints: ^0.1.2

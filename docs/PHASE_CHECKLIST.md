@@ -1,0 +1,158 @@
+# Phase Checklist — open work
+
+Only items that need addressing live here. This is the **execution view**:
+what + what gates it, per horizon. The human-facing "where oka is going and
+why" is [start_here/roadmap.md](start_here/roadmap.md).
+
+Completed phases are archived with their evidence:
+
+- ADR-0013 (T0–T2), ADR-0014 (P0–P2), ADR-0015 (C0–C2), ADR-0011 (H0–H5),
+  ADR-0010 typed config, ADR-0009 hybrid removal →
+  [archive/PHASE_CHECKLIST_2026-09.md](archive/PHASE_CHECKLIST_2026-09.md)
+- ADR-0006/0007/0008 (composition API, self-resolving builds, dep-plan
+  dry-run) →
+  [archive/PHASE_CHECKLIST_adr0006-0008.md](archive/PHASE_CHECKLIST_adr0006-0008.md)
+
+A phase is done only when its tests and evidence exist (see `AGENTS.md`).
+Nothing below carries a checkbox — items move out of here into an archive
+with evidence, not into a checked box.
+
+## Now (unblocked, code-ready)
+
+- **Done (ADR-0016 W0–W2, pending archive with evidence):**
+  **W0** — `oka_web` shell station package (typed spec/contribution/entries,
+  generate + inject emitters, emit + zip steps, `web-shell`/`web-build`
+  targets). Evidence: `packages/oka_web` tests. **W1** — shell drift gate
+  (pure `checkShellDrift` + post-emit idempotency check in
+  `EmitWebShellStep`), `oka explain --targets` shell render via the generic
+  `Target.explainDetails` hook, `docs/guides/web_shell_station.md`. Evidence:
+  `packages/oka_web/test/drift_test.dart`, `test/adr0015_explain_targets_test.dart`
+  + this suite. **W2** — `publish-gh-pages`, `publish-itch`, `WebZipStep`,
+  directory-artifact convention asserted in conformance. Evidence:
+  `packages/oka_web/test/{gh_pages,itch}_target_test.dart`.
+- **S0: Chrome session target (ADR-0017).** `BrowserSessionSpec` +
+  `DebugProtocol` + `profilePersistence` typed values, okaOwned launcher
+  (spawn with `--remote-debugging-port`, `/json/version` readiness probe,
+  idempotent reuse, ephemeral teardown), `chrome-session` target producing
+  `session-chrome-<name>-handle` / `session-chrome-<name>-cdp-port`
+  artifacts, `chromeWebMcp` profile const, pure launch-args construction.
+  No CDP client, no new deps, Chrome only (Servo/Ladybird and matrices
+  deferred by ADR-0017). Gate: ADR-0017. Evidence: scripted-fake + unit
+  tests in `packages/oka_web/test/`.
+- **S1: browser doctor + provisioning.** `oka doctor` browser detection
+  (engines, versions, flag support); chrome-for-testing into the ADR-0013
+  artifact store. Gate: S0.
+- **S2: dev-loop session + delegated retirement.** `oka dev` composes a
+  long-lived chrome session; `flutterDelegated` shrinks to the documented
+  migration path; `EmulatorTarget` gains the `session-<name>-handle`
+  conforming alias (non-breaking). Gate: S0 + dev-loop evidence.
+
+- **`oka dev --control-port` (delegation channel) — shipped with
+  evidence; archive on next checklist pass.** The oka side of the frozen
+  contract is live: a loopback (`127.0.0.1`-only, **no auth** — a
+  localhost-only dev tool, documented as such) TCP JSON-lines server maps
+  `reload` / `restart` / `stop` / `status` onto the owning flutter-tool
+  daemon session — the only compile-capable channel (VM-service
+  `ServiceRegistered` events never replay already-registered services, so
+  late-attach tool reloads are silent no-ops). The chosen port and the
+  forwarded `vm_service_uri` are published to the spec-v2
+  `.flutter_mcp/runner-session.json` (toolkit-neutral Dart dev session
+  contract; `runner: "oka-dev"` display metadata, schema 1) at each
+  `session.ready` and both discovery files are cleared on every exit
+  path. Evidence: `test/adr0011_control_server_test.dart` (real
+  loopback sockets: reload/restart incl. fallback-then-EOF, stop, status,
+  malformed JSON, unknown method, sequential clients, timeout,
+  port-from-runner-session), runner-session schema rejection + lifecycle
+  (`readRunnerSessionFile` rejects unknown schema; write-on-ready /
+  clear-on-exit; the toolkit's `.flutter_mcp/state.json` untouched; the
+  old `.oka_cache/dev/session.json` path no longer written), `just lint` +
+  `just test` green. Editor/agent wiring:
+  `docs/guides/hot_reload_plan.md` → "Wiring an editor or agent to the
+  delegation channel".
+
+- **Web icon rasterization decision.**- **Web icon rasterization decision.** Web manifest icons need PNGs
+  (unlike Android's vector XML, ADR-0003); decide the image toolkit for
+  generating sized PNGs from one source. Gate: image-toolkit checkpoint.
+- **Real store uploads (Play + AppGallery).** Flip `PlayPublishTarget` /
+  `HuaweiPublishTarget` from dry-run to a real upload with maintainer
+  service-account / AGC credentials and record one live upload each as
+  evidence. Why now: P1/P2 dry-run plans, full offline conformance suites,
+  and flow tests exist — only credentials block; the synthetic test key
+  guards nothing.
+- **CI emulator tier for the dev-loop e2e.** Reproduce the H0/H2/H3
+  headless-emulator chain (`oka run device` → `oka dev --json` → reload /
+  restart / detach) as a CI job on a KVM-capable runner. Why now: the
+  evidence is machine-local; a CI tier turns it into a regression gate for
+  the whole dev loop.
+- **Doctor secret-audit hardening (if gaps surface).** Extend
+  `secretishKeyPatterns` / `auditDartDefines` coverage where real-world
+  dart-define keys slip through the pattern table. Why now: the audit is
+  live and cheap to extend, but pattern tables need evidence of real gaps
+  before growing.
+- **`oka cache gc` polish: age/size reporting.** Make `oka cache gc`
+  report reclaimable bytes and last-use age before deleting, so purging is
+  inspectable like everything else. Why now: the store layout
+  (`oka_store.json` per entry) already records what's needed; this is pure
+  reporting on existing data.
+- **Leakage-ratchet final exception: the `--skip-badging` flag name.**
+  Decide whether to keep it as public CLI surface or deprecate it toward
+  the typed `DeviceTarget`/`AndroidBuild` config and empty the ratchet.
+  Why now: it is the only remaining exception in
+  `test/adr0015_cli_platform_leakage_gate_test.dart`; either closing or
+  ratifying it lets the gate go fully green-by-construction.
+
+## Next (needs a checkpoint / ADR)
+
+- **Session matrices / mesh (ADR-gated, future).** N concurrent
+  cross-engine sessions with rendezvous artifacts (the mesh case: one app
+  alive in several browsers) as a composition over ADR-0017
+  `session-<name>-handle` artifacts. Gate: S0 evidence + its own ADR —
+  parallelism, failure isolation, and teardown-on-partial-failure are
+  explicit decisions, not defaults.
+- **iOS platform candidate.** First second-platform: an `oka_ios` package
+  with typed `IosBuild` + pipeline, per the north-star criteria. Gate:
+  design fork → checkpoint + ADR before coding (which parts of
+  `flutter assemble`/Xcode CLI tools oka owns vs delegates; no-Gradle law
+  needs an iOS analogue).
+- **W3: store-contribution pilot (ADR-0016) — done as pilot; store-package
+  adoption still pending.** The in-repo flagship
+  (`packages/oka_web/example/crazygames/`) and a real-world adoption
+  (word_by_word_game adopted the shell contribution into its own repo via
+  the inject emitter) prove the §3 pattern. Still open: shipping a const
+  `WebShellContribution` from an actual store package — gated on `oka_web`
+  publishing to pub.dev (store packages must not depend on unpublished
+  packages).
+- **RuStore / Yandex publish targets.** `oka_rustore` / `oka_yandex`
+  following the `oka_play`/`oka_huawei` package shape (`PublishTarget` +
+  conformance suite + injectable client). Gate: same checkpoint/ADR
+  question — target packages as a productized third-party extension point
+  vs first-party additions — before the pattern gets copied twice more.
+- **`oka cache gc` scheduling / daemon question.** Whether gc stays a
+  manual verb or gains a scheduled/daemon form. Gate: ADR — a background
+  process conflicts with oka's no-daemon posture (ADR-0001) and needs an
+  explicit decision, not a default.
+- **Hot-reload CI tier.** Promote the one-shot emulator e2e (Now) into a
+  repeatable `oka dev` session tier (watch-loop classification, reconnect
+  paths). Gate: needs the CI emulator tier to exist and a decision on
+  runtime budget (session tests are minutes, not seconds).
+
+## Later (north-star alignment)
+
+- **Container & server session instances (ADR-0017 future).** Extend the
+  `session-<name>-handle` convention beyond browsers: `apple/container` /
+  Docker sessions (images via the ADR-0013 artifact store; handle =
+  container ID + mapped ports — enables Linux testing of oka and Dart
+  packages) and Dart server process sessions (handle = base URL + health
+  probe — serves intentcall/mcp-server targets). Independent targets
+  conforming to the convention; no base class. Gate: S0 evidence + a
+  lightweight checkpoint per instance.
+- **Second/third platform beyond iOS.** Each new platform per the
+  north-star criteria: typed values, validated pipelines, no hidden glue,
+  agent-operable from oka's messages alone. Gate: platform evidence (the
+  iOS ADR outcome) plus a per-platform checkpoint; nothing starts on
+  vibes.
+- **Distribution-target conformance for third-party package authors.**
+  Expose the ADR-0014 conformance suite (`oka_conformance`) as the
+  contract third parties satisfy to ship `PublishTarget` packages. Gate:
+  depends on the Next checkpoint on target packages being first-party vs
+  an ecosystem surface.

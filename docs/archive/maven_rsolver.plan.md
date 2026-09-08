@@ -1,0 +1,669 @@
+# Maven Dependency Resolver
+
+## Problem
+
+Currently, `sdk_locator.dart` manually downloads specific JARs with hardcoded versions. This doesn't scale and can't handle transitive dependencies or Flutter plugin dependencies.
+
+## Solution Architecture
+
+Build a Maven dependency resolution system that:
+
+- Downloads artifacts from Maven repositories (Google Maven, Maven Central)
+- Resolves transitive dependencies automatically by parsing POMs. Parse POMs with AI Agent.
+- Extracts classes.jar from AARs when needed
+- Discovers and resolves Flutter plugin dependencies
+- Caches all artifacts in `~/.oka/cache/maven/`
+
+## Implementation Plan
+
+### 1. Create Maven Repository Client (`lib/src/maven/maven_repository.dart`)
+
+A client that knows how to fetch artifacts and POMs from Maven repositories:
+
+- Support Google Maven (`https://maven.google.com`) and Maven Central
+- Download artifacts (.jar, .aar, .pom) via HTTP
+- Verify checksums (SHA-1, SHA-256)
+- Cache artifacts locally in `~/.oka/cache/maven/group/artifact/version/`
+
+Key methods:
+
+- `downloadArtifact(groupId, artifactId, version, packaging)`
+- `downloadPom(groupId, artifactId, version)`
+- `resolveArtifactUrl(repo, coordinate)` - constructs Maven URLs
+
+### 2. Create POM Parser (`lib/src/maven/pom_parser.dart`)
+
+Parse Maven POM XML files to extract dependency metadata:
+
+Use AI Agent to initially parse data.
+
+As fallback use:
+
+- Parse `<dependencies>` section
+- Handle `<dependencyManagement>` for version resolution
+- Extract dependency scope (compile, runtime, provided)
+- Parse `<exclusions>` for dependency conflicts
+- Support POM inheritance (parent POMs)
+
+Returns structured `PomMetadata` containing all dependencies.
+
+### 3. Create Dependency Resolver (`lib/src/maven/dependency_resolver.dart`)
+
+Core logic for transitive dependency resolution:
+
+- Build dependency graph from root dependencies
+- Recursively resolve transitive dependencies by fetching POMs
+- Implement conflict resolution strategy (nearest-wins like Maven)
+- Handle exclusions and scopes
+- Detect circular dependencies
+- Return flattened list of all required artifacts with versions
+
+Key method:
+
+- `resolveDependencies(List<Dependency> roots) -> List<ResolvedDependency>`
+
+### 4. Create AAR Processor (`lib/src/maven/aar_processor.dart`)
+
+Handle Android AAR files:
+
+- Extract AAR (it's a ZIP) to temp directory
+- Extract `classes.jar` from AAR
+- Rename and cache as JAR for compilation
+- Optionally extract resources, AndroidManifest.xml, native libs for future use
+
+### 5. Create Plugin Dependency Scanner (`lib/src/maven/plugin_scanner.dart`)
+
+Discover Flutter plugin dependencies using AI Agent with fallback:
+
+**Primary approach (AI Agent)**:
+
+- Use `OkaAiAgent.extractDependencies()` to parse Gradle files
+- Handles complex Kotlin DSL (`build.gradle.kts`)
+- Handles Groovy DSL (`build.gradle`)
+- Resolves variable substitutions and build script logic
+- Extracts all implementation/api dependencies
+- Cache parsed results per plugin
+
+**Fallback approach (Simple parsing)**:
+
+- Regex matching for common patterns: `implementation "group:artifact:version"`
+- Basic string parsing for simple cases
+- Use when AI unavailable
+
+**Implementation**:
+
+- Read `pubspec.yaml` to find Flutter plugin dependencies
+- Locate plugin directories in `.dart_tool/` or pub cache
+- For each plugin, read `build.gradle` or `build.gradle.kts`
+- Parse with AI Agent first, fallback to regex
+- Return list of Maven coordinates
+
+```dart
+class PluginScanner {
+  final OkaAiAgent? _aiAgent;
+
+  Future<List<Dependency>> scanPlugin(String pluginPath) async {
+    final gradleFile = _findGradleFile(pluginPath);
+    final content = await File(gradleFile).readAsString();
+
+    // Try AI parsing first
+    if (_aiAgent != null) {
+      try {
+        return await _aiAgent.extractDependencies(content);
+      } catch (e) {
+        print('AI extraction failed for $pluginPath, using fallback');
+      }
+    }
+
+    // Fallback to regex
+    return _extractWithRegex(content);
+  }
+}
+```
+
+### 6. Integrate into Build System
+
+Update `android_builder.dart`:
+
+- Replace manual JAR finding with dependency resolution
+- Call dependency resolver early in build process
+- Use resolved JAR paths in classpath
+
+Update `sdk_locator.dart`:
+
+- Remove manual download methods (`_downloadAndroidXAnnotations`, etc.)
+- Add new method: `resolveAndCacheDependencies(List<Dependency>) -> Map<String, String>`
+
+Returns map of artifact coordinate → local JAR path
+
+- Keep core tool locators (aapt2, d8, etc.)
+
+### 7. Update oka.yaml Format
+
+Extend `dependencies` section to support Maven repositories:
+
+```yaml
+dependencies:
+  - name: androidx.core:core-ktx
+    version: 1.12.0
+    source: maven
+  - name: androidx.lifecycle:lifecycle-runtime
+    version: 2.8.7
+    source: maven
+
+repositories:
+  - url: https://maven.google.com
+    type: google
+  - url: https://repo1.maven.org/maven2
+    type: central
+```
+
+### 8. Create Dependency Cache Manager (`lib/src/maven/cache_manager.dart`)
+
+Manage local dependency cache:
+
+- Check if artifact already cached before downloading
+- Store metadata alongside artifacts (POM, checksums)
+- Implement cache cleanup/refresh commands
+- Handle corrupted cache entries
+
+### 9. Add CLI Command: `oka deps`
+
+New command for dependency management:
+
+- `oka deps get` - resolve and download all dependencies
+- `oka deps list` - show dependency tree
+- `oka deps clean` - clear dependency cache
+- `oka deps add <coordinate>` - add dependency to oka.yaml
+
+### 10. Testing Strategy
+
+- Unit tests for POM parsing with sample POM files
+- Integration tests with real Maven repositories
+- Test transitive resolution with known dependency trees
+- Test AAR extraction
+- Test plugin dependency discovery with example plugins
+
+## Files to Create
+
+1. `lib/src/maven/maven_repository.dart` - Repository client
+2. `lib/src/maven/pom_parser.dart` - POM XML parser
+3. `lib/src/maven/pom_metadata.dart` - POM data model
+4. `lib/src/maven/dependency_resolver.dart` - Resolution logic
+5. `lib/src/maven/resolved_dependency.dart` - Resolved artifact model
+6. `lib/src/maven/aar_processor.dart` - AAR handler
+7. `lib/src/maven/plugin_scanner.dart` - Plugin discovery
+8. `lib/src/maven/cache_manager.dart` - Cache management
+9. `packages/oka/lib/src/cli/deps_command.dart` - CLI command
+
+## Files to Modify
+
+1. `lib/src/build/sdk_locator.dart` - Replace manual downloads, add `resolveAndCacheDependencies()`
+2. `lib/src/build/android_builder.dart` - Use dependency resolver
+3. `lib/src/config/oka_config.dart` - Add `repositories` field
+4. `bin/oka.dart` - Register `deps` command
+
+## Key Design Decisions
+
+- **No Gradle dependency**: Pure Dart implementation using HTTP + XML parsing
+- **Cache location**: `~/.oka/cache/maven/` mirrors Maven local repo structure
+- **Resolution strategy**: Nearest-wins for version conflicts (Maven default)
+- **Plugin handling**: Parse Gradle files directly or use AI for conversion
+- **Repository priority**: Try Google Maven first (for AndroidX), fallback to Central
+- **Phased approach**: Ship basic functionality first, optimize later
+
+## Performance Optimizations (Phase 2+)
+
+### Full AAR Handling (Phase 1.5 - Before Optimizations)
+
+Unlike our initial simple approach, handle AARs comprehensively like Gradle but more efficiently:
+
+**Cache Structure**:
+
+```
+~/.oka/cache/maven/androidx/core/core-ktx/1.12.0/
+  core-ktx-1.12.0.aar              # Original AAR
+  core-ktx-1.12.0.pom              # POM metadata
+  extracted/                        # Full extraction
+    classes.jar
+    AndroidManifest.xml
+    res/
+    jni/
+    assets/
+    R.txt
+  metadata.json                    # What's inside, checksums
+```
+
+**Build-time Usage**:
+
+```
+build/intermediates/aar/androidx.core-core-ktx-1.12.0/
+  classes.jar      → Add to compilation classpath
+  res/             → Merge in resource compilation
+  AndroidManifest  → Merge in manifest merge
+  jni/arm64-v8a/   → Package in APK (ABI-specific)
+```
+
+**Implementation**: Update `aar_processor.dart` to:
+
+- Extract full AAR once to cache
+- Copy needed components to build intermediates
+- Track what each AAR contains for smart handling
+
+### Phase 2: Speed Optimizations
+
+#### 2.1 Incremental Dependency Resolution
+
+**Problem**: Gradle re-resolves dependencies on every build.
+
+**Solution**: Cache resolved dependency tree with fingerprint.
+
+```dart
+class DependencyFingerprint {
+  String okaYamlHash;           // Hash of oka.yaml dependencies
+  String pluginDepsHash;        // Hash of discovered plugin deps
+  String repositoriesHash;      // Hash of repository configs
+
+  bool hasChanged(DependencyFingerprint other) =>
+    okaYamlHash != other.okaYamlHash ||
+    pluginDepsHash != other.pluginDepsHash ||
+    repositoriesHash != other.repositoriesHash;
+}
+
+// Cache: ~/.oka/cache/resolution/fingerprint.json
+class ResolutionCache {
+  DependencyFingerprint fingerprint;
+  List<ResolvedDependency> resolved;
+  DateTime timestamp;
+}
+```
+
+**Benefit**: Skip re-resolution if nothing changed (~2-5 seconds saved per build)
+
+#### 2.2 Binary DEX Cache
+
+**Problem**: D8/R8 converts same JARs to DEX repeatedly.
+
+**Solution**: Cache pre-compiled DEX files per dependency.
+
+```dart
+// ~/.oka/cache/dex/androidx.core-core-ktx-1.12.0-debug.dex
+class DexCache {
+  Future<String?> getCachedDex(String coordinate, BuildMode mode) {
+    final cacheKey = '$coordinate-${mode.name}';
+    final dexPath = p.join(cacheDir, 'dex', '$cacheKey.dex');
+    return File(dexPath).exists() ? dexPath : null;
+  }
+
+  Future<void> cacheDex(String coordinate, BuildMode mode, String dexPath) {
+    // Copy compiled DEX to cache
+  }
+}
+
+// In convertToDex():
+for (final dep in dependencies) {
+  final cached = await dexCache.getCachedDex(dep.coordinate, ctx.mode);
+  if (cached != null) {
+    // Use cached DEX, skip D8
+    dexFiles.add(cached);
+  } else {
+    // Run D8, then cache result
+    final dex = await runD8(dep.jarPath);
+    await dexCache.cacheDex(dep.coordinate, ctx.mode, dex);
+    dexFiles.add(dex);
+  }
+}
+```
+
+**Benefit**: Skip D8/R8 for unchanged dependencies (~5-10 seconds saved)
+
+#### 2.3 Parallel Operations
+
+**Problem**: Gradle serializes many operations.
+
+**Solution**: Parallelize everything that can be parallel.
+
+```dart
+// Parallel downloads
+final artifacts = await Future.wait([
+  repo.downloadArtifact('androidx.core', 'core-ktx', '1.12.0'),
+  repo.downloadArtifact('androidx.lifecycle', 'lifecycle-runtime', '2.8.7'),
+  repo.downloadArtifact('io.flutter', 'flutter_embedding_release', '1.0.0'),
+]);
+
+// Parallel AAR extraction
+await Future.wait(
+  aarFiles.map((aar) => aarProcessor.extract(aar))
+);
+
+// Parallel resource compilation per AAR
+await Future.wait(
+  aarResDirs.map((resDir) => compileResources(resDir))
+);
+```
+
+**Benefit**: ~40% faster downloads, ~30% faster extraction
+
+#### 2.4 Lazy AAR Extraction Strategy
+
+**Problem**: Extracting all AAR contents wastes time/space.
+
+**Solution**: Extract only what's needed for current build.
+
+```dart
+class AarExtractStrategy {
+  final bool needsClasses;      // Always true for compilation
+  final bool needsResources;    // Only if AAR has res/ we reference
+  final bool needsManifest;     // Only if manifest merge needed
+  final bool needsNativeLibs;   // Only for target ABIs
+  final bool needsAssets;       // Only if AAR has assets
+  final List<String> targetAbis; // e.g., ['arm64-v8a'] not all 4
+
+  static AarExtractStrategy forBuild(BuildContext ctx, AarMetadata aar) {
+    return AarExtractStrategy(
+      needsClasses: true,
+      needsResources: aar.hasResources && ctx.referencesPackage(aar.packageName),
+      needsManifest: ctx.needsManifestMerge,
+      needsNativeLibs: aar.hasNativeLibs,
+      needsAssets: aar.hasAssets,
+      targetAbis: ctx.config.android.abis,
+    );
+  }
+}
+
+// Extract selectively
+await aarProcessor.extract(aar, strategy: strategy);
+```
+
+**Benefit**: ~70% less disk space, ~50% faster extraction
+
+### Phase 3: Size Optimizations
+
+#### 3.1 Scope-Aware Resolution
+
+**Problem**: Download test dependencies for release builds.
+
+**Solution**: Filter by scope and build mode.
+
+```yaml
+dependencies:
+  - name: junit:junit
+    version: 4.13.2
+    scope: test # Skip in release
+  - name: leakcanary:leakcanary
+    version: 2.12
+    scope: debug # Skip in release
+  - name: androidx.core:core-ktx
+    scope: compile # Always include
+```
+
+```dart
+class DependencyResolver {
+  List<ResolvedDependency> resolveDependencies(
+    List<Dependency> roots,
+    BuildMode mode,
+  ) {
+    // Filter by scope
+    final filtered = roots.where((dep) {
+      if (mode.isRelease) {
+        return dep.scope != 'test' && dep.scope != 'debug';
+      }
+      if (mode.isDebug) {
+        return dep.scope != 'test';
+      }
+      return true;
+    }).toList();
+
+    // Resolve only needed deps
+    return _resolve(filtered);
+  }
+}
+```
+
+**Benefit**: ~30% less download size, faster resolution
+
+#### 3.2 Dependency Tree Pruning
+
+**Problem**: Transitive dependencies may never be used.
+
+**Solution**: Analyze imports and warn/exclude unused deps.
+
+```dart
+class DependencyUsageAnalyzer {
+  Future<Set<String>> analyzeImports(String srcDir) async {
+    final imports = <String>{};
+    final sources = await _findSourceFiles(srcDir);
+
+    for (final file in sources) {
+      final content = await File(file).readAsString();
+      // Parse import statements
+      final matches = RegExp(r'import\s+(\S+)').allMatches(content);
+      imports.addAll(matches.map((m) => m.group(1)!));
+    }
+
+    return imports;
+  }
+
+  List<ResolvedDependency> pruneUnused(
+    List<ResolvedDependency> deps,
+    Set<String> usedPackages,
+  ) {
+    return deps.where((dep) {
+      final used = usedPackages.any((pkg) => pkg.startsWith(dep.packageName));
+      if (!used) {
+        print('⚠️  Unused dependency: ${dep.coordinate}');
+      }
+      return used;
+    }).toList();
+  }
+}
+```
+
+**Benefit**: Smaller APK, faster builds, cleaner deps
+
+#### 3.3 Compressed Cache
+
+**Problem**: Extracted AARs consume lots of disk space.
+
+**Solution**: Keep extracted contents compressed with fast codec.
+
+```dart
+// Use zstd for fast compression/decompression
+~/.oka/cache/maven/androidx/core/core-ktx/1.12.0/
+  core-ktx-1.12.0.aar              # Original (3.2 MB)
+  extracted.tar.zst                # Compressed extracted (1.1 MB)
+  metadata.json                    # Quick lookup
+
+class CompressedAarCache {
+  Future<void> cacheExtracted(String coordinate, Directory extracted) async {
+    // Compress with zstd level 3 (fast)
+    await Process.run('tar', [
+      '-C', extracted.path,
+      '-c', '.',
+      '--zstd', '--zstd-level=3',
+      '-f', getCompressedPath(coordinate),
+    ]);
+  }
+
+  Future<Directory> getExtracted(String coordinate) async {
+    final tempDir = await Directory.systemTemp.createTemp('oka-aar-');
+    await Process.run('tar', [
+      '-C', tempDir.path,
+      '-x', '--zstd',
+      '-f', getCompressedPath(coordinate),
+    ]);
+    return tempDir;
+  }
+}
+```
+
+**Benefit**: ~60% disk space savings, fast decompression (<100ms)
+
+#### 3.4 Build Mode Optimizations
+
+**Problem**: Do full work even for incremental hot reloads.
+
+**Solution**: Skip unnecessary work based on build mode.
+
+```dart
+enum BuildMode {
+  hotReload,    // Ultra fast - skip everything possible
+  debug,        // Fast - skip optimization
+  profile,      // Some optimization
+  release;      // Full optimization
+
+  bool get skipDependencyCheck => this == hotReload;
+  bool get skipResourceCompilation => this == hotReload;
+  bool get skipManifestMerge => this == hotReload;
+  bool get useR8 => this == release || this == profile;
+  bool get useBinaryDexCache => this != release; // Release needs fresh
+}
+
+Future<void> build(BuildContext ctx) async {
+  if (!ctx.mode.skipDependencyCheck) {
+    await resolveDependencies();
+  }
+
+  if (!ctx.mode.skipResourceCompilation) {
+    await compileResources();
+  }
+
+  // ... etc
+}
+```
+
+**Benefit**: Hot reload <1 second (only push Dart code)
+
+#### 3.5 Smart Resource Merging
+
+**Problem**: Merge all AAR resources even if unused.
+
+**Solution**: Track resource references and merge only used ones.
+
+```dart
+class ResourceUsageTracker {
+  final Set<String> usedDrawables = {};
+  final Set<String> usedLayouts = {};
+  final Set<String> usedStrings = {};
+
+  Future<void> analyzeLayoutFiles(String resDir) async {
+    // Parse XML, find @drawable/*, @string/*, etc.
+  }
+
+  Future<void> analyzeKotlinJava(String srcDir) async {
+    // Parse R.drawable.*, R.string.*, etc.
+  }
+
+  List<String> getReferencedResources() {
+    return [
+      ...usedDrawables.map((r) => 'drawable/$r'),
+      ...usedLayouts.map((r) => 'layout/$r'),
+      ...usedStrings.map((r) => 'values/strings.xml:$r'),
+    ];
+  }
+}
+
+// Only merge resources that are referenced
+await aarProcessor.mergeResources(
+  aars,
+  onlyInclude: tracker.getReferencedResources(),
+);
+```
+
+**Benefit**: Smaller APK, faster resource compilation
+
+### Phase 4: Advanced Optimizations
+
+#### 4.1 Persistent Build Cache
+
+**Problem**: Clean builds always start from zero.
+
+**Solution**: Content-addressed build cache like Bazel.
+
+```dart
+~/.oka/cache/builds/
+  abc123.../                        # Content hash of inputs
+    classes.dex                     # Cached DEX
+    resources.ap_                   # Cached resources
+    metadata.json                   # What was included
+
+class BuildCache {
+  String computeHash(BuildInputs inputs) {
+    return sha256([
+      inputs.sourceFiles,
+      inputs.dependencies,
+      inputs.resources,
+      inputs.buildConfig,
+    ].join(':'));
+  }
+
+  Future<BuildArtifact?> tryCache(BuildContext ctx) async {
+    final hash = computeHash(ctx.inputs);
+    final cached = p.join(cacheDir, 'builds', hash);
+
+    if (await Directory(cached).exists()) {
+      print('✅ Using cached build from $hash');
+      return loadCachedArtifact(cached);
+    }
+
+    return null;
+  }
+}
+```
+
+**Benefit**: Instant builds for unchanged code
+
+#### 4.2 Network Request Batching
+
+**Problem**: Many small HTTP requests slow down downloads.
+
+**Solution**: Batch artifact downloads when possible.
+
+```dart
+// Download multiple artifacts in one connection
+class BatchDownloader {
+  Future<List<Artifact>> downloadBatch(List<Coordinate> coords) async {
+    // Use HTTP/2 multiplexing or parallel connections
+    final client = HttpClient()..maxConnectionsPerHost = 10;
+
+    return Future.wait(
+      coords.map((coord) => downloadArtifact(coord, client)),
+      eagerError: false,
+    );
+  }
+}
+```
+
+**Benefit**: ~2x faster downloads over HTTP/2
+
+## Implementation Phases
+
+**Phase 1**: Core functionality (ship this first)
+
+- Maven repository client
+- POM parser
+- Dependency resolver
+- Full AAR extraction and handling
+- Plugin scanner
+- Integration with build system
+
+**Phase 2**: Speed optimizations
+
+- Incremental resolution
+- Binary DEX cache
+- Parallel operations
+- Lazy AAR extraction
+
+**Phase 3**: Size optimizations
+
+- Scope-aware resolution
+- Dependency pruning
+- Compressed cache
+- Build mode awareness
+- Smart resource merging
+
+**Phase 4**: Advanced (nice-to-have)
+
+- Persistent build cache
+- Network batching
+- Zero-copy operations

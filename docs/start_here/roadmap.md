@@ -1,0 +1,115 @@
+# Roadmap — where oka is going and why
+
+Oka is a declarative, compositional, AI-native build system: **one code for
+every platform build**. Android is the first platform and the deepest proof
+— a no-Gradle pipeline that turns a platform build into typed Dart values
+you compose, inspect, and fix ([why this matters](why_this_repo_matters.md)).
+The roadmap is the continuation of that bet: every next step either
+**hardens the platform oka already owns**, **extends it to a new platform**
+under the same laws, or **opens an extension surface** without giving up
+the invariants (no Gradle, validated plans, agent-operable failure
+messages).
+
+This page is the why; the what-and-what-gates-it lives in the
+[phase checklist](../PHASE_CHECKLIST.md), and the standing decisions behind
+each direction live in the [ADR index](../decisions/index.md). Nothing here
+is promised on vibes — work moves out of the checklist only when its tests
+and evidence exist.
+
+## The shape of the work
+
+Work is grouped by horizon, not by date:
+
+- **Now** — unblocked and code-ready: the design exists, the tests exist,
+  and only an external input (credentials, CI runners) or a small, honest
+  polish stands between the current state and new evidence.
+- **Next** — visible, but gated: each item needs a design checkpoint or an
+  ADR before code, because it forks the architecture (a new platform, a
+  background process, an ecosystem surface).
+- **Later** — north-star alignment: the multi-platform endgame and the
+  ecosystem contracts, started only once the horizons above have set the
+  pattern.
+
+## Now
+
+- **Real store uploads.** `oka_play` and `oka_huawei` compile to validated
+  dry-run plans today; flipping to real uploads needs only maintainer
+  credentials plus one live upload each as evidence. This turns ADR-0014
+  from "proven offline" into "proven shipped".
+- **CI emulator tier.** The dev-loop evidence (`oka run device` →
+  `oka dev` → reload/restart) is real but machine-local. Running it on a
+  KVM-capable CI runner makes the dev loop a regression gate instead of a
+  one-time transcript. The emulator lifecycle is now composable
+  (`oka run emulator`, `EmulatorTarget` — create-if-missing, idempotent
+  boot, serial artifact), so the CI tier composes the same target.
+- **Chrome session targets (S0, ADR-0017).** Browser sessions as
+  composable targets in `oka_web` — the second instance of the
+  `EmulatorTarget` ensure-running pattern (typed spec, idempotent boot,
+  handle artifacts) — replacing the launch-script glue consumer repos use
+  today for pinned-flag (WebMCP) and headless testing. Gate: ADR-0017.
+- **`oka dev --control-port` (delegation channel) — shipped.** The
+  loopback JSON-lines control server maps reload / restart / stop / status
+  onto the owning flutter-tool daemon session (the only compile-capable
+  channel; late-attach VM-service reloads are silent no-ops), with
+  discovery per the frozen spec v2 Dart dev session contract and no-auth
+  localhost binding documented as such. The spec-v2 runner-session file
+  (`<project>/.flutter_mcp/runner-session.json` — sibling of the
+  toolkit's `state.json`, overridable via the toolkit's
+  `--runner-session-file`; written at `session.ready` with the
+  `runner: "oka-dev"` display field, deleted on every exit path) makes
+  oka the FIRST CONFORMING RUNNER: the toolkit never learns oka's name —
+  its adapter consumes the file. Evidence:
+  `test/adr0011_control_server_test.dart` (real loopback sockets against
+  the scripted-fake session), the runner-session lifecycle in
+  `test/adr0011_dev_session_test.dart`, and the editor wiring in
+  `docs/guides/hot_reload_plan.md`.
+- **Doctor and cache polish.** The secret audit and `oka cache gc` are
+  live; they grow only where real gaps show up (new secret-ish key
+  patterns) or where the store already records the data (age/size
+  reporting before gc deletes anything).
+- **Close the leakage ratchet.** One flagged flag name
+  (`--skip-badging`) is the last exception in the ADR-0015 platform-
+  leakage gate; ratify or deprecate it and the boundary is clean by
+  construction.
+
+## Next
+
+- **A second platform.** iOS is the leading candidate, and it is ADR-gated
+  by design: the no-Gradle law, the toolchain-as-data policy, and the
+  validated-plan surface must each get an explicit iOS analogue before any
+  code exists. The Android pipeline is the template, not a shortcut.
+- **More distribution targets.** RuStore and Yandex fit the
+  `PublishTarget` pattern almost exactly — but the checkpoint question is
+  whether target packages become a productized third-party extension
+  point before the pattern is copied twice more.
+- **Cache lifecycle as policy.** Whether `oka cache gc` stays a manual
+  verb or gains scheduling is a no-daemon posture question (ADR-0001) — a
+  decision to make explicitly, not by drift.
+- **A standing hot-reload CI tier.** Beyond the one-shot e2e: a repeatable
+  session tier in CI for the watch loop and reconnect paths, once the
+  emulator runner exists and the runtime budget is accepted.
+
+## Later
+
+- **Runtime sessions beyond browsers.** The ADR-0017 handle convention
+  extended to `apple/container`/Docker sessions (Linux testing for oka
+  and Dart packages; images via the artifact store) and Dart server
+  process sessions (base-URL handles for intentcall/mcp-server targets)
+  — each an independent target, no session framework.
+- **Every platform, same laws.** The north star is one code for every
+  platform build: typed values, validated pipelines, no hidden glue, and
+  an agent that can set up and fix a build from oka's messages alone. Each
+  new platform must clear the same bar Android did — evidence, not
+  demos.
+- **An ecosystem of distribution targets.** The ADR-0014 conformance suite
+  becomes the contract third-party package authors satisfy to ship their
+  own publish targets — the point where oka stops being only a tool and
+  starts being a platform for tools.
+
+## Reading the trail
+
+- [Phase checklist](../PHASE_CHECKLIST.md) — the open execution detail.
+- [Archived checklists](../archive/PHASE_CHECKLIST_2026-09.md) — every
+  completed phase, with its tests and evidence.
+- [ADR index](../decisions/index.md) — the decisions that gate the Next
+  horizon.

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      # --no-example: example/ is a Flutter app; plain-dart resolution of it
+      # fails (flutter_test is sdk-sourced). Dart >= 3.13 resolves example/
+      # by default. The root suite (ADR conformance + real-pipeline evidence)
+      # skips gracefully without the Flutter/Android SDKs.
+      - run: dart pub get --no-example
+      - run: dart analyze --fatal-infos
+      - name: Root test suite (cross-package conformance)
+        run: dart test
+      - name: Package test suites
+        run: |
+          set -e
+          for pkg in packages/*/; do
+            if [ -d "$pkg/test" ]; then
+              echo "=== $pkg"
+              (cd "$pkg" && dart test)
+            fi
+          done
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Contract gates (version sync, docs drift, changelog hygiene)
+        env:
+          OKA_ROOT: ${{ github.workspace }}
+        run: bash tool/contracts/check_contracts.sh
+
+  validate:
+    # pub.dev dry-run for every publishable package (the workspace root is
+    # publish_to: none). Runs on PRs touching packaging.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get --no-example
+      - name: Publish dry-runs
+        run: |
+          set -e
+          for pkg in packages/*/; do
+            if [ -f "$pkg/pubspec.yaml" ] && ! grep -q "publish_to: none" "$pkg/pubspec.yaml"; then
+              echo "=== $pkg"
+              (cd "$pkg" && dart pub publish --dry-run)
+            fi
+          done

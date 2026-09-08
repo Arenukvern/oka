@@ -1,0 +1,230 @@
+schema: steward/v1
+repo:
+  id: oka
+  archetype: cli_tool
+  archetype_detection:
+    confidence: 1.0
+    signals:
+      - 'explicit --archetype'
+
+harness:
+  name: steward
+  mode: cli
+  entrypoints:
+    cli: steward
+
+adoption:
+  status: adopting
+  owner: oka
+  gate:
+    pillar: quality
+
+stewardship:
+  governance:
+    charter: AGENTS.md
+    adr_dir: docs/decisions
+  knowledge:
+    docs_map: AGENTS.md
+    source_policy: required_for_external_claims
+  repo_quality:
+    contract_spec: steward.yaml
+    maturity_model: general_stewardship
+  skill_lifecycle:
+    installable_skills: true
+    registry: skills.sh.json
+  quality:
+    validate: just check-contracts
+    evidence: .steward/benchmark-summaries
+  harness:
+    enabled: false
+    action_contract: deferred
+  release:
+    changelog: CHANGELOG.md
+    artifact_provenance: required
+  review_handoff:
+    moe_required_for_architecture: true
+  strategic_alignment:
+    vision_source: AGENTS.md
+    success_evidence: required
+  security:
+    action_effects: required
+    redaction: steward/redaction/v1
+  org:
+    owners: AGENTS.md
+
+docs:
+  "Why This Repo Matters": docs/start_here/why_this_repo_matters.md
+  "Build & Configuration Guide": docs/guides/build_and_config.md
+  "Design FAQ": docs/guides/design_faq.md
+
+actions:
+  oka.check.version-sync:
+    kind: command
+    desc: Verify repo VERSION matches every oka release touchpoint.
+    command:
+      argv: [/bin/bash, tool/release/check_version_sync.sh]
+      shell: false
+    cwd: .
+    effects:
+      fs_read: [tool/release/check_version_sync.sh, VERSION, pubspec.yaml]
+      fs_write: []
+      git: false
+      network: false
+      secrets: false
+      destructive: false
+    safety:
+      class: bounded_local
+      default_policy: auto
+      requires_confirmation: false
+    limits:
+      timeout_ms: 10000
+      max_output_bytes: 200000
+    outputs:
+      - id: stdout
+        kind: stream
+        required: true
+        retention: summary
+        format: text
+    evidence:
+      redaction: steward/redaction/v1
+      summary_fields: [exit_code, duration_ms, output_digest]
+  oka.check.docs-drift:
+    kind: command
+    desc: Verify documented commands/config keys exist in code and sidebar entries resolve.
+    command:
+      argv: [/bin/bash, tool/contracts/check_docs_drift.sh]
+      shell: false
+    cwd: .
+    effects:
+      fs_read: [tool/contracts/check_docs_drift.sh, AGENTS.md, docs.json, README.md]
+      fs_write: []
+      git: false
+      network: false
+      secrets: false
+      destructive: false
+    safety:
+      class: bounded_local
+      default_policy: auto
+      requires_confirmation: false
+    limits:
+      timeout_ms: 10000
+      max_output_bytes: 200000
+    outputs:
+      - id: stdout
+        kind: stream
+        required: true
+        retention: summary
+        format: text
+    evidence:
+      redaction: steward/redaction/v1
+      summary_fields: [exit_code, duration_ms, output_digest]
+  oka.check.changelog-markdown:
+    kind: command
+    desc: Verify CHANGELOG.md markdown hygiene.
+    command:
+      argv: [/bin/bash, tool/release/check_changelog_markdown.sh]
+      shell: false
+    cwd: .
+    effects:
+      fs_read: [tool/release/check_changelog_markdown.sh, CHANGELOG.md]
+      fs_write: []
+      git: false
+      network: false
+      secrets: false
+      destructive: false
+    safety:
+      class: bounded_local
+      default_policy: auto
+      requires_confirmation: false
+    limits:
+      timeout_ms: 10000
+      max_output_bytes: 200000
+    outputs:
+      - id: stdout
+        kind: stream
+        required: true
+        retention: summary
+        format: text
+    evidence:
+      redaction: steward/redaction/v1
+      summary_fields: [exit_code, duration_ms, output_digest]
+  oka.check.no-personal-paths:
+    kind: command
+    desc: Verify no maintainer-local absolute paths leak into release touchpoints.
+    command:
+      argv: [/bin/bash, tool/release/check_no_personal_paths.sh]
+      shell: false
+    cwd: .
+    effects:
+      fs_read: [tool/release/check_no_personal_paths.sh]
+      fs_write: []
+      git: false
+      network: false
+      secrets: false
+      destructive: false
+    safety:
+      class: bounded_local
+      default_policy: auto
+      requires_confirmation: false
+    limits:
+      timeout_ms: 10000
+      max_output_bytes: 200000
+    outputs:
+      - id: stdout
+        kind: stream
+        required: true
+        retention: summary
+        format: text
+    evidence:
+      redaction: steward/redaction/v1
+      summary_fields: [exit_code, duration_ms, output_digest]
+
+  oka.bench.build:
+    kind: command
+    desc: Run build performance benchmarks (explain/incremental build/compare/debug step) against example/.
+    command:
+      argv: [/bin/bash, tool/benchmarks/build_benchmarks.sh, example]
+      shell: false
+    cwd: .
+    effects:
+      fs_read:
+        - tool/benchmarks/build_benchmarks.sh
+      fs_write:
+        - example/.oka_cache
+        - .steward/benchmark-summaries
+      git: false
+      network: false
+      secrets: false
+      destructive: false
+    safety:
+      class: bounded_local
+      default_policy: auto
+      requires_confirmation: false
+    limits:
+      timeout_ms: 900000
+      max_output_bytes: 200000
+    outputs:
+      - id: stdout
+        kind: stream
+        required: true
+        retention: summary
+        format: text
+    evidence:
+      redaction: steward/redaction/v1
+      summary_fields: [exit_code, duration_ms, output_digest]
+
+probes: {}
+
+diagnostics:
+  cases: {}
+
+unknown_cases:
+  path: .steward/unknown-cases/
+  retention: local
+
+provenance:
+  dependencies: []
+  artifacts: []
+  benchmarks:
+    - id: oka.contract-status-smoke
+      manifest: steward/scenarios/oka.contract-status-smoke.yaml

@@ -1,8 +1,10 @@
 name: example
-description: "A new Flutter project."
+description: >-
+  Example Flutter app demonstrating the oka no-Gradle Android build
+  (APK/AAB) and the declarative pipeline composition API.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -19,7 +21,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.9.2
+  sdk: ^3.12.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -31,31 +33,49 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
+  mcp_toolkit: ^5.0.4
+  oka:
+    path: ..
+  oka_android: ^0.1.6
+  oka_huawei: ^0.1.6
+  oka_play: ^0.1.6
+
+dependency_overrides:
+  # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
+  # your sibling checkouts via pubspec_overrides.yaml (git-ignored).
   cupertino_icons: ^1.0.8
+  # Local development: split packages from the oka checkout (ADR-0010).
+  # Remove once oka_core/oka_android are published to pub.dev.
+  oka_android:
+    path: ../packages/oka_android
+  oka_core:
+    path: ../packages/oka_core
+  oka_huawei:
+    path: ../packages/oka_huawei
+  oka_play:
+    path: ../packages/oka_play
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  # Required to resolve `package:lints/recommended.yaml` referenced by
+  # xsoulspace_lints' shared configs.
+  lints: ^6.1.0
+
+  # Strict lint set shared with the oka packages; applied via
+  # `package:xsoulspace_lints/library.yaml` in analysis_options.yaml.
+  xsoulspace_lints: ^0.1.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

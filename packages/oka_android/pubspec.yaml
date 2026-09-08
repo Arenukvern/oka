@@ -1,0 +1,37 @@
+name: oka_android
+description: >-
+  Android platform pipelines for oka: no-Gradle Flutter APK/AAB build steps,
+  plugin packaging, direct Android SDK toolchain (aapt2, d8, apksigner), and
+  typed manifest/spec values.
+version: 0.1.6
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_android
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - aab
+  - android
+  - apk
+  - build-system
+  - flutter
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  archive: ^4.0.9
+  crypto: ^3.0.3
+  http: ^1.2.1
+  meta: ^1.14.0
+  oka_core: ^0.1.6
+  path: ^1.9.0
+  watcher: ^1.1.1
+  yaml: ^3.1.2
+
+dev_dependencies:
+  # Tests for the additive GMS-dependency artifact seam (ADR-0014 P2).
+  lints: ^6.1.0
+  test: ^1.25.0
+  xsoulspace_lints: ^0.1.2

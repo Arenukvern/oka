@@ -1,0 +1,35 @@
+name: oka_huawei
+description: >-
+  Huawei AppGallery Connect distribution target for oka (ADR-0014 P2):
+  HuaweiPublishTarget with a dry-run publish plan, AppGallery Connect REST
+  upload tail over an injectable HTTP transport, and a GMS-excluding
+  AndroidBuild variant validated at composition time.
+version: 0.1.6
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_huawei
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - build-system
+  - huawei
+  - appgallery
+  - pipeline
+  - flutter
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  http: ^1.2.1
+  meta: ^1.14.0
+  oka_android: ^0.1.6
+  oka_core: ^0.1.6
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  oka_conformance: ^0.1.6
+  test: ^1.25.0
+  xsoulspace_lints: ^0.1.2

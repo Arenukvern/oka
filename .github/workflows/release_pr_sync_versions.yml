@@ -1,0 +1,82 @@
+name: Release PR — sync versions
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr-sync-versions-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  detect-release-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      is_release_pr: ${{ steps.check.outputs.is_release_pr }}
+    steps:
+      - id: check
+        name: Detect release-please PR
+        run: |
+          title="${{ github.event.pull_request.title }}"
+          head="${{ github.head_ref }}"
+          if [[ "$head" == release-please--* ]] || [[ "$title" == *": release "* ]]; then
+            echo "is_release_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  auto-sync-versions:
+    needs: detect-release-pr
+    if: needs.detect-release-pr.outputs.is_release_pr == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Sync release version touchpoints
+        run: bash tool/release/sync_version.sh
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet; then
+            echo "release version touchpoints already in sync"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            VERSION \
+            pubspec.yaml \
+            .claude-plugin/marketplace.json \
+            plugin/.cursor-plugin/plugin.json \
+            plugin/.codex-plugin/plugin.json \
+            plugin/.claude-plugin/plugin.json
+          git commit -m "chore: sync release version touchpoints"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+  contract-gates:
+    needs: detect-release-pr
+    if: needs.detect-release-pr.outputs.is_release_pr == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Run contract gates
+        env:
+          OKA_ROOT: ${{ github.workspace }}
+        run: bash tool/contracts/check_contracts.sh
