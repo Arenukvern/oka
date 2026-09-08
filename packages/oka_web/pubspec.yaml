@@ -1,19 +1,18 @@
 name: oka_web
 description: >-
-  Web shell station for oka (ADR-0016): typed shell composition
-  (WebShellContribution), replaceable emitters (generate + inject),
-  web-shell / web-build targets, and web deploy targets (GitHub Pages,
-  itch.io) over the directory-artifact convention. Web is explicitly NOT a
-  PlatformPipeline.
+  Web shell station for oka (ADR-0016): per-store web/index.html as typed,
+  drift-checked Dart, replaceable emitters, and GitHub Pages / itch.io
+  deploy targets. Not a platform pipeline.
 version: 0.2.0
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_web
 issue_tracker: https://github.com/Arenukvern/oka/issues
-documentation: https://docs.page/arenukvern/oka
+documentation: https://docs.page/arenukvern/oka/guides/web_shell_station
 topics:
   - build-system
   - cli
   - flutter
+  - web
 
 resolution: workspace
 
@@ -23,7 +22,11 @@ environment:
 dependencies:
   archive: ^4.0.9
   meta: ^1.14.0
-  oka_core: ^0.1.6
+  # This package publishes on the train together with oka_core 0.2.0
+  # (which introduces Target.explainDetails) — never against hosted
+  # oka_core 0.1.x. The range resolves against the current workspace
+  # (0.1.6) and the train release (0.2.0) alike.
+  oka_core: ">=0.1.6 <0.3.0"
   path: ^1.9.0
 
 dev_dependencies:

@@ -101,6 +101,28 @@ non-secrets; credentials are **paths** resolved via typed config →
 setup, file formats, and failure playbook: the
 [publishing guide](https://docs.page/arenukvern/oka/guides/publishing).
 
+## Web: the shell station, not a platform
+
+Web apps get the same treatment at the configuration-and-distribution
+layer — where the real pain lives (per-store `index.html` surgery,
+branch-per-store drift). `oka_web` composes the shell (SDK scripts with
+declarative ordering phases, preconnects, PWA manifest, icons) as typed,
+const, **drift-checked** Dart; store packages ship contributions; deploy
+targets push to GitHub Pages and itch.io — dry-run by default. The
+compile stays an honest, named delegation to `flutter build web`
+([ADR-0016](docs/decisions/0016-web-shell-station-store-contributions.md)):
+
+```dart
+targets: const [
+  WebShellTarget(spec: mySpec, contributions: [MyStoreContribution()]),
+  WebBuildTarget(),                       // delegates to flutter build web
+  GhPagesDeployTarget(),                  // oka run publish-gh-pages
+],
+```
+
+One codebase, one composition — no per-store branches. Full walkthrough:
+the [web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station).
+
 ## The agent surface
 
 Every operation is checkable and scriptable — this is what "AI-native"

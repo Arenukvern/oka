@@ -2,31 +2,43 @@
 
 ## 0.2.0
 
-- Deploy targets (ADR-0016 W2): `GhPagesDeployTarget` (`publish-gh-pages`,
-  git-worktree deploy to a `gh-pages` branch with **ambient git auth only** —
-  no token inputs, prompt-free git env, allow-empty commits disabled as code,
-  optional `subdirectory` filter) and `ItchDeployTarget` (`publish-itch`,
-  `butler push DIR USER/GAME:CHANNEL` with the API key surfaced only as a
-  redacting `CredentialRef` — `BUTLER_API_KEY` env var or well-known file;
-  the value is never logged or stored). Both consume a **directory**
-  artifact (`web-build-output` → `build/web` by default; typed `sourceDir`
-  override), declare `artifactIsDirectory` (the ADR-0016 §2 convention,
-  now asserted by the publish conformance suite), and default to
-  **dry-run** — deploys are destructive.
-- `StageWebDirectoryStep` — staged directory-artifact resolution
-  (typed override → state → `<project>/build/web`), mirroring the
-  file-artifact staging precedence of the ADR-0014 targets.
+Initial release (ADR-0016 — the web shell station). Publishes on the
+release train together with `oka_core` 0.2.0, which introduces the
+platform-agnostic `Target.explainDetails` extension point this package's
+targets use — publish only after the train lands, never against hosted
+`oka_core` 0.1.x.
 
-## 0.1.0
-
-- Initial release (ADR-0016 W0): typed web shell values
-  (`WebShellSpec`, `WebIconSpec`, `PwaManifestSpec`,
-  `WebShellContribution`), head/body entry types with declarative phases
-  (`WebHeadPhase`: preconnect → storeSdk → app), the emitter seam
-  (`ShellEmitter`, `ShellOutput`) with two first-party emitters
-  (`GenerateShellEmitter` — owns `web/index.html` + `web/manifest.json`
-  with generated-content banners; `InjectShellEmitter` — injects between
-  `<!-- oka:begin:head -->` / `<!-- oka:end:head -->` markers, fails
-  actionably when markers are absent), pipeline steps
-  (`ValidateWebShellStep`, `EmitWebShellStep`, `WebZipStep`,
-  `FlutterWebBuildStep`), and the `web-shell` / `web-build` targets.
+- **Typed shell values**: `WebShellSpec`, `WebIconSpec`,
+  `PwaManifestSpec`/`PwaManifestOverride`, `WebShellContribution` +
+  `SimpleWebShellContribution` (the store "what" seam), sealed head/body
+  entry types with declarative phases (`WebHeadPhase`:
+  `preconnect` → `storeSdk` → `app`) and `requiredSdkGlobal` metadata on
+  script entries (the build-time counterpart of the runtime adapters'
+  `expectedSdkGlobal`).
+- **The emitter "how" seam**: `ShellEmitter` with declared `ownedPaths`;
+  `GenerateShellEmitter` (default — owns `web/index.html` +
+  `web/manifest.json`, generated-content banners; Flutter
+  template-version coupling contained in this one class) and
+  `InjectShellEmitter` (marker-based injection for hand-maintained
+  `index.html`; fails actionably when markers are absent; never rewrites
+  unowned regions).
+- **Targets**: `web-shell` (compose + emit, no Flutter invocation) and
+  `web-build` (an honest, named delegation to `flutter build web` —
+  web is explicitly NOT a `PlatformPipeline`).
+- **Drift gate**: pure `checkShellDrift` / `ShellDriftReport`
+  comparator over emitter-owned regions, wired as a post-emit
+  idempotency check in `EmitWebShellStep`; `WebScriptEntry.toString()`
+  renders `requiredSdkGlobal` so `oka explain` surfaces it.
+- **Deploy targets** (`PublishTarget`s over the directory-artifact
+  convention, `artifactIsDirectory` asserted by the publish conformance
+  suite; both **dry-run by default**): `GhPagesDeployTarget`
+  (`publish-gh-pages` — git-worktree deploy with ambient git auth only,
+  prompt-free git env, allow-empty commits disabled as code) and
+  `ItchDeployTarget` (`publish-itch` — `butler push DIR USER/GAME:CHANNEL`,
+  API key surfaced only as a redacting `CredentialRef`; the value is
+  never logged or stored). `StageWebDirectoryStep` stages the directory
+  artifact (typed override → state → `<project>/build/web`).
+- **Flagship example**: `example/crazygames/` — the third-party pattern
+  pilot (a store package ships exactly this const shape alongside its
+  runtime adapter), with SDK-script global reconciled against the
+  runtime adapter's `expectedSdkGlobal`.

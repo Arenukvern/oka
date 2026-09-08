@@ -11,6 +11,7 @@ configuration tax on every build.
 | --- | --- |
 | Build an app now | [Quick recipes](/start_here/quick_recipes) |
 | Publish to Google Play / AppGallery | [Publishing guide](/guides/publishing) |
+| Ship a web app to stores / hosting | [Web shell station guide](/guides/web_shell_station) |
 | Understand the project | [Why this repo matters](/start_here/why_this_repo_matters) |
 | Configure a build | [Build & configuration guide](/guides/build_and_config) |
 | Contribute / change architecture | [Docs map](/start_here/docs_map) |
