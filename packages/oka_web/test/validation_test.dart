@@ -34,7 +34,7 @@ void main() {
   group('identity / name patterns', () {
     test('empty title is an issue naming the fix', () {
       final issues =
-          shellIssues(const WebShell(spec: const WebShellSpec()));
+          shellIssues(const WebShell(spec: WebShellSpec()));
       expect(issues.join('\n'), contains('shell title is empty'));
       expect(issues.join('\n'), contains('WebShellSpec.title'));
     });
@@ -49,7 +49,7 @@ void main() {
         ],
       );
       final issues = shellIssues(
-        WebShell(spec: const WebShellSpec(title: 'X'), contributions: const [dup]),
+        const WebShell(spec: WebShellSpec(title: 'X'), contributions: [dup]),
       );
       expect(issues.join('\n'), contains('duplicate head entry link:'));
     });
@@ -62,7 +62,7 @@ void main() {
         ],
       );
       final issues = shellIssues(
-        WebShell(spec: const WebShellSpec(title: 'X'), contributions: const [dup]),
+        const WebShell(spec: WebShellSpec(title: 'X'), contributions: [dup]),
       );
       expect(issues.join('\n'), contains('duplicate head entry meta:'));
     });
@@ -76,9 +76,9 @@ void main() {
       );
       expect(
         shellIssues(
-          WebShell(
-            spec: const WebShellSpec(title: 'X'),
-            contributions: const [ok],
+          const WebShell(
+            spec: WebShellSpec(title: 'X'),
+            contributions: [ok],
           ),
         ),
         isEmpty,
@@ -127,8 +127,8 @@ void main() {
     tearDown(() => temp.deleteSync(recursive: true));
 
     test('declared-but-missing icons are reported with the fix', () {
-      final shell = WebShell(
-        spec: const WebShellSpec(
+      const shell = WebShell(
+        spec: WebShellSpec(
           title: 'X',
           icons: WebIconSpec(
             icon192: 'icons/Icon-192.png',
@@ -152,10 +152,10 @@ void main() {
     });
 
     test('existing icons pass', () {
-      final shell = WebShell(
-        spec: const WebShellSpec(
+      const shell = WebShell(
+        spec: WebShellSpec(
           title: 'X',
-          icons: const WebIconSpec(icon192: 'icons/Icon-192.png'),
+          icons: WebIconSpec(icon192: 'icons/Icon-192.png'),
         ),
       );
       expect(

@@ -11,12 +11,8 @@ import 'package:test/test.dart';
 const _spec = WebShellSpec(
   title: 'Example',
   description: 'An example web app.',
-  baseHref: '/',
   themeColor: '#0175C2',
   backgroundColor: '#FFFFFF',
-  display: 'standalone',
-  orientation: 'portrait-primary',
-  startUrl: '.',
   icons: WebIconSpec(
     icon192: 'icons/Icon-192.png',
     icon512: 'icons/Icon-512.png',
@@ -49,7 +45,7 @@ const _yaGames = SimpleWebShellContribution(
 );
 
 WebShell composedShell() =>
-    WebShell(spec: _spec, contributions: const [_yaGames]);
+    const WebShell(spec: _spec, contributions: [_yaGames]);
 
 void main() {
   test('renders index.html exactly (Flutter stable template shape)', () {
@@ -174,9 +170,9 @@ void main() {
         shortName: 'YaGame',
       ),
     );
-    final shell = WebShell(
+    const shell = WebShell(
       spec: _spec,
-      contributions: const [_yaGames, storeOverride],
+      contributions: [_yaGames, storeOverride],
     );
     final manifest = shell.manifest;
     expect(manifest.display, 'fullscreen');
@@ -190,7 +186,7 @@ void main() {
   test('empty description/colors omit the corresponding tags and keys', () {
     const minimal = WebShellSpec(title: 'Tiny');
     final output = const GenerateShellEmitter()
-        .emit(WebShell(spec: minimal, contributions: const []));
+        .emit(const WebShell(spec: minimal));
     final html = output.files['index.html']!;
     expect(html, isNot(contains('name="description"')));
     expect(html, isNot(contains('theme-color')));
@@ -222,7 +218,7 @@ void main() {
     final html =
         const GenerateShellEmitter().emit(shell).files['index.html']!;
     expect(html, contains('<meta name="x&quot;q" content="a&amp;b&lt;c&gt;&quot;d&quot;">'));
-    expect(html, contains('<title>A &amp; &quot;B&quot; &lt;C&gt;</title>'));
+    expect(html, contains('<title>A &amp; "B" &lt;C&gt;</title>'));
     expect(html, contains('<base href="/app/">'));
   });
 

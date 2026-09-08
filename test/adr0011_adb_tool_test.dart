@@ -102,7 +102,9 @@ void main() {
       expect(info.port, 41235);
       expect(info.auth, 'AbCdEfGhIj=');
       expect(info.uri, 'http://127.0.0.1:41235/AbCdEfGhIj=');
-      expect(info.wsUri, 'ws://127.0.0.1:41235/AbCdEfGhIj=');
+      // The ws endpoint is the token path plus `/ws` (the plain HTTP
+      // announcement carries no /ws — Dart VM service convention).
+      expect(info.wsUri, 'ws://127.0.0.1:41235/AbCdEfGhIj=/ws');
     });
 
     test('last announcement wins (stale entries in the buffer)', () {
@@ -401,7 +403,7 @@ void main() {
       final info = parseVmServiceUri(_vmServiceLine)!;
       expect(
         forwardedVmServiceUri(info, 41557),
-        'ws://127.0.0.1:41557/AbCdEfGhIj=',
+        'ws://127.0.0.1:41557/AbCdEfGhIj=/ws',
       );
     });
   });

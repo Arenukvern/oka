@@ -148,15 +148,21 @@ class InjectShellEmitter extends ShellEmitter {
         'and $endMarker closes the region.',
       );
     }
+    // Preserve the indentation of the marker lines (byte-for-byte outside
+    // the region includes surrounding whitespace shape). Entry lines keep
+    // their own two-space render indent.
+    final lineStart = html.lastIndexOf('\n', endIndex) + 1;
+    final indent = html.substring(lineStart, endIndex);
     notes.add(
       'inject: $region region rewritten between markers '
       '(${endIndex - beginIndex + endMarker.length} bytes → '
-      '${content.length} bytes); everything else preserved byte-for-byte',
+      '${content.length} bytes); everything else '
+      'preserved byte-for-byte',
     );
     return html.replaceRange(
       beginIndex,
       endIndex + endMarker.length,
-      '$beginMarker\n$content\n$endMarker',
+      '$beginMarker\n$content\n$indent$endMarker',
     );
   }
 }

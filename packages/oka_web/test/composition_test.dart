@@ -9,7 +9,7 @@ void main() {
       const contribution = SimpleWebShellContribution(
         head: [
           // Declared out of phase order on purpose.
-          WebMetaEntry(name: 'app-meta', phase: WebHeadPhase.app),
+          WebMetaEntry(name: 'app-meta'),
           WebScriptEntry(
             src: 'https://store.example/sdk.js',
             phase: WebHeadPhase.storeSdk,
@@ -26,14 +26,13 @@ void main() {
           ),
           WebScriptEntry(
             src: 'https://app.example/glue.js',
-            phase: WebHeadPhase.app,
             async: true,
           ),
         ],
       );
-      final head = WebShell(
-        spec: const WebShellSpec(title: 'X'),
-        contributions: const [contribution],
+      final head = const WebShell(
+        spec: WebShellSpec(title: 'X'),
+        contributions: [contribution],
       ).head;
       expect(
         head.map((final e) => e.phase).toList(),
@@ -67,7 +66,7 @@ void main() {
         ],
       );
       final head =
-          WebShell(spec: spec, contributions: const [store]).head;
+          const WebShell(spec: spec, contributions: [store]).head;
       // preconnect first, then spec's app-phase meta.
       expect(head[0].phase, WebHeadPhase.preconnect);
       expect(head[1], isA<WebMetaEntry>());
@@ -86,9 +85,9 @@ void main() {
               phase: WebHeadPhase.storeSdk),
         ],
       );
-      final head = WebShell(
-        spec: const WebShellSpec(title: 'X'),
-        contributions: const [first, second],
+      final head = const WebShell(
+        spec: WebShellSpec(title: 'X'),
+        contributions: [first, second],
       ).head;
       expect(
         head.whereType<WebScriptEntry>().map((final e) => e.src),
@@ -102,15 +101,15 @@ void main() {
       const spec = WebShellSpec(title: 'X', baseHref: '/app/');
       const a = SimpleWebShellContribution(baseHref: '/store-a/');
       const b = SimpleWebShellContribution(baseHref: '/store-b/');
-      final shell =
-          WebShell(spec: spec, contributions: const [a, b]);
+      const shell =
+          WebShell(spec: spec, contributions: [a, b]);
       expect(shell.baseHref, '/store-b/');
     });
 
     test('no override → spec base href', () {
       const spec = WebShellSpec(title: 'X', baseHref: '/app/');
       expect(
-        WebShell(spec: spec, contributions: const []).baseHref,
+        const WebShell(spec: spec).baseHref,
         '/app/',
       );
     });
@@ -125,7 +124,7 @@ void main() {
         dartDefines: {'SHARED': 'b'},
       );
       expect(
-        WebShell(spec: const WebShellSpec(title: 'X'), contributions: const [a, b])
+        const WebShell(spec: WebShellSpec(title: 'X'), contributions: [a, b])
             .contributionDartDefines,
         {'STORE': 'ya', 'SHARED': 'b'},
       );
@@ -140,9 +139,9 @@ void main() {
       const b = SimpleWebShellContribution(
         body: [WebHtmlEntry('<noscript>js off</noscript>')],
       );
-      final body = WebShell(
-        spec: const WebShellSpec(title: 'X'),
-        contributions: const [a, b],
+      final body = const WebShell(
+        spec: WebShellSpec(title: 'X'),
+        contributions: [a, b],
       ).body;
       expect(body, hasLength(2));
       expect(body[0], isA<WebElementEntry>());

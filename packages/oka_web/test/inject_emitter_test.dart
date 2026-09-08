@@ -73,7 +73,7 @@ void main() {
   });
 
   test('preserves unowned regions byte-for-byte', () {
-    final before = _legacyHtml;
+    const before = _legacyHtml;
     final after = const InjectShellEmitter()
         .emit(_shell, existingIndexHtml: before)
         .files['index.html']!;
@@ -111,15 +111,13 @@ void main() {
   });
 
   test('missing file → actionable failure naming the markers', () {
-    const ShellInjectionException exception = ShellInjectionException('');
-    expect(exception, isA<ShellInjectionException>());
     expect(
       () => const InjectShellEmitter().emit(_shell),
       throwsA(
         isA<ShellInjectionException>().having(
           (final e) => e.message,
           'message',
-          allOf(
+          allOf([
             contains('index.html not found'),
             contains('never creates one'),
             contains('use the `generate` emitter'),
@@ -128,7 +126,7 @@ void main() {
             contains('<!-- oka:begin:body -->'),
             contains('<!-- oka:end:body -->'),
             contains('never rewrites regions outside the markers'),
-          ),
+          ]),
         ),
       ),
     );

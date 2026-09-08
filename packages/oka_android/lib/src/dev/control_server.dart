@@ -219,7 +219,8 @@ class DevControlServer {
       return;
     }
 
-    final id = request['id'] is int ? request['id'] as int : -1;
+    final rawId = request['id'];
+    final id = rawId is int ? rawId : -1;
     final method = request['method'];
     if (method is! String || method.trim().isEmpty) {
       _respond(socket, {

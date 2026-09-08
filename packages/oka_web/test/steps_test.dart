@@ -53,8 +53,8 @@ void main() {
   test('Pipeline.validate accepts the full chain', () {
     final pipeline = Pipeline([
       ValidateWebShellStep(
-        shell: WebShell(
-          spec: const WebShellSpec(
+        shell: const WebShell(
+          spec: WebShellSpec(
             title: 'Example',
             icons: WebIconSpec(icon192: 'icons/Icon-192.png'),
           ),
@@ -73,8 +73,8 @@ void main() {
   test('full chain run: validate → emit → zip against a temp dir', () async {
     final pipeline = Pipeline([
       ValidateWebShellStep(
-        shell: WebShell(
-          spec: const WebShellSpec(
+        shell: const WebShell(
+          spec: WebShellSpec(
             title: 'Example',
             description: 'chain test',
             icons: WebIconSpec(icon192: 'icons/Icon-192.png'),
@@ -99,9 +99,6 @@ void main() {
     expect(indexHtml.readAsStringSync(), contains('<title>Example</title>'));
     expect(manifestJson.readAsStringSync(), contains('"name": "Example"'));
 
-    // Artifacts provided for downstream steps.
-    final state = PipelineState();
-
     // Zip artifact exists and decodes with the emitted entries.
     final zip = File(p.join(temp.path, 'out', 'app.zip'));
     expect(zip.existsSync(), isTrue);
@@ -110,7 +107,6 @@ void main() {
       archive.map((final f) => f.name),
       containsAll(['index.html', 'manifest.json', 'icons/Icon-192.png']),
     );
-    expect(state.snapshot, isEmpty); // the run above used its own state
   });
 
   test('zip step is deterministic (sorted relative paths)', () async {
@@ -196,8 +192,16 @@ void main() {
     test('empty base href omits the flag; SDK path prefixes the executable',
         () async {
       final runner = _RecordingRunner(0);
-      final ctx = tempContext(temp, runner: runner)
-          .copyWith(flutterSdkPath: '/opt/flutter');
+      // Note: BuildContext.copyWith drops processRunner (oka_core quirk),
+      // so both fields are set in the constructor here.
+      final ctx = BuildContext(
+        projectPath: temp.path,
+        buildDir: p.join(temp.path, '.oka', 'build'),
+        mode: BuildMode.debug,
+        config: OkaConfig.empty,
+        flutterSdkPath: '/opt/flutter',
+        processRunner: runner,
+      );
       final result =
           await FlutterWebBuildStep().run(ctx, PipelineState());
       expect(result.ok, isTrue);
