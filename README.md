@@ -6,7 +6,7 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/arenukevrn/oka)
 [![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
 [![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.44-blue.svg)](https://flutter.dev)
-[![All Contributors](https://img.shields.io/github/all-contributors/Arenukvern/mcp_flutter?color=ee8449&style=flat-square)](https://github.com/Arenukvern/mcp_flutter#contributors-)
+[![All Contributors](https://img.shields.io/github/all-contributors/Arenukvern/oka?color=ee8449&style=flat-square)](https://github.com/Arenukvern/oka#contributors-)
 <a title="Discord" href="https://discord.com/invite/y54DpJwmAn" ><img src="https://img.shields.io/discord/696688204476055592.svg" /></a>
 [![maintained with Skill Steward](https://raw.githubusercontent.com/Arenukvern/skill_steward/main/docs/brand/assets/svg/badge-light.svg)](https://github.com/Arenukvern/skill_steward)
 
