@@ -1,8 +1,8 @@
 # Oka: Modern Flutter Android Build System
 
 > **Superseded in part (2026-09-06):** the hot reload / dev-mode design now
-> lives in [ADR-0011](../decisions/0011-hot-reload-run-loop.md) and
-> [docs/guides/hot_reload_plan.md](../guides/hot_reload_plan.md). Phase 4
+> lives in [ADR-0011](../decisions/0011-hot-reload-run-loop) and
+> [docs/guides/hot_reload_plan.mdx](../guides/hot_reload_plan). Phase 4
 > below is historical; its 4.4 (incremental native deploy) was **rejected**
 > — Android's runtime cannot hot-swap classes in an installed APK — and its
 > 4.1 `_flutter.hotRestart` RPC does not exist as written. This document is
@@ -333,9 +333,9 @@ Leverage existing Flutter tools:
 ## Success Metrics
 
 - Build time: 3-5x faster than Gradle for incremental builds
-- Hot reload: <200ms for Dart changes
-- Native incremental: <2s for small native changes
-- Size: <10MB tool distribution
+- Hot reload: under 200ms for Dart changes
+- Native incremental: under 2s for small native changes
+- Size: under 10MB tool distribution
 - Compatibility: 90%+ of popular Flutter plugins work without modification
 
 ## Migration Path

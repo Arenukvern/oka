@@ -1,7 +1,7 @@
 # Archived phase checklist — ADR-0006/0007/0008 phases
 
 > Archived 2026-09-06: all listed phases complete with evidence.
-> Open work now lives in [docs/PHASE_CHECKLIST.md](../PHASE_CHECKLIST.md).
+> Open work now lives in [docs/PHASE_CHECKLIST.mdx](../PHASE_CHECKLIST).
 
 # Phase Checklist
 
@@ -11,7 +11,7 @@ done only when its tests and evidence exist.
 ## Phase: ADR-0006 declarative composition API + package split
 
 - **Status:** in progress (core complete; e2e validated; docs pending final pass)
-- **ADR:** [0006](decisions/0006-dart-entrypoint-hooks.md) (accepted)
+- **ADR:** [0006](../decisions/0006-dart-entrypoint-hooks) (accepted)
 
 ### Done
 
@@ -66,7 +66,7 @@ done only when its tests and evidence exist.
 ## Phase: ADR-0007 self-resolving, self-checking builds
 
 - **Status:** in progress
-- **Scope:** see [hardening roadmap](guides/hardening_roadmap.md)
+- **Scope:** see [hardening roadmap](../guides/hardening_roadmap)
 
 ### Done
 
@@ -103,7 +103,7 @@ done only when its tests and evidence exist.
       (mobile_scanner ML Kit bundled/unbundled) — `packages/oka_android/lib/src/
       build/gradle_dep_parser.dart` + `plugin_packager.dart`,
       `test/gradle_conditional_dedup_test.dart` over `test/fixtures/gradle/`
-- [x] Q&A blocks for init / compare / debug-step in `docs/guides/build_and_config.md`
+- [x] Q&A blocks for init / compare / debug-step in `docs/guides/build_and_config.mdx`
 - [x] Dependency-plan dry-run `oka explain --deps` (+ `--network`): shared
       declared-deps collector on `PluginPackager`, `onFailure` observability on
       `MavenResolver.resolveWithTransitives`, typed `DependencyPlanReport`;

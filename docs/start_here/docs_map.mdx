@@ -1,0 +1,21 @@
+# Docs map
+
+Oka's documentation is layered: behavior SSOT is code + tests; docs link,
+never paraphrase implementation.
+
+| Layer | File(s) | Answers |
+|---|---|---|
+| Charter | [why_this_repo_matters](why_this_repo_matters) | What oka owns, invariants, success criteria |
+| How-to | [`docs/guides/build_and_config.mdx`](../guides/build_and_config) | Run, build, test, configure, troubleshoot |
+| Web | [`docs/guides/web_shell_station.mdx`](../guides/web_shell_station) | Web shell composition, store contributions, deploy targets |
+| Why | [`docs/guides/design_faq.mdx`](../guides/design_faq) | Design rationale per area |
+| Decisions | [`docs/decisions/`](../decisions/index) | Settled architecture decisions (ADRs) |
+| Status | [`docs/PHASE_CHECKLIST.mdx`](../PHASE_CHECKLIST) | Phase plan + test evidence map |
+| Agent map | [`AGENTS.md`](https://github.com/Arenukvern/oka/blob/main/AGENTS.md) | Router for agents — start here |
+
+## Reading paths
+
+- **New user** → README → [build guide Setup Hub](../guides/build_and_config)
+- **New contributor** → [why this repo matters](why_this_repo_matters) →
+  ADR index → `just test`
+- **AI agent** → `AGENTS.md` → follow its links; do not read everything.

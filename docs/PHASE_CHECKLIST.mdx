@@ -2,16 +2,16 @@
 
 Only items that need addressing live here. This is the **execution view**:
 what + what gates it, per horizon. The human-facing "where oka is going and
-why" is [start_here/roadmap.md](start_here/roadmap.md).
+why" is [start_here/roadmap.md](start_here/roadmap).
 
 Completed phases are archived with their evidence:
 
 - ADR-0013 (T0–T2), ADR-0014 (P0–P2), ADR-0015 (C0–C2), ADR-0011 (H0–H5),
   ADR-0010 typed config, ADR-0009 hybrid removal →
-  [archive/PHASE_CHECKLIST_2026-09.md](archive/PHASE_CHECKLIST_2026-09.md)
+  [archive/PHASE_CHECKLIST_2026-09.md](archive/PHASE_CHECKLIST_2026-09)
 - ADR-0006/0007/0008 (composition API, self-resolving builds, dep-plan
   dry-run) →
-  [archive/PHASE_CHECKLIST_adr0006-0008.md](archive/PHASE_CHECKLIST_adr0006-0008.md)
+  [archive/PHASE_CHECKLIST_adr0006-0008.md](archive/PHASE_CHECKLIST_adr0006-0008)
 
 A phase is done only when its tests and evidence exist (see `AGENTS.md`).
 Nothing below carries a checkbox — items move out of here into an archive
@@ -25,7 +25,7 @@ with evidence, not into a checked box.
   targets). Evidence: `packages/oka_web` tests. **W1** — shell drift gate
   (pure `checkShellDrift` + post-emit idempotency check in
   `EmitWebShellStep`), `oka explain --targets` shell render via the generic
-  `Target.explainDetails` hook, `docs/guides/web_shell_station.md`. Evidence:
+  `Target.explainDetails` hook, `docs/guides/web_shell_station.mdx`. Evidence:
   `packages/oka_web/test/drift_test.dart`, `test/adr0015_explain_targets_test.dart`
   + this suite. **W2** — `publish-gh-pages`, `publish-itch`, `WebZipStep`,
   directory-artifact convention asserted in conformance. Evidence:
@@ -67,7 +67,7 @@ with evidence, not into a checked box.
   clear-on-exit; the toolkit's `.flutter_mcp/state.json` untouched; the
   old `.oka_cache/dev/session.json` path no longer written), `just lint` +
   `just test` green. Editor/agent wiring:
-  `docs/guides/hot_reload_plan.md` → "Wiring an editor or agent to the
+  `docs/guides/hot_reload_plan.mdx` → "Wiring an editor or agent to the
   delegation channel".
 
 - **Web icon rasterization decision.**- **Web icon rasterization decision.** Web manifest icons need PNGs

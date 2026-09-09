@@ -12,18 +12,18 @@ follow links.
 
 - Default build path must **never** shell out to `flutter build apk` / Gradle as success (Phase 0 invariant).
 - One build path only: the no-Gradle pipeline. The cargo-apk/Rust hybrid was removed (ADR-0009) — do not reintroduce it without a new ADR.
-- Mark a phase done only when its tests/evidence exist (`docs/PHASE_CHECKLIST.md`).
+- Mark a phase done only when its tests/evidence exist (`docs/PHASE_CHECKLIST.mdx`).
 - Design forks → decision checkpoint + ADR before coding (see `docs/decisions/`).
 
 ## Map — "I want to…"
 
 | I want to… | Read |
 |---|---|
-| Understand what oka owns / boundaries | `docs/start_here/why_this_repo_matters.md` |
-| Know **why** a design choice was made | `docs/guides/design_faq.md`, `docs/decisions/` |
-| Know **how** to run/build/test | `docs/guides/build_and_config.md`, `docs/start_here/quick_recipes.md` |
-| Migrate an existing Gradle app | `docs/guides/gradle_migration.md` (works / needs config / unsupported + verification loop) |
-| Check phase status & evidence | `docs/PHASE_CHECKLIST.md` |
+| Understand what oka owns / boundaries | `docs/start_here/why_this_repo_matters.mdx` |
+| Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
+| Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
+| Migrate an existing Gradle app | `docs/guides/gradle_migration.mdx` (works / needs config / unsupported + verification loop) |
+| Check phase status & evidence | `docs/PHASE_CHECKLIST.mdx` |
 | Browse the docs site | `docs/` (published via docs.page) |
 | See CLI commands | `packages/oka/bin/oka.dart`, `packages/oka/lib/src/cli/` |
 | Understand/extend the build pipeline | `lib/src/pipeline/` (steps in `pipeline/steps/`, tool invocations in `pipeline/toolchain.dart`) — see ADR 0002 |
@@ -31,9 +31,9 @@ follow links.
 | Local .aar files / AAR natives & res | Build guide → Assets & Icon Station (`local_aars`); `extractAarPayload` in `dependency_cache.dart` |
 | Compose a custom pipeline in Dart | `example/tool/oka_pipeline.dart`; contracts in `lib/src/pipeline/pipeline.dart` |
 | Icons, deeplinks, extra assets config | Build guide → Assets & Icon Station |
-| Enable hot reload / dev loop (`oka dev`) | `docs/decisions/0011-hot-reload-run-loop.md`, `docs/guides/hot_reload_plan.md` |
-| Launch/declare browser sessions (Chrome, WebMCP flags) for testing | `docs/decisions/0017-browser-session-targets.md`, `packages/oka_web/lib/src/session/` |
-| Cut a release / version sync | `docs/contributing/contribution_guide.md` → Releases; bundled skill `oka-maintenance` |
+| Enable hot reload / dev loop (`oka dev`) | `docs/decisions/0011-hot-reload-run-loop.mdx`, `docs/guides/hot_reload_plan.mdx` |
+| Launch/declare browser sessions (Chrome, WebMCP flags) for testing | `docs/decisions/0017-browser-session-targets.mdx`, `packages/oka_web/lib/src/session/` |
+| Cut a release / version sync | `docs/contributing/contribution_guide.mdx` → Releases; bundled skill `oka-maintenance` |
 | Install agent skills | `npx skills add Arenukvern/oka --skill oka-maintenance` |
 
 ## Skill Steward

@@ -3,7 +3,7 @@
 Oka is a declarative, compositional, AI-native build system: **one code for
 every platform build**. Android is the first platform and the deepest proof
 — a no-Gradle pipeline that turns a platform build into typed Dart values
-you compose, inspect, and fix ([why this matters](why_this_repo_matters.md)).
+you compose, inspect, and fix ([why this matters](why_this_repo_matters)).
 The roadmap is the continuation of that bet: every next step either
 **hardens the platform oka already owns**, **extends it to a new platform**
 under the same laws, or **opens an extension surface** without giving up
@@ -11,8 +11,8 @@ the invariants (no Gradle, validated plans, agent-operable failure
 messages).
 
 This page is the why; the what-and-what-gates-it lives in the
-[phase checklist](../PHASE_CHECKLIST.md), and the standing decisions behind
-each direction live in the [ADR index](../decisions/index.md). Nothing here
+[phase checklist](../PHASE_CHECKLIST), and the standing decisions behind
+each direction live in the [ADR index](../decisions/index). Nothing here
 is promised on vibes — work moves out of the checklist only when its tests
 and evidence exist.
 
@@ -62,7 +62,7 @@ Work is grouped by horizon, not by date:
   `test/adr0011_control_server_test.dart` (real loopback sockets against
   the scripted-fake session), the runner-session lifecycle in
   `test/adr0011_dev_session_test.dart`, and the editor wiring in
-  `docs/guides/hot_reload_plan.md`.
+  `docs/guides/hot_reload_plan.mdx`.
 - **Doctor and cache polish.** The secret audit and `oka cache gc` are
   live; they grow only where real gaps show up (new secret-ish key
   patterns) or where the store already records the data (age/size
@@ -108,8 +108,8 @@ Work is grouped by horizon, not by date:
 
 ## Reading the trail
 
-- [Phase checklist](../PHASE_CHECKLIST.md) — the open execution detail.
-- [Archived checklists](../archive/PHASE_CHECKLIST_2026-09.md) — every
+- [Phase checklist](../PHASE_CHECKLIST) — the open execution detail.
+- [Archived checklists](../archive/PHASE_CHECKLIST_2026-09) — every
   completed phase, with its tests and evidence.
-- [ADR index](../decisions/index.md) — the decisions that gate the Next
+- [ADR index](../decisions/index) — the decisions that gate the Next
   horizon.

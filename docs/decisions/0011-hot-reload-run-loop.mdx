@@ -4,12 +4,12 @@
 - **Date:** 2026-09-06
 - **Decision-makers:** Anton, oka agent
 - **Extends:** 0001 (no-Gradle default build path), 0002 (composable pipeline)
-- **Executable plan:** [docs/guides/hot_reload_plan.md](../guides/hot_reload_plan.md)
+- **Executable plan:** [docs/guides/hot_reload_plan.mdx](../guides/hot_reload_plan)
 
 ## Context
 
 oka's north star is agentic workflows: "an agent can fix a broken build from
-oka's error messages alone" ([why this repo matters](../start_here/why_this_repo_matters.md)).
+oka's error messages alone" ([why this repo matters](../start_here/why_this_repo_matters)).
 The build side is done; the **dev loop** is not — `oka dev` is a stub that
 tells users to fall back to `adb install` + `flutter attach`.
 
@@ -144,4 +144,4 @@ semantics follow flutter_tools, not a custom contract.
 
 **Authoritative source:** `packages/oka/lib/src/cli/dev_command.dart`,
 `packages/oka_android/lib/src/` (device layer, session manifest),
-[hot reload plan](../guides/hot_reload_plan.md).
+[hot reload plan](../guides/hot_reload_plan).

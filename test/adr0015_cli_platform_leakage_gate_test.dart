@@ -61,7 +61,7 @@ const _documentedExceptions = <String, Map<String, String>>{
   'compare_command.dart': {
     'badging parsing':
         'the `--skip-badging` flag name is public CLI surface (documented in '
-        'docs/guides/build_and_config.md); the badging-diff implementation '
+        'docs/guides/build_and_config.mdx); the badging-diff implementation '
         'itself lives in oka_android (compare.dart). The exception only '
         'covers the flag name — every matched line must contain it.',
   },

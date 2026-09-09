@@ -5,7 +5,7 @@
 /// [DaemonResponse], never JSON lines.
 ///
 /// Protocol facts pinned by the H0 live probe (see
-/// `docs/guides/hot_reload_plan.md`, H0 evidence block):
+/// `docs/guides/hot_reload_plan.mdx`, H0 evidence block):
 ///
 /// * Spawned as `<recorded-sdk>/bin/flutter attach --machine -d <id>` —
 ///   the binary always comes from the session manifest's SDK path, never

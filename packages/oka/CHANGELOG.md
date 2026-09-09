@@ -48,7 +48,7 @@ All notable changes to the Oka project will be documented in this file.
   - Minimal AndroidX + AAR `classes.jar` dependency cache (`DependencyCache`)
   - Plugin discovery from `.flutter-plugins-dependencies` with clear unsupported failures
   - Release multi-ABI + `libapp.so` packaging paths
-  - Phase checklist: `docs/PHASE_CHECKLIST.md`
+  - Phase checklist: `docs/PHASE_CHECKLIST.mdx`
   - Unit tests under `test/` for all phases
 
 ### Changed

@@ -5,8 +5,8 @@ title: Design FAQ
 # Design FAQ
 
 Why oka is built the way it is. How-to lives in the
-[build & configuration guide](build_and_config.md); settled decisions live
-in [`docs/decisions/`](../decisions/index.md).
+[build & configuration guide](build_and_config); settled decisions live
+in [`docs/decisions/`](../decisions/index).
 
 ## Build path
 
@@ -27,7 +27,7 @@ A: The contracts, not the code. `oka_core` is already platform-agnostic
 `PlatformPipeline` package selected by `--platform`, and the agent surface
 (explain/compare/doctor/debug step) composes whatever pipelines exist. That's
 why the design law bans platform detail in core — see
-[why oka matters](../start_here/why_this_repo_matters.md) for the expansion
+[why oka matters](../start_here/why_this_repo_matters) for the expansion
 criteria.
 
 **Q: Why sort d8 inputs and zip entries?**
@@ -70,7 +70,7 @@ and RuStore builds are one Android application composed differently: a
 target = a build-variant composition (e.g. no GMS deps for Huawei) plus a
 publish tail. Targets live in separate packages (`oka_play`, `oka_huawei`,
 …) over the same pipeline kernel; the target contract and the credentials
-model are settled in [ADR-0014](../decisions/0014-distribution-targets-secrets-model.md).
+model are settled in [ADR-0014](../decisions/0014-distribution-targets-secrets-model).
 
 ## Secrets (ADR 0014)
 
@@ -168,7 +168,7 @@ with jarsigner v1 because apksigner doesn't sign bundles.
 **Q: Why vector-first launcher icons without PNG generation?**
 A: Adaptive icons (API 26+) are pure XML — VectorDrawable foreground + color
 background need no image tooling or binary assets, keeping oka's zero-dep
-packaging path. Raster density buckets only matter for pre-API-26 (<2% of
+packaging path. Raster density buckets only matter for pre-API-26 (under 2% of
 devices); that's an opt-in future extension requiring an image codec.
 
 **Q: Why does asset staging run as a separate step after flutter-assemble?**
@@ -198,7 +198,7 @@ agent-usable control path a TUI cannot provide.
 
 **Q: Why not just exec `flutter attach`?**
 A: Its default interface is a human TUI keystroke loop — unusable by agents,
-which is oka's primary audience (see [why this repo matters](../start_here/why_this_repo_matters.md)).
+which is oka's primary audience (see [why this repo matters](../start_here/why_this_repo_matters)).
 Machine mode gives agents a first-class path; the TUI remains available as a
 human escape hatch (`oka dev --tui`). Owning the compiler instead is gated
 behind a new ADR with measured evidence (ADR-0010 §6).

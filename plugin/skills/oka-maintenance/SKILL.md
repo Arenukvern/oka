@@ -144,10 +144,10 @@ After any change:
 
 | Change type | Update |
 |---|---|
-| Internal trade-off / architecture | `docs/guides/design_faq.md` Q&A (≤3 sentences) and/or new ADR |
-| Public API / usage / config key | `docs/guides/build_and_config.md` (copy-paste valid block) |
-| Settled strategic decision | `docs/decisions/NNNN-*.md` + index row |
-| Phase-level feature completion | `docs/PHASE_CHECKLIST.md` evidence table |
+| Internal trade-off / architecture | `docs/guides/design_faq.mdx` Q&A (≤3 sentences) and/or new ADR |
+| Public API / usage / config key | `docs/guides/build_and_config.mdx` (copy-paste valid block) |
+| Settled strategic decision | `docs/decisions/NNNN-*.mdx` + index row |
+| Phase-level feature completion | `docs/PHASE_CHECKLIST.mdx` evidence table |
 
 No duplication between files — link instead. Source-contract tests (tests that
 read source text) must follow moved code: update their file paths when
@@ -173,7 +173,7 @@ add it to the sidebar in `docs.json` too.
   icon resource names, manifest entries — all must stay configurable
   (IconConfig `name`/`manifest_ref`, `manifest_elements`, `extra_deps`).
   A fix that only works for one app is not fixed (see
-  `docs/guides/gradle_migration.md` for the general mapping).
+  `docs/guides/gradle_migration.mdx` for the general mapping).
 - **`filterRuntimeJars` version ties**: KMP root jars (`atomicfu`) carry no
   JVM classes — the platform-suffixed variant (`-jvm`/`-android`) must win
   ties or d8 silently drops the classes.

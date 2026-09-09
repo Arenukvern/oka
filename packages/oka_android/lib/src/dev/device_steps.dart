@@ -426,7 +426,7 @@ class LogcatScanStep extends BuildStep {
       print(
         '     adb logcat -d | grep -iE "FATAL|NoClassDefFound|registering"',
       );
-      print('   Docs: docs/guides/gradle_migration.md (diagnosis section)');
+      print('   Docs: docs/guides/gradle_migration.mdx (diagnosis section)');
     }
   }
 }

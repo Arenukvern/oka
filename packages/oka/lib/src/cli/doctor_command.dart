@@ -296,7 +296,7 @@ class DoctorCommand {
     if (!devLoop.blocking) {
       print(
         '  ℹ️  Run `oka dev` to start the hot-reload attach session '
-        '(docs: docs/guides/hot_reload_plan.md)',
+        '(docs: docs/guides/hot_reload_plan.mdx)',
       );
     }
     print('');

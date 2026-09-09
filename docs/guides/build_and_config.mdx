@@ -5,8 +5,8 @@ title: Build & configuration guide
 # Build & configuration guide
 
 How to run, build, and extend oka. Why-rationale lives in the
-[design FAQ](design_faq.md); settled decisions in
-[`docs/decisions/`](../decisions/index.md).
+[design FAQ](design_faq); settled decisions in
+[`docs/decisions/`](../decisions/index).
 
 ## 🏠 Setup Hub
 
@@ -57,7 +57,7 @@ when you want to own the pipeline in Dart; otherwise the YAML fast-settings
 path builds unchanged.
 
 **Q: How do I migrate an existing Gradle app to oka?**
-Read the [Gradle migration guide](gradle_migration.md) — what transfers
+Read the [Gradle migration guide](gradle_migration) — what transfers
 automatically, what needs explicit config, what oka does not do, and the
 verification loop (`oka compare`, `oka launch`, `oka debug dex`).
 
@@ -73,7 +73,7 @@ ADR-0007) + `pipeline.extra_deps` + the flutter-embedding set — the same
 collector and resolver the build uses, so plan and packaging cannot disagree.
 Cache-only misses print `⚠️ not in local maven cache`; with `--network` a
 resolution failure (404, unresolvable POM) prints `❌` and fails the dry-run.
-See [ADR-0008](../decisions/0008-dependency-plan-dry-run.md).
+See [ADR-0008](../decisions/0008-dependency-plan-dry-run).
 
 **Q: How do I build the example app?**
 ```bash
@@ -266,8 +266,8 @@ tree (themes, splash, mipmaps) merges via `android.res_dirs`.
 Three device-flow surfaces, one story — `oka launch` is an alias of `oka run
 device`, and `oka dev` reuses the same device steps (install → launch →
 logcat failure scan) plus the VM-service session steps, through the same
-validated pipeline machinery. Behavior SSOT: [hot_reload_plan.md](hot_reload_plan.md),
-[ADR-0011](../decisions/0011-hot-reload-run-loop.md).
+validated pipeline machinery. Behavior SSOT: [hot_reload_plan.md](hot_reload_plan),
+[ADR-0011](../decisions/0011-hot-reload-run-loop).
 
 ```bash
 oka build apk --debug          # 1. oka owns assemble → package → sign;
@@ -515,7 +515,7 @@ Kotlin 2.1 rejects JDK 25+; `kotlinJavaEnvironment()` in
 Merge conventional commits to `main`; release-please opens a Release PR that
 bumps `VERSION` + `CHANGELOG.md`. The sync workflow derives pubspec/plugin
 versions automatically. Merge → tag → pub.dev publish (automated). Full
-runbook: [contribution guide](../contributing/contribution_guide.md).
+runbook: [contribution guide](../contributing/contribution_guide).
 
 **Q: How do I verify version consistency locally?**
 ```bash

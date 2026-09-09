@@ -53,9 +53,9 @@ stewardship:
     owners: AGENTS.md
 
 docs:
-  "Why This Repo Matters": docs/start_here/why_this_repo_matters.md
-  "Build & Configuration Guide": docs/guides/build_and_config.md
-  "Design FAQ": docs/guides/design_faq.md
+  "Why This Repo Matters": docs/start_here/why_this_repo_matters.mdx
+  "Build & Configuration Guide": docs/guides/build_and_config.mdx
+  "Design FAQ": docs/guides/design_faq.mdx
 
 actions:
   oka.check.version-sync:

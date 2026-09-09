@@ -1,7 +1,7 @@
 # Quick recipes
 
 Copy-paste commands for the common loops. Full context in the
-[build & configuration guide](../guides/build_and_config.md).
+[build & configuration guide](../guides/build_and_config).
 
 ## One-time setup
 
@@ -35,7 +35,7 @@ oka dev                        # parity check → install → launch → attach
 Hot reload is Dart-only: native/res/manifest/asset/config changes always
 need `oka build apk --debug` + reinstall (ADR-0011 §5) — `--watch` prints
 the exact command, `--watch --rebuild-on-native` runs it for you.
-Docs: [Dev Loop Station](../guides/build_and_config.md#-dev-loop-station-adr-0011).
+Docs: [Dev Loop Station](../guides/build_and_config#-dev-loop-station-adr-0011).
 
 ## Devices & emulators (Android)
 
@@ -66,7 +66,7 @@ oka run publish-gh-pages   # dry-run plan by default; flip dryRun: false to push
 
 Store contributions (CrazyGames, Yandex Games, …) are const values your
 composition composes — no per-store branches. Docs:
-[Web Shell Station](../guides/web_shell_station.md).
+[Web Shell Station](../guides/web_shell_station).
 
 ## Release
 

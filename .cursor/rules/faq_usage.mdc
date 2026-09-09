@@ -9,15 +9,15 @@ Before answering questions about this repo, route to the right doc:
 
 | Question type | Read |
 |---|---|
-| **Why** is it designed this way? | `docs/guides/design_faq.md`, then `docs/decisions/` |
-| **How** do I run/build/test? | `docs/guides/build_and_config.md` |
-| What does oka own / not own? | `docs/start_here/why_this_repo_matters.md` |
-| Phase status / evidence | `docs/PHASE_CHECKLIST.md` |
+| **Why** is it designed this way? | `docs/guides/design_faq.mdx`, then `docs/decisions/` |
+| **How** do I run/build/test? | `docs/guides/build_and_config.mdx` |
+| What does oka own / not own? | `docs/start_here/why_this_repo_matters.mdx` |
+| Phase status / evidence | `docs/PHASE_CHECKLIST.mdx` |
 | Behavior of code | The code and tests themselves — docs only link |
 
 Rules:
 
 - Never paraphrase implementation in answers; link to the authoritative file.
-- After changing architecture → add/update a Q&A in `docs/guides/design_faq.md` (or ADR).
-- After changing commands/API usage → update `docs/guides/build_and_config.md`.
+- After changing architecture → add/update a Q&A in `docs/guides/design_faq.mdx` (or ADR).
+- After changing commands/API usage → update `docs/guides/build_and_config.mdx`.
 - Design forks require a decision checkpoint + ADR before coding.

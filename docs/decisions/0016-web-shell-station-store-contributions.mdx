@@ -159,13 +159,13 @@ Bad / Neutral:
 
 ## Phased plan
 
-Tracked in `docs/PHASE_CHECKLIST.md` (W0–W3).
+Tracked in `docs/PHASE_CHECKLIST.mdx` (W0–W3).
 
 - **W0 — `oka_web` package**: typed spec/contribution/entry values,
   generate + inject emitters, emit + zip steps, `web-shell` / `web-build`
   targets, conformance + unit tests. Gate: ADR-0016 (this document).
 - **W1 — drift gate + guide**: `oka explain --targets` renders the shell;
-  drift check compares owned regions; `docs/guides/web_shell_station.md`
+  drift check compares owned regions; `docs/guides/web_shell_station.mdx`
   with the migration path (markers → inject → optional generate).
 - **W2 — deploy targets**: `publish-gh-pages`, `publish-itch` (butler),
   `WebZipStep`; directory-artifact convention asserted in conformance.
@@ -175,5 +175,5 @@ Tracked in `docs/PHASE_CHECKLIST.md` (W0–W3).
   evidence. Gate: W0 + a willing production app.
 
 **Authoritative source:** `packages/oka_web/` (once W0 lands), this ADR,
-`docs/PHASE_CHECKLIST.md` (progress), `docs/guides/web_shell_station.md`
+`docs/PHASE_CHECKLIST.mdx` (progress), `docs/guides/web_shell_station.mdx`
 (usage, W1).

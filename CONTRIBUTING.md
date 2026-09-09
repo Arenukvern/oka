@@ -1,6 +1,6 @@
 # Contributing to oka
 
-Full guide lives in the docs: **[Contribution guide](docs/contributing/contribution_guide.md)**.
+Full guide lives in the docs: **[Contribution guide](docs/contributing/contribution_guide.mdx)**.
 
 TL;DR:
 

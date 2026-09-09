@@ -18,7 +18,7 @@
 //   (H1 golden evidence at the pipeline level).
 //
 // Device/emulator parts (VM service probe, attach transcript) are recorded
-// in docs/guides/hot_reload_plan.md — H0 evidence block — with the honest
+// in docs/guides/hot_reload_plan.mdx — H0 evidence block — with the honest
 // blocker reason when no device is attached.
 import 'dart:io';
 

@@ -64,18 +64,18 @@ Dart file and running one command.
   artifacts automatically.
 - **Dev loop (`oka dev`)**: build → install → launch → hot reload/restart
   session, agent-first (headless, structured events) via the flutter_tools
-  daemon protocol — [ADR 0011](decisions/0011-hot-reload-run-loop.md),
-  [plan](guides/hot_reload_plan.md).
+  daemon protocol — [ADR 0011](../decisions/0011-hot-reload-run-loop),
+  [plan](../guides/hot_reload_plan).
 - **Composable environment**: toolchain resolution and provisioning (SDK,
   JDK, build-tools, adb, emulator images) as typed providers, and one
   content-addressed artifact store for shared inputs — inspectable,
   purgeable, replaceable — instead of scattered hidden caches
-  ([ADR 0013](decisions/0013-toolchain-provisioning-artifact-store.md)).
+  ([ADR 0013](../decisions/0013-toolchain-provisioning-artifact-store)).
 - **One stable CLI**: platform-agnostic verbs (`build`, `explain`,
   `doctor`, …) plus project-declared targets (`oka run <target>`) discovered
   from the composition root — typed values that compile to pipelines, so
   custom flows (device, publish, test loops) stay explainable and valid
-  ([ADR 0015](decisions/0015-cli-verb-target-split.md)).
+  ([ADR 0015](../decisions/0015-cli-verb-target-split)).
 
 ## What oka does not own
 
@@ -86,7 +86,7 @@ Dart file and running one command.
   `flutter build web` (`oka run web-build`), never an oka-owned path.
   What oka *does* own for web is the configuration and distribution layer:
   the typed shell station + store contribution contract + deploy targets
-  ([ADR 0016](decisions/0016-web-shell-station-store-contributions.md)).
+  ([ADR 0016](../decisions/0016-web-shell-station-store-contributions)).
 - **Store API clients and credentials** — publishing targets (Play,
   AppGallery, RuStore) are separate packages composed on top of a platform
   build, with their own ADR (ADR-0013's two-axis law: distribution targets
@@ -140,9 +140,9 @@ One platform proves the model; the model is built for many. Expansion is
 2. Only one build path exists — the no-Gradle pipeline; the cargo-apk hybrid
    was removed (ADR-0009).
 3. A phase is done only when tests/evidence exist
-   ([PHASE_CHECKLIST](../PHASE_CHECKLIST.md)).
+   ([PHASE_CHECKLIST](../PHASE_CHECKLIST)).
 4. Design forks get a decision checkpoint + ADR before coding
-   ([decisions](../decisions/index.md)).
+   ([decisions](../decisions/index)).
 
 ## Success looks like
 

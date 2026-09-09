@@ -27,19 +27,19 @@ just lint       # dart analyze
 3. **Design forks need an ADR first.** If your change settles a trade-off,
    open/propose an ADR in `docs/decisions/` before coding.
 4. **Phases are done only with evidence.** Update
-   [`docs/PHASE_CHECKLIST.md`](../PHASE_CHECKLIST.md) with test references.
+   [`docs/PHASE_CHECKLIST.mdx`](../PHASE_CHECKLIST) with test references.
 
 ## Docs sync
 
 After any behavior change, update the matching doc layer — see
-[`docs/start_here/docs_map.md`](../start_here/docs_map.md):
+[`docs/start_here/docs_map.mdx`](../start_here/docs_map):
 
 | Change type | Update |
 |---|---|
-| Internal trade-off / architecture | `docs/guides/design_faq.md` Q&A and/or new ADR |
-| Public API / usage / config key | `docs/guides/build_and_config.md` (copy-paste valid) |
+| Internal trade-off / architecture | `docs/guides/design_faq.mdx` Q&A and/or new ADR |
+| Public API / usage / config key | `docs/guides/build_and_config.mdx` (copy-paste valid) |
 | Settled strategic decision | `docs/decisions/NNNN-*.md` + index row |
-| Phase-level completion | `docs/PHASE_CHECKLIST.md` evidence table |
+| Phase-level completion | `docs/PHASE_CHECKLIST.mdx` evidence table |
 
 ## Commit messages
 
@@ -60,13 +60,13 @@ Releases are automated on `main` via **release-please**:
 1. Merge PRs to `main` with conventional commit titles.
 2. release-please opens or updates a **Release PR** (e.g.
    `chore: release 0.1.7`) with `CHANGELOG.md` and `VERSION`.
-   [`.github/workflows/release_pr_sync_versions.yml`](../../.github/workflows/release_pr_sync_versions.yml)
+   [`.github/workflows/release_pr_sync_versions.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/release_pr_sync_versions.yml)
    derives `pubspec.yaml`, plugin manifests, and the marketplace catalog from
    that one version and commits any drift.
 3. Review the Release PR, run `just check-contracts`, then merge it.
 4. release-please creates the `vX.Y.Z` tag and GitHub release **with changelog
    notes**.
-5. [`.github/workflows/pub_publish.yml`](../../.github/workflows/pub_publish.yml)
+5. [`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
    runs on the tag: asserts tag == `VERSION`, per-package dry-run preflight,
    then publishes to pub.dev **in dependency order**: `oka_core` →
    `oka_android` → `oka` (the split packages share the release train's

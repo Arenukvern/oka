@@ -1,6 +1,6 @@
 // ADR-0011 H3 — flutter_tools daemon adapter against scripted stdio
 // fixtures (no real flutter binary, no device; the live e2e tier is
-// recorded in PHASE_CHECKLIST + hot_reload_plan.md).
+// recorded in PHASE_CHECKLIST + hot_reload_plan.mdx).
 import 'dart:async';
 import 'dart:convert';
 

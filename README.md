@@ -1,8 +1,14 @@
 # Oka — one code for every platform build
 
+[![skills.sh](https://skills.sh/b/arenukvern/oka)](https://skills.sh/arenukvern/oka)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-docs.page-02569B)](https://docs.page/arenukvern/oka)
-[![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/fluent-meaning-symbiotic/agentic_executables)
+[![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
+[![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.44-blue.svg)](https://flutter.dev)
+[![All Contributors](https://img.shields.io/github/all-contributors/Arenukvern/mcp_flutter?color=ee8449&style=flat-square)](https://github.com/Arenukvern/mcp_flutter#contributors-)
+<a title="Discord" href="https://discord.com/invite/y54DpJwmAn" ><img src="https://img.shields.io/discord/696688204476055592.svg" /></a>
+[![maintained with Skill Steward](https://raw.githubusercontent.com/Arenukvern/skill_steward/main/docs/brand/assets/svg/badge-light.svg)](https://github.com/Arenukvern/skill_steward)
 
 **Oka is a declarative, compositional, AI-native build system.** Platform
 build configs are locked, scattered, and endlessly repeated — gradle DSL,
@@ -72,7 +78,7 @@ oka dev --watch --json  # agent loop: Dart edits auto-reload; native edits
 ```
 
 Hot reload is Dart-only — native/res/manifest changes always need
-`oka build apk --debug` + reinstall ([ADR-0011](docs/decisions/0011-hot-reload-run-loop.md)).
+`oka build apk --debug` + reinstall ([ADR-0011](docs/decisions/0011-hot-reload-run-loop.mdx)).
 
 Existing project on `oka.yaml`? `oka init --from-yaml` converts it 1:1.
 Migrating from Gradle: the [migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration).
@@ -80,7 +86,7 @@ Migrating from Gradle: the [migration guide](https://docs.page/arenukvern/oka/gu
 ## Publishing: targets are project-declared
 
 Play and AppGallery builds are **one Android app, composed differently** —
-not new CLIs, not new platforms ([ADR-0014](docs/decisions/0014-distribution-targets-secrets-model.md)).
+not new CLIs, not new platforms ([ADR-0014](docs/decisions/0014-distribution-targets-secrets-model.mdx)).
 Declare publish targets in `tool/oka_pipeline.dart` and run them with
 `oka run <target>`. Both are **dry-run by default**: the plan names the
 endpoint, track, artifact, and metadata before anything ships, and
@@ -120,7 +126,7 @@ declarative ordering phases, preconnects, PWA manifest, icons) as typed,
 const, **drift-checked** Dart; store packages ship contributions; deploy
 targets push to GitHub Pages and itch.io — dry-run by default. The
 compile stays an honest, named delegation to `flutter build web`
-([ADR-0016](docs/decisions/0016-web-shell-station-store-contributions.md)):
+([ADR-0016](docs/decisions/0016-web-shell-station-store-contributions.mdx)):
 
 ```dart
 targets: const [
@@ -207,7 +213,7 @@ No — ever. The default path never falls back to `flutter build apk`
 (enforced by tests). What you give up is real and listed: no full
 Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK), and some
 plugins with complex native Android code fail loudly instead of silently
-([ADR-0001](docs/decisions/0001-no-gradle-default-build-path.md)) — the
+([ADR-0001](docs/decisions/0001-no-gradle-default-build-path.mdx)) — the
 [migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration)
 maps what transfers, what needs config, and what oka does not do.
 
@@ -220,7 +226,7 @@ one; resolution order is explicit config → env vars → oka-managed → system
 printed by `oka doctor`. Run `oka doctor` to verify your layout.
 
 **Where is the cache, and can I inspect it?**
-Yes — that's the contract ([ADR-0013](docs/decisions/0013-toolchain-provisioning-artifact-store.md)).
+Yes — that's the contract ([ADR-0013](docs/decisions/0013-toolchain-provisioning-artifact-store.mdx)).
 The shared store is a plain directory with human-decodable layout
 (`~/.oka/store/aapt2/8.0.2-<hash>/…`), relocatable via `OKA_CACHE`;
 per-project build outputs stay in `.oka_cache/`. Inspect with `ls` — or
@@ -228,7 +234,7 @@ with `oka cache list`, `oka cache gc --older-than=30d`, and
 `oka cache why androidx/annotation-jvm/1.9.1`.
 
 **How do secrets work?**
-By tier ([ADR-0014](docs/decisions/0014-distribution-targets-secrets-model.md)):
+By tier ([ADR-0014](docs/decisions/0014-distribution-targets-secrets-model.mdx)):
 `--dart-define` values are compile-time constants baked into the shipped
 binary — non-secrets only. Credential contents (service-account JSON,
 keystores) are build-host files referenced **by path**, resolved through
@@ -241,7 +247,7 @@ YAML keys are silent typos; Dart is typed, refactorable, programmable
 (flavor logic, shared bases), and exactly as writable by agents as by
 humans. `oka.yaml` fast-settings still cover the 90% case — and the design
 law is that YAML growth is frozen; everything else is Dart
-([ADR-0010](docs/decisions/0010-typed-dart-project-config.md)).
+([ADR-0010](docs/decisions/0010-typed-dart-project-config.mdx)).
 
 **Which platforms?**
 Android is the first and deepest platform — APK and AAB, debug and release,
@@ -304,7 +310,7 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 | Ship a web app to stores / hosting | [Web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station) |
 | Migrate an existing Gradle app | [Gradle migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
-| Check phase status | [`docs/PHASE_CHECKLIST.md`](docs/PHASE_CHECKLIST.md) |
+| Check phase status | [`docs/PHASE_CHECKLIST.mdx`](docs/PHASE_CHECKLIST.mdx) |
 ```
 
 ## Contributing
