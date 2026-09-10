@@ -33,6 +33,7 @@ follow links.
 | Icons, deeplinks, extra assets config | Build guide → Assets & Icon Station |
 | Enable hot reload / dev loop (`oka dev`) | `docs/decisions/0011-hot-reload-run-loop.mdx`, `docs/guides/hot_reload_plan.mdx` |
 | Launch/declare browser sessions (Chrome, WebMCP flags) for testing | `docs/decisions/0017-browser-session-targets.mdx`, `packages/oka_web/lib/src/session/` |
+| Understand/extend spawned-process lifecycle (leaks, teardown, leases) | `docs/guides/process_lifecycle.mdx` (working manual); ADR: `docs/decisions/0018-process-lifecycle-leases.mdx` |
 | Cut a release / version sync | `docs/contributing/contribution_guide.mdx` → Releases; bundled skill `oka-maintenance` |
 | Install agent skills | `npx skills add Arenukvern/oka --skill oka-maintenance` |
 

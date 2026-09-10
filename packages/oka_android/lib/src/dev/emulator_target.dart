@@ -24,10 +24,10 @@
 /// for the same AVD, never wipe user data unless asked.
 library;
 
-import 'dart:async';
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:oka_core/oka_core.dart';
 
 import '../android_state.dart';
@@ -122,6 +122,7 @@ class EmulatorTarget extends Target {
     this.emulatorPath,
     this.avdManagerPath,
     this.toolchain,
+    this.stopOnExit = false,
   });
 
   /// AVD name. Default `oka-emulator` — a dedicated AVD, never a user's
@@ -162,6 +163,13 @@ class EmulatorTarget extends Target {
   /// → default policy.
   final ResolvedToolchain? toolchain;
 
+  /// Compose [StopEmulatorStep] into the run's teardown (ADR-0018 §2) —
+  /// the emulator stops when the run ends, success or failure. Default
+  /// false preserves the long-lived dev posture (`oka run emulator` leaves
+  /// it up for reuse; the lease records it as owned/borrowed either way).
+  /// CI/agent one-shot flows opt in.
+  final bool stopOnExit;
+
   String get _systemImage =>
       'system-images;android-$apiLevel;$imageVariant;${abi ?? defaultAbi()}';
 
@@ -201,6 +209,7 @@ class EmulatorTarget extends Target {
       emulatorPath: emulatorPath,
       avdManagerPath: avdManagerPath,
       toolchain: toolchain,
+      stopOnExit: stopOnExit,
     );
   }
 
@@ -224,6 +233,18 @@ class EmulatorTarget extends Target {
           toolchain: toolchain,
         ),
       ];
+
+  /// ADR-0018 §2: when [stopOnExit] is set, the run ends with
+  /// `adb emu kill` on the booted/adopted serial (best-effort, never
+  /// masking the run result). Adopted (borrowed) emulators are still
+  /// stopped here — the target's own reuse contract makes an explicit
+  /// stop-on-exit declaration the owner's intent — while `oka stop`
+  /// (lease-based) keeps the borrowed refusal.
+  @override
+  List<BuildStep> compileTeardown(final BuildContext ctx) =>
+      stopOnExit
+          ? [StopEmulatorStep(adbPath: adbPath, toolchain: toolchain)]
+          : const <BuildStep>[];
 }
 
 /// Host-ABI default: arm64-v8a on ARM hosts, x86_64 otherwise.
@@ -361,10 +382,14 @@ class BootEmulatorStep extends BuildStep {
     this.headless = true,
     this.bootTimeout = const Duration(minutes: 5),
     this.pollInterval = const Duration(seconds: 2),
+    this.killGrace = const Duration(milliseconds: 1500),
     this.deviceId,
     this.adbPath,
     this.emulatorPath,
     this.toolchain,
+    this.liveness,
+    this.leaseRegistry,
+    this.ownerCmd = 'oka run emulator',
     final Future<ProcessResult> Function(String, List<String>)? runProcess,
     final Future<Process> Function(String, List<String>)? startProcess,
   })  : _runProcess = runProcess ?? Process.run,
@@ -382,6 +407,23 @@ class BootEmulatorStep extends BuildStep {
   final String? adbPath;
   final String? emulatorPath;
   final ResolvedToolchain? toolchain;
+
+  /// How long the spawned emulator gets to exit after the graceful
+  /// SIGTERM before the failure paths escalate to SIGKILL (ADR-0018 §1
+  /// graceful-first ladder; tests shrink this).
+  final Duration killGrace;
+
+  /// Platform liveness/identity/kill seam (ADR-0018 §1); null →
+  /// [HostProcessLiveness]. Injectable for scripted-fake tests.
+  final ProcessLiveness? liveness;
+
+  /// Lease registry override; null → the standard project location
+  /// (`<project>/.oka_cache/processes/`). Injectable for tests.
+  final ProcessLeaseRegistry? leaseRegistry;
+
+  /// Recorded in the lease's `owner_cmd` (ADR-0018 §1).
+  final String ownerCmd;
+
   final Future<ProcessResult> Function(String, List<String>) _runProcess;
   final Future<Process> Function(String, List<String>) _startProcess;
 
@@ -426,6 +468,7 @@ class BootEmulatorStep extends BuildStep {
       final avdOut = await runCmd([...adbSerialArgs(serial), 'emu', 'avd', 'name']);
       if (parseEmuAvdName(avdOut.stdout as String) == avdName) {
         print('✅ Emulator for "$avdName" already running ($serial) — reusing.');
+        await _adoptLease(serial, ctx);
         state[emulatorSerial.id] = serial;
         return StepResult.success({emulatorSerial.id: serial});
       }
@@ -448,12 +491,21 @@ class BootEmulatorStep extends BuildStep {
 
     // Boot.
     print('📲 Booting emulator "$avdName"…');
-    final start = _startProcess(
+    // Keep the handle (ADR-0018 problem A): the failure paths below stop
+    // exactly the process we spawned instead of leaking it.
+    final Process? process = await _spawnSafely(
       emulator,
       emulatorLaunchArgs(name: avdName, headless: headless),
     );
-    // The emulator process runs for the emulator's lifetime — never awaited.
-    unawaited(start.then((_) {}, onError: (_) {}));
+    final String? pidToken;
+    if (process != null) {
+      // Lease at spawn time (ADR-0018 §1): identity carries the avd; the
+      // discovered serial + stop_hint are filled in below.
+      pidToken = await _identityToken(process.pid);
+      await _upsertLease(spawnLease(process.pid, pidToken), ctx);
+    } else {
+      pidToken = null;
+    }
 
     // Discover the serial: a fresh boot registers a NEW emulator-* entry —
     // diff against the serials seen before launch.
@@ -475,11 +527,18 @@ class BootEmulatorStep extends BuildStep {
       await Future<void>.delayed(pollInterval);
     }
     if (serial == null) {
+      final stopped = await _stopSpawned(process, pidToken, ctx);
       return StepResult.failure(
         'Emulator did not register within ${bootTimeout.inSeconds}s. '
         'Check `$emulator -avd $avdName` output; for CI use a headless boot '
-        'and confirm KVM/HVF acceleration is available.',
+        'and confirm KVM/HVF acceleration is available.'
+        '${stopped ? ' The spawned emulator process was stopped.' : ''}',
       );
+    }
+
+    if (process != null) {
+      // Fill the lease in with the discovered serial + adb stop_hint.
+      await _upsertLease(spawnLease(process.pid, pidToken, serial: serial), ctx);
     }
 
     final booted = await _awaitBoot(serial, runCmd, deadline);
@@ -488,9 +547,11 @@ class BootEmulatorStep extends BuildStep {
       state[emulatorSerial.id] = serial;
       return StepResult.success({emulatorSerial.id: serial});
     }
+    final stopped = await _stopSpawned(process, pidToken, ctx);
     return StepResult.failure(
       'Emulator $serial did not finish booting within '
-      '${bootTimeout.inSeconds}s (sys.boot_completed never became 1).',
+      '${bootTimeout.inSeconds}s (sys.boot_completed never became 1).'
+      '${stopped ? ' The spawned emulator process was stopped.' : ''}',
     );
   }
 
@@ -511,6 +572,177 @@ class BootEmulatorStep extends BuildStep {
       await Future<void>.delayed(pollInterval);
     }
     return false;
+  }
+
+  // -- Lease recording + identity-verified failure-path kill (ADR-0018) ---
+
+  ProcessLiveness get _host => liveness ?? const HostProcessLiveness();
+
+  /// Lease id for this step's AVD — the ADR §1 shape (`emulator-<avd>`).
+  String get _leaseId => 'emulator-$avdName';
+
+  ProcessLeaseRegistry _registryFor(final BuildContext ctx) =>
+      leaseRegistry ??
+      ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: _host);
+
+  /// The spawned-emulator lease (scope ephemeral, ownership owned, kind
+  /// `android-emulator`, identity avd + [serial], stop_hint
+  /// `adb [-s serial] emu kill`). [serial] is filled in once discovery
+  /// finds the new emulator-* entry.
+  @visibleForTesting
+  ProcessLease spawnLease(final int pid, final String? pidToken, {final String? serial}) =>
+      ProcessLease(
+        id: _leaseId,
+        pid: pid,
+        kind: 'android-emulator',
+        identity: {
+          'avd': avdName,
+          'serial': ?serial,
+          processLeasePidTokenKey: ?pidToken,
+        },
+        scope: LeaseScope.ephemeral,
+        ownership: LeaseOwnership.owned,
+        ownerCmd: ownerCmd,
+        startedAt: DateTime.now().toUtc(),
+        stopHint: LeaseStopHint(
+          tool: 'adb',
+          args: serial == null
+              ? ['emu', 'kill']
+              : [...adbSerialArgs(serial), 'emu', 'kill'],
+        ),
+      );
+
+  /// Adopt path (ADR-0018 §3): flip any existing lease for this AVD to
+  /// ownership `borrowed`; if none exists, record one as borrowed (pid 0 —
+  /// adopted by semantic discovery, `adb emu avd name`). Never kills
+  /// anything: teardown stops only owned leases.
+  Future<void> _adoptLease(final String serial, final BuildContext ctx) async {
+    try {
+      final registry = _registryFor(ctx);
+      for (final lease in await registry.list()) {
+        if (lease.kind == 'android-emulator' && lease.identity['avd'] == avdName) {
+          if (lease.ownership == LeaseOwnership.borrowed) return;
+          await registry.upsert(
+            lease.copyWith(
+              identity: {
+                ...lease.identity,
+                'serial': serial,
+              },
+              ownership: LeaseOwnership.borrowed,
+              stopHint: LeaseStopHint(
+                tool: 'adb',
+                args: [...adbSerialArgs(serial), 'emu', 'kill'],
+              ),
+            ),
+          );
+          return;
+        }
+      }
+      await registry.upsert(
+        ProcessLease(
+          id: _leaseId,
+          pid: 0,
+          kind: 'android-emulator',
+          identity: {'avd': avdName, 'serial': serial},
+          scope: LeaseScope.ephemeral,
+          ownership: LeaseOwnership.borrowed,
+          ownerCmd: ownerCmd,
+          startedAt: DateTime.now().toUtc(),
+          stopHint: LeaseStopHint(
+            tool: 'adb',
+            args: [...adbSerialArgs(serial), 'emu', 'kill'],
+          ),
+        ),
+      );
+    } on Object catch (e) {
+      // Leases are advisory: a failed record must never fail a build.
+      print('⚠️ Could not record borrowed emulator lease: $e');
+    }
+  }
+
+  /// Identity-verified, graceful-first stop of the spawned emulator
+  /// process (ADR-0018 §1 identity-over-pid) plus lease cleanup. Never
+  /// signals an unverifiable pid: a recycled pid belongs to an innocent
+  /// process, and a token we could not verify is a report, not a guess.
+  Future<bool> _stopSpawned(
+    final Process? process,
+    final String? pidToken,
+    final BuildContext ctx,
+  ) async {
+    if (process == null) return true; // nothing spawned, nothing to clean
+    final verified = await verifyKillIdentity(_host, process.pid, pidToken);
+    if (verified == KillIdentity.recycled) {
+      // The record's pid belongs to someone else now — the *record* is
+      // provably stale; drop it, but never signal the recycled pid.
+      await _deleteLease(ctx);
+      print('⚠️ Emulator pid ${process.pid} was recycled — not signaled '
+          '(pid-reuse guard, ADR-0018 §1); lease dropped as stale.');
+      return false;
+    }
+    if (verified == KillIdentity.unknown) {
+      // Identity unobtainable: report-never-guess. Keep the lease so the
+      // reconcile sweep (L2) can surface it.
+      print('⚠️ Emulator pid ${process.pid} identity unverified — not '
+          'signaled (pid-reuse guard, ADR-0018 §1); lease kept for '
+          'reconciliation.');
+      return false;
+    }
+    process.kill(); // SIGTERM — graceful-first.
+    await Future<void>.delayed(killGrace);
+    if (await _isAlive(process.pid)) {
+      // Last rung of the ladder: force.
+      Process.killPid(process.pid, ProcessSignal.sigkill);
+    }
+    await _deleteLease(ctx);
+    print('🛑 Spawned emulator process (pid ${process.pid}) stopped.');
+    return true;
+  }
+
+  Future<void> _upsertLease(final ProcessLease lease, final BuildContext ctx) async {
+    try {
+      await _registryFor(ctx).upsert(lease);
+    } on Object catch (e) {
+      // Leases are advisory: a failed record must never fail a build.
+      print('⚠️ Could not write emulator lease: $e');
+    }
+  }
+
+  Future<void> _deleteLease(final BuildContext ctx) async {
+    try {
+      await _registryFor(ctx).delete(_leaseId);
+    } on Object {
+      // Advisory; a leftover record is reconciled later.
+    }
+  }
+
+  Future<String?> _identityToken(final int pid) async {
+    try {
+      return await _host.identityToken(pid);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<bool> _isAlive(final int pid) async {
+    try {
+      return await _host.isAlive(pid);
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Spawns the emulator keeping the [Process] handle (ADR-0018 problem
+  /// A); spawn errors stay swallowed (historical posture) — serial
+  /// discovery below fails with its own actionable message either way.
+  Future<Process?> _spawnSafely(
+    final String emulator,
+    final List<String> args,
+  ) async {
+    try {
+      return await _startProcess(emulator, args);
+    } on Object {
+      return null;
+    }
   }
 }
 

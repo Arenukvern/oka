@@ -14,7 +14,9 @@ import 'package:oka/src/cli/explain_command.dart';
 import 'package:oka/src/cli/get_command.dart';
 import 'package:oka/src/cli/init_command.dart';
 import 'package:oka/src/cli/launch_command.dart';
+import 'package:oka/src/cli/processes_command.dart';
 import 'package:oka/src/cli/run_command.dart';
+import 'package:oka/src/cli/stop_command.dart';
 import 'package:oka/src/version.dart';
 
 void main(List<String> arguments) async {
@@ -66,6 +68,10 @@ void main(List<String> arguments) async {
         await LaunchCommand().run(commandArgs);
       case 'cache':
         await CacheCommand().run(commandArgs);
+      case 'processes':
+        await ProcessesCommand().run(commandArgs);
+      case 'stop':
+        await StopCommand().run(commandArgs);
       case 'run':
         await RunCommand().run(commandArgs);
       default:
@@ -104,6 +110,10 @@ Commands:
             discovered from tool/oka_pipeline.dart — `oka run` lists them)
   dev       Start development mode with hot reload
   doctor    Check system requirements and configuration
+  processes Show recorded process leases (`oka processes list [--json]`;
+             leases are the ADR-0018 records of processes oka spawned)
+  stop      Stop a recorded process gracefully (`oka stop <lease-id>`;
+             identity-verified, never signals a recycled pid)
   get       Install missing Android SDK dependencies
   clean     Clean build cache
 

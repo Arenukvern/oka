@@ -39,6 +39,46 @@ with evidence, not into a checked box.
   No CDP client, no new deps, Chrome only (Servo/Ladybird and matrices
   deferred by ADR-0017). Gate: ADR-0017. Evidence: scripted-fake + unit
   tests in `packages/oka_web/test/`.
+- **L0: process-lease registry + spawn-side recording (ADR-0018) — done,
+  pending archive with evidence.** `ProcessLease` record + durable registry
+  (atomic writes under `.oka_cache/processes/`), platform
+  liveness/identity/kill seam (pid-reuse safe), `BootEmulatorStep` +
+  `ChromeSessionTarget` spawn steps write leases, in-run failure-path kill
+  (keep the `Process` handle, identity-verified graceful→force stop on
+  boot/serial/readiness timeouts — the actual
+  `qemu-system-aarch64_headless` leak). Why now: the leak is real and
+  observed; everything else in the lifecycle design consumes this
+  primitive. Gate: ADR-0018. Evidence:
+  `packages/oka_core/test/process_lease_test.dart` (record round-trip,
+  registry atomicity + stale/pid-reuse reconcile, kill gate),
+  `test/adr0018_emulator_lease_test.dart` (failure-path kill, recycled-pid
+  never signaled, adopt→borrowed flip), `packages/oka_web/test/
+  chrome_session_target_test.dart` ADR-0018 group; `dart analyze` clean,
+  full suite green.
+- **L1: teardown contract + CLI (ADR-0018) — done, pending archive with
+  evidence.** `Target.compileTeardown` (default empty — non-breaking) +
+  best-effort `TeardownRunner` (per-step timeout, never throws, never
+  masks the build failure) wired into `okaRun` target execution including
+  SIGINT/SIGTERM teardown handlers; lifecycle scopes with owned-vs-borrowed
+  enforcement; `oka processes list [--json]` / `oka stop <id>
+  [--force] [--stale] [--json]` (verbs reserved in `reservedCliVerbs`);
+  `EmulatorTarget.stopOnExit` (default false — dev reuse posture
+  preserved) and `ChromeSessionTarget` ephemeral-profile unconditional
+  teardown (ADR-0017 §5). Evidence: `packages/oka_core/test/
+  process_teardown_test.dart`, `process_surface_test.dart` (stop laws +
+  sweep), `test/adr0018_l1_contract_test.dart`, oka_web teardown-
+  composition group; `dart analyze` clean, full suite green.
+- **L2: reconciliation + doctor + signal safety (ADR-0018) — done, pending
+  archive with evidence.** `reconcileLeases` sweep (drops provably-stale
+  records; classifies live leases as orphan/borrowed/persistent/
+  unverifiable — live processes never auto-stopped, `stopOrphans` opt-in
+  for hermetic harnesses), doctor `[Process Leases]` advisory block,
+  `oka stop --stale`. `oka dev` spawns nothing leased (the emulator is
+  borrowed via idempotent reuse), so session-scope wiring is a no-op by
+  construction — the discovery-file exit-path cleanup already covers it.
+  Gate: L1. Evidence: sweep group in `process_surface_test.dart` (stale
+  drop, recycled-pid never signaled, orphan report-only, hardened mode,
+  borrowed/persistent kept), doctor block, `oka stop --stale` JSON event.
 - **S1: browser doctor + provisioning.** `oka doctor` browser detection
   (engines, versions, flag support); chrome-for-testing into the ADR-0013
   artifact store. Gate: S0.

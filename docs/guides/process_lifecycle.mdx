@@ -1,0 +1,177 @@
+# Process lifecycle: leases, teardown, `oka stop`
+
+Every long-lived process oka spawns — an emulator, a browser session —
+is recorded as a **process lease** (ADR-0018) and gets a declarative,
+composable teardown path. This guide is the working manual: how to
+declare lifecycle in your targets, how to inspect and stop processes,
+and what an agent needs to know to operate all of it from the CLI alone.
+
+The problem this solves: spawned processes used to leak. An emulator
+booted by a timed-out run stayed up as an orphaned
+`qemu-system-aarch64_headless`; browser debug sessions survived for
+weeks. The fix is not a hook (crashes and `kill -9` bypass every hook)
+but a **durable registry** — one JSON file per process under
+`.oka_cache/processes/` — that later oka invocations reconcile against
+reality.
+
+## The mental model (30 seconds)
+
+- **Lease** — an advisory record of one process oka spawned (or adopted):
+  pid, kind, semantic identity (AVD, CDP port…), scope, ownership, and a
+  graceful `stop_hint`. Not a supervisor; no daemon (ADR-0001 posture).
+- **Scope** — `ephemeral` (die when the run ends; CI/agent default),
+  `session` (die with the owning session), `persistent` (survive;
+  explicit opt-in).
+- **Ownership** — `owned` (the last run spawned it) vs `borrowed`
+  (idempotent reuse found it running). **Teardown stops only owned
+  leases.** Killing a borrowed session would break whatever terminal
+  owns it.
+- **Identity over pid** — every stop verifies the process is still the
+  one the lease recorded (start-time token). A recycled pid is never
+  signaled — that pid belongs to an innocent process now.
+
+## For developers: declare lifecycle in your target
+
+### Stop on exit (the common case)
+
+Targets that boot a process can compose teardown declaratively — same
+step contract as the build, so you get timeouts, artifact flow, and
+structured events for free:
+
+```dart
+// One-shot CI/agent flow: boot, test, stop — orphans impossible.
+Oka(
+  targets: [
+    EmulatorTarget(apiLevel: 34, stopOnExit: true),
+  ],
+)
+```
+
+```dart
+// Chrome sessions: an ephemeral-profile session ALWAYS tears down when
+// the run ends (success or failure) — ADR-0017 §5. Persistent profiles
+// (dev posture) survive the run by design.
+Oka(
+  targets: [
+    ChromeSessionTarget(spec: chromeWebMcp(binaryPath: '/usr/bin/google-chrome')),
+  ],
+)
+```
+
+Teardown runs after the forward pipeline — on success **and** failure —
+best-effort and bounded (`TeardownRunner`): a failing or hanging stop
+step is reported as a warning and never masks the build result. That is
+a hard law (ADR-0018 §2): cleanup errors must not corrupt the signal
+your build already produced.
+
+### Write your own teardown step
+
+`Target.compileTeardown` is the same contract as `compile` — return
+`BuildStep`s that consume the forward run's artifacts:
+
+```dart
+class MyTarget extends Target {
+  @override
+  List<BuildStep> compile(BuildContext ctx) => [BootSomethingStep()];
+
+  @override
+  List<BuildStep> compileTeardown(BuildContext ctx) => [
+        StopEmulatorStep(),          // consumes `emulator-serial`
+        StopChromeSessionStep(sessionName: 'main'),
+      ];
+}
+```
+
+Rules for teardown steps:
+
+- Fail with `StepResult.failure('…')` and an actionable message; the
+  runner collects it, the run still succeeds.
+- Read upstream artifacts from `state` (e.g. `emulator-serial`, the
+  chrome `…-pid` / `…-profile-dir` sub-handles) exactly like build steps.
+- Guard any direct signal with identity verification:
+  `verifyKillIdentity(liveness, pid, recordedToken)`. Raw pid-only kills
+  are forbidden (pid recycling).
+
+## For agents: inspect and control from the CLI
+
+No new protocol — the CLI verbs are the intent surface, and `--json`
+emits the standard pipeline-events envelope.
+
+```bash
+oka processes list            # human table: id, pid, kind, ownership/scope, verdict
+oka processes list --json     # {"scope":"processes","event":"processes.inventory",...}
+oka stop emulator-oka-emulator            # graceful (adb emu kill), identity-verified
+oka stop chrome-main --force              # explicit borrowed-lease override
+oka stop --stale                          # drop provably-stale records only
+oka doctor                                # includes a [Process Leases] audit block
+```
+
+Reading `oka processes list` output:
+
+```text
+emulator-oka-emulator  pid 4242  android-emulator  owned/ephemeral  running  (avd=oka-emulator serial=emulator-5554)
+chrome-main            pid 0    chrome-session    borrowed/ephemeral  stale (process gone)  (cdp_port=9222)
+```
+
+- `running` — live and identity-verified.
+- `stale (process gone)` — the process exited; the record is safe to
+  drop (`oka stop <id>` or `oka stop --stale`).
+- `stale (pid recycled)` — the pid now belongs to a *different* process.
+  **Never killed by oka.** Only the record is removed.
+- `identity unknown` — oka could not verify; reported, kept, never
+  signaled.
+
+### The JSON contract (stable, for tooling)
+
+- `oka processes list --json` → one `processes.inventory` event with a
+  `leases` array (each lease = the on-disk JSON plus a `liveness`
+  field: `live | dead_pid | reused_pid | unknown`).
+- `oka stop <id> --json` → one `stop.result` event with
+  `ok`, `action` (`stopped | record_dropped | refused | failed`), and an
+  `error` string when refused/failed — always actionable, naming the law
+  that refused the stop.
+
+Agents can also read the leases directly:
+`.oka_cache/processes/<id>.json` is plain JSON (the registry is the SSOT
+and survives oka crashes).
+
+## What happens on crashes
+
+`kill -9`, a Dart crash, a closed laptop — no handler runs, but the lease
+file survives. The **reconcile sweep** (`oka doctor`, `oka stop --stale`,
+and any oka run's lease inspection) reconciles records against the host:
+
+- provably stale records (process gone, pid recycled) are dropped;
+- live leases are classified and **reported, never auto-stopped** —
+  oka's reuse posture deliberately keeps your dev emulator up, so an
+  orphaned-looking emulator is flagged (`oka stop <id>` is the explicit
+  stop);
+- hermetic harnesses (CI tiers) opt into harder behavior:
+  `stopOrphans` stops orphaned owned+ephemeral leases through the same
+  identity-graded laws.
+
+Foreign orphans (e.g. leaks from `flutter run`'s own Chrome sessions)
+are *reported* by `oka doctor` context but never killed — oka only ever
+reconciles its own leases.
+
+## Adding a new session kind
+
+A new long-lived process kind (iOS simulator, container, server) owes
+the system exactly two small pieces, not new mechanics:
+
+1. Write a lease at spawn (`ProcessLeaseRegistry.upsert`, one record per
+   the ADR §1 JSON shape) — with a semantic `identity` entry and a
+   graceful `stop_hint`.
+2. Provide a stop step that consumes your handle artifact, and compose
+   it from `compileTeardown` when the kind is ephemeral-by-default.
+
+Everything else — discovery (`oka processes`), stopping
+(`oka stop`), reconcile, doctor — follows for free.
+
+## Where the code lives
+
+- Registry, records, liveness seam: `packages/oka_core/lib/src/process_*.dart`
+- The stop/inventory/reconcile semantics: `packages/oka_core/lib/src/process_surface.dart`
+- Emulator wiring: `packages/oka_android/lib/src/dev/emulator_target.dart`
+- Browser wiring: `packages/oka_web/lib/src/session/chrome_session_target.dart`
+- Design law: [ADR-0018](/decisions/0018-process-lifecycle-leases)

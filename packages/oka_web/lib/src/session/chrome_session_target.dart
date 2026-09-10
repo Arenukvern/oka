@@ -38,6 +38,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -264,6 +265,18 @@ class ChromeSessionTarget extends Target {
         EnsureChromeSessionStep(spec: spec, sessionName: sessionName),
       ];
 
+  /// ADR-0018 §2, honoring ADR-0017 §5: an **ephemeral** session gets
+  /// unconditional teardown — [StopChromeSessionStep] runs after the
+  /// forward pipeline (success or failure), so a test/agent session can
+  /// never leak its browser or temp profile. A **persistent** session
+  /// (dev posture) survives the run and is stopped via `oka stop` /
+  /// leases instead.
+  @override
+  List<BuildStep> compileTeardown(final BuildContext ctx) =>
+      spec.profilePersistence == ProfilePersistence.ephemeral
+          ? [StopChromeSessionStep(sessionName: sessionName)]
+          : const <BuildStep>[];
+
   /// Debug string: session name plus browser binary basename.
   @override
   String toString() =>
@@ -281,19 +294,24 @@ class ChromeSessionTarget extends Target {
 /// scripted fakes exactly like EmulatorTarget's injected `runProcess`.
 class EnsureChromeSessionStep extends BuildStep {
   /// Creates the step. [probe], [startProcess], and [assignPort] default
-  /// to the real implementations; tests inject fakes.
+  /// to the real implementations; tests inject fakes. [liveness] and
+  /// [leaseRegistry] are the ADR-0018 seams (injectable for tests); when
+  /// null they default to [HostProcessLiveness] and the standard project
+  /// registry location.
   EnsureChromeSessionStep({
     required this.spec,
     this.sessionName = 'main',
     this.pollInterval = const Duration(milliseconds: 200),
+    this.killGrace = const Duration(milliseconds: 1500),
+    this.ownerCmd = 'oka run chrome-session',
     CdpProbe? probe,
     SessionProcessStarter? startProcess,
     Future<int> Function()? assignPort,
-    bool Function(int pid)? killProcess,
+    this.liveness,
+    this.leaseRegistry,
   })  : _probe = probe ?? httpCdpProbe,
         _startProcess = startProcess ?? startSessionProcess,
-        _assignPort = assignPort ?? assignEphemeralPort,
-        _killProcess = killProcess ?? Process.killPid;
+        _assignPort = assignPort ?? assignEphemeralPort;
 
   /// The session spec (validated fail-closed at run start, ADR-0017 §3).
   final BrowserSessionSpec spec;
@@ -307,7 +325,28 @@ class EnsureChromeSessionStep extends BuildStep {
   final CdpProbe _probe;
   final SessionProcessStarter _startProcess;
   final Future<int> Function() _assignPort;
-  final bool Function(int pid) _killProcess;
+
+  /// How long the spawned browser gets to exit after the graceful SIGTERM
+  /// before the timeout path escalates (ADR-0018 §1 graceful-first ladder;
+  /// tests shrink this).
+  final Duration killGrace;
+
+  /// Recorded in the lease's `owner_cmd` (ADR-0018 §1).
+  final String ownerCmd;
+
+  /// Platform liveness/identity/kill seam (ADR-0018 §1); null →
+  /// [HostProcessLiveness]. Injectable for scripted-fake tests.
+  final ProcessLiveness? liveness;
+
+  /// Lease registry override; null → the standard project location
+  /// (`<project>/.oka_cache/processes/`). Injectable for tests.
+  final ProcessLeaseRegistry? leaseRegistry;
+
+  ProcessLiveness get _host => liveness ?? const HostProcessLiveness();
+
+  /// Lease id for this session — the ADR §1 shape (`chrome-<name>`).
+  @visibleForTesting
+  String get leaseId => 'chrome-$sessionName';
 
   /// `session-chrome-<name>-handle` — the CDP base URL ([String]).
   late final Artifact<String> handleArtifact =
@@ -363,6 +402,7 @@ class EnsureChromeSessionStep extends BuildStep {
         '✅ Chrome session "$sessionName" already answering CDP '
         '($existingBrowser) — reusing $baseUrl.',
       );
+      await _adoptLease(port, ctx);
       state[handleArtifact.id] = baseUrl;
       state[portArtifact.id] = port;
       return StepResult.success({
@@ -402,7 +442,7 @@ class EnsureChromeSessionStep extends BuildStep {
       '${spec.profilePersistence.label} profile)…',
     );
 
-    final SessionProcess process;
+    final SessionProcess? process;
     try {
       process = await _startProcess(spec.binaryPath, args);
     } on Exception catch (e) {
@@ -416,6 +456,14 @@ class EnsureChromeSessionStep extends BuildStep {
     }
     // The browser process runs for the session's lifetime — never awaited
     // (same posture as the emulator boot step); only the pid is recorded.
+    // The handle itself is kept (ADR-0018 problem A): the readiness
+    // timeout below stops exactly the process we spawned.
+
+    // Lease at spawn time (ADR-0018 §1): identity carries the cdp port
+    // (+ profile dir) and the pid start-time token; scope follows the
+    // spec's profile persistence.
+    final String? pidToken = await _identityToken(process.pid);
+    await _upsertLease(spawnLease(process.pid, pidToken, port: port), ctx);
 
     // Readiness probe: poll /json/version until it answers within the
     // boot timeout. Plain HTTP only — no CDP client (ADR-0017).
@@ -440,8 +488,9 @@ class EnsureChromeSessionStep extends BuildStep {
       await Future<void>.delayed(pollInterval);
     }
 
-    // Timed out: never leave a half-booted browser behind.
-    _killProcess(process.pid);
+    // Timed out: never leave a half-booted browser behind (ADR-0018
+    // problem A — identity-verified stop of exactly the spawned process).
+    final stopped = await _stopSpawned(process, pidToken, ctx);
     return StepResult.failure(
       'Chrome session "$sessionName" did not answer CDP at '
       '$baseUrl/json/version within ${spec.bootTimeout.inSeconds}s.\n'
@@ -449,8 +498,156 @@ class EnsureChromeSessionStep extends BuildStep {
       'binary that starts (try it manually with the same '
       '--remote-debugging-port); (2) if another process holds port $port, '
       'stop it or set debugPort explicitly; (3) try headless: false to '
-      'surface startup dialogs or crashes.',
+      'surface startup dialogs or crashes.'
+      '${stopped ? ' The spawned browser process was stopped.' : ''}',
     );
+  }
+
+  // -- Lease recording + identity-verified failure-path kill (ADR-0018) ---
+
+  ProcessLeaseRegistry _registryFor(final BuildContext ctx) =>
+      leaseRegistry ??
+      ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: _host);
+
+  /// The spawned-browser lease (kind `chrome-session`, ownership owned,
+  /// scope from the spec's profile persistence — an ephemeral temp profile
+  /// is an ephemeral session, a persistent profile is a persistent
+  /// session). Identity: cdp port + the pid start-time token when
+  /// obtainable. Stop hint: the graceful SIGTERM of the recorded pid.
+  @visibleForTesting
+  ProcessLease spawnLease(
+    final int pid,
+    final String? pidToken, {
+    required final int port,
+  }) =>
+      ProcessLease(
+        id: leaseId,
+        pid: pid,
+        kind: 'chrome-session',
+        identity: {
+          'cdp_port': '$port',
+          processLeasePidTokenKey: ?pidToken,
+        },
+        scope: spec.profilePersistence == ProfilePersistence.ephemeral
+            ? LeaseScope.ephemeral
+            : LeaseScope.persistent,
+        ownership: LeaseOwnership.owned,
+        ownerCmd: ownerCmd,
+        startedAt: DateTime.now().toUtc(),
+        stopHint: LeaseStopHint(tool: 'kill', args: ['$pid']),
+      );
+
+  /// Adopt path (ADR-0018 §3): flip any existing lease for this session to
+  /// ownership `borrowed`; if none exists, record one as borrowed (pid 0 —
+  /// adopted by semantic discovery, the CDP port). Never kills anything.
+  Future<void> _adoptLease(final int port, final BuildContext ctx) async {
+    try {
+      final registry = _registryFor(ctx);
+      for (final lease in await registry.list()) {
+        if (lease.kind == 'chrome-session' &&
+            lease.identity['cdp_port'] == '$port') {
+          if (lease.ownership == LeaseOwnership.borrowed) return;
+          await registry.upsert(
+            lease.copyWith(
+              identity: {
+                ...lease.identity,
+                'cdp_port': '$port',
+              },
+              ownership: LeaseOwnership.borrowed,
+            ),
+          );
+          return;
+        }
+      }
+      await registry.upsert(
+        ProcessLease(
+          id: leaseId,
+          pid: 0,
+          kind: 'chrome-session',
+          identity: {'cdp_port': '$port'},
+          scope: spec.profilePersistence == ProfilePersistence.ephemeral
+              ? LeaseScope.ephemeral
+              : LeaseScope.persistent,
+          ownership: LeaseOwnership.borrowed,
+          ownerCmd: ownerCmd,
+          startedAt: DateTime.now().toUtc(),
+          stopHint: const LeaseStopHint(tool: 'kill'),
+        ),
+      );
+    } on Object catch (e) {
+      // Leases are advisory: a failed record must never fail a build.
+      print('⚠️ Could not record borrowed chrome-session lease: $e');
+    }
+  }
+
+  /// Identity-verified, graceful-first stop of the spawned browser
+  /// process (ADR-0018 §1 identity-over-pid) plus lease cleanup. Never
+  /// signals an unverifiable pid (report-never-guess; the reconcile sweep
+  /// in L2 surfaces what we could not stop).
+  Future<bool> _stopSpawned(
+    final SessionProcess? process,
+    final String? pidToken,
+    final BuildContext ctx,
+  ) async {
+    if (process == null) return true; // nothing spawned, nothing to clean
+    final verified = await verifyKillIdentity(_host, process.pid, pidToken);
+    if (verified == KillIdentity.recycled) {
+      await _deleteLease(ctx);
+      print('⚠️ Chrome pid ${process.pid} was recycled — not signaled '
+          '(pid-reuse guard, ADR-0018 §1); lease dropped as stale.');
+      return false;
+    }
+    if (verified == KillIdentity.unknown) {
+      print('⚠️ Chrome pid ${process.pid} identity unverified — not '
+          'signaled (pid-reuse guard, ADR-0018 §1); lease kept for '
+          'reconciliation.');
+      return false;
+    }
+    process.kill(); // SIGTERM — graceful-first (the exact handle we hold).
+    await Future<void>.delayed(killGrace);
+    if (await _isAlive(process.pid)) {
+      // Last rung of the ladder: force.
+      await _host.kill(process.pid, grace: killGrace);
+    }
+    await _deleteLease(ctx);
+    print('🛑 Spawned chrome-session process (pid ${process.pid}) stopped.');
+    return true;
+  }
+
+  Future<void> _upsertLease(
+    final ProcessLease lease,
+    final BuildContext ctx,
+  ) async {
+    try {
+      await _registryFor(ctx).upsert(lease);
+    } on Object catch (e) {
+      // Leases are advisory: a failed record must never fail a build.
+      print('⚠️ Could not write chrome-session lease: $e');
+    }
+  }
+
+  Future<void> _deleteLease(final BuildContext ctx) async {
+    try {
+      await _registryFor(ctx).delete(leaseId);
+    } on Object {
+      // Advisory; a leftover record is reconciled later.
+    }
+  }
+
+  Future<String?> _identityToken(final int pid) async {
+    try {
+      return await _host.identityToken(pid);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<bool> _isAlive(final int pid) async {
+    try {
+      return await _host.isAlive(pid);
+    } on Object {
+      return false;
+    }
   }
 }
 

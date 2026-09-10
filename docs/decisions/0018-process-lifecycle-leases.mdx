@@ -1,0 +1,242 @@
+# 0018 — Process lifecycle leases: durable registry first, teardown as steps second
+
+- **Status:** accepted
+- **Date:** 2026-09-10
+- **Decision-makers:** Anton, oka agent
+
+## Context
+
+Spawned processes leak. The motivating evidence is real, not hypothetical:
+
+- `oka run emulator` boots an AVD headless and the host ends up with an
+  orphaned `qemu-system-aarch64_headless` running indefinitely. Root cause
+  chain, in `packages/oka_android/lib/src/dev/emulator_target.dart`:
+  `BootEmulatorStep` spawns via `Process.start` and deliberately never
+  awaits it (`unawaited(start.then(...))`); when the `oka` process exits,
+  the emulator is orphaned. Failure paths (serial-discovery timeout, boot
+  timeout) also discard the `Process` handle — the freshly spawned emulator
+  is never killed. The idempotent reuse rule ("adopt a running emulator for
+  the same AVD") then *masks* the leak on the next run.
+- The browser side is the same pattern by design: ADR-0017 made browser
+  sessions "the second instance of the EmulatorTarget pattern", with
+  `StopChromeSessionStep` and pid/profile-dir artifacts provided for
+  teardown — but teardown is opt-in composition ("a step, not magic") and
+  nothing composes it. Real-world corroboration: orphaned flutter_tools
+  Chrome debug sessions with ephemeral temp profiles observed running for
+  weeks on a dev host.
+
+The structural cause is that the lifecycle machinery that exists
+(`StopEmulatorStep`, `StopChromeSessionStep`, handle artifacts) has **no
+execution guarantee**: it runs only if a developer remembers to compose it,
+and even then only on the clean-exit path. Three distinct problems hide
+under "teardown", and they have different solvability:
+
+| Problem | Example | In-process teardown can solve it? |
+|---|---|---|
+| **A. In-run cleanup** | boot timeout → kill the emulator we just spawned | ✅ (the `Process` handle is at hand) |
+| **B. Session-scoped lifecycle** | `oka dev` ends → stop the emulator it booted (if it owns it) | ⚠️ clean paths only |
+| **C. Cross-process reconciliation** | `oka` crashed / SIGKILLed → orphaned qemu for hours | ❌ never |
+
+Problem C is the one that actually bit, and it is unsolvable by any hook
+mechanism (`finally`, `atExit`, signal handlers) — SIGKILL, crashes, and
+laptop lid-close bypass all of them. Therefore the load-bearing primitive
+cannot be a hook. It must be a **durable, on-disk record of what oka
+spawned**, reconciled by later runs.
+
+## Decision
+
+Chosen: **a durable process-lease registry as the core primitive;
+declarative teardown as composable `BuildStep`s wired into the `Target`
+contract on top of it; lifecycle scopes (ephemeral / session / persistent)
+with an owned-vs-borrowed split; a best-effort `TeardownRunner` that is
+deliberately *not* `Pipeline.run`; and CLI verbs for listing and stopping.**
+
+### 1. Process leases (the core primitive)
+
+Every step that spawns (or adopts) a long-lived process writes a lease
+record to `.oka_cache/processes/<id>.json` (atomic write-then-rename):
+
+```json
+{
+  "id": "emulator-oka-emulator",
+  "pid": 48977,
+  "kind": "android-emulator",
+  "identity": {"avd": "oka-emulator", "serial": "emulator-5554"},
+  "scope": "ephemeral",
+  "ownership": "owned",
+  "owner_cmd": "oka run emulator",
+  "started_at": "2026-09-10T12:00:00Z",
+  "stop_hint": {"tool": "adb", "args": ["-s", "emulator-5554", "emu", "kill"]}
+}
+```
+
+- **Leases are advisory records, not a supervisor.** No daemon, no server,
+  no background process (the ADR-0001 no-daemon posture holds). The
+  registry is a directory of JSON files; concurrency safety is atomic
+  rename, nothing more.
+- **Identity over pid.** Every kill verifies identity before signaling
+  (process start-time via the platform seam, or a semantic check: emulator
+  → `adb emu avd name` matches the lease; Chrome → CDP `/json/version` on
+  the leased port). Raw `kill <pid>` is forbidden — pid recycling kills
+  innocent processes.
+- **`stop_hint` carries the graceful path** (e.g. `adb emu kill`, not
+  SIGKILL). The kill ladder is graceful-first, then force, with a per-step
+  timeout.
+- A liveness/platform seam (`isAlive`, `startTime`, `kill`) is abstracted
+  from day one (macOS/Linux/Windows differ).
+
+### 2. Teardown as steps, wired into the Target contract
+
+```dart
+abstract class Target {
+  List<BuildStep> compile(BuildContext ctx);            // existing
+  List<BuildStep> compileTeardown(BuildContext ctx);    // new — same contract
+}
+```
+
+Teardown units are real `BuildStep`s, so they reuse the existing mechanics
+the composition law already provides: artifact contracts
+(`StopEmulatorStep` already consumes `emulator-serial`;
+`StopChromeSessionStep` already consumes the pid/profile-dir artifacts),
+compile-time validation, structured events, and pure scripted-fake-testable
+construction. Within a run, teardown steps access state via
+`PipelineState` artifacts exactly like build steps; *across* runs, the only
+state that survives is the lease file — which is precisely why the lease is
+the core and the steps are the layer on top.
+
+**The runner is a new `TeardownRunner`, not `Pipeline.run`.** A teardown
+pipeline is not a build pipeline: it executes in `finally` blocks, signal
+handlers, and *other* processes (the reconcile sweep), possibly hours after
+the forward pipeline ran. It runs best-effort, never masks the original
+build failure, and applies a per-step timeout with the graceful→force
+ladder.
+
+### 3. Lifecycle scopes + ownership
+
+Two axes, declared on the spawn target — parameters, not a type hierarchy
+(same law as ADR-0017 §5):
+
+- **scope:** `ephemeral` (die when the run ends — normal exit, failure,
+  signal; CI/agent default) · `session` (die when the owning session ends,
+  survives rebuilds within `oka dev`) · `persistent` (survive; must be
+  discoverable and stoppable via the CLI; explicit opt-in).
+- **ownership:** `owned` (this run spawned it — recorded by the spawn step)
+  vs `borrowed` (idempotent reuse found it running). **Teardown stops only
+  `owned` leases.** Killing a borrowed session would break the reuse
+  contract and whatever other terminal owns it. Adopting a lease flips its
+  ownership to `borrowed` in the registry; nothing else.
+
+### 4. CLI surface (ADR-0015 verb/target split)
+
+- `oka processes list [--json]` — every lease + liveness + identity match.
+- `oka stop <name> [--json]` / `oka stop --stale` — identity-verified stop,
+  then lease removal.
+- `oka doctor` reports stale/orphaned leases as part of its audit.
+
+AI-native surface = the existing conventions, deliberately: `--json` emits
+the `pipeline_events.dart`-style envelope (`scope: "processes"`); leases
+are plain JSON files an agent can read directly; `oka stop` returns
+structured results. **No new "intent" protocol** — the CLI verb surface
+*is* the intent vocabulary (ADR-0015 exists to keep it small).
+
+### 5. Reconciliation sweep (the guarantee)
+
+Every `oka run` / `oka doctor` start reads the lease directory,
+liveness-checks and identity-checks each record, and reconciles: provably
+stale records (`deadPid` / `reusedPid` — never a live signal) are dropped
+automatically; live leases are classified and reported, never auto-stopped
+by default, because oka's reuse posture deliberately keeps processes
+running (`oka run emulator` without `stopOnExit`). The explicit stop is
+`oka stop <id>`; hermetic harnesses (CI tiers) harden the sweep with an
+opt-in flag that stops orphaned owned+ephemeral leases through the same
+identity-graded laws. This is what makes the lifecycle guarantee hold
+across crashes and SIGKILLs: the next oka invocation cleans up what the
+dead one could not. Oka only ever reconciles **its own** leases — foreign
+orphans (e.g. flutter_tools' leaked Chromes) are reported, never killed.
+
+### Out of scope (explicit)
+
+- A process supervisor / daemon / refcounting of shared sessions (one
+  owner per process; concurrent runs get the existing borrow semantics).
+- Sweeping or killing processes oka did not spawn.
+- A generic "process manager" framework package; the registry lives in
+  `oka_core`, spawn/stop steps live with their targets (oka_android,
+  oka_web).
+
+## Alternatives considered
+
+- **Teardown hooks only (finally / atExit / signal handlers)** — rejected
+  as the *core*: cannot cover problem C (crash/SIGKILL bypass every hook);
+  this is exactly the mechanism that made the leak invisible. Signal
+  handling is kept as a best-effort accelerator on top of the registry.
+- **Per-target ad-hoc fixes (kill on timeout in BootEmulatorStep, done)** —
+  necessary (problem A) but insufficient: fixes one leak path per target
+  and leaves B and C with no shared mechanics, no discovery, no agent
+  surface. It becomes part of L0, not the design.
+- **Fold teardown into `Pipeline.run`** — rejected: couples failure
+  semantics wrongly. Teardown errors must never mask the build error, and
+  teardown executes in contexts a build pipeline never does (other
+  processes, hours later).
+- **A supervisor daemon managing processes** — rejected: violates the
+  no-daemon posture (ADR-0001); a directory of JSON files plus
+  reconcile-on-next-run achieves the guarantee with no long-lived process
+  of oka's own.
+- **An "intent" protocol for agents** — rejected: duplicates the existing
+  verb surface + JSON envelope conventions (ADR-0011/0012/0015). Agents
+  read the same leases and emit the same verbs humans do.
+
+## Consequences
+
+Good:
+
+- Leaks become *visible* (`oka processes list`, `oka doctor`) before they
+  become complaints — including leaks from crashed runs.
+- Teardown becomes first-class composition surface: a developer declares
+  lifecycle with the same typed steps they build with, and gets timeouts,
+  artifact flow, and structured events for free.
+- The ADR-0017 session-handle convention gains its lifecycle half: handles
+  for consuming, leases for stopping. Future session kinds (iOS simulator,
+  containers, server processes) inherit both by conforming.
+- Agents get a uniform, readable control surface over spawned processes
+  with no new protocol.
+
+Bad / Neutral:
+
+- `Target` contract grows a member (`compileTeardown`) — a compile-time
+  breaking change for third-party targets; mitigated by a default empty
+  implementation and the fact that oka's targets are the reference
+  consumers.
+- Lease records can go stale (crash mid-write, manual `kill`); the
+  reconcile sweep is the designed answer, but identity checks must be
+  conservative (report-never-guess) to avoid killing innocent processes.
+- The graceful→force ladder needs per-kind knowledge (`stop_hint`,
+  semantic identity) — each new session kind owes the registry two small
+  pieces, not a framework.
+- Scope for `session` requires wiring into the dev-session exit paths
+  (already disciplined: discovery files are cleared on every exit path —
+  the lease follows the same pattern).
+
+## Phased plan
+
+Tracked in `docs/PHASE_CHECKLIST.mdx` (L0–L2).
+
+- **L0 — lease registry + spawn-side recording (`oka_core`).**
+  `ProcessLease` record + registry (atomic writes under
+  `.oka_cache/processes/`), platform liveness/identity/kill seam,
+  `BootEmulatorStep` + `ChromeSessionTarget` spawn steps write leases,
+  in-run failure-path kill (problem A). Gate: this ADR. Evidence: unit
+  tests incl. pid-reuse identity rejection and crash-recovery reconcile.
+- **L1 — teardown contract + CLI.** `Target.compileTeardown` +
+  `TeardownRunner` (best-effort, per-step timeout, graceful→force ladder,
+  never masks build failure), scopes + owned/borrowed enforcement,
+  `oka processes list [--json]` / `oka stop` verbs. Gate: L0.
+- **L2 — reconciliation + doctor + dev-loop wiring.** Sweep at run/doctor
+  start, doctor leak report, `oka dev` session-scope wiring through its
+  existing every-exit-path cleanup, signal handling in the entrypoint
+  runner (resolving the `dart run` signal-propagation question concretely).
+  Gate: L1 + dev-loop evidence.
+
+**Authoritative source:** this ADR, `docs/guides/process_lifecycle.mdx`
+(working manual for developers + agents), `packages/oka_core/lib/src/`
+(registry, seams, teardown runner, CLI-backing surface), `docs/
+PHASE_CHECKLIST.mdx` (progress).

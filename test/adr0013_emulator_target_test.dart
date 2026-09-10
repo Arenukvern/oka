@@ -245,6 +245,7 @@ void main() {
         avdName: 'oka-emulator',
         bootTimeout: const Duration(milliseconds: 100),
         pollInterval: const Duration(milliseconds: 10),
+        killGrace: const Duration(milliseconds: 50),
         runProcess: fake.call,
       );
       final r = await step.run(_ctx(), PipelineState());

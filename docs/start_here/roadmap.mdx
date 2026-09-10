@@ -95,7 +95,9 @@ Work is grouped by horizon, not by date:
   extended to `apple/container`/Docker sessions (Linux testing for oka
   and Dart packages; images via the artifact store) and Dart server
   process sessions (base-URL handles for intentcall/mcp-server targets)
-  — each an independent target, no session framework.
+  — each an independent target, no session framework. Lifecycle for all
+  of them rides the ADR-0018 lease registry — a new session kind owes a
+  lease record and a `stop_hint`, not new mechanics.
 - **Every platform, same laws.** The north star is one code for every
   platform build: typed values, validated pipelines, no hidden glue, and
   an agent that can set up and fix a build from oka's messages alone. Each

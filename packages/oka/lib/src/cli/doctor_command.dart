@@ -365,6 +365,24 @@ class DoctorCommand {
 
     // Summary (advisory-only dev-loop findings never fail it — the
     // blocking failure was already counted above).
+
+    // ── Process leases (ADR-0018 L2) ────────────────────────────
+    // Parse-and-delegate: the reconcile semantics (identity gates,
+    // stale-record dropping, orphan classification) live in oka_core.
+    // Report-only for live leases — oka never kills a process the user
+    // deliberately kept (e.g. the reused dev emulator); `oka stop` is the
+    // explicit stop. Advisory: sweep findings never fail doctor.
+    print('[Process Leases (ADR-0018)]');
+    try {
+      final sweep = await reconcileLeases(Directory.current.path);
+      for (final line in sweep.describeLines()) {
+        print('  $line');
+      }
+    } on Exception catch (e) {
+      print('  ⚠️  Lease registry unreadable: $e');
+    }
+    print('');
+
     if (allGood) {
       print("✅ All checks passed! You're ready to use Oka.");
     } else {

@@ -8,6 +8,7 @@ import 'composition.dart';
 import 'config/build_context.dart';
 import 'config/oka_config.dart';
 import 'pipeline/pipeline.dart';
+import 'process_teardown.dart';
 import 'publish/publish_target.dart';
 import 'targets/describe.dart';
 import 'targets/target.dart';
@@ -220,16 +221,50 @@ Future<void> okaRun(
     // ADR-0014 dry-run plan into it (PublishPlanStep.plan), read below.
     final targetState = PipelineState();
     result = await targetPipeline.run(ctx, initialState: targetState);
-    // ADR-0014 dry-run law: a successful dry-run publish dispatch MUST
-    // print the plan — exactly what a real run would do. (There is no
-    // machine-readable output flag for explain/dispatch output today, so
-    // this is a plain human/agent-readable print; add JSON here when one
-    // exists.) Platform build dispatch (`oka build`) is unchanged.
     final plan = targetState[PublishPlanStep.plan.id];
     if (result.ok && plan is PublishPlan) {
       stdout.writeln('📋 Publish plan for "${target.name}":');
       for (final line in plan.describeLines()) {
         stdout.writeln('  $line');
+      }
+    }
+    // ADR-0018 (L1): declarative teardown — same contract as the build
+    // steps, run best-effort after the forward pipeline (success OR
+    // failure), never masking its result. Owned vs borrowed enforcement
+    // and identity gates live in the steps/registry, not here.
+    final teardownSteps = target.compileTeardown(ctx);
+    if (teardownSteps.isNotEmpty) {
+      // Best-effort signal safety (ADR-0018 problem B): SIGINT/SIGTERM run
+      // the composed teardown before exiting. SIGKILL bypasses every
+      // handler by definition — the lease registry + reconcile sweep is
+      // the guarantee that survives it. Windows: signal watching may be
+      // unavailable — advisory, never fatal.
+      for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
+        try {
+          signal.watch().listen((final s) async {
+            await runTeardownSteps(
+              teardownSteps,
+              ctx: ctx,
+              state: targetState,
+            );
+            exit(s == ProcessSignal.sigint ? 130 : 143);
+          });
+        } on Object {
+          // Signal watching unsupported on this platform — skip.
+        }
+      }
+      final teardown = await runTeardownSteps(
+        teardownSteps,
+        ctx: ctx,
+        state: targetState,
+        write: verbose ? stdout.writeln : null,
+      );
+      if (!teardown.ok) {
+        stderr.writeln(
+          '⚠️ target "${target.name}" teardown finished with '
+          '${teardown.failures.length} failure(s) (never masks the run '
+          'result — ADR-0018 §2).',
+        );
       }
     }
   } else {

@@ -25,6 +25,10 @@ const Set<String> reservedCliVerbs = {
   'launch',
   'run',
   'cache',
+  // ADR-0018 (L1): spawned-process lifecycle surface. Reserved ahead of
+  // full rollout so no target can shadow the lease-inspection verbs.
+  'processes',
+  'stop',
 };
 
 final RegExp _targetNamePattern = RegExp(r'^[a-z][a-z0-9_-]*$');
@@ -117,6 +121,46 @@ abstract class Target {
   /// I/O. The runner wraps the result in a [Pipeline] and validates the
   /// artifact chain before executing anything.
   List<BuildStep> compile(final BuildContext ctx);
+
+  /// Compiles this target's teardown steps (ADR-0018 §2) — same contract
+  /// as [compile], executed by the best-effort [runTeardownSteps] runner
+  /// after the forward pipeline ends (success *or* failure), never masking
+  /// its result. Steps consume the forward run's [PipelineState] artifacts
+  /// (e.g. `emulator-serial`, the chrome pid/profile-dir sub-handles), so
+  /// a spawn step and its stop step stay a pure composition pair.
+  ///
+  /// Teardown may also run in *other* processes (the L2 reconcile sweep,
+  /// `oka stop`) — cross-run state rides the lease registry, not
+  /// [PipelineState]. Default: no teardown (a target that spawns nothing
+  /// long-lived needs none).
+  ///
+  /// Example — the `stopOnExit` pattern (see `EmulatorTarget`),
+  /// aborting the whole run's lifecycle when the user declares it:
+  ///
+  /// ```dart
+  /// class HarnessTarget extends Target {
+  ///   @override
+  ///   String get name => 'harness';
+  ///   @override
+  ///   String get description => 'boot emulator + browser, run tests, stop';
+  ///
+  ///   @override
+  ///   List<BuildStep> compile(BuildContext ctx) => [
+  ///         BootEmulatorStep(avdName: 'oka-emulator'),
+  ///         // ... app build/test steps ...
+  ///       ];
+  ///
+  ///   @override
+  ///   List<BuildStep> compileTeardown(BuildContext ctx) => [
+  ///         // Consumes `emulator-serial` from the forward run's state.
+  ///         StopEmulatorStep(),
+  ///       ];
+  /// }
+  /// ```
+  ///
+  /// The returned steps run after the forward pipeline (success OR
+  /// failure) under [runTeardownSteps] — and again on SIGINT/SIGTERM.
+  List<BuildStep> compileTeardown(final BuildContext ctx) => const [];
 
   /// Generic, platform-agnostic explain hook (ADR-0016 W1): extra pure
   /// detail lines `oka explain --targets` prints for this target, in
