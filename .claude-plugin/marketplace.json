@@ -9,7 +9,7 @@
       "name": "oka",
       "source": "./plugin",
       "description": "No-Gradle Flutter Android build system: flutter assemble + direct Android SDK tools for 3-5x faster incremental builds, with plugin packaging, AAB support, and dependency recovery. Bundles agent skills.",
-      "version": "0.1.6",
+      "version": "1.0.0",
       "keywords": [
         "flutter",
         "android",
