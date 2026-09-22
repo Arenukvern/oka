@@ -38,7 +38,10 @@ class HuaweiStageAabStep extends BuildStep {
   /// Resolves the AAB path and records it in [PipelineState] (no
   /// existence check — dry-run law).
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final path = artifactPath ?? _resolveStaged(ctx, state);
     if (path.isNotEmpty) state[aabPath.id] = path;
     return StepResult.success({'aab-path': path});
@@ -114,7 +117,10 @@ class AgcPublishStep extends BuildStep {
   /// then runs the four AGC calls via the injectable transport; fails
   /// actionably at each stage (never interactive).
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final artifactPath = state[HuaweiStageAabStep.aabPath.id] as String?;
     if (artifactPath == null || artifactPath.isEmpty) {
       return StepResult.failure(
@@ -158,8 +164,7 @@ class AgcPublishStep extends BuildStep {
 
     // Release-note contents are read from their files at publish time and
     // placed straight into the submit payload — never into state.
-    final noteContents =
-        <({String language, String content})>[];
+    final noteContents = <({String language, String content})>[];
     for (final note in release.releaseNotes) {
       final noteFile = File(note.file);
       if (!noteFile.existsSync()) {
@@ -169,9 +174,10 @@ class AgcPublishStep extends BuildStep {
           'config',
         );
       }
-      noteContents.add(
-        (language: note.language, content: await noteFile.readAsString()),
-      );
+      noteContents.add((
+        language: note.language,
+        content: await noteFile.readAsString(),
+      ));
     }
 
     final client = AgcClient(

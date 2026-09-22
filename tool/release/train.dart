@@ -9,6 +9,7 @@ const packages = <String>[
   'oka_android',
   'oka_huawei',
   'oka_play',
+  'oka_rustore',
   'oka_web',
   'oka',
 ];

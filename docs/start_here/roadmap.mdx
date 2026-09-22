@@ -33,7 +33,9 @@ Work is grouped by horizon, not by date:
 ## Now
 
 - **Real store uploads.** `oka_play` and `oka_huawei` compile to validated
-  dry-run plans today; flipping to real uploads needs only maintainer
+  dry-run plans today; `oka_rustore` now provides the typed AAB/signature
+  readiness target, while its live upload adapter remains future work.
+  Flipping the implemented upload tails to real uploads needs maintainer
   credentials plus one live upload each as evidence. This turns ADR-0014
   from "proven offline" into "proven shipped".
 - **CI emulator tier.** The dev-loop evidence (`oka run device` →

@@ -17,13 +17,12 @@ const String playServiceAccountKind = 'service-account-json';
 CredentialRef playServiceAccountRef({
   final String? explicitPath,
   final String? envVar,
-}) =>
-    CredentialRef(
-      target: 'play',
-      kind: playServiceAccountKind,
-      explicitPath: explicitPath,
-      envVar: envVar,
-    );
+}) => CredentialRef(
+  target: 'play',
+  kind: playServiceAccountKind,
+  explicitPath: explicitPath,
+  envVar: envVar,
+);
 
 /// Required fields of a Play service-account JSON file (checked by name
 /// only — values are never echoed, logged, or stored).

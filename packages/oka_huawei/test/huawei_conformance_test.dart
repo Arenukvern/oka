@@ -12,13 +12,13 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 BuildContext _ctx(final Directory tmp) => BuildContext(
-      projectPath: tmp.path,
-      buildDir: p.join(tmp.path, '.oka_cache', 'build', 'debug'),
-      mode: BuildMode.debug,
-      config: OkaConfig.empty,
-      cacheDir: p.join(tmp.path, '.oka_cache'),
-      tempDir: p.join(tmp.path, '.oka_cache', 'build', 'debug', 'temp'),
-    );
+  projectPath: tmp.path,
+  buildDir: p.join(tmp.path, '.oka_cache', 'build', 'debug'),
+  mode: BuildMode.debug,
+  config: OkaConfig.empty,
+  cacheDir: p.join(tmp.path, '.oka_cache'),
+  tempDir: p.join(tmp.path, '.oka_cache', 'build', 'debug', 'temp'),
+);
 
 const _target = HuaweiPublishTarget(
   release: HuaweiReleaseConfig(appId: '110012345'),
@@ -49,28 +49,27 @@ void main() {
       );
     });
 
-    test('the target passes with an explicit credential path (redacted)',
-        () async {
-      await expectPublishConformance(
-        _targetWithCredentialPath,
-        _ctx(tmp),
-      );
-    });
+    test(
+      'the target passes with an explicit credential path (redacted)',
+      () async {
+        await expectPublishConformance(_targetWithCredentialPath, _ctx(tmp));
+      },
+    );
 
     test('compiles to stage → plan, and the plan never issues HTTP', () async {
       final ctx = _ctx(tmp);
       final chain = describeTarget(_target, ctx);
       expect(chain.isValid, isTrue, reason: chain.validationError);
-      expect(
-        chain.steps.map((final s) => s.name).toList(),
-        ['huawei-stage-aab', 'publish-plan'],
-        reason: 'the upload tail is substituted by the plan step (as code)',
-      );
+      expect(chain.steps.map((final s) => s.name).toList(), [
+        'huawei-stage-aab',
+        'publish-plan',
+      ], reason: 'the upload tail is substituted by the plan step (as code)');
 
       final transport = FakeHttpTransport();
       final state = PipelineState();
-      final result = await Pipeline(_target.compile(ctx))
-          .run(ctx, initialState: state);
+      final result = await Pipeline(
+        _target.compile(ctx),
+      ).run(ctx, initialState: state);
       expect(result.ok, isTrue, reason: result.error);
       transport.assertNoRequests();
     });
@@ -87,10 +86,7 @@ void main() {
         artifactId: 'aab-path',
         track: HuaweiReleaseConfig.defaultTrack,
         dryRun: true,
-        metadata: const {
-          'appId': '110012345',
-          'phasePercent': '100',
-        },
+        metadata: const {'appId': '110012345', 'phasePercent': '100'},
         credentials: const [HuaweiPublishTarget.agconnectCredentials],
       );
       expectPlanDescribes(plan, [
@@ -101,12 +97,12 @@ void main() {
       ]);
     });
 
-    test('an explicit credential path renders only in redacted form',
-        () async {
+    test('an explicit credential path renders only in redacted form', () async {
       final ctx = _ctx(tmp);
       final state = PipelineState();
-      await Pipeline(_targetWithCredentialPath.compile(ctx))
-          .run(ctx, initialState: state);
+      await Pipeline(
+        _targetWithCredentialPath.compile(ctx),
+      ).run(ctx, initialState: state);
       final plan = state[PublishPlanStep.plan.id]! as PublishPlan;
       expectNoSecretMaterial(
         plan.describeLines().join('\n'),
@@ -124,12 +120,11 @@ void main() {
       );
       final chain = describeTarget(real, _ctx(tmp));
       expect(chain.isValid, isTrue, reason: chain.validationError);
-      expect(
-        chain.steps.map((final s) => s.name).toList(),
-        ['huawei-stage-aab', 'agc-publish'],
-      );
-      final violations =
-          await auditPublishConformance(real, _ctx(tmp));
+      expect(chain.steps.map((final s) => s.name).toList(), [
+        'huawei-stage-aab',
+        'agc-publish',
+      ]);
+      final violations = await auditPublishConformance(real, _ctx(tmp));
       expect(violations, isEmpty);
     });
   });
@@ -167,12 +162,13 @@ void main() {
       expect(_target.dryRun, isTrue);
     });
 
-    test('the credential ref derives the env var and well-known location',
-        () {
+    test('the credential ref derives the env var and well-known location', () {
       const ref = HuaweiPublishTarget.agconnectCredentials;
       expect(ref.envVarName, 'OKA_HUAWEI_AGCONNECT_CREDENTIALS');
-      expect(ref.wellKnownPath,
-          '~/.oka/credentials/huawei/agconnect-credentials');
+      expect(
+        ref.wellKnownPath,
+        '~/.oka/credentials/huawei/agconnect-credentials',
+      );
     });
   });
 }

@@ -56,6 +56,7 @@ enum PlayTrack {
 class PlayPublishTarget extends PublishTarget {
   const PlayPublishTarget({
     this.dryRun = true,
+    this.targetName = 'publish-play',
     this.packageName = '',
     this.releaseTrack = PlayTrack.internal,
     this.userFraction,
@@ -69,6 +70,11 @@ class PlayPublishTarget extends PublishTarget {
   /// a real upload is an explicit decision).
   @override
   final bool dryRun;
+
+  /// Project-declared target name. The default preserves the historical CLI
+  /// name; compositions may declare several Play-compatible targets without
+  /// coupling the CLI to store names.
+  final String targetName;
 
   /// Target application package name, e.g. `dev.example.app`. Empty → the
   /// upload step fails with remediation (dry-run plans still render).
@@ -103,13 +109,13 @@ class PlayPublishTarget extends PublishTarget {
 
   /// The credential path reference (never a value).
   CredentialRef get serviceAccountRef => playServiceAccountRef(
-        explicitPath: serviceAccountPath,
-        envVar: serviceAccountEnvVar,
-      );
+    explicitPath: serviceAccountPath,
+    envVar: serviceAccountEnvVar,
+  );
 
   /// Target name: `publish-play`.
   @override
-  String get name => 'publish-play';
+  String get name => targetName;
 
   /// Explain-text: track and dry-run posture.
   @override
@@ -131,11 +137,10 @@ class PlayPublishTarget extends PublishTarget {
 
   @override
   Map<String, String> get metadata => {
-        if (packageName.isNotEmpty) 'packageName': packageName,
-        if (releaseName.isNotEmpty) 'releaseName': releaseName,
-        if (userFraction != null)
-          'userFraction': userFraction!.toStringAsFixed(2),
-      };
+    if (packageName.isNotEmpty) 'packageName': packageName,
+    if (releaseName.isNotEmpty) 'releaseName': releaseName,
+    if (userFraction != null) 'userFraction': userFraction!.toStringAsFixed(2),
+  };
 
   /// Credentials consumed by the upload tail: the redacting service
   /// account path reference.
@@ -144,8 +149,9 @@ class PlayPublishTarget extends PublishTarget {
 
   /// Staging steps: the AAB stage with the typed path override.
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) =>
-      [StageAabStep(artifactPath: artifactPath)];
+  List<BuildStep> publishSteps(final BuildContext ctx) => [
+    StageAabStep(artifactPath: artifactPath),
+  ];
 
   /// The upload tail: [PlayUploadStep].
   @override

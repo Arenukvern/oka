@@ -83,7 +83,7 @@ Release sequence:
    notes**.
 5. [`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
    runs on the tag: asserts tag == `VERSION`, per-package dry-run preflight,
-   then publishes all seven packages in dependency order. The package inventory
+   then publishes all eight packages in dependency order. The package inventory
    and ordering live in the release tooling under `tool/release/`.
    Each dependency must be available on pub.dev before a dependent package
    is published. All packages share `VERSION`; web requires core `0.2.0`

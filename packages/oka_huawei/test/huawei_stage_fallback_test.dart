@@ -13,14 +13,16 @@ import 'package:oka_huawei/oka_huawei.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-BuildContext _ctx(final Directory tmp, {final BuildMode mode = BuildMode.debug}) =>
-    BuildContext(
-      projectPath: tmp.path,
-      buildDir: p.join(tmp.path, '.oka_cache', 'build', '${mode.name}-aab'),
-      mode: mode,
-      config: OkaConfig.empty,
-      cacheDir: p.join(tmp.path, '.oka_cache'),
-    );
+BuildContext _ctx(
+  final Directory tmp, {
+  final BuildMode mode = BuildMode.debug,
+}) => BuildContext(
+  projectPath: tmp.path,
+  buildDir: p.join(tmp.path, '.oka_cache', 'build', '${mode.name}-aab'),
+  mode: mode,
+  config: OkaConfig.empty,
+  cacheDir: p.join(tmp.path, '.oka_cache'),
+);
 
 void main() {
   late Directory tmp;
@@ -63,15 +65,17 @@ void main() {
         );
       });
 
-      test('the Android build artifact slot (apk_path) wins over the fallback',
-          () async {
-        final ctx = _ctx(tmp);
-        final staged = p.join(tmp.path, 'built', 'app-release.aab');
-        final state = PipelineState()..['apk_path'] = staged;
-        await HuaweiStageAabStep().run(ctx, state);
+      test(
+        'the Android build artifact slot (apk_path) wins over the fallback',
+        () async {
+          final ctx = _ctx(tmp);
+          final staged = p.join(tmp.path, 'built', 'app-release.aab');
+          final state = PipelineState()..['apk_path'] = staged;
+          await HuaweiStageAabStep().run(ctx, state);
 
-        expect(state[HuaweiStageAabStep.aabPath.id], staged);
-      });
+          expect(state[HuaweiStageAabStep.aabPath.id], staged);
+        },
+      );
 
       test('an upstream aab-path wins over the apk_path slot', () async {
         final ctx = _ctx(tmp);
@@ -80,7 +84,10 @@ void main() {
           ..['apk_path'] = p.join(tmp.path, 'built', 'app-release.aab');
         await HuaweiStageAabStep().run(ctx, state);
 
-        expect(state[HuaweiStageAabStep.aabPath.id], p.join(tmp.path, 'upstream.aab'));
+        expect(
+          state[HuaweiStageAabStep.aabPath.id],
+          p.join(tmp.path, 'upstream.aab'),
+        );
       });
     },
   );
@@ -96,13 +103,12 @@ void main() {
     });
 
     test('the target threads the override into the dry-run plan', () async {
-      const target = HuaweiPublishTarget(
-        artifactPath: '/custom/path/app.aab',
-      );
+      const target = HuaweiPublishTarget(artifactPath: '/custom/path/app.aab');
       final ctx = _ctx(tmp);
       final state = PipelineState();
-      final result =
-          await Pipeline(target.compile(ctx)).run(ctx, initialState: state);
+      final result = await Pipeline(
+        target.compile(ctx),
+      ).run(ctx, initialState: state);
 
       expect(result.ok, isTrue, reason: result.error);
       final plan = state[PublishPlanStep.plan.id]! as PublishPlan;
@@ -111,8 +117,7 @@ void main() {
   });
 
   group('real-run mismatch names the expected path', () {
-    test('a missing bundle fails naming the staged (expected) path',
-        () async {
+    test('a missing bundle fails naming the staged (expected) path', () async {
       final ctx = _ctx(tmp, mode: BuildMode.release);
       final state = PipelineState();
       await HuaweiStageAabStep().run(ctx, state);

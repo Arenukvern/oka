@@ -4,12 +4,14 @@ import 'package:oka_core/oka_core.dart';
 import 'agc_api.dart';
 import 'agc_publish_step.dart';
 import 'gms_variant.dart';
+import 'huawei_distribution_policy.dart';
 import 'huawei_release_config.dart';
 
 export 'agc_api.dart';
 export 'agc_credentials.dart';
 export 'agc_publish_step.dart';
 export 'gms_variant.dart';
+export 'huawei_distribution_policy.dart';
 export 'huawei_release_config.dart';
 
 /// The Huawei AppGallery Connect distribution target (ADR-0014 P2).
@@ -45,8 +47,11 @@ export 'huawei_release_config.dart';
 class HuaweiPublishTarget extends PublishTarget {
   const HuaweiPublishTarget({
     this.dryRun = true,
+    this.targetName = 'publish-huawei',
     this.release = const HuaweiReleaseConfig(),
     this.variant = const HuaweiBuildVariant(),
+    this.policy = const HuaweiDistributionPolicy(),
+    this.verifyArtifact = false,
     this.credentialPath,
     this.endpoints = const AgcEndpoints(),
     this.httpFactory,
@@ -58,11 +63,22 @@ class HuaweiPublishTarget extends PublishTarget {
   @override
   final bool dryRun;
 
+  /// Project-declared target name. Defaults to the legacy name for backwards
+  /// compatibility; the CLI treats it as an opaque target identifier.
+  final String targetName;
+
   /// Typed release metadata (track, release notes, phase).
   final HuaweiReleaseConfig release;
 
   /// The GMS-excluding Android build variant this target composes.
   final HuaweiBuildVariant variant;
+
+  /// Store-owned artifact and dependency gates.
+  final HuaweiDistributionPolicy policy;
+
+  /// Opt into the filesystem AAB gate for non-dry runs. Kept opt-in so
+  /// existing upload compositions retain their historical step contract.
+  final bool verifyArtifact;
 
   /// Explicit credential path (highest-precedence policy source); null →
   /// env var / well-known location per the P0 [CredentialResolver] policy.
@@ -88,7 +104,7 @@ class HuaweiPublishTarget extends PublishTarget {
 
   /// Target name: `publish-huawei`.
   @override
-  String get name => 'publish-huawei';
+  String get name => targetName;
 
   /// Explain-text: the GMS-excluded variant posture and track.
   @override
@@ -98,7 +114,8 @@ class HuaweiPublishTarget extends PublishTarget {
 
   /// Remote endpoint summary for the deploy plan.
   @override
-  String get endpoint => 'AppGallery Connect Publishing API '
+  String get endpoint =>
+      'AppGallery Connect Publishing API '
       '(${endpoints.baseUrl})';
 
   /// Publish track: the release config's track.
@@ -121,22 +138,28 @@ class HuaweiPublishTarget extends PublishTarget {
   /// Staging steps: the Huawei AAB stage with the typed path override.
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) => [
-        HuaweiStageAabStep(artifactPath: artifactPath),
-      ];
+    HuaweiStageAabStep(artifactPath: artifactPath),
+    if (!dryRun && verifyArtifact)
+      HuaweiArtifactVerificationStep(
+        policy: policy,
+        dependencies: variant.overrides.extraDeps,
+      ),
+  ];
 
   /// The upload tail: [AgcPublishStep] with the release config and
   /// credential reference.
   @override
   BuildStep uploadStep(final BuildContext ctx) => AgcPublishStep(
-        release: release,
-        credentialRef: _credentialRef(credentialPath),
-        endpoints: endpoints,
-        httpFactory: httpFactory,
-      );
+    release: release,
+    credentialRef: _credentialRef(credentialPath),
+    endpoints: endpoints,
+    httpFactory: httpFactory,
+  );
 
   /// Debug string: app id, track, dry-run marker, and variant.
   @override
-  String toString() => 'HuaweiPublishTarget(${release.appId}, '
+  String toString() =>
+      'HuaweiPublishTarget(${release.appId}, '
       'track ${release.track}${dryRun ? ' [dry-run]' : ''}, '
       '$variant)';
 }
@@ -144,7 +167,7 @@ class HuaweiPublishTarget extends PublishTarget {
 /// The credential reference specialized with the target's explicit path
 /// (a const ref cannot carry a runtime path).
 CredentialRef _credentialRef(final String? explicitPath) => CredentialRef(
-      target: HuaweiPublishTarget.agconnectCredentials.target,
-      kind: HuaweiPublishTarget.agconnectCredentials.kind,
-      explicitPath: explicitPath,
-    );
+  target: HuaweiPublishTarget.agconnectCredentials.target,
+  kind: HuaweiPublishTarget.agconnectCredentials.kind,
+  explicitPath: explicitPath,
+);

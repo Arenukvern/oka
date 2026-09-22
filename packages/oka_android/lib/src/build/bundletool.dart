@@ -6,15 +6,29 @@ import 'package:path/path.dart' as p;
 import '../pipeline/toolchain.dart' show debugKeystore;
 
 /// Signature of [verifyAabWithBundletool], injectable for tests.
-typedef BundletoolVerifier = Future<BundletoolVerifyResult> Function({
-  required String aabPath,
-  required String outputApksPath,
-  required String keystorePath,
-  required String keyAlias,
-  required String keyPass,
-  String? bundletoolPath,
-  bool verbose,
-});
+typedef BundletoolVerifier =
+    Future<BundletoolVerifyResult> Function({
+      required String aabPath,
+      required String outputApksPath,
+      required String keystorePath,
+      required String keyAlias,
+      required String keyPass,
+      String? bundletoolPath,
+      bool verbose,
+    });
+
+/// Process result used by the delivery verifier. Kept independent of
+/// [ProcessResult] so offline callers can inject bundletool responses.
+class BundletoolCommandResult {
+  const BundletoolCommandResult({
+    required this.exitCode,
+    required this.stdout,
+    required this.stderr,
+  });
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+}
 
 /// bundletool helpers for AAB verification (ADR-0004).
 ///
@@ -83,7 +97,6 @@ Future<String> downloadBundletool({
 
 /// Result of a bundletool verification run.
 class BundletoolVerifyResult {
-
   const BundletoolVerifyResult({
     required this.ok,
     required this.apksPath,
@@ -92,6 +105,52 @@ class BundletoolVerifyResult {
   final bool ok;
   final String? error;
   final String apksPath;
+}
+
+/// Result of bundletool's structural `validate` command.
+class BundletoolValidationResult {
+  const BundletoolValidationResult({
+    required this.ok,
+    required this.available,
+    this.error,
+  });
+
+  final bool ok;
+
+  /// False means validation was skipped because bundletool is not installed.
+  final bool available;
+  final String? error;
+}
+
+/// Run bundletool's inexpensive structural validator when available.
+///
+/// Oka's build path does not download bundletool implicitly. Callers that
+/// require it can treat `available == false` as a failure.
+Future<BundletoolValidationResult> validateAabWithBundletool({
+  required final String aabPath,
+  final String? bundletoolPath,
+  final bool verbose = false,
+}) async {
+  final tool = await findBundletool(explicitPath: bundletoolPath);
+  if (tool == null) {
+    return const BundletoolValidationResult(ok: false, available: false);
+  }
+  final args = tool.endsWith('.jar')
+      ? <String>['java', '-jar', tool, 'validate']
+      : <String>[tool, 'validate'];
+  args.add('--bundle=$aabPath');
+  if (verbose) print('   Running: ${args.join(' ')}');
+  final result = await Process.run(args.first, args.sublist(1));
+  if (result.exitCode != 0) {
+    return BundletoolValidationResult(
+      ok: false,
+      available: true,
+      error:
+          'bundletool validate failed (exit ${result.exitCode}):\n'
+          '${result.stderr}\n${result.stdout}',
+    );
+  }
+  return const BundletoolValidationResult(ok: true, available: true);
 }
 
 /// Verify an `.aab` by building universal APKs with bundletool.
@@ -115,6 +174,19 @@ Future<BundletoolVerifyResult> verifyAabWithBundletool({
       error:
           'bundletool not found. Install with: oka get bundletool\n'
           '(or set OKA_BUNDLETOOL_JAR / brew install bundletool)',
+    );
+  }
+
+  final validation = await validateAabWithBundletool(
+    aabPath: aabPath,
+    bundletoolPath: tool,
+    verbose: verbose,
+  );
+  if (!validation.ok && validation.available) {
+    return BundletoolVerifyResult(
+      ok: false,
+      apksPath: outputApksPath,
+      error: validation.error,
     );
   }
 
@@ -154,7 +226,10 @@ Future<BundletoolVerifyResult> verifyAabWithBundletool({
 
 /// Extract the universal APK from a `.apks` archive (it is a zip with
 /// `splits/universal.apk`).
-Future<String> extractUniversalApk(final String apksPath, final String destApkPath) async {
+Future<String> extractUniversalApk(
+  final String apksPath,
+  final String destApkPath,
+) async {
   final bytes = await File(apksPath).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
   ArchiveFile? universal;

@@ -14,7 +14,8 @@ import 'package:test/test.dart';
 void main() {
   // Constructed in one string (adjacent strings are not allowed inside
   // list literals by the house lints).
-  const agcEndpoint = 'AppGallery Connect Publishing API '
+  const agcEndpoint =
+      'AppGallery Connect Publishing API '
       '(https://connect-api.cloud.huawei.com)';
 
   late Directory tmp;
@@ -40,8 +41,9 @@ void main() {
     );
 
     final state = PipelineState();
-    final result =
-        await Pipeline(target.compile(ctx)).run(ctx, initialState: state);
+    final result = await Pipeline(
+      target.compile(ctx),
+    ).run(ctx, initialState: state);
     expect(result.ok, isTrue, reason: result.error);
 
     final plan = state[PublishPlanStep.plan.id]! as PublishPlan;
@@ -115,9 +117,8 @@ void main() {
       ),
     );
     expect(variant.gmsFreeExtraDeps, ['androidx.core:core-ktx:1.13.1']);
-    expect(
-      variant.excludedGmsDeps,
-      ['com.android.billingclient:billing-ktx:7.0.0'],
-    );
+    expect(variant.excludedGmsDeps, [
+      'com.android.billingclient:billing-ktx:7.0.0',
+    ]);
   });
 }

@@ -12,23 +12,27 @@ class CompileDexOutcome {
     required this.ok,
     this.error,
     this.dexFiles = const [],
+    this.shrinkerArtifacts = const {},
   });
 
   final bool ok;
   final String? error;
   final List<String> dexFiles;
+  final Map<String, String> shrinkerArtifacts;
 }
 
 class BytecodeTools {
   const BytecodeTools({
     required this.javac,
     required this.d8,
+    this.r8,
     this.kotlinc,
     this.jar = 'jar',
   });
 
   final String javac;
   final String d8;
+  final String? r8;
   final String? kotlinc;
   final String jar;
 }
@@ -102,6 +106,38 @@ class BytecodeCommandPolicy {
     '--lib',
     androidJar,
     for (final jar in compileOnlyJars) ...['--lib', jar],
+    ...programJars,
+  ];
+
+  List<String> r8Args({
+    required String outputDir,
+    required String minApi,
+    required String androidJar,
+    required List<String> programJars,
+    required List<String> libraryJars,
+    required String configFile,
+    required String mappingFile,
+    required String seedsFile,
+    required String usageFile,
+    required String printedConfigFile,
+  }) => [
+    '--output',
+    outputDir,
+    '--min-api',
+    minApi,
+    '--lib',
+    androidJar,
+    for (final jar in libraryJars) ...['--lib', jar],
+    '--pg-conf',
+    configFile,
+    '--pg-map-output',
+    mappingFile,
+    '--seeds',
+    seedsFile,
+    '--usage',
+    usageFile,
+    '--printconfiguration',
+    printedConfigFile,
     ...programJars,
   ];
 }
@@ -219,17 +255,78 @@ Future<CompileDexOutcome> compileAndroidBytecode({
         'lib jars: ${compileOnly.length + 1}',
       );
     }
-    var result = await processRunner(
-      tools.d8,
-      policy.d8Args(
+    final shrinkerArtifacts = <String, String>{};
+    ProcessResult result;
+    if (ctx.mode.isRelease) {
+      final r8 = tools.r8;
+      if (r8 == null || r8.isEmpty) {
+        return const CompileDexOutcome(
+          ok: false,
+          error: 'R8 is required for release builds but was not found.',
+        );
+      }
+      final reportsDir = p.join(ctx.buildDir, 'r8');
+      await Directory(reportsDir).create(recursive: true);
+      final configFile = p.join(reportsDir, 'config.pro');
+      await File(configFile).writeAsString(
+        '-keep class io.flutter.** { *; }\n'
+        '-keep class **PluginRegistrant { *; }\n'
+        '-keep class * extends android.app.Activity { *; }\n',
+      );
+      final reports = <String, String>{
+        'mapping': p.join(reportsDir, 'mapping.txt'),
+        'seeds': p.join(reportsDir, 'seeds.txt'),
+        'usage': p.join(reportsDir, 'usage.txt'),
+        'config': p.join(reportsDir, 'configuration.txt'),
+        'input_config': configFile,
+      };
+      shrinkerArtifacts.addAll(reports);
+      final args = policy.r8Args(
         outputDir: dexOutput,
         minApi: minApi,
         androidJar: androidJar,
         programJars: programs,
-        compileOnlyJars: compileOnly,
-      ),
-    );
-    if (result.exitCode != 0) {
+        libraryJars: compileOnly,
+        configFile: configFile,
+        mappingFile: reports['mapping']!,
+        seedsFile: reports['seeds']!,
+        usageFile: reports['usage']!,
+        printedConfigFile: reports['config']!,
+      );
+      final isJar = r8.toLowerCase().endsWith('.jar');
+      result = await processRunner(
+        isJar ? 'java' : r8,
+        isJar ? ['-jar', r8, ...args] : args,
+      );
+      if (result.exitCode != 0) {
+        return CompileDexOutcome(
+          ok: false,
+          error: 'r8 failed: ${result.stderr}\n${result.stdout}',
+        );
+      }
+      final missingReports = reports.entries
+          .where((entry) => !File(entry.value).existsSync())
+          .map((entry) => entry.key)
+          .toList();
+      if (missingReports.isNotEmpty) {
+        return CompileDexOutcome(
+          ok: false,
+          error: 'r8 produced no ${missingReports.join(', ')} report.',
+        );
+      }
+    } else {
+      result = await processRunner(
+        tools.d8,
+        policy.d8Args(
+          outputDir: dexOutput,
+          minApi: minApi,
+          androidJar: androidJar,
+          programJars: programs,
+          compileOnlyJars: compileOnly,
+        ),
+      );
+    }
+    if (!ctx.mode.isRelease && result.exitCode != 0) {
       // A failed D8 invocation may already have emitted partial multidex files.
       // The fallback must produce its own complete set, never inherit them.
       await dexDirectory.delete(recursive: true);
@@ -261,7 +358,11 @@ Future<CompileDexOutcome> compileAndroidBytecode({
     if (ctx.verbose) {
       print('   d8 multi-dex: ${dexFiles.map(p.basename).join(', ')}');
     }
-    return CompileDexOutcome(ok: true, dexFiles: dexFiles);
+    return CompileDexOutcome(
+      ok: true,
+      dexFiles: dexFiles,
+      shrinkerArtifacts: shrinkerArtifacts,
+    );
   } on Exception catch (error) {
     return CompileDexOutcome(ok: false, error: error.toString());
   }
@@ -419,8 +520,10 @@ Future<Map<String, String>> kotlinJavaEnvironment({
 Future<BytecodeTools> resolveBytecodeTools(
   ResolvedToolchain toolchain, {
   required bool needsKotlin,
+  bool needsR8 = false,
 }) async => BytecodeTools(
   javac: await toolchain.findJavac(),
   d8: await toolchain.findD8(),
+  r8: needsR8 ? await toolchain.findR8() : null,
   kotlinc: needsKotlin ? await toolchain.findKotlinc() : null,
 );

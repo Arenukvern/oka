@@ -45,6 +45,12 @@ List<String> adbDevicesArgs() => ['devices', '-l'];
 List<String> adbInstallArgs(final String apk, {final String? serial}) =>
     [...adbSerialArgs(serial), 'install', '-r', apk];
 
+/// `adb [-s <serial>] install-multiple -r <apk>...` for split APK sets.
+List<String> adbInstallMultipleArgs(
+  final List<String> apks, {
+  final String? serial,
+}) => [...adbSerialArgs(serial), 'install-multiple', '-r', ...apks];
+
 /// `adb [-s <serial>] shell am start -n <package>/<activity>`.
 List<String> adbLaunchArgs(
   final String packageName,
@@ -336,6 +342,18 @@ class AdbTool {
     final r = await _runProcess(adbPath, adbInstallArgs(apk, serial: serial));
     final out = '${r.stdout}${r.stderr}';
     if (r.exitCode != 0 || out.contains('Failure')) _fail('install', r);
+  }
+
+  /// Installs a device-specific split set produced by bundletool.
+  Future<void> installMultiple(final List<String> apks) async {
+    final r = await _runProcess(
+      adbPath,
+      adbInstallMultipleArgs(apks, serial: serial),
+    );
+    final out = '${r.stdout}${r.stderr}';
+    if (r.exitCode != 0 || out.contains('Failure')) {
+      _fail('install-multiple', r);
+    }
   }
 
   /// `adb shell am start -n <package>/<activity>`.

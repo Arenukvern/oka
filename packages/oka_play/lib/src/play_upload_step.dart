@@ -14,20 +14,20 @@ import 'play_target.dart';
 /// Production: googleapis_auth's `clientViaServiceAccount` — the JWT is
 /// signed locally (RS256) and exchanged at the token endpoint over
 /// [baseClient] (injectable, so tests run fully offline).
-typedef PlayAuthClientFactory = Future<http.Client> Function(
-  Map<String, dynamic> serviceAccountJson,
-  http.Client baseClient,
-);
+typedef PlayAuthClientFactory =
+    Future<http.Client> Function(
+      Map<String, dynamic> serviceAccountJson,
+      http.Client baseClient,
+    );
 
 Future<http.Client> _googleAuthClientFactory(
   final Map<String, dynamic> serviceAccountJson,
   final http.Client baseClient,
-) =>
-    gauth.clientViaServiceAccount(
-      gauth.ServiceAccountCredentials.fromJson(serviceAccountJson),
-      [androidPublisherScope],
-      baseClient: baseClient, // googleapis_auth never closes the base client
-    );
+) => gauth.clientViaServiceAccount(
+  gauth.ServiceAccountCredentials.fromJson(serviceAccountJson),
+  [androidPublisherScope],
+  baseClient: baseClient, // googleapis_auth never closes the base client
+);
 
 /// The real upload tail: Play Publisher API Edits flow over the composed
 /// AAB (ADR-0014 publish contract).
@@ -49,9 +49,8 @@ class PlayUploadStep extends BuildStep {
     final CredentialResolver? credentialResolver,
     this.httpClient,
     final PlayAuthClientFactory? authClientFactory,
-  })  : credentialResolver =
-            credentialResolver ?? CredentialResolver.platform(),
-        authClientFactory = authClientFactory ?? _googleAuthClientFactory;
+  }) : credentialResolver = credentialResolver ?? CredentialResolver.platform(),
+       authClientFactory = authClientFactory ?? _googleAuthClientFactory;
 
   /// The publish target this step uploads for.
   final PlayPublishTarget target;
@@ -69,8 +68,9 @@ class PlayUploadStep extends BuildStep {
 
   /// The version code assigned by the bundle upload (a number — allowed in
   /// [PipelineState] by the ADR-0014 law 3).
-  static const Artifact<int> playVersionCode =
-      Artifact<int>('play-version-code');
+  static const Artifact<int> playVersionCode = Artifact<int>(
+    'play-version-code',
+  );
 
   /// Step name: `play-upload`.
   @override
@@ -88,7 +88,10 @@ class PlayUploadStep extends BuildStep {
   /// injectable transport; fails actionably on missing artifact, missing
   /// AAB file, invalid config, or API errors.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final aabPath = state[StageAabStep.aab.id] as String?;
     if (aabPath == null || aabPath.isEmpty) {
       return StepResult.failure(
@@ -126,8 +129,9 @@ class PlayUploadStep extends BuildStep {
     // only; failures name missing fields, never contents.
     final Map<String, dynamic> serviceAccountJson;
     try {
-      serviceAccountJson =
-          parseServiceAccountJson(File(credentialPath).readAsStringSync());
+      serviceAccountJson = parseServiceAccountJson(
+        File(credentialPath).readAsStringSync(),
+      );
     } on ServiceAccountFormatException catch (e) {
       return StepResult.failure(
         '$e (file: ${target.serviceAccountRef.describe(credentialPath)})',

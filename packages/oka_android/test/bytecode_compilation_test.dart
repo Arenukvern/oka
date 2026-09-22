@@ -123,6 +123,26 @@ void main() {
       expect(filterRuntimeJars([root.path, jvm.path]), [jvm.path]);
       expect(filterRuntimeJars([jvm.path, root.path]), [jvm.path]);
     });
+    test('R8 arguments keep program closure and deterministic reports', () {
+      const policy = BytecodeCommandPolicy(pathSeparator: ':');
+      final args = policy.r8Args(
+        outputDir: 'dex',
+        minApi: '23',
+        androidJar: 'android.jar',
+        programJars: const ['a.jar', 'b.jar'],
+        libraryJars: const ['annotations.jar'],
+        configFile: 'r8/config.pro',
+        mappingFile: 'r8/mapping.txt',
+        seedsFile: 'r8/seeds.txt',
+        usageFile: 'r8/usage.txt',
+        printedConfigFile: 'r8/configuration.txt',
+      );
+      expect(args, containsAllInOrder(['--output', 'dex', '--min-api', '23']));
+      expect(args, containsAllInOrder(['--lib', 'android.jar']));
+      expect(args, containsAllInOrder(['--pg-conf', 'r8/config.pro']));
+      expect(args, containsAllInOrder(['--pg-map-output', 'r8/mapping.txt']));
+      expect(args, containsAllInOrder(['a.jar', 'b.jar']));
+    });
   });
 
   group('compileAndroidBytecode', () {
@@ -172,7 +192,9 @@ void main() {
             d8Calls++;
             final output = arguments[arguments.indexOf('--output') + 1];
             if (d8Calls == 1) {
-              await File(p.join(output, 'classes2.dex')).writeAsString('partial');
+              await File(
+                p.join(output, 'classes2.dex'),
+              ).writeAsString('partial');
               return ProcessResult(1, 1, '', 'old d8');
             }
             await File(p.join(output, 'classes.dex')).writeAsString('dex');
@@ -243,5 +265,36 @@ void main() {
       expect(outcome.ok, isFalse);
       expect(outcome.error, contains('d8 produced no classes*.dex'));
     });
+
+    test(
+      'release fails when R8 is unavailable instead of falling back to D8',
+      () async {
+        final release = BuildContext(
+          projectPath: temp.path,
+          buildDir: temp.path,
+          mode: BuildMode.release,
+          config: const OkaConfig({
+            'android': {'java_version': 17, 'min_sdk': '23'},
+          }),
+        );
+        final executables = <String>[];
+        final outcome = await compileAndroidBytecode(
+          ctx: release,
+          tools: const BytecodeTools(javac: 'javac', d8: 'd8'),
+          hostDir: host.path,
+          generatedSourcesDir: generated.path,
+          androidJar: 'android.jar',
+          embeddingJar: 'embedding.jar',
+          dependencyJars: const [],
+          processRunner: (executable, arguments, {environment}) async {
+            executables.add(executable);
+            return ProcessResult(1, 0, '', '');
+          },
+        );
+        expect(outcome.ok, isFalse);
+        expect(outcome.error, contains('R8 is required'));
+        expect(executables, isNot(contains('d8')));
+      },
+    );
   });
 }

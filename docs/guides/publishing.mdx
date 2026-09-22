@@ -1,16 +1,21 @@
 ---
-title: Publishing to Google Play & Huawei AppGallery
+title: Publishing to Google Play, Huawei AppGallery & RuStore
 ---
 
 # Publishing guide
 
-End-to-end setup for distributing an oka-built app: Google Play and Huawei
-AppGallery Connect. The why (targets are not platforms, the secrets model)
-lives in [ADR-0014](../decisions/0014-distribution-targets-secrets-model);
+End-to-end setup for distributing an oka-built app: Google Play, Huawei
+AppGallery Connect, and RuStore. The multi-store architecture (project
+declared target names, shared Android delivery primitives, and target-specific
+verification) lives in
+[ADR-0023](../decisions/0023-multi-store-distribution-architecture). The
+secrets model lives in
+[ADR-0014](../decisions/0014-distribution-targets-secrets-model);
 the CLI surface law (verbs never know targets) in
 [ADR-0015](../decisions/0015-cli-verb-target-split). Behavior SSOT is the
-package code: [`packages/oka_play`](https://github.com/Arenukvern/oka/tree/main/packages/oka_play)
-and [`packages/oka_huawei`](https://github.com/Arenukvern/oka/tree/main/packages/oka_huawei).
+package code: [`packages/oka_play`](https://github.com/Arenukvern/oka/tree/main/packages/oka_play),
+[`packages/oka_huawei`](https://github.com/Arenukvern/oka/tree/main/packages/oka_huawei),
+and [`packages/oka_rustore`](https://github.com/Arenukvern/oka/tree/main/packages/oka_rustore).
 
 ## How publishing works in oka
 
@@ -27,19 +32,26 @@ It composes two things:
 Oka(
   pipelines: [/* your AndroidPipeline as usual */],
   targets: [
-    PlayPublishTarget(dryRun: true),                        // oka run publish-play
-    HuaweiPublishTarget(dryRun: true, release: /* … */),    // oka run publish-huawei
+    PlayPublishTarget(dryRun: true),                        // declared name: publish-play
+    HuaweiPublishTarget(dryRun: true, release: /* … */),    // declared name: publish-huawei
+    RuStorePublishTarget(dryRun: true, packageName: 'dev.example.app'),
   ],
 )
 ```
 
-`oka run <target>` compiles the target into a validated pipeline — the same
-explain-before-execute machinery as builds. List what the project declares:
+`oka run <target>` compiles a project-declared target into a validated
+pipeline — the same explain-before-execute machinery as builds. List what the
+project declares:
 
 ```bash
 oka explain --targets
 oka run publish-play            # dry-run plan by default
 ```
+
+There are no store-specific CLI switches. Target names are not inferred from
+credentials or installed packages, and `oka build` remains store-neutral.
+Every target reuses the shared Android delivery primitives, then applies its
+own verification and publish tail.
 
 Two laws are enforced by a shared conformance suite
 ([`oka_conformance`](https://github.com/Arenukvern/oka/tree/main/packages/oka_conformance)):
@@ -166,6 +178,28 @@ oka build aab --release --verify-aab
 oka run publish-huawei           # dry-run plan by default
 # flip dryRun: false when ready
 ```
+
+## RuStore, end to end
+
+RuStore uses the same Android pipeline and AAB artifact contract as the other
+store targets. A project that supports RuStore declares its target name in
+`tool/oka_pipeline.dart`; it does not pass a RuStore switch to `oka build` or
+to another verb. The target's dry-run plan and verification gate must identify
+the RuStore endpoint, metadata, AAB, and signing checks.
+
+Before a real upload, the target must verify all of the following:
+
+1. the artifact is an **AAB**, not an APK;
+2. the AAB is signed with the release/upload key, never a debug key; and
+3. the signing identity satisfies the app's registered RuStore upload
+   signature constraints and remains stable across releases.
+
+An artifact that fails any of these checks is rejected before the upload step.
+Credentials remain build-host path references under the
+[three-tier secrets model](../decisions/0014-distribution-targets-secrets-model).
+The target-specific package and live endpoint setup are intentionally separate
+from the shared Android delivery primitives; see
+[ADR-0023](../decisions/0023-multi-store-distribution-architecture).
 
 ## Failure playbook
 

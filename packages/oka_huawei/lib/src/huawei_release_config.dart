@@ -42,44 +42,43 @@ class HuaweiReleaseConfig {
     final int? phasePercent,
     final String? releaseDate,
     final List<AgcReleaseNote>? releaseNotes,
-  }) =>
-      HuaweiReleaseConfig(
-        appId: appId ?? this.appId,
-        track: track ?? this.track,
-        phasePercent: phasePercent ?? this.phasePercent,
-        releaseDate: releaseDate ?? this.releaseDate,
-        releaseNotes: releaseNotes ?? this.releaseNotes,
-      );
+  }) => HuaweiReleaseConfig(
+    appId: appId ?? this.appId,
+    track: track ?? this.track,
+    phasePercent: phasePercent ?? this.phasePercent,
+    releaseDate: releaseDate ?? this.releaseDate,
+    releaseNotes: releaseNotes ?? this.releaseNotes,
+  );
 
   /// Non-secret metadata rendered into the publish plan (the dry-run law:
   /// the plan describes exactly what a real run would send).
   Map<String, String> get planMetadata => {
-        'appId': appId,
-        'phasePercent': '$phasePercent',
-        if (releaseDate.isNotEmpty) 'releaseDate': releaseDate,
-        if (releaseNotes.isNotEmpty)
-          'releaseNotes': releaseNotes
-              .map((final n) => '${n.language}:${n.file}')
-              .join(', '),
-      };
+    'appId': appId,
+    'phasePercent': '$phasePercent',
+    if (releaseDate.isNotEmpty) 'releaseDate': releaseDate,
+    if (releaseNotes.isNotEmpty)
+      'releaseNotes': releaseNotes
+          .map((final n) => '${n.language}:${n.file}')
+          .join(', '),
+  };
 
   /// The submit payload for the AGC `app-submit` call — non-secret values
   /// only (release-note *contents* are read from the files at publish time
   /// and placed under `releaseNotes` by the step; they never enter state).
   Map<String, dynamic> submitPayload({
-    required final List<({String language, String content})> releaseNoteContents,
-  }) =>
-      {
-        'track': track,
-        'release': {
-          'phasePercent': phasePercent,
-          if (releaseDate.isNotEmpty) 'releaseDate': releaseDate,
-          'releaseNotes': [
-            for (final n in releaseNoteContents)
-              {'language': n.language, 'content': n.content},
-          ],
-        },
-      };
+    required final List<({String language, String content})>
+    releaseNoteContents,
+  }) => {
+    'track': track,
+    'release': {
+      'phasePercent': phasePercent,
+      if (releaseDate.isNotEmpty) 'releaseDate': releaseDate,
+      'releaseNotes': [
+        for (final n in releaseNoteContents)
+          {'language': n.language, 'content': n.content},
+      ],
+    },
+  };
 
   /// Field-wise equality (release notes compared pairwise).
   @override
@@ -94,23 +93,23 @@ class HuaweiReleaseConfig {
   /// Hash over all config fields.
   @override
   int get hashCode => Object.hash(
-        appId,
-        track,
-        phasePercent,
-        releaseDate,
-        Object.hashAll(releaseNotes),
-      );
+    appId,
+    track,
+    phasePercent,
+    releaseDate,
+    Object.hashAll(releaseNotes),
+  );
 
   /// Debug string: app id, track, phase, and note paths.
   @override
-  String toString() => 'HuaweiReleaseConfig(appId: $appId, track: $track, '
+  String toString() =>
+      'HuaweiReleaseConfig(appId: $appId, track: $track, '
       'phasePercent: $phasePercent%, notes: '
       '${releaseNotes.map((final n) => '${n.language}:${n.file}').join(', ')})';
 }
 
 bool _notesEqual(final List<AgcReleaseNote> a, final List<AgcReleaseNote> b) =>
-    a.length == b.length &&
-    a.indexed.every((final e) => b[e.$1] == e.$2);
+    a.length == b.length && a.indexed.every((final e) => b[e.$1] == e.$2);
 
 /// One release-note entry: the language tag and the **file path** holding
 /// the note text (path reference, not content — the ADR-0014 tier rule).

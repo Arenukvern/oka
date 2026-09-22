@@ -24,9 +24,12 @@ class AgcEndpoints {
   Uri tokenUrl() => Uri.parse('$baseUrl/api/oauth2/v1/token');
 
   /// Upload-URL endpoint for an [appId] and file [suffix] (e.g. `aab`).
-  Uri uploadUrlUrl({required final String appId, required final String suffix}) =>
-      Uri.parse('$baseUrl/api/publish/v2/upload-url')
-          .replace(queryParameters: {'appId': appId, 'suffix': suffix});
+  Uri uploadUrlUrl({
+    required final String appId,
+    required final String suffix,
+  }) => Uri.parse(
+    '$baseUrl/api/publish/v2/upload-url',
+  ).replace(queryParameters: {'appId': appId, 'suffix': suffix});
 
   /// Submission endpoint.
   Uri submitUrl() => Uri.parse('$baseUrl/api/publish/v2/app-submit');
@@ -53,8 +56,7 @@ class AgcToken {
 
   /// Redacting form.
   @override
-  String toString() =>
-      'AgcToken([redacted], expires in ${expiresInSeconds}s)';
+  String toString() => 'AgcToken([redacted], expires in ${expiresInSeconds}s)';
 
   /// Identity equality — tokens never compare by value (secret hygiene).
   @override
@@ -151,9 +153,7 @@ class AgcApiException implements Exception {
   /// and the fix).
   @override
   String toString() {
-    final b = StringBuffer(
-      'AGC $operation failed (HTTP $statusCode',
-    );
+    final b = StringBuffer('AGC $operation failed (HTTP $statusCode');
     if (retCode != null) b.write(', ret.code $retCode');
     b.write(')');
     if (retMessage != null && retMessage!.isNotEmpty) {
@@ -222,8 +222,7 @@ class AgcClient {
     }
     return AgcToken(
       value: token,
-      expiresInSeconds:
-          int.tryParse(json['expires_in']?.toString() ?? '') ?? 0,
+      expiresInSeconds: int.tryParse(json['expires_in']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -265,10 +264,7 @@ class AgcClient {
   }) async {
     final response = await client.put(
       Uri.parse(session.uploadUrl),
-      headers: {
-        'content-type': contentType,
-        'session': session.session,
-      },
+      headers: {'content-type': contentType, 'session': session.session},
       body: bytes,
     );
     if (response.statusCode != 200) {
@@ -290,10 +286,7 @@ class AgcClient {
   }) async {
     final response = await client.post(
       endpoints.submitUrl(),
-      headers: {
-        ..._auth(token),
-        'content-type': 'application/json',
-      },
+      headers: {..._auth(token), 'content-type': 'application/json'},
       body: jsonEncode({'appId': appId, ...payload}),
     );
     if (response.statusCode != 200) {
@@ -320,8 +313,9 @@ class AgcClient {
     );
   }
 
-  Map<String, String> _auth(final AgcToken token) =>
-      {'authorization': 'Bearer ${token.value}'};
+  Map<String, String> _auth(final AgcToken token) => {
+    'authorization': 'Bearer ${token.value}',
+  };
 
   static Map<String, dynamic> _decode(
     final String body, {

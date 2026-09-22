@@ -48,10 +48,7 @@ class PlayApiException implements Exception {
 /// The result of one successful edit flow.
 @immutable
 class PlayEditResult {
-  const PlayEditResult({
-    required this.editId,
-    required this.versionCode,
-  });
+  const PlayEditResult({required this.editId, required this.versionCode});
 
   /// Play edit id (`edits.create`).
   final String editId;
@@ -61,7 +58,8 @@ class PlayEditResult {
 
   /// Debug string: edit id and version code.
   @override
-  String toString() => 'PlayEditResult(edit $editId, versionCode '
+  String toString() =>
+      'PlayEditResult(edit $editId, versionCode '
       '$versionCode)';
 }
 
@@ -75,10 +73,7 @@ class PlayEditResult {
 /// client — see `oka_conformance`). No network happens unless the injected
 /// client performs it.
 class PlayPublisherClient {
-  PlayPublisherClient({
-    required this.client,
-    required this.packageName,
-  });
+  PlayPublisherClient({required this.client, required this.packageName});
 
   /// HTTP client carrying OAuth credentials (Authorization header).
   final http.Client client;
@@ -165,9 +160,7 @@ class PlayPublisherClient {
     required final String aabPath,
   }) async {
     final bytes = File(aabPath).readAsBytesSync();
-    final url = Uri.parse(
-      '${_editsUrl()}/$editId/bundles?uploadType=media',
-    );
+    final url = Uri.parse('${_editsUrl()}/$editId/bundles?uploadType=media');
     final response = await _send(
       http.Request('POST', url)
         ..headers['content-type'] = 'application/octet-stream'

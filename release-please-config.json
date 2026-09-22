@@ -46,6 +46,10 @@
         },
         {
           "type": "generic",
+          "path": "packages/oka_rustore/pubspec.yaml"
+        },
+        {
+          "type": "generic",
           "path": "packages/oka_web/pubspec.yaml"
         },
         {

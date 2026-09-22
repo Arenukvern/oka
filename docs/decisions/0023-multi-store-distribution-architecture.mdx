@@ -1,0 +1,128 @@
+# 0023 — Multi-store distribution architecture
+
+- **Status:** accepted
+- **Date:** 2026-09-22
+- **Decision-makers:** oka maintainers
+- **Depends on:** ADR-0013 (two-axis model), ADR-0014 (publish targets and
+  credential paths), ADR-0015 (project-declared targets and the CLI boundary)
+
+## Context
+
+An Android app can be delivered through more than one store, but a store is
+not a second Android platform. Treating Play, Huawei AppGallery, and RuStore
+as separate build systems would duplicate artifact production, signing, and
+verification. It would also invite store names into the core CLI, where they
+do not belong.
+
+The project composition root is already the source of truth for capabilities.
+The distribution model therefore needs to make the project declare the target
+names it supports while keeping Android delivery primitives shared. Store
+requirements that genuinely differ must remain explicit verification and
+publish-tail rules.
+
+## Decision
+
+### 1. Target names are project-declared
+
+The project declares target values in `tool/oka_pipeline.dart`. Oka discovers
+only those names; it does not infer a matrix of stores from package names,
+credentials, or installed plugins. `oka explain --targets` is the inventory,
+and `oka run <declared-name>` is the execution surface.
+
+There are no store-specific CLI switches. In particular, adding Play,
+Huawei, or RuStore support must not add `--play`, `--huawei`, or `--rustore`
+to a core build verb. Build and verification options describe artifacts and
+checks; target names select the project-declared composition.
+
+### 2. Android delivery primitives are shared
+
+All Android store targets compose the same Android pipeline and delivery
+primitives:
+
+- dependency collection and resolution;
+- Flutter assembly, resource linking, dexing, packaging, and deterministic
+  archive staging;
+- release signing configuration and credential-path resolution;
+- APK/AAB artifact contracts, reports, and dry-run plans; and
+- common conformance rules (no stdin, no secret values in state or logs, and
+  validation before tool execution).
+
+A store target is a build-variant composition plus a publish tail. It is not a
+copy of the Android pipeline. Store packages contribute target-specific
+configuration, upload steps, and verification, while `oka_core` and
+`oka_android` remain store-neutral.
+
+### 3. Verification is target-specific
+
+Each target must verify the artifact against the receiving store's rules
+before upload; a generic Android build succeeding is not evidence of store
+compatibility.
+
+- **Google Play:** verify the release AAB and its device-specific split
+  behavior (including bundletool validation) before the Play upload flow.
+- **Huawei AppGallery:** verify both Huawei distribution forms where used:
+  split APK delivery and universal APK delivery. The Huawei variant must be
+  GMS-free; GMS coordinates are excluded and a step requiring a GMS artifact
+  fails during composition validation, before tools run.
+- **RuStore:** verify a release-signed AAB and the RuStore upload/signature
+  constraints before publishing. RuStore does not get a special build path or
+  an alternate signing convention.
+
+Verification reports must identify the target-specific gates and must not
+claim compatibility when an optional verifier (for example, bundletool or a
+device) was unavailable.
+
+### 4. Signing and artifact rules are part of the target contract
+
+Store uploads use a release key, never a debug fallback. The signing identity
+must be stable for an app across releases and must satisfy the receiving
+store's upload-key/signature checks. Credentials remain build-host paths under
+ADR-0014; their contents are never project config, app defines, plans, or
+logs.
+
+RuStore targets specifically consume an AAB and must preserve the AAB signing
+and upload-signature constraints through staging and upload. An APK-only
+artifact, a debug-signed bundle, or a bundle whose signing identity does not
+match the registered upload key is a target verification failure, not a
+publish-time surprise.
+
+## Alternatives considered
+
+- **One CLI switch per store** — rejected: it makes the core CLI grow with
+  stores and duplicates project capability discovery.
+- **A separate Android pipeline for every store** — rejected: it duplicates
+  delivery primitives and makes fixes drift between stores.
+- **One universal verification rule** — rejected: Play split behavior,
+  Huawei split/universal and GMS-free requirements, and RuStore AAB/signature
+  constraints are materially different.
+- **Infer targets from credentials or installed packages** — rejected:
+  credentials are secrets and packages are implementation details; neither is
+  a project declaration.
+
+## Consequences
+
+Good:
+
+- One Android delivery implementation serves multiple stores.
+- Projects expose an explicit, reviewable target inventory.
+- Store-specific failures are found before upload without polluting core CLI
+  verbs.
+- Huawei's GMS-free rule and RuStore's signing requirements are visible
+  contract checks rather than undocumented operational knowledge.
+
+Bad / Neutral:
+
+- A project may need several target declarations and several verification
+  reports.
+- A target package must maintain its store-specific verifier and publish tail.
+- Adding a new store still requires a target contract and conformance
+  evidence, but does not require a new core CLI switch.
+
+## Phased plan
+
+The documentation contract is recorded here. Implementation and live-upload
+evidence remain tracked in [the phase checklist](../PHASE_CHECKLIST). The
+publishing workflow is described in the [publishing guide](../guides/publishing).
+
+**Authoritative source:** this ADR, the shared Android pipeline and artifact
+contracts, target package tests, and `docs/PHASE_CHECKLIST.mdx`.

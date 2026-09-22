@@ -161,11 +161,16 @@ with evidence, not into a checked box.
   `WebShellContribution` from an actual store package — gated on `oka_web`
   publishing to pub.dev (store packages must not depend on unpublished
   packages).
-- **RuStore / Yandex publish targets.** `oka_rustore` / `oka_yandex`
-  following the `oka_play`/`oka_huawei` package shape (`PublishTarget` +
-  conformance suite + injectable client). Gate: same checkpoint/ADR
-  question — target packages as a productized third-party extension point
-  vs first-party additions — before the pattern gets copied twice more.
+- **RuStore / Yandex publish targets (RuStore readiness target added; upload
+  adapter and Yandex remain future).**
+  Multi-store architecture is now settled by
+  [ADR-0023](decisions/0023-multi-store-distribution-architecture):
+  project-declared target names, shared Android delivery primitives, and
+  target-specific verification. `oka_rustore` now enforces the typed AAB,
+  package/version, and release-signature readiness policy and provides a
+  dry-run target plan; its live upload adapter remains gated on credential/API
+  integration. Huawei retains split/universal and GMS-free verification.
+  Gate: live RuStore upload adapter, Yandex target, and conformance evidence.
 - **`oka cache gc` scheduling / daemon question.** Whether gc stays a
   manual verb or gains a scheduled/daemon form. Gate: ADR — a background
   process conflicts with oka's no-daemon posture (ADR-0001) and needs an

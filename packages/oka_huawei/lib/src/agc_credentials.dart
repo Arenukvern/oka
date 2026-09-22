@@ -63,7 +63,8 @@ class AgcCredentials {
 
   /// Redacting form: contents are a secret — a dump can never leak them.
   @override
-  String toString() => 'AgcCredentials(client_id: [redacted], '
+  String toString() =>
+      'AgcCredentials(client_id: [redacted], '
       'client_secret: [redacted])';
 
   /// Identity equality — credentials never compare by value.

@@ -9,6 +9,7 @@ const packages = [
   'oka_android',
   'oka_huawei',
   'oka_play',
+  'oka_rustore',
   'oka_web',
   'oka',
 ];
@@ -36,6 +37,7 @@ void main() {
       'oka_android': ['oka_core'],
       'oka_huawei': ['oka_android', 'oka_core'],
       'oka_play': ['oka_core'],
+      'oka_rustore': ['oka_core'],
       'oka_web': ['oka_core'],
       'oka': ['oka_android', 'oka_core'],
     };

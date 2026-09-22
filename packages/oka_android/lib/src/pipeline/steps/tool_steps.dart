@@ -15,10 +15,13 @@ import '../toolchain.dart';
 
 /// aapt2 compile/link + kotlinc/javac + d8 → dex files.
 class CompileAndDexStep extends BuildStep {
-
   CompileAndDexStep({this.toolchain, this.resourceConfigs = const []});
   @override
-  Set<Artifact<Object>> get requires => {hostDir, embeddingJar, packagedPlugins};
+  Set<Artifact<Object>> get requires => {
+    hostDir,
+    embeddingJar,
+    packagedPlugins,
+  };
 
   @override
   Set<Artifact<Object>> get provides => {dexFiles};
@@ -32,14 +35,17 @@ class CompileAndDexStep extends BuildStep {
   /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
   List<String> _effectiveResourceConfigs(final PipelineState state) =>
       resourceConfigs.isNotEmpty
-          ? resourceConfigs
-          : (state.pipelineOverrides?.resourceConfigs ?? const []);
+      ? resourceConfigs
+      : (state.pipelineOverrides?.resourceConfigs ?? const []);
 
   @override
   String get name => 'compile-and-dex';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
     if ((packaged?.allKotlinSources ?? const []).isNotEmpty) {
@@ -72,31 +78,36 @@ class CompileAndDexStep extends BuildStep {
     );
     final cache = StepCache(ctx.buildDir, verbose: ctx.verbose);
     await cache.load();
-    final compileFp = await fingerprintInputs([
-      ...filesUnder(state.hostDir ?? '/nonexistent'),
-      ...filesUnder(p.join(ctx.buildDir, 'res')),
-      if (File(p.join(ctx.buildDir, 'AndroidManifest.xml')).existsSync())
-        p.join(ctx.buildDir, 'AndroidManifest.xml'),
-      ...(packaged?.allJavaSources ?? const []),
-      ...(packaged?.allKotlinSources ?? const []),
-      ...(packaged?.resDirs ?? const []).expand(filesUnder),
-      ...state.aarResDirs.expand(filesUnder),
-      ...state.androidxJars.map((final j) => j.jarPath),
-      ...state.extraRuntimeJars,
-    ], extras: [
-      'abis:${state.abis.join(',')}',
-      'compileSdk:${ctx.config.android.compileSdk}',
-      'kotlin:${ctx.config.android.kotlinVersion}',
-      'java:${ctx.config.android.javaVersion}',
-      'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
-      'versionCode:${version.versionCode}',
-      'versionName:${version.versionName}',
-      'java:$javaLevel',
-    ]);
+    final compileFp = await fingerprintInputs(
+      [
+        ...filesUnder(state.hostDir ?? '/nonexistent'),
+        ...filesUnder(p.join(ctx.buildDir, 'res')),
+        if (File(p.join(ctx.buildDir, 'AndroidManifest.xml')).existsSync())
+          p.join(ctx.buildDir, 'AndroidManifest.xml'),
+        ...(packaged?.allJavaSources ?? const []),
+        ...(packaged?.allKotlinSources ?? const []),
+        ...(packaged?.resDirs ?? const []).expand(filesUnder),
+        ...state.aarResDirs.expand(filesUnder),
+        ...state.androidxJars.map((final j) => j.jarPath),
+        ...state.extraRuntimeJars,
+      ],
+      extras: [
+        'abis:${state.abis.join(',')}',
+        'compileSdk:${ctx.config.android.compileSdk}',
+        'kotlin:${ctx.config.android.kotlinVersion}',
+        'java:${ctx.config.android.javaVersion}',
+        'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
+        'versionCode:${version.versionCode}',
+        'versionName:${version.versionName}',
+        'java:$javaLevel',
+        'mode:${ctx.mode.name}',
+      ],
+    );
     final cached = cache.hit(
       'compile-and-dex',
       compileFp,
-      validate: (final o) => (o['dex_files'] as List?)?.cast<String>().every(
+      validate: (final o) =>
+          (o['dex_files'] as List?)?.cast<String>().every(
             (final f) => File(f).existsSync(),
           ) ??
           false,
@@ -104,13 +115,15 @@ class CompileAndDexStep extends BuildStep {
     if (cached != null) {
       print('🔨 compile-and-dex: unchanged inputs — reusing dex');
       state.dexFiles = (cached['dex_files'] as List).cast<String>().toList();
+      state.shrinkerArtifacts =
+          (cached['shrinker_artifacts'] as Map?)?.cast<String, String>() ??
+          const {};
       return StepResult.success();
     }
     print('🔨 Compiling resources and Java/Kotlin (Android SDK tools)...');
     final result = await compileAndDex(
       ctx: ctx,
-      toolchain:
-          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
+      toolchain: toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
@@ -128,8 +141,10 @@ class CompileAndDexStep extends BuildStep {
     );
     if (!result.ok) return StepResult.failure(result.error!);
     state.dexFiles = result.dexFiles;
+    state.shrinkerArtifacts = result.shrinkerArtifacts;
     await cache.store('compile-and-dex', compileFp, {
       'dex_files': result.dexFiles,
+      'shrinker_artifacts': result.shrinkerArtifacts,
     });
     return StepResult.success();
   }
@@ -137,11 +152,13 @@ class CompileAndDexStep extends BuildStep {
 
 /// Stages the APK layout, zips, zipaligns and signs.
 class PackageAndSignStep extends BuildStep {
-
   PackageAndSignStep({this.toolchain, this.signing});
   @override
-  Set<Artifact<Object>> get requires =>
-      {dexFiles, flutterAssetsDir, libflutterByAbi};
+  Set<Artifact<Object>> get requires => {
+    dexFiles,
+    flutterAssetsDir,
+    libflutterByAbi,
+  };
 
   @override
   Set<Artifact<Object>> get provides => {apkPath};
@@ -160,7 +177,10 @@ class PackageAndSignStep extends BuildStep {
       signing ?? state.pipelineOverrides?.signing;
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     print('📱 Packaging APK...');
     // Merge AAR natives (Maven-resolved + local) into the plugin natives map.
     final extraNatives = <String, List<String>>{
@@ -173,8 +193,7 @@ class PackageAndSignStep extends BuildStep {
 
     final signed = await packageAndSign(
       ctx: ctx,
-      toolchain:
-          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
+      toolchain: toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       dexFiles: state.dexFiles,
       flutterAssetsDir: state.flutterAssetsDir!,
       libflutterByAbi: state.libflutterByAbi,
@@ -189,10 +208,13 @@ class PackageAndSignStep extends BuildStep {
 
 /// aapt2 compile + proto-format link + javac/kotlinc + d8 (AAB, ADR-0004).
 class CompileProtoAndDexStep extends BuildStep {
-
   CompileProtoAndDexStep({this.toolchain, this.resourceConfigs = const []});
   @override
-  Set<Artifact<Object>> get requires => {hostDir, embeddingJar, packagedPlugins};
+  Set<Artifact<Object>> get requires => {
+    hostDir,
+    embeddingJar,
+    packagedPlugins,
+  };
 
   @override
   Set<Artifact<Object>> get provides => {dexFiles};
@@ -209,11 +231,14 @@ class CompileProtoAndDexStep extends BuildStep {
   /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
   List<String> _effectiveResourceConfigs(final PipelineState state) =>
       resourceConfigs.isNotEmpty
-          ? resourceConfigs
-          : (state.pipelineOverrides?.resourceConfigs ?? const []);
+      ? resourceConfigs
+      : (state.pipelineOverrides?.resourceConfigs ?? const []);
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
     if ((packaged?.allKotlinSources ?? const []).isNotEmpty) {
@@ -246,46 +271,55 @@ class CompileProtoAndDexStep extends BuildStep {
     );
     final cache = StepCache(ctx.buildDir, verbose: ctx.verbose);
     await cache.load();
-    final compileFp = await fingerprintInputs([
-      ...filesUnder(state.hostDir ?? '/nonexistent'),
-      ...filesUnder(p.join(ctx.buildDir, 'res')),
-      if (File(p.join(ctx.buildDir, 'AndroidManifest.xml')).existsSync())
-        p.join(ctx.buildDir, 'AndroidManifest.xml'),
-      ...(packaged?.allJavaSources ?? const []),
-      ...(packaged?.allKotlinSources ?? const []),
-      ...(packaged?.resDirs ?? const []).expand(filesUnder),
-      ...state.aarResDirs.expand(filesUnder),
-      ...state.androidxJars.map((final j) => j.jarPath),
-      ...state.extraRuntimeJars,
-    ], extras: [
-      'proto:true',
-      'abis:${state.abis.join(',')}',
-      'compileSdk:${ctx.config.android.compileSdk}',
-      'kotlin:${ctx.config.android.kotlinVersion}',
-      'java:${ctx.config.android.javaVersion}',
-      'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
-      'versionCode:${ctx.config.android.versionCode}',
-      'versionName:${ctx.config.android.versionName}',
-    ]);
+    final compileFp = await fingerprintInputs(
+      [
+        ...filesUnder(state.hostDir ?? '/nonexistent'),
+        ...filesUnder(p.join(ctx.buildDir, 'res')),
+        if (File(p.join(ctx.buildDir, 'AndroidManifest.xml')).existsSync())
+          p.join(ctx.buildDir, 'AndroidManifest.xml'),
+        ...(packaged?.allJavaSources ?? const []),
+        ...(packaged?.allKotlinSources ?? const []),
+        ...(packaged?.resDirs ?? const []).expand(filesUnder),
+        ...state.aarResDirs.expand(filesUnder),
+        ...state.androidxJars.map((final j) => j.jarPath),
+        ...state.extraRuntimeJars,
+      ],
+      extras: [
+        'proto:true',
+        'abis:${state.abis.join(',')}',
+        'compileSdk:${ctx.config.android.compileSdk}',
+        'kotlin:${ctx.config.android.kotlinVersion}',
+        'java:${ctx.config.android.javaVersion}',
+        'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
+        'versionCode:${ctx.config.android.versionCode}',
+        'versionName:${ctx.config.android.versionName}',
+        'mode:${ctx.mode.name}',
+      ],
+    );
     final cached = cache.hit(
       'compile-proto-and-dex',
       compileFp,
-      validate: (final o) => (o['dex_files'] as List?)?.cast<String>().every(
+      validate: (final o) =>
+          (o['dex_files'] as List?)?.cast<String>().every(
             (final f) => File(f).existsSync(),
           ) ??
           false,
     );
     if (cached != null) {
       print('🔨 compile-proto-and-dex: unchanged inputs — reusing dex');
+      state.dexFiles = (cached['dex_files'] as List).cast<String>().toList();
       state.dexFiles =
           (cached['dex_files'] as List).cast<String>().toList();
+      state.dexFiles = (cached['dex_files'] as List).cast<String>().toList();
+      state.shrinkerArtifacts =
+          (cached['shrinker_artifacts'] as Map?)?.cast<String, String>() ??
+          const {};
       return StepResult.success();
     }
     print('🔨 Compiling resources (proto) and Java/Kotlin for AAB...');
     final result = await compileAndDexProto(
       ctx: ctx,
-      toolchain:
-          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
+      toolchain: toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
@@ -303,8 +337,10 @@ class CompileProtoAndDexStep extends BuildStep {
     );
     if (!result.ok) return StepResult.failure(result.error!);
     state.dexFiles = result.dexFiles;
+    state.shrinkerArtifacts = result.shrinkerArtifacts;
     await cache.store('compile-proto-and-dex', compileFp, {
       'dex_files': result.dexFiles,
+      'shrinker_artifacts': result.shrinkerArtifacts,
     });
     return StepResult.success();
   }
@@ -312,11 +348,13 @@ class CompileProtoAndDexStep extends BuildStep {
 
 /// Stages the AAB `base/` module, zips and signs with jarsigner (v1).
 class PackageAndSignAabStep extends BuildStep {
-
   PackageAndSignAabStep({this.toolchain, this.signing});
   @override
-  Set<Artifact<Object>> get requires =>
-      {dexFiles, flutterAssetsDir, libflutterByAbi};
+  Set<Artifact<Object>> get requires => {
+    dexFiles,
+    flutterAssetsDir,
+    libflutterByAbi,
+  };
 
   @override
   Set<Artifact<Object>> get provides => {apkPath};
@@ -335,7 +373,10 @@ class PackageAndSignAabStep extends BuildStep {
       signing ?? state.pipelineOverrides?.signing;
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     print('📦 Packaging App Bundle...');
     final extraNatives = <String, List<String>>{
       ...state.packagedPlugins?.nativeLibsByAbi ?? const {},
@@ -348,8 +389,7 @@ class PackageAndSignAabStep extends BuildStep {
     try {
       final signed = await packageAndSignAab(
         ctx: ctx,
-        toolchain:
-            toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
+        toolchain: toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
         dexFiles: state.dexFiles,
         flutterAssetsDir: state.flutterAssetsDir!,
         libflutterByAbi: state.libflutterByAbi,
@@ -374,17 +414,37 @@ class ValidateAabLayoutStep extends BuildStep {
   String get name => 'validate-aab-layout';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final entries = await listAabEntries(state.apkPath!);
     final validation = validateAabPathSet(
       entries,
-      spec: AabLayoutSpec(abis: state.abis, requireLibapp: ctx.mode.isRelease),
+      spec: AabLayoutSpec(
+        abis: state.abis,
+        requireLibapp: ctx.mode.isRelease,
+        requireSignature: true,
+      ),
     );
     if (!validation.ok) {
       return StepResult.failure(
         'AAB layout incomplete after packaging. '
         'Missing: ${validation.missing.join(', ')}. '
         'Present: ${validation.present.join(', ')}',
+      );
+    }
+    final content = await validateAabFile(
+      state.apkPath!,
+      spec: AabLayoutSpec(
+        abis: state.abis,
+        requireLibapp: ctx.mode.isRelease,
+        requireSignature: true,
+      ),
+    );
+    if (!content.ok) {
+      return StepResult.failure(
+        'AAB content validation failed: ${content.errors.join('; ')}',
       );
     }
     return StepResult.success();
@@ -400,7 +460,10 @@ class ValidateLayoutStep extends BuildStep {
   String get name => 'validate-layout';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final entries = await listApkEntries(state.apkPath!);
     final validation = validatePathSet(
       entries,

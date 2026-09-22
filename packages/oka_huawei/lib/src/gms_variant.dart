@@ -54,9 +54,8 @@ class HuaweiBuildVariant {
 
   /// The `extraDeps` list of [overrides] with GMS-provided coordinates
   /// removed.
-  List<String> get gmsFreeExtraDeps => splitGmsDependencies(
-        overrides.extraDeps,
-      ).other;
+  List<String> get gmsFreeExtraDeps =>
+      splitGmsDependencies(overrides.extraDeps).other;
 
   /// Exactly the coordinates the exclusion dropped (inspectable data).
   List<String> get excludedGmsDeps =>
@@ -69,7 +68,8 @@ class HuaweiBuildVariant {
 
   /// Debug string: package name plus the exclusion count.
   @override
-  String toString() => 'HuaweiBuildVariant(${android.packageName}, '
+  String toString() =>
+      'HuaweiBuildVariant(${android.packageName}, '
       'gms-excluded: ${excludedGmsDeps.length} dep(s))';
 
   /// Field-wise equality.

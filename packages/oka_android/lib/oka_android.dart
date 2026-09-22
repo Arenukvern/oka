@@ -89,6 +89,7 @@ export 'src/build/android_builder.dart';
 export 'src/build/android_sdk_installer.dart';
 export 'src/build/apk_layout.dart';
 export 'src/build/bundletool.dart';
+export 'src/build/delivery_verification.dart';
 export 'src/build/dependency_cache.dart';
 export 'src/build/dependency_suggest.dart';
 export 'src/build/doctor_checks.dart';

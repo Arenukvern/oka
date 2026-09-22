@@ -105,6 +105,7 @@ Future<CompileDexOutcome> _compile({
     final tools = await resolveBytecodeTools(
       toolchain,
       needsKotlin: pluginKotlinSources.isNotEmpty,
+      needsR8: ctx.mode.isRelease,
     );
     return await compileAndroidBytecode(
       ctx: ctx,

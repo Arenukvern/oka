@@ -66,11 +66,24 @@ interactive prompts are agent-hostile; steps fail with a named fix instead.
 
 **Q: Are Google Play and Huawei separate platforms?**
 A: No — distribution targets are not platforms (ADR-0013). Play, AppGallery,
-and RuStore builds are one Android application composed differently: a
-target = a build-variant composition (e.g. no GMS deps for Huawei) plus a
-publish tail. Targets live in separate packages (`oka_play`, `oka_huawei`,
-…) over the same pipeline kernel; the target contract and the credentials
-model are settled in [ADR-0014](../decisions/0014-distribution-targets-secrets-model).
+and RuStore builds are one Android application composed differently: a target
+= a build-variant composition plus a publish tail. Targets live in separate
+packages (`oka_play`, `oka_huawei`, …) over the same shared Android delivery
+primitives. Huawei additionally requires split/universal verification and a
+GMS-free variant; RuStore requires a release-signed AAB and its signature
+constraints. The multi-store boundary is settled in
+[ADR-0023](../decisions/0023-multi-store-distribution-architecture), while
+the target contract and credentials model are in
+[ADR-0014](../decisions/0014-distribution-targets-secrets-model).
+
+**Q: How does a project support several stores without store CLI switches?**
+A: It declares the target names it supports in `tool/oka_pipeline.dart`.
+`oka explain --targets` lists that project-owned inventory and
+`oka run <declared-name>` selects one. Oka does not infer targets from
+credentials or installed packages, and core verbs do not grow
+`--play`, `--huawei`, or `--rustore` switches. Shared Android build and
+artifact steps remain common; each target adds only its verification and
+publish tail (ADR-0023).
 
 ## Secrets (ADR 0014)
 

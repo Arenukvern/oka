@@ -101,6 +101,44 @@ adb install -r .oka_cache/build/<mode>/aab/universal/app-universal.apk
 adb shell am start -n com.example.example/.MainActivity
 ```
 
+For the release gate, run the project-declared release target. Its verifier
+runs `bundletool validate`, can generate a device spec from a connected
+device, builds the matching split APK set, and optionally installs it:
+
+```bash
+oka run release-google
+# target arguments are project-defined; for example:
+oka run release-google --oka-target-arg device-spec=test/fixtures/pixel.json
+```
+
+The JSON report contains the AAB SHA-256 and byte size, ABIs discovered in the
+bundle, generated APK paths, and independent gate results. A target records an
+unavailable verifier as a failed or unverified gate rather than silently
+claiming store compatibility.
+Metadata is intentionally limited to archive metadata unless a future report
+consumer supplies an Android manifest dumper.
+
+**Q: How do multi-store Android targets fit into the build?**
+Stores are project-declared targets, not build switches. Declare the target
+names in `tool/oka_pipeline.dart`, inspect them with `oka explain --targets`,
+and run one with `oka run <declared-name>`. Do not add store-specific flags to
+`oka build`; the Android pipeline shares dependency resolution, Flutter
+assembly, packaging, signing, AAB/APK artifacts, and reports across targets.
+See the [multi-store distribution ADR](../decisions/0023-multi-store-distribution-architecture)
+and the [publishing guide](publishing) for target setup.
+
+Verification is still store-specific:
+
+- Play checks the release AAB and device-specific split behavior.
+- Huawei checks split and universal APK forms and must use the GMS-free
+  variant; a GMS-required step fails during composition validation.
+- RuStore checks a release-signed AAB and the registered upload-signature
+  constraints. A debug-signed or APK-only artifact is not publishable there.
+
+These checks are gates, not claims that a generic Android build is compatible
+with every store. A report must record an unavailable verifier as a failed or
+unverified gate rather than silently passing.
+
 **Q: How do I build a release APK?**
 ```bash
 oka build apk --release

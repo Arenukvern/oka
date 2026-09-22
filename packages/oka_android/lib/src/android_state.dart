@@ -76,7 +76,8 @@ extension AndroidPipelineState on PipelineState {
   List<PluginRegistration> get registrations =>
       _asList<PluginRegistration>('registrations');
 
-  set registrations(final List<PluginRegistration> v) => this['registrations'] = v;
+  set registrations(final List<PluginRegistration> v) =>
+      this['registrations'] = v;
 
   /// Directory of generated host sources (MainActivity, registrant, manifest).
   String? get hostDir => this['host_dir'] as String?;
@@ -89,10 +90,10 @@ extension AndroidPipelineState on PipelineState {
   set flutterAssetsDir(final String? v) => this['flutter_assets_dir'] = v;
 
   /// ABI → libflutter.so path.
-  Map<String, String> get libflutterByAbi =>
-      _asMap('libflutter_by_abi');
+  Map<String, String> get libflutterByAbi => _asMap('libflutter_by_abi');
 
-  set libflutterByAbi(final Map<String, String> v) => this['libflutter_by_abi'] = v;
+  set libflutterByAbi(final Map<String, String> v) =>
+      this['libflutter_by_abi'] = v;
 
   /// ABI → libapp.so path (release only).
   Map<String, String> get libappByAbi => _asMap('libapp_by_abi');
@@ -131,6 +132,12 @@ extension AndroidPipelineState on PipelineState {
   List<String> get dexFiles => _asList<String>('dex_files');
 
   set dexFiles(final List<String> v) => this['dex_files'] = v;
+
+  /// Release R8 reports keyed by mapping/seeds/usage/config.
+  Map<String, String> get shrinkerArtifacts => _asMap('shrinker_artifacts');
+
+  set shrinkerArtifacts(final Map<String, String> v) =>
+      this['shrinker_artifacts'] = v;
 
   /// Final APK path.
   String? get apkPath => this['apk_path'] as String?;

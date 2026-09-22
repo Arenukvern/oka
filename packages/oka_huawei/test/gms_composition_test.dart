@@ -19,8 +19,9 @@ class PlayBillingStep extends BuildStep {
   PlayBillingStep();
 
   /// The GMS-provided artifact this step requires (typed seam).
-  static final billing =
-      gmsDependencyArtifact('com.android.billingclient:billing-ktx');
+  static final billing = gmsDependencyArtifact(
+    'com.android.billingclient:billing-ktx',
+  );
 
   static bool everRan = false;
 
@@ -34,7 +35,9 @@ class PlayBillingStep extends BuildStep {
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
     everRan = true;
     return Future<StepResult>.value(
-      StepResult.success({'billing': 'resolved from the GMS-provided artifact'}),
+      StepResult.success({
+        'billing': 'resolved from the GMS-provided artifact',
+      }),
     );
   }
 }
@@ -54,9 +57,9 @@ class MiswiredHuaweiTarget extends Target {
 
   @override
   List<BuildStep> compile(final BuildContext ctx) => [
-        ...compileVariantSteps(ctx),
-        PlayBillingStep(),
-      ];
+    ...compileVariantSteps(ctx),
+    PlayBillingStep(),
+  ];
 }
 
 /// A valid target: the variant + a step that needs no GMS artifact.
@@ -78,8 +81,8 @@ class ValidHuaweiTarget extends Target {
 /// The variant's composition steps: stage the AAB the way the real target
 /// does (a stand-in for the platform build's tail).
 List<BuildStep> compileVariantSteps(final BuildContext ctx) => [
-      HuaweiStageAabStep(),
-    ];
+  HuaweiStageAabStep(),
+];
 
 void main() {
   late Directory tmp;
@@ -93,11 +96,11 @@ void main() {
   });
 
   BuildContext makeCtx() => BuildContext(
-        projectPath: tmp.path,
-        buildDir: p.join(tmp.path, 'build'),
-        mode: BuildMode.debug,
-        config: OkaConfig.empty,
-      );
+    projectPath: tmp.path,
+    buildDir: p.join(tmp.path, 'build'),
+    mode: BuildMode.debug,
+    config: OkaConfig.empty,
+  );
 
   group('GMS classification (oka_android seam, as data)', () {
     test('GMS families are classified; androidx and others are not', () {
@@ -137,8 +140,7 @@ void main() {
   });
 
   group('HuaweiBuildVariant — the GMS-excluding composition', () {
-    test('GMS coordinates are excluded; everything else passes through',
-        () {
+    test('GMS coordinates are excluded; everything else passes through', () {
       const variant = HuaweiBuildVariant(
         overrides: PipelineOverrides(
           extraDeps: [
@@ -154,7 +156,9 @@ void main() {
         'com.google.android.gms:play-services-ads:22.0.0',
       ]);
       // The overrides a Huawei artifact is actually built from:
-      expect(variant.gmsFreeOverrides.extraDeps, ['androidx.core:core-ktx:1.13.1']);
+      expect(variant.gmsFreeOverrides.extraDeps, [
+        'androidx.core:core-ktx:1.13.1',
+      ]);
       // The base config is untouched.
       expect(variant.android, const AndroidBuild());
     });
@@ -175,13 +179,13 @@ void main() {
       expect(
         PlayBillingStep.everRan,
         isFalse,
-        reason: 'a GMS-dependent step executed in a GMS-excluded '
+        reason:
+            'a GMS-dependent step executed in a GMS-excluded '
             'composition — the validator failed its only job',
       );
     });
 
-    test('Pipeline.validate rejects the GMS-requiring step (no provider)',
-        () {
+    test('Pipeline.validate rejects the GMS-requiring step (no provider)', () {
       final pipeline = Pipeline([PlayBillingStep()]);
       final error = pipeline.validate();
       expect(error, isNotNull);
@@ -193,7 +197,10 @@ void main() {
     test('describeTarget marks the mis-wired target invalid — the same '
         'failure `oka run` reports before executing anything', () {
       const variant = HuaweiBuildVariant();
-      final chain = describeTarget(const MiswiredHuaweiTarget(variant), makeCtx());
+      final chain = describeTarget(
+        const MiswiredHuaweiTarget(variant),
+        makeCtx(),
+      );
       expect(chain.isValid, isFalse);
       expect(chain.validationError, contains('gms-dep:'));
     });
@@ -204,9 +211,7 @@ void main() {
         ..writeAsStringSync('synthetic jar bytes');
       final pipeline = Pipeline([
         GmsDependencyProviderStep(
-          resolvedPaths: {
-            'com.android.billingclient:billing-ktx': jar.path,
-          },
+          resolvedPaths: {'com.android.billingclient:billing-ktx': jar.path},
         ),
         PlayBillingStep(),
       ]);
@@ -230,8 +235,10 @@ void main() {
       final pipeline = Pipeline([
         GmsDependencyProviderStep(
           resolvedPaths: {
-            'com.android.billingclient:billing-ktx':
-                p.join(tmp.path, 'missing.jar'),
+            'com.android.billingclient:billing-ktx': p.join(
+              tmp.path,
+              'missing.jar',
+            ),
           },
         ),
       ]);
@@ -246,10 +253,9 @@ void main() {
       const variant = HuaweiBuildVariant();
       final chain = describeTarget(const ValidHuaweiTarget(variant), makeCtx());
       expect(chain.isValid, isTrue, reason: chain.validationError);
-      expect(
-        chain.steps.map((final s) => s.name).toList(),
-        ['huawei-stage-aab'],
-      );
+      expect(chain.steps.map((final s) => s.name).toList(), [
+        'huawei-stage-aab',
+      ]);
     });
   });
 }
