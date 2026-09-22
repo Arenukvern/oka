@@ -82,7 +82,6 @@ export 'src/android_artifacts.dart';
 export 'src/android_pipeline.dart';
 export 'src/android_state.dart';
 export 'src/auto_resolve.dart';
-
 // Build machinery.
 export 'src/build/aab_layout.dart';
 export 'src/build/aapt2_commands.dart';
@@ -108,27 +107,29 @@ export 'src/build/sdk_locator.dart';
 export 'src/build/toolchain.dart';
 export 'src/build/version_manager.dart';
 export 'src/build_cache.dart';
+export 'src/cache_diagnostics.dart';
 export 'src/compare.dart';
 export 'src/dependency_plan.dart';
-
 // Device layer (ADR-0015: the device target + DEX probe live here, never
 // in the CLI verb layer). Provisioning (ADR-0013 T2) is store-backed.
 // ADR-0011 H1/H2: session manifest + adb tool layer.
 export 'src/dev/adb_tool.dart';
 export 'src/dev/control_server.dart';
 export 'src/dev/daemon_adapter.dart';
+export 'src/dev/dev_discovery_store.dart';
 export 'src/dev/dev_doctor.dart';
+export 'src/dev/dev_events.dart';
 export 'src/dev/dev_session.dart';
 export 'src/dev/device_provisioning.dart';
 export 'src/dev/device_target.dart';
 export 'src/dev/dex_probe.dart';
 export 'src/dev/emulator_target.dart';
+export 'src/dev/flutter_sdk_probe.dart';
+export 'src/dev/run_manifest_repository.dart';
 export 'src/dev/run_session.dart';
 export 'src/dev/watch.dart';
-
 // GMS-dependency artifact seam (ADR-0013 two-axis law; additive for P2).
 export 'src/gms_artifacts.dart';
-
 // Platform pipeline + specs.
 export 'src/manifest_spec.dart';
 export 'src/maven_resolver.dart';

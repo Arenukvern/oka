@@ -89,19 +89,19 @@ List<String> chromeLaunchArgs({
   required final List<String> flags,
   required final bool headless,
   final ({int width, int height})? windowSize,
-}) =>
-    [
-      '--remote-debugging-port=$debugPort',
-      '--user-data-dir=$profileDir',
-      if (headless) '--headless',
-      // Automation posture: suppress first-run / default-browser prompts —
-      // headful sessions must boot unattended too (agents never click
-      // through dialogs).
-      '--no-first-run',
-      '--no-default-browser-check',
-      if (windowSize != null) '--window-size=${windowSize.width}x${windowSize.height}',
-      ...flags,
-    ];
+}) => [
+  '--remote-debugging-port=$debugPort',
+  '--user-data-dir=$profileDir',
+  if (headless) '--headless',
+  // Automation posture: suppress first-run / default-browser prompts —
+  // headful sessions must boot unattended too (agents never click
+  // through dialogs).
+  '--no-first-run',
+  '--no-default-browser-check',
+  if (windowSize != null)
+    '--window-size=${windowSize.width}x${windowSize.height}',
+  ...flags,
+];
 
 /// Parses a CDP `/json/version` response body, extracting the `Browser`
 /// field (e.g. `Chrome/126.0.6478.126`).
@@ -149,9 +149,9 @@ List<String> chromeSessionIssues(final BrowserSessionSpec spec) {
   if (spec.debugProtocol != DebugProtocol.cdp) {
     issues.add(
       'chrome-session requires debugProtocol: DebugProtocol.cdp — Chrome '
-          'speaks CDP only (ADR-0017 §3). Accepted surface for Chrome: '
-          'cdp; webdriver/none belong to future engines (Servo/Ladybird, '
-          'deferred).',
+      'speaks CDP only (ADR-0017 §3). Accepted surface for Chrome: '
+      'cdp; webdriver/none belong to future engines (Servo/Ladybird, '
+      'deferred).',
     );
   }
   return issues;
@@ -172,7 +172,9 @@ typedef CdpProbe = Future<String?> Function(Uri url);
 Future<String?> httpCdpProbe(final Uri url) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
   try {
-    final request = await client.getUrl(url).timeout(const Duration(seconds: 2));
+    final request = await client
+        .getUrl(url)
+        .timeout(const Duration(seconds: 2));
     final response = await request.close().timeout(const Duration(seconds: 2));
     if (response.statusCode != HttpStatus.ok) return null;
     return await utf8.decoder.bind(response).join();
@@ -196,10 +198,8 @@ abstract interface class SessionProcess {
 
 /// Spawn seam: starts the browser binary with [chromeLaunchArgs]-built
 /// argv. Injectable for scripted-fake lifecycle tests.
-typedef SessionProcessStarter = Future<SessionProcess> Function(
-  String executable,
-  List<String> arguments,
-);
+typedef SessionProcessStarter =
+    Future<SessionProcess> Function(String executable, List<String> arguments);
 
 final class _IoSessionProcess implements SessionProcess {
   /// Wraps a real [Process] as a [SessionProcess].
@@ -220,7 +220,11 @@ Future<SessionProcess> startSessionProcess(
   final String executable,
   final List<String> arguments,
 ) async {
-  final process = await Process.start(executable, arguments, mode: ProcessStartMode.detached);
+  final process = await Process.start(
+    executable,
+    arguments,
+    mode: ProcessStartMode.detached,
+  );
   return _IoSessionProcess(process);
 }
 
@@ -262,8 +266,8 @@ class ChromeSessionTarget extends Target {
   /// Compile to the ensure step (single step; stop is a separate target).
   @override
   List<BuildStep> compile(final BuildContext ctx) => [
-        EnsureChromeSessionStep(spec: spec, sessionName: sessionName),
-      ];
+    EnsureChromeSessionStep(spec: spec, sessionName: sessionName),
+  ];
 
   /// ADR-0018 §2, honoring ADR-0017 §5: an **ephemeral** session gets
   /// unconditional teardown — [StopChromeSessionStep] runs after the
@@ -274,8 +278,8 @@ class ChromeSessionTarget extends Target {
   @override
   List<BuildStep> compileTeardown(final BuildContext ctx) =>
       spec.profilePersistence == ProfilePersistence.ephemeral
-          ? [StopChromeSessionStep(sessionName: sessionName)]
-          : const <BuildStep>[];
+      ? [StopChromeSessionStep(sessionName: sessionName)]
+      : const <BuildStep>[];
 
   /// Debug string: session name plus browser binary basename.
   @override
@@ -309,9 +313,9 @@ class EnsureChromeSessionStep extends BuildStep {
     Future<int> Function()? assignPort,
     this.liveness,
     this.leaseRegistry,
-  })  : _probe = probe ?? httpCdpProbe,
-        _startProcess = startProcess ?? startSessionProcess,
-        _assignPort = assignPort ?? assignEphemeralPort;
+  }) : _probe = probe ?? httpCdpProbe,
+       _startProcess = startProcess ?? startSessionProcess,
+       _assignPort = assignPort ?? assignEphemeralPort;
 
   /// The session spec (validated fail-closed at run start, ADR-0017 §3).
   final BrowserSessionSpec spec;
@@ -349,22 +353,26 @@ class EnsureChromeSessionStep extends BuildStep {
   String get leaseId => 'chrome-$sessionName';
 
   /// `session-chrome-<name>-handle` — the CDP base URL ([String]).
-  late final Artifact<String> handleArtifact =
-      Artifact<String>(chromeSessionHandleArtifactId(sessionName));
+  late final Artifact<String> handleArtifact = Artifact<String>(
+    chromeSessionHandleArtifactId(sessionName),
+  );
 
   /// `session-chrome-<name>-cdp-port` — the CDP port ([int]).
-  late final Artifact<int> portArtifact =
-      Artifact<int>(chromeSessionCdpPortArtifactId(sessionName));
+  late final Artifact<int> portArtifact = Artifact<int>(
+    chromeSessionCdpPortArtifactId(sessionName),
+  );
 
   /// `session-chrome-<name>-pid` — spawned browser pid (spawn path only).
-  late final Artifact<int> pidArtifact =
-      Artifact<int>(chromeSessionPidArtifactId(sessionName));
+  late final Artifact<int> pidArtifact = Artifact<int>(
+    chromeSessionPidArtifactId(sessionName),
+  );
 
   /// `session-chrome-<name>-profile-dir` — the ephemeral profile dir oka
   /// created (ephemeral spawn path only; never set for reused or
   /// persistent sessions so teardown can only ever delete oka-owned dirs).
-  late final Artifact<String> profileDirArtifact =
-      Artifact<String>(chromeSessionProfileDirArtifactId(sessionName));
+  late final Artifact<String> profileDirArtifact = Artifact<String>(
+    chromeSessionProfileDirArtifactId(sessionName),
+  );
 
   /// Step name: `ensure-chrome-session`.
   @override
@@ -396,7 +404,9 @@ class EnsureChromeSessionStep extends BuildStep {
     // Idempotent reuse: a port that already answers CDP is reused, never
     // spawned against (EmulatorTarget reuse semantics, ADR-0017 §1).
     final existing = await _probe(probeUrl);
-    final existingBrowser = existing == null ? null : parseVersionJson(existing);
+    final existingBrowser = existing == null
+        ? null
+        : parseVersionJson(existing);
     if (existingBrowser != null) {
       print(
         '✅ Chrome session "$sessionName" already answering CDP '
@@ -419,9 +429,9 @@ class EnsureChromeSessionStep extends BuildStep {
     final String profileDir;
     if (spec.profilePersistence == ProfilePersistence.ephemeral) {
       ephemeralDir = true;
-      profileDir = (await Directory.systemTemp
-              .createTemp('oka-chrome-$sessionName-'))
-          .path;
+      profileDir = (await Directory.systemTemp.createTemp(
+        'oka-chrome-$sessionName-',
+      )).path;
     } else {
       ephemeralDir = false;
       profileDir = p.join(ctx.buildDir, 'chrome-profiles', sessionName);
@@ -463,7 +473,15 @@ class EnsureChromeSessionStep extends BuildStep {
     // (+ profile dir) and the pid start-time token; scope follows the
     // spec's profile persistence.
     final String? pidToken = await _identityToken(process.pid);
-    await _upsertLease(spawnLease(process.pid, pidToken, port: port), ctx);
+    await _upsertLease(
+      spawnLease(
+        process.pid,
+        pidToken,
+        port: port,
+        profileDir: await Directory(profileDir).resolveSymbolicLinks(),
+      ),
+      ctx,
+    );
 
     // Readiness probe: poll /json/version until it answers within the
     // boot timeout. Plain HTTP only — no CDP client (ADR-0017).
@@ -519,23 +537,25 @@ class EnsureChromeSessionStep extends BuildStep {
     final int pid,
     final String? pidToken, {
     required final int port,
-  }) =>
-      ProcessLease(
-        id: leaseId,
-        pid: pid,
-        kind: 'chrome-session',
-        identity: {
-          'cdp_port': '$port',
-          processLeasePidTokenKey: ?pidToken,
-        },
-        scope: spec.profilePersistence == ProfilePersistence.ephemeral
-            ? LeaseScope.ephemeral
-            : LeaseScope.persistent,
-        ownership: LeaseOwnership.owned,
-        ownerCmd: ownerCmd,
-        startedAt: DateTime.now().toUtc(),
-        stopHint: LeaseStopHint(tool: 'kill', args: ['$pid']),
-      );
+    final String? profileDir,
+  }) => ProcessLease(
+    id: leaseId,
+    pid: pid,
+    kind: 'chrome-session',
+    identity: {
+      'cdp_port': '$port',
+      'profile_dir': ?profileDir,
+      'session_name': sessionName,
+      processLeasePidTokenKey: ?pidToken,
+    },
+    scope: spec.profilePersistence == ProfilePersistence.ephemeral
+        ? LeaseScope.ephemeral
+        : LeaseScope.persistent,
+    ownership: LeaseOwnership.owned,
+    ownerCmd: ownerCmd,
+    startedAt: DateTime.now().toUtc(),
+    stopHint: LeaseStopHint(tool: 'kill', args: ['$pid']),
+  );
 
   /// Adopt path (ADR-0018 §3): flip any existing lease for this session to
   /// ownership `borrowed`; if none exists, record one as borrowed (pid 0 —
@@ -549,10 +569,7 @@ class EnsureChromeSessionStep extends BuildStep {
           if (lease.ownership == LeaseOwnership.borrowed) return;
           await registry.upsert(
             lease.copyWith(
-              identity: {
-                ...lease.identity,
-                'cdp_port': '$port',
-              },
+              identity: {...lease.identity, 'cdp_port': '$port'},
               ownership: LeaseOwnership.borrowed,
             ),
           );
@@ -590,28 +607,21 @@ class EnsureChromeSessionStep extends BuildStep {
     final BuildContext ctx,
   ) async {
     if (process == null) return true; // nothing spawned, nothing to clean
-    final verified = await verifyKillIdentity(_host, process.pid, pidToken);
-    if (verified == KillIdentity.recycled) {
-      await _deleteLease(ctx);
-      print('⚠️ Chrome pid ${process.pid} was recycled — not signaled '
-          '(pid-reuse guard, ADR-0018 §1); lease dropped as stale.');
-      return false;
+    final registry = _registryFor(ctx);
+    final lease = await registry.read(leaseId);
+    if (lease == null) return false;
+    final outcome = await ProcessStopPolicy(
+      registry: registry,
+      liveness: _host,
+      verifyGrace: killGrace,
+      pollInterval: pollInterval,
+    ).stop(lease, force: false, gracefulStop: (_) async => process.kill());
+    if (outcome.disposition == ProcessStopDisposition.stopped) {
+      print('🛑 Spawned chrome-session process (pid ${process.pid}) stopped.');
+      return true;
     }
-    if (verified == KillIdentity.unknown) {
-      print('⚠️ Chrome pid ${process.pid} identity unverified — not '
-          'signaled (pid-reuse guard, ADR-0018 §1); lease kept for '
-          'reconciliation.');
-      return false;
-    }
-    process.kill(); // SIGTERM — graceful-first (the exact handle we hold).
-    await Future<void>.delayed(killGrace);
-    if (await _isAlive(process.pid)) {
-      // Last rung of the ladder: force.
-      await _host.kill(process.pid, grace: killGrace);
-    }
-    await _deleteLease(ctx);
-    print('🛑 Spawned chrome-session process (pid ${process.pid}) stopped.');
-    return true;
+    print('⚠️ ${outcome.message ?? 'Chrome stop was not verified.'}');
+    return false;
   }
 
   Future<void> _upsertLease(
@@ -626,27 +636,11 @@ class EnsureChromeSessionStep extends BuildStep {
     }
   }
 
-  Future<void> _deleteLease(final BuildContext ctx) async {
-    try {
-      await _registryFor(ctx).delete(leaseId);
-    } on Object {
-      // Advisory; a leftover record is reconciled later.
-    }
-  }
-
   Future<String?> _identityToken(final int pid) async {
     try {
       return await _host.identityToken(pid);
     } on Object {
       return null;
-    }
-  }
-
-  Future<bool> _isAlive(final int pid) async {
-    try {
-      return await _host.isAlive(pid);
-    } on Object {
-      return false;
     }
   }
 }
@@ -665,6 +659,8 @@ class StopChromeSessionStep extends BuildStep {
   StopChromeSessionStep({
     this.sessionName = 'main',
     this.pid,
+    this.liveness,
+    this.leaseRegistry,
     bool Function(int pid)? killProcess,
   }) : _killProcess = killProcess ?? Process.killPid;
 
@@ -673,6 +669,8 @@ class StopChromeSessionStep extends BuildStep {
 
   /// Explicit pid override; null → the recorded `…-pid` artifact.
   final int? pid;
+  final ProcessLiveness? liveness;
+  final ProcessLeaseRegistry? leaseRegistry;
 
   final bool Function(int pid) _killProcess;
 
@@ -698,23 +696,86 @@ class StopChromeSessionStep extends BuildStep {
       );
     }
 
+    var stopped = true;
     if (pidValue is int) {
-      final killed = _killProcess(pidValue);
+      final registry =
+          leaseRegistry ??
+          ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: liveness);
+      final lease = await registry.read('chrome-$sessionName');
+      if (lease != null) {
+        if (lease.pid != pidValue) {
+          return StepResult.failure(
+            'Chrome handle pid $pidValue does not match lease pid ${lease.pid}; '
+            'session and profile retained.',
+          );
+        }
+        final outcome =
+            await ProcessStopPolicy(
+              registry: registry,
+              liveness: liveness ?? const HostProcessLiveness(),
+            ).stop(
+              lease,
+              force: false,
+              gracefulStop: (_) async => _killProcess(pidValue),
+            );
+        stopped = outcome.ok;
+        if (!stopped) {
+          return StepResult.failure(outcome.message ?? 'Chrome stop failed.');
+        }
+      } else {
+        if (pid == null) {
+          return StepResult.failure(
+            'No lease verifies Chrome pid $pidValue; session and profile retained.',
+          );
+        }
+        // An explicit PID names the current external process. Capture its
+        // identity now and use the same verified stop ladder. It grants no
+        // authority over an ephemeral profile from an unrelated state handle.
+        final host = liveness ?? const HostProcessLiveness();
+        String? token;
+        try {
+          token = await host.identityToken(pidValue);
+        } on Object {
+          // Unknown identity is refused by the shared stop policy.
+        }
+        final external = ProcessLease(
+          id: 'chrome-$sessionName',
+          pid: pidValue,
+          kind: 'chrome-session',
+          identity: {processLeasePidTokenKey: ?token},
+          scope: LeaseScope.ephemeral,
+          ownership: LeaseOwnership.borrowed,
+          ownerCmd: 'explicit Chrome stop',
+          startedAt: DateTime.now().toUtc(),
+          stopHint: LeaseStopHint(tool: 'kill', args: ['$pidValue']),
+        );
+        final outcome =
+            await ProcessStopPolicy(registry: registry, liveness: host).stop(
+              external,
+              force: true,
+              gracefulStop: (_) async => _killProcess(pidValue),
+            );
+        return outcome.ok
+            ? StepResult.success()
+            : StepResult.failure(outcome.message ?? 'Chrome stop failed.');
+      }
       print(
-        killed
+        stopped
             ? '🛑 Chrome session "$sessionName" stopped (pid $pidValue).'
             : '⚠️ Chrome session "$sessionName" pid $pidValue was not '
-                'running (already stopped?).',
+                  'running (already stopped?).',
       );
     }
-    if (profileDir != null && profileDir.isNotEmpty) {
+    if (stopped && profileDir != null && profileDir.isNotEmpty) {
       try {
         Directory(profileDir).deleteSync(recursive: true);
       } on FileSystemException catch (e) {
         // Best effort: the OS clears system temp eventually; a locked dir
         // must not fail an otherwise-successful teardown.
-        print('⚠️ Could not delete ephemeral profile dir "$profileDir": '
-            '${e.message}');
+        print(
+          '⚠️ Could not delete ephemeral profile dir "$profileDir": '
+          '${e.message}',
+        );
       }
     }
     return StepResult.success();

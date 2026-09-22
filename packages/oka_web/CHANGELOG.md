@@ -2,6 +2,9 @@
 
 ## 0.2.0
 
+- Add browser profile diagnostics and persist profile paths/session names in
+  Chrome leases for attribution, including temporary profiles.
+
 Initial release (ADR-0016 — the web shell station). Publishes on the
 release train together with `oka_core` 0.2.0, which introduces the
 platform-agnostic `Target.explainDetails` extension point this package's

@@ -26,6 +26,7 @@ import 'dart:io';
 import 'process_lease.dart';
 import 'process_lease_registry.dart';
 import 'process_liveness.dart';
+import 'process_stop_policy.dart';
 
 /// One entry of the lease inventory ([inventoryLeases]): the record plus
 /// its reconcile verdict against the live host.
@@ -41,14 +42,14 @@ final class LeaseInventoryEntry {
 
   /// Machine form (the `leases` array of the `processes.inventory` event).
   Map<String, Object?> toJson() => {
-        ...lease.toJson(),
-        'liveness': switch (liveness) {
-          LeaseLiveness.live => 'live',
-          LeaseLiveness.deadPid => 'dead_pid',
-          LeaseLiveness.reusedPid => 'reused_pid',
-          LeaseLiveness.unknown => 'unknown',
-        },
-      };
+    ...lease.toJson(),
+    'liveness': switch (liveness) {
+      LeaseLiveness.live => 'live',
+      LeaseLiveness.deadPid => 'dead_pid',
+      LeaseLiveness.reusedPid => 'reused_pid',
+      LeaseLiveness.unknown => 'unknown',
+    },
+  };
 
   /// One human-readable line (`oka processes list` default rendering).
   String toLine() {
@@ -86,8 +87,10 @@ Future<List<LeaseInventoryEntry>> inventoryLeases(
   final String projectPath, {
   final ProcessLiveness? liveness,
 }) async {
-  final registry =
-      ProcessLeaseRegistry.forProject(projectPath, liveness: liveness);
+  final registry = ProcessLeaseRegistry.forProject(
+    projectPath,
+    liveness: liveness,
+  );
   final entries = <LeaseInventoryEntry>[];
   for (final lease in await registry.list()) {
     entries.add(
@@ -131,8 +134,8 @@ final class LeaseStopOutcome {
 /// Stops the lease [id] in [projectPath]'s registry, identity-verified and
 /// graceful-first (ADR-0018 §1):
 ///
-/// 1. hint-only records (pid 0, semantic discovery) → the graceful hint is
-///    both truth-check and stop path;
+/// 1. borrowed records require [force], including pid 0; hint-only records
+///    need [verifySemanticStop] to confirm termination before record removal;
 /// 2. stale records (`deadPid` / `reusedPid`) → record dropped, nothing
 ///    signaled;
 /// 3. `unknown` identity → refused (report, never guess);
@@ -161,6 +164,7 @@ Future<LeaseStopOutcome> stopLease(
   final Duration stopVerifyGrace = const Duration(seconds: 5),
   final Duration pollInterval = const Duration(milliseconds: 200),
   final Future<ProcessResult> Function(String, List<String>)? runProcess,
+  final VerifySemanticStop? verifySemanticStop,
 }) async {
   final host = liveness ?? const HostProcessLiveness();
   final registry = ProcessLeaseRegistry.forProject(projectPath, liveness: host);
@@ -169,90 +173,45 @@ Future<LeaseStopOutcome> stopLease(
     return LeaseStopOutcome(
       ok: false,
       action: LeaseStopAction.refused,
-      error: "No process lease '$id' in this project — "
+      error:
+          "No process lease '$id' in this project — "
           '`oka processes list` shows the recorded ids.',
     );
   }
 
   final run = runProcess ?? Process.run;
-
-  // Hint-only path (pid 0 — semantic discovery adopted this process, e.g.
-  // a borrowed emulator): liveness can't verify it, so the graceful hint
-  // (e.g. `adb -s <serial> emu kill`) is both the truth-check and the
-  // stop path. An empty hint means there is nothing safe to signal.
-  if (lease.pid <= 0) {
-    if (lease.stopHint.args.isEmpty) {
-      return LeaseStopOutcome(
-        ok: false,
-        action: LeaseStopAction.refused,
-        error: "Lease '$id' carries no pid and no stop hint — nothing safe "
-            'to signal. Drop the stale record manually or let the L2 '
-            'reconcile sweep clean it.',
+  String? hintError;
+  final decision =
+      await ProcessStopPolicy(
+        registry: registry,
+        liveness: host,
+        verifyGrace: stopVerifyGrace,
+        pollInterval: pollInterval,
+      ).stop(
+        lease,
+        force: force,
+        gracefulStop: (lease) async {
+          final result = await _runHint(
+            run,
+            lease.stopHint.tool,
+            lease.stopHint.args,
+            lease,
+          );
+          hintError = result.$1 ? result.$2 : null;
+          return !result.$1;
+        },
+        verifySemanticStop: verifySemanticStop,
       );
-    }
-    final result = await _runHint(run, lease.stopHint.tool, lease.stopHint.args, lease);
-    if (result.$1) {
-      return LeaseStopOutcome(
-        ok: false,
-        action: LeaseStopAction.failed,
-        error: result.$2,
-      );
-    }
-    await registry.delete(lease.id);
-    return const LeaseStopOutcome(ok: true, action: LeaseStopAction.stopped);
-  }
-
-  // pid > 0: identity reconcile first (dead / recycled → drop the record,
-  // never signal).
-  final verdict = await registry.checkLiveness(lease);
-  if (verdict == LeaseLiveness.deadPid || verdict == LeaseLiveness.reusedPid) {
-    await registry.delete(id);
-    return const LeaseStopOutcome(ok: true, action: LeaseStopAction.recordDropped);
-  }
-  if (verdict == LeaseLiveness.unknown) {
-    return LeaseStopOutcome(
-      ok: false,
-      action: LeaseStopAction.refused,
-      error: "Lease '$id' identity could not be verified — not signaled "
-          '(report-never-guess, ADR-0018 §1). The record is kept for the '
-          'reconcile sweep.',
-    );
-  }
-  if (lease.ownership == LeaseOwnership.borrowed && !force) {
-    return LeaseStopOutcome(
-      ok: false,
-      action: LeaseStopAction.refused,
-      error: "Lease '$id' is borrowed (adopted by reuse, not spawned by "
-          'the last run) — teardown stops only owned leases (ADR-0018 §3). '
-          'Stop the owning terminal instead, or re-run with --force to '
-          'override explicitly.',
-    );
-  }
-
-  // Graceful-first: run the recorded stop hint (adb emu kill, kill pid, …).
-  final hint = lease.stopHint;
-  final hintFailed = await _runHint(run, hint.tool, hint.args, lease);
-  final hintResult = hintFailed.$1 ? null : hintFailed.$3;
-
-  // Verify death within the grace window; escalate if the process ignored
-  // the graceful path (last rung of the ADR-0018 §1 ladder).
-  var gone = !(await host.isAlive(lease.pid));
-  final deadline = DateTime.now().add(stopVerifyGrace);
-  while (!gone && DateTime.now().isBefore(deadline)) {
-    await Future<void>.delayed(pollInterval);
-    gone = !(await host.isAlive(lease.pid));
-  }
-  if (!gone && !await host.kill(lease.pid, grace: stopVerifyGrace)) {
-    return LeaseStopOutcome(
-      ok: false,
-      action: LeaseStopAction.failed,
-      error: "Lease '${lease.id}': graceful stop ran (exit "
-          '${hintResult?.exitCode}) but pid ${lease.pid} is still alive; '
-          'lease kept for reconciliation.',
-    );
-  }
-  await registry.delete(lease.id);
-  return const LeaseStopOutcome(ok: true, action: LeaseStopAction.stopped);
+  return LeaseStopOutcome(
+    ok: decision.ok,
+    action: switch (decision.disposition) {
+      ProcessStopDisposition.stopped => LeaseStopAction.stopped,
+      ProcessStopDisposition.staleRecord => LeaseStopAction.recordDropped,
+      ProcessStopDisposition.refused => LeaseStopAction.refused,
+      ProcessStopDisposition.failed => LeaseStopAction.failed,
+    },
+    error: hintError ?? decision.message,
+  );
 }
 
 /// Runs the graceful stop hint, converting a missing/failed tool into a
@@ -281,7 +240,8 @@ Future<(bool, String, ProcessResult?)> _runHint(
     return (
       true,
       "Lease '${lease.id}': $tool ${args.join(' ')} exited "
-          '${result.exitCode} — ${result.stderr}'.trim(),
+              '${result.exitCode} — ${result.stderr}'
+          .trim(),
       result,
     );
   }
@@ -326,9 +286,7 @@ final class LeaseReconcileSummary {
     final lines = <String>[];
     if (droppedStale.isNotEmpty) {
       final ids = droppedStale.join(', ');
-      lines.add(
-        'dropped ${droppedStale.length} stale record(s): $ids',
-      );
+      lines.add('dropped ${droppedStale.length} stale record(s): $ids');
     }
     if (orphans.isNotEmpty) {
       final ids = orphans.join(', ');
@@ -346,9 +304,7 @@ final class LeaseReconcileSummary {
     }
     if (unverifiable.isNotEmpty) {
       final ids = unverifiable.join(', ');
-      lines.add(
-        'identity unverified: $ids — kept, never signaled',
-      );
+      lines.add('identity unverified: $ids — kept, never signaled');
     }
     if (clean) lines.add('no leases recorded (or all clean).');
     return lines;

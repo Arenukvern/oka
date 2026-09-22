@@ -1,0 +1,57 @@
+# Cache diagnostics validation — 2026-09-22
+
+Implemented the API-first plan in [ADR 0021](../decisions/0021-composable-cache-diagnostics).
+Three lighter subagents handled core metadata, Android AVDs and Chrome profiles;
+the primary agent integrated the contract, Apple adapter, CLI and review fixes.
+
+## Delivered
+
+- Exported `CacheDiagnostics`, provider/context/report contracts and first-party
+  providers. Custom providers compose without changing CLI dispatch or enums.
+- Detailed/filterable cache diagnostics with namespaced JSON metadata, timestamps,
+  observation sources, project-qualified relations and inert argv/cwd actions.
+- Partial registry reads preserve valid siblings and report missing projects.
+  Ordinary stats does not write registry metadata. Cleanup remains strict.
+- PID-zero leases remain unknown and survive reconciliation; new Chrome leases
+  retain canonical profile paths and session names, including temporary profiles.
+- Android stored metadata and component sizes; browser profile attribution;
+  Apple stored identity metadata using XML/binary plist decoding. No runtime
+  device state is inferred from directory existence.
+
+## Measured checks
+
+| Check | Result |
+| --- | --- |
+| `steward action run oka.check.cache-storage --json` | Passed, 174 tests |
+| `dart test` from `packages/oka_core` | Passed, 79 tests |
+| `dart test` from `packages/oka_web` | Passed, 153 tests |
+| `dart test` from `packages/oka_android` | Passed, 13 tests |
+| Final `dart test test/cache_diagnostics_command_test.dart` | Passed, 4 tests including native XML/binary plist decoding |
+| `dart analyze` | No issues |
+| Version sync, docs drift, changelog markdown, personal-path stewardship actions | All passed individually |
+| `git diff --check` | Passed |
+
+Counts overlap and must not be summed as unique coverage. Tests include malformed
+registry siblings, absent project caches, PID-zero retention, provider failure
+isolation and duplicate IDs, custom kinds, namespaced JSON, project-scoped links,
+profile measurements, symlink exclusions, and unchanged cleanup protections.
+Fixtures use temporary directories; browser lifecycle tests use scripted fakes.
+
+An initial package-wide run from the repository root failed cwd-dependent web
+conformance tests. Running each package suite from its own directory, as the
+repository test recipe requires, passed. A profile-path alias regression found
+during integration was corrected before the passing runs.
+
+The combined strict contract benchmark reports `blocked` / `durability_blocked`
+because `steward.yaml`, `tool/release/check_version_sync.sh` and
+`tool/contracts/check_docs_drift.sh` are uncommitted. This is not a passing
+benchmark, despite its process exit code being zero. Individual gates passed.
+
+## Limits
+
+No live emulator/browser/simulator acceptance run, semantic ADB/CDP/simctl probe,
+MCP server or interactive dashboard was performed or implemented. Logical byte
+counts are not allocated disk usage. Registry and process observations are
+snapshots, not locks or a supervisor. Temporary profile measurements outside
+storage discovery are diagnostic details, not additions to overall storage totals.
+No user cache was deleted and the installed global CLI was not replaced.

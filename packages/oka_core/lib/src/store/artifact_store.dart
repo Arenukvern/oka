@@ -44,8 +44,9 @@ class ContentKey {
     final String? fileName,
   }) {
     final material = [...inputs]..sort();
-    final digest =
-        sha256.convert(utf8.encode(material.join('\x00'))).toString();
+    final digest = sha256
+        .convert(utf8.encode(material.join('\x00')))
+        .toString();
     return ContentKey(
       category: category,
       name: name,
@@ -78,9 +79,8 @@ class ContentKey {
 
   /// First 12 hex chars of [contentHash] — the human-decodable form used in
   /// directory names and printed keys.
-  String get shortHash => contentHash.length <= 12
-      ? contentHash
-      : contentHash.substring(0, 12);
+  String get shortHash =>
+      contentHash.length <= 12 ? contentHash : contentHash.substring(0, 12);
 
   /// Directory name under `<category>/<name>/`: `<version>-<hash>`.
   String get dirName => '$version-$shortHash';
@@ -224,8 +224,10 @@ abstract interface class ArtifactStore {
 /// [indexFileName] JSON next to their artifact; [entries] and [find]
 /// discover those, and delete/purge sweep the producer's version dir.
 class LocalArtifactStore implements ArtifactStore {
-  LocalArtifactStore({final String? root, final Map<String, String>? environment})
-      : root = root ?? defaultRoot(environment: environment);
+  LocalArtifactStore({
+    final String? root,
+    final Map<String, String>? environment,
+  }) : root = root ?? defaultRoot(environment: environment);
 
   /// Store root directory. All artifacts live under it.
   final String root;
@@ -238,8 +240,7 @@ class LocalArtifactStore implements ArtifactStore {
   /// injectable for tests.
   static String defaultRoot({final Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
-    final home =
-        env['HOME'] ?? env['USERPROFILE'] ?? Directory.systemTemp.path;
+    final home = env['HOME'] ?? env['USERPROFILE'] ?? Directory.systemTemp.path;
     final override = env['OKA_CACHE']?.trim();
     if (override != null && override.isNotEmpty) {
       final expanded = override.startsWith('~')
@@ -251,8 +252,8 @@ class LocalArtifactStore implements ArtifactStore {
   }
 
   Directory _entryDir(final ContentKey key) => Directory(
-        p.join(root, key.category, key.name, key.dirName, key.platform),
-      );
+    p.join(root, key.category, key.name, key.dirName, key.platform),
+  );
 
   /// Reads a per-entry index; null when missing or corrupt (corrupt indexes
   /// are skipped, never fatal — the entry is simply re-fetchable).
@@ -272,18 +273,17 @@ class LocalArtifactStore implements ArtifactStore {
     final String fileName,
     final int sizeBytes, {
     final String? source,
-  }) =>
-      {
-        'category': key.category,
-        'name': key.name,
-        'version': key.version,
-        'hash': key.contentHash,
-        'platform': key.platform,
-        'file': fileName,
-        'size_bytes': sizeBytes,
-        'created': DateTime.now().toUtc().toIso8601String(),
-        'source': ?source,
-      };
+  }) => {
+    'category': key.category,
+    'name': key.name,
+    'version': key.version,
+    'hash': key.contentHash,
+    'platform': key.platform,
+    'file': fileName,
+    'size_bytes': sizeBytes,
+    'created': DateTime.now().toUtc().toIso8601String(),
+    'source': ?source,
+  };
 
   /// Turns a per-entry index (written by [fetch] or by a foreign producer)
   /// into an entry. Throws [FormatException] when the record is malformed.
@@ -307,7 +307,8 @@ class LocalArtifactStore implements ArtifactStore {
       ),
       path: artifact.path,
       sizeBytes: json['size_bytes'] as int? ?? artifact.lengthSync(),
-      createdAt: DateTime.tryParse(json['created'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['created'] as String? ?? '') ??
           artifact.statSync().modified.toUtc(),
       source: json['source'] as String?,
       sweepDir: json['sweepDir'] as String? ?? indexDirPath,
@@ -337,8 +338,9 @@ class LocalArtifactStore implements ArtifactStore {
       await produced.copy(dest.path);
     }
     File(p.join(dirPath, indexFileName)).writeAsStringSync(
-      const JsonEncoder.withIndent('  ')
-          .convert(_entryJson(key, destName, await dest.length())),
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert(_entryJson(key, destName, await dest.length())),
       flush: true,
     );
     return dest;
@@ -373,17 +375,20 @@ class LocalArtifactStore implements ArtifactStore {
     if (!await rootDir.exists()) return const [];
     final out = <ArtifactStoreEntry>[];
     final seen = <String>{};
-    await for (final entity
-        in rootDir.list(recursive: true, followLinks: false)) {
+    await for (final entity in rootDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File || p.basename(entity.path) != indexFileName) {
         continue;
       }
       try {
         final json = jsonDecode(entity.readAsStringSync());
         if (json is! Map<String, dynamic>) continue;
-        final entry = _entryFromIndex(json, p.dirname(entity.path));
+        var entry = _entryFromIndex(json, p.dirname(entity.path));
         if (seen.contains(entry.key.id)) continue;
         if (!File(entry.path).existsSync()) continue; // stale index
+        entry = await _withLogicalSize(entry);
         out.add(entry);
         seen.add(entry.key.id);
       } on FormatException {
@@ -396,17 +401,68 @@ class LocalArtifactStore implements ArtifactStore {
     return out;
   }
 
+  /// Measures the bytes owned by an entry, including foreign-layout payloads
+  /// such as extracted AAR files. Index metadata is intentionally excluded;
+  /// links are skipped so a cache cannot count or traverse outside its root.
+  Future<ArtifactStoreEntry> _withLogicalSize(
+    final ArtifactStoreEntry entry,
+  ) async {
+    final dir = Directory(entry.dir);
+    final paths = await _resolvedStorePaths(dir.path);
+    if (paths == null) {
+      return ArtifactStoreEntry(
+        key: entry.key,
+        path: entry.path,
+        sizeBytes: 0,
+        createdAt: entry.createdAt,
+        source: entry.source,
+        sweepDir: entry.sweepDir,
+      );
+    }
+    var size = 0;
+    if (await Directory(paths.target).exists()) {
+      try {
+        await for (final entity in Directory(
+          paths.target,
+        ).list(recursive: true, followLinks: false)) {
+          if (entity is! File || p.basename(entity.path) == indexFileName) {
+            continue;
+          }
+          try {
+            size += await entity.length();
+          } on FileSystemException {
+            // A disappearing or unreadable payload is not fatal to inventory.
+          }
+        }
+      } on FileSystemException {
+        // Keep the partial logical size for a concurrently changing cache.
+      }
+    }
+    return ArtifactStoreEntry(
+      key: entry.key,
+      path: entry.path,
+      sizeBytes: size,
+      createdAt: entry.createdAt,
+      source: entry.source,
+      sweepDir: entry.sweepDir,
+    );
+  }
+
   /// Removes an entry's sweep dir and prunes now-empty parents up to (but
   /// never including) the store root, so purged categories leave no
   /// skeleton behind.
   Future<bool> _removeSweepDir(final ArtifactStoreEntry entry) async {
     final dir = Directory(entry.dir);
-    if (!await dir.exists()) return false;
-    await dir.delete(recursive: true);
+    final paths = await _resolvedStorePaths(dir.path);
+    if (paths == null) return false;
+    try {
+      await Directory(paths.target).delete(recursive: true);
+    } on FileSystemException {
+      return false;
+    }
 
-    var current = p.canonicalize(p.dirname(dir.path));
-    final rootPath = p.canonicalize(root);
-    while (p.isWithin(rootPath, current)) {
+    var current = p.dirname(paths.target);
+    while (current != paths.root && p.isWithin(paths.root, current)) {
       final d = Directory(current);
       if (!d.existsSync()) {
         current = p.dirname(current);
@@ -421,6 +477,24 @@ class LocalArtifactStore implements ArtifactStore {
       current = p.dirname(current);
     }
     return true;
+  }
+
+  /// Resolves existing symlink ancestors before accepting a store path. A
+  /// lexical `canonicalize` is insufficient: `root/link/entry` can otherwise
+  /// escape through a symlink in `link`.
+  Future<({String root, String target})?> _resolvedStorePaths(
+    final String target,
+  ) async {
+    try {
+      final rootPath = await Directory(root).resolveSymbolicLinks();
+      final targetPath = await Directory(target).resolveSymbolicLinks();
+      if (targetPath == rootPath || !p.isWithin(rootPath, targetPath)) {
+        return null;
+      }
+      return (root: rootPath, target: targetPath);
+    } on FileSystemException {
+      return null;
+    }
   }
 
   /// Deletes the entry addressed by [key] (its sweep directory); `false`
@@ -439,7 +513,7 @@ class LocalArtifactStore implements ArtifactStore {
     final String? category,
     final bool dryRun = false,
   }) async {
-    var all = await entries();
+    var all = (await entries()).toList();
     if (category != null) {
       all = all.where((final e) => e.key.category == category).toList();
     }
@@ -461,7 +535,7 @@ class LocalArtifactStore implements ArtifactStore {
     if (maxTotalBytes != null) {
       var budgetTotal =
           all.fold<int>(0, (final s, final e) => s + e.sizeBytes) -
-              victims.fold<int>(0, (final s, final e) => s + e.sizeBytes);
+          victims.fold<int>(0, (final s, final e) => s + e.sizeBytes);
       for (final e in all) {
         if (budgetTotal <= maxTotalBytes) break;
         if (victims.contains(e)) continue;
@@ -470,11 +544,17 @@ class LocalArtifactStore implements ArtifactStore {
       }
     }
 
+    var deleted = 0;
     var freed = 0;
     for (final v in victims) {
-      freed += v.sizeBytes;
-      if (!dryRun) await _removeSweepDir(v);
+      if (dryRun) {
+        deleted++;
+        freed += v.sizeBytes;
+      } else if (await _removeSweepDir(v)) {
+        deleted++;
+        freed += v.sizeBytes;
+      }
     }
-    return PurgeResult(deleted: victims.length, bytesFreed: freed);
+    return PurgeResult(deleted: deleted, bytesFreed: freed);
   }
 }

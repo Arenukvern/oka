@@ -34,11 +34,10 @@ dependencies:
     sdk: flutter
 
   mcp_toolkit: ^5.0.4
-  oka:
-    path: ..
-  oka_android: ^0.1.6
-  oka_huawei: ^0.1.6
-  oka_play: ^0.1.6
+  oka: ^0.2.0 # x-release-please-version
+  oka_android: ^0.2.0 # x-release-please-version
+  oka_huawei: ^0.2.0 # x-release-please-version
+  oka_play: ^0.2.0 # x-release-please-version
 
 dependency_overrides:
   # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
@@ -46,6 +45,8 @@ dependency_overrides:
   cupertino_icons: ^1.0.8
   # Local development: split packages from the oka checkout (ADR-0010).
   # Remove once oka_core/oka_android are published to pub.dev.
+  oka:
+    path: ../packages/oka
   oka_android:
     path: ../packages/oka_android
   oka_core:
@@ -54,6 +55,8 @@ dependency_overrides:
     path: ../packages/oka_huawei
   oka_play:
     path: ../packages/oka_play
+  oka_web:
+    path: ../packages/oka_web
 
 dev_dependencies:
   flutter_test:

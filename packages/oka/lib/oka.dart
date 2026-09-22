@@ -56,4 +56,9 @@ library;
 export 'package:oka_android/oka_android.dart';
 export 'package:oka_core/oka_core.dart';
 
+export 'src/cache/cache_diagnostics_composition.dart';
+export 'src/cache/cache_transactions.dart';
+export 'src/cache/cache_workspace.dart';
+export 'src/cache/host_adapters/apple_cache_diagnostics.dart';
+export 'src/cache/storage_discovery.dart';
 export 'src/version.dart';

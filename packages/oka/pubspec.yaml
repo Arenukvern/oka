@@ -3,7 +3,7 @@ description: >-
   No-Gradle build system for Flutter Android. Runs `flutter assemble` with
   direct Android SDK tools (aapt2, d8, apksigner) — no Gradle daemon — with
   plugin packaging, AAB support, and dependency recovery.
-version: 0.1.6
+version: 0.2.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka
 issue_tracker: https://github.com/Arenukvern/oka/issues
@@ -22,8 +22,9 @@ environment:
 
 dependencies:
   args: ^2.5.0
-  oka_android: ^0.1.6
-  oka_core: ^0.1.6
+  oka_android: ^0.2.0 # x-release-please-version
+  oka_core: ^0.2.0 # x-release-please-version
+  oka_web: ^0.2.0 # x-release-please-version
   path: ^1.9.0
   yaml: ^3.1.2
 

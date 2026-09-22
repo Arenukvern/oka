@@ -1,0 +1,234 @@
+# Cache storage and cleanup
+
+See where storage goes across known projects, then reclaim reproducible caches:
+
+```bash
+oka cache
+oka cache clean --apply
+```
+
+The overview shows the largest locations and reclaimable storage. The second
+command deletes eligible build and shared dependency caches across known
+projects. The next build recreates them and may need network access. Run
+`oka cache clean` without `--apply` to preview the paths first. Neither command
+stops sessions or deletes emulator user data.
+
+## Find your existing projects
+
+Builds automatically remember their project locations. To include older projects,
+scan the directory where you keep your repositories once:
+
+```bash
+oka cache --scan "$HOME/projects"
+oka cache clean --apply
+```
+
+Repeat `--scan ROOT` for multiple locations. Discovered projects with existing
+`.oka_cache` directories are remembered in `~/.oka/cache-projects.json`, outside
+prunable storage. Missing caches are skipped on later runs. **Known projects
+does not mean every project on the disk**: Oka does not search unrelated drives.
+
+Discovery skips hidden and generated directories (`node_modules`, `build`,
+`Pods`, `vendor`), with limits of 12 levels and 50,000 visited directories.
+Explicit root aliases are resolved to canonical paths; symbolic links encountered
+inside a scan are skipped. Warnings identify incomplete scans. Supply a more
+specific `--scan` root to include a project under an excluded directory.
+
+`--global` explicitly selects the default global view. `--project PATH` narrows
+the project portion to one directory; shared storage remains global. Use
+`--scope build` as well when cleanup must affect only that project's outputs.
+
+## Review before deleting
+
+```bash
+oka cache clean                          # preview; does not delete
+oka cache clean --interactive            # review and confirm in a terminal
+oka cache clean --save-plan cleanup.json
+oka cache clean --apply-plan cleanup.json
+```
+
+Ordinary `--apply` recalculates selection. A saved plan applies only its selected
+paths after rediscovering ownership and session protections and checking size,
+file count and latest modification time. Changed or newly protected locations
+are skipped; newly discovered caches are never added. These measurements are
+change checks, not content hashes or a lock against concurrent writers.
+Save plans outside the selected cache directories, using a path without symbolic
+links. Existing plan files are never overwritten.
+
+Only explicit `--interactive` prompts, and it requires terminal input and output.
+It rejects `--json` and pipes; agents can use saved plans instead. `--dry-run`
+explicitly requests preview and cannot be combined with `--apply`.
+
+## Select what to reclaim
+
+```bash
+oka cache --details                      # every location and diagnostic record
+oka cache clean --project example --scope build --apply
+oka cache clean --scope shared --max-size 2GB --apply
+oka cache clean --scope tools --older-than 30d --apply
+```
+
+The budget applies only to eligible locations in the selected scopes, not total
+machine storage. Selection removes age matches first, then oldest remaining
+locations until that pool fits the budget. Without an age or budget, all eligible
+locations in scope are selected. Units are shared-store categories and build-mode
+directories (split when needed to preserve profiles); a large unit can reclaim
+more than the requested difference.
+`--older-than` uses latest filesystem modification time, **not last-use time**.
+Sizes accept bytes or binary K/M/G/T, KB/MB/GB/TB and KiB/MiB/GiB/TiB suffixes.
+
+Stats reports **logical file bytes**, not filesystem allocation. Sparse emulator
+disks, compression and hard links can make these totals differ from `du` or free
+disk space. Overlapping paths are deduplicated in the overall total. Links are
+not followed. Incomplete scans carry warnings and are not eligible for pruning.
+
+## What the inventory covers
+
+| Storage | Prune behavior |
+|---|---|
+| Known projects' `.oka_cache/build/` (or the explicitly selected project) | Build scope; browser profiles remain |
+| Shared store at `OKA_CACHE` or `~/.oka/store` | Shared scope |
+| Existing legacy Maven/AI directories | Shared scope |
+| Oka tools at `~/.oka/tools` | Explicit tools scope |
+| Managed and configured Android SDK components | Report only, including system images and emulator binaries |
+| Android AVD directories and custom locations referenced by `.ini` files | Report only; these contain user data and snapshots |
+| Apple simulator devices and known runtime directories on macOS | Report only |
+| Browser profiles and project process/session records | Preserved |
+| Dart Pub cache and Flutter cache when `FLUTTER_ROOT` is set | Report only; shared with external tooling |
+
+Android discovery honors configured SDK and AVD environment paths. Apple
+simulator storage is host-specific; filesystem inventory does not indicate
+whether a device is running. Stats includes management guidance: Android Device
+Manager/`avdmanager` for virtual devices, `sdkmanager` for SDK packages, and
+Xcode/`simctl` for Apple simulators. Oka does not treat their data as disposable
+build cache. An absent path is omitted rather than reported as installed.
+
+Recorded live or uncertain project sessions prevent build pruning. Inspect
+`oka processes list` to resolve them. Stop builds before pruning; process records
+are advisory and cannot detect every external writer. Deletion rechecks the
+selected directories and skips changed or unsafe locations. Only successful
+deletions count toward the reported freed logical bytes.
+
+## For agents and automation
+
+```bash
+oka cache schema                         # machine interface; no storage scan
+oka cache --json                         # full inventory and discovery coverage
+oka cache clean --save-plan cleanup.json --json
+oka cache clean --apply-plan cleanup.json --json
+```
+
+JSON includes versioned schemas, totals, warnings, project coverage and
+`next_actions` with argument arrays and working directories. Execute those arrays directly rather than
+constructing shell strings. The same typed core operations power the CLI, so
+agents do not need a separate MCP server or interactive session. An MCP adapter
+can later wrap the contract without implementing another cleanup policy.
+
+## Inspect devices, profiles, sessions and registries
+
+```bash
+oka cache --details
+oka cache --kind session --kind browser-profile
+oka cache --kind registry --json
+```
+
+The default overview includes diagnostic counts; details keeps small metadata
+records visible regardless of storage size. `--kind` filters diagnostics and
+implies details. JSON retains the complete storage inventory and totals alongside
+the filtered `diagnostics` report (`oka.cache.diagnostics.v1`).
+
+| Record | Information |
+| --- | --- |
+| Android emulator | AVD name, API, ABI, system image, userdata/snapshot logical bytes and related recorded sessions |
+| Apple simulator/runtime | Stored name, identifier, runtime/device type or bundle version where a plist is available; logical bytes |
+| Browser profile | Individual Oka profile directory, persistence, logical bytes, CDP port and related project/session IDs |
+| Session | Lease kind, PID, ownership, scope, start time, selected identity fields and identity-checked process liveness |
+| Registry/project | Metadata path, schema status, recorded paths including missing caches, malformed-record issues and selected project cache state |
+
+Observations state their source and timestamp. Stored device state does not
+establish that a device is running; PID zero means unknown. ADB, CDP and simctl
+semantic runtime probes are not included. Apple plist decoding uses a bounded,
+read-only `plutil` conversion on macOS; callers can inject another decoder.
+
+New Chrome leases retain their profile directory, including temporary profiles.
+Older leases without that information report unknown attribution. Only recorded
+or discovered Oka profiles are included. Browser databases are not read. Raw
+owner command strings and arbitrary lease identity fields are omitted from the
+default report. Global coverage remains known projects, not all applications.
+
+Ordinary stats does not register projects or repair metadata. Explicit `--scan`
+still remembers projects. Malformed registry entries become diagnostic issues
+while valid entries remain visible; cleanup still rejects invalid registry
+metadata. Diagnostics never reconciles leases, stops processes or deletes data.
+
+## Compose inspection in Dart
+
+Platform and package authors implement `CacheDiagnosticProvider` and compose it
+with first-party providers. No CLI switch registration, subprocess JSON parsing,
+build execution or MCP dependency is required.
+
+```dart
+import 'dart:io';
+import 'package:oka/oka.dart';
+
+Future<CacheDiagnosticReport> inspectCaches() async {
+  final workspace = await loadCacheWorkspace(inspection: true);
+  final storage = await workspace.inventory.scan();
+  return CacheDiagnostics(
+    providers: [
+      ...defaultCacheDiagnosticProviders(),
+      // MyPlatformDiagnostics(),
+    ],
+  ).inspect(CacheDiagnosticContext(
+    projects: workspace.projects,
+    environment: Platform.environment,
+    storage: storage,
+  ));
+}
+```
+
+For a dependency-light package, import `oka_core` and compose
+`CoreCacheDiagnosticProvider` plus providers exported by `oka_android` or
+`oka_web`. Supply explicit canonical project paths and a `StorageReport` from
+your own `StorageInventory`. Context environment, observation time and process
+liveness are injectable. Providers return `CacheDiagnosticContribution` with
+typed records, observations, inert actions and structured issues. Kinds are open
+strings; provider metadata is namespaced by provider ID in JSON. Provider or
+record ID collisions and provider failures become issues without replacing
+valid records. Additional providers never grant cleanup permission.
+
+The first-party composition and workspace loader are exported by `oka`.
+Device/profile sub-measurements explain storage; they are not added again to
+the overall total. Recorded temporary profiles outside discovered storage appear
+in diagnostics only. Future MCP or interactive views can consume this report.
+
+## Compatibility commands
+
+`oka cache stats` is an explicit alias for the overview; `oka cache prune` is an
+alias for `oka cache clean`. Both retain their options and JSON interfaces.
+Their default project coverage is now all known projects; use `--project PATH`
+to explicitly keep a single-project selection.
+
+`oka cache list [--json]` and `oka cache why <category[/name[/version]]>` inspect
+**indexed shared-store entries only**. Their totals exclude index metadata;
+stats measures all files in discovered directories, including unindexed files.
+Maven resolution uses `<store>/maven`, with `~/.oka/cache/maven` as a compatibility
+fallback when the store's Maven directory is absent.
+
+`oka cache gc --older-than 30d --dry-run` previews indexed-store GC. Unlike
+`prune`, existing `gc` executes unless `--dry-run` is supplied, uses entry
+**creation** age, and requires an explicit age or budget. Prefer `cache clean` for
+cross-location cleanup.
+
+`oka clean` (without `cache`) is the legacy whole-project `.oka_cache` reset,
+including session state. `oka clean --full` is not an all-storage cleanup
+command. Prefer `oka cache clean` to preserve browser profiles and process records.
+
+Contracts: [ADR-0021](../decisions/0021-composable-cache-diagnostics),
+[ADR-0020](../decisions/0020-global-cache-workflow),
+[ADR-0019](../decisions/0019-cache-storage-inventory-and-pruning),
+the exported `StorageInventory` and `CacheProjectRegistry` APIs in `oka_core`, and the
+`storage_inventory`, `storage_discovery`, and `cache_storage_command` tests.
+See [diagnostics validation](../evidence/cache-diagnostics-2026-09-22),
+[global workflow validation](../evidence/global-cache-workflow-2026-09-22)
+and [initial storage validation](../evidence/cache-storage-2026-09-21) for checks and limits.

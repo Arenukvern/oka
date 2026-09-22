@@ -1,12 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-
-import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
+
+import 'dependencies/maven_archive.dart' as archive;
+import 'dependencies/maven_io.dart';
+import 'dependencies/maven_policy.dart';
+
+export 'dependencies/maven_archive.dart';
+export 'dependencies/maven_io.dart';
+export 'dependencies/maven_policy.dart';
 
 /// A Maven coordinate for Android dependencies.
 /// Minimal fixed set required for Flutter embedding hosts (no plugins).
@@ -14,149 +20,114 @@ import 'package:path/path.dart' as p;
 /// Prefer JVM/Android artifacts that actually ship `classes.jar` — some
 /// AndroidX "runtime" AARs are empty metadata shells (e.g. lifecycle-runtime).
 List<MavenCoordinate> flutterEmbeddingAndroidXDeps() => const [
-    MavenCoordinate(
-      groupId: 'androidx.annotation',
-      artifactId: 'annotation-jvm',
-      version: '1.9.1',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.lifecycle',
-      artifactId: 'lifecycle-common-jvm',
-      version: '2.8.7',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.lifecycle',
-      artifactId: 'lifecycle-runtime-android',
-      version: '2.8.7',
-      packaging: 'aar',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.arch.core',
-      artifactId: 'core-common',
-      version: '2.2.0',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.arch.core',
-      artifactId: 'core-runtime',
-      version: '2.2.0',
-      packaging: 'aar',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.core',
-      artifactId: 'core',
-      version: '1.13.1',
-      packaging: 'aar',
-    ),
-    // androidx.core's hard runtime dependency (WindowInsetsControllerCompat
-    // and friends use SimpleArrayMap / SparseArrayCompat).
-    MavenCoordinate(
-      groupId: 'androidx.collection',
-      artifactId: 'collection-jvm',
-      version: '1.4.4',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.annotation',
-      artifactId: 'annotation-experimental',
-      version: '1.4.1',
-      packaging: 'aar',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.versionedparcelable',
-      artifactId: 'versionedparcelable',
-      version: '1.1.1',
-      packaging: 'aar',
-    ),
-    MavenCoordinate(
-      groupId: 'androidx.tracing',
-      artifactId: 'tracing',
-      version: '1.2.0',
-      packaging: 'aar',
-    ),
-    // Kotlin annotations referenced by Flutter embedding / AndroidX metadata
-    MavenCoordinate(
-      groupId: 'org.jetbrains.kotlin',
-      artifactId: 'kotlin-stdlib',
-      version: '2.0.21',
-    ),
-    // Hard runtime dependency of androidx.lifecycle 2.8+
-    // (LifecycleRegistry uses kotlinx.coroutines.flow.StateFlow).
-    MavenCoordinate(
-      groupId: 'org.jetbrains.kotlinx',
-      artifactId: 'kotlinx-coroutines-core-jvm',
-      version: '1.9.0',
-    ),
-    // Used by FlutterLoader to load libflutter.so robustly on old devices.
-    MavenCoordinate(
-      groupId: 'com.getkeepsafe.relinker',
-      artifactId: 'relinker',
-      version: '1.4.5',
-      packaging: 'aar',
-    ),
-    // Flutter's ViewUtils uses WindowMetricsCalculator for display metrics.
-    MavenCoordinate(
-      groupId: 'androidx.window',
-      artifactId: 'window',
-      version: '1.3.0',
-      packaging: 'aar',
-    ),
-  ];
+  MavenCoordinate(
+    groupId: 'androidx.annotation',
+    artifactId: 'annotation-jvm',
+    version: '1.9.1',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.lifecycle',
+    artifactId: 'lifecycle-common-jvm',
+    version: '2.8.7',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.lifecycle',
+    artifactId: 'lifecycle-runtime-android',
+    version: '2.8.7',
+    packaging: 'aar',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.arch.core',
+    artifactId: 'core-common',
+    version: '2.2.0',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.arch.core',
+    artifactId: 'core-runtime',
+    version: '2.2.0',
+    packaging: 'aar',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.core',
+    artifactId: 'core',
+    version: '1.13.1',
+    packaging: 'aar',
+  ),
+  // androidx.core's hard runtime dependency (WindowInsetsControllerCompat
+  // and friends use SimpleArrayMap / SparseArrayCompat).
+  MavenCoordinate(
+    groupId: 'androidx.collection',
+    artifactId: 'collection-jvm',
+    version: '1.4.4',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.annotation',
+    artifactId: 'annotation-experimental',
+    version: '1.4.1',
+    packaging: 'aar',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.versionedparcelable',
+    artifactId: 'versionedparcelable',
+    version: '1.1.1',
+    packaging: 'aar',
+  ),
+  MavenCoordinate(
+    groupId: 'androidx.tracing',
+    artifactId: 'tracing',
+    version: '1.2.0',
+    packaging: 'aar',
+  ),
+  // Kotlin annotations referenced by Flutter embedding / AndroidX metadata
+  MavenCoordinate(
+    groupId: 'org.jetbrains.kotlin',
+    artifactId: 'kotlin-stdlib',
+    version: '2.0.21',
+  ),
+  // Hard runtime dependency of androidx.lifecycle 2.8+
+  // (LifecycleRegistry uses kotlinx.coroutines.flow.StateFlow).
+  MavenCoordinate(
+    groupId: 'org.jetbrains.kotlinx',
+    artifactId: 'kotlinx-coroutines-core-jvm',
+    version: '1.9.0',
+  ),
+  // Used by FlutterLoader to load libflutter.so robustly on old devices.
+  MavenCoordinate(
+    groupId: 'com.getkeepsafe.relinker',
+    artifactId: 'relinker',
+    version: '1.4.5',
+    packaging: 'aar',
+  ),
+  // Flutter's ViewUtils uses WindowMetricsCalculator for display metrics.
+  MavenCoordinate(
+    groupId: 'androidx.window',
+    artifactId: 'window',
+    version: '1.3.0',
+    packaging: 'aar',
+  ),
+];
 
 /// Declarative Maven repository routing (ADR-0007): one authoritative
 /// group-prefix → host map instead of scattered hardcoded prefix checks.
 class MavenRepoRegistry {
-
   MavenRepoRegistry({final List<({String prefix, MavenHost host})>? routes})
-      : _routes = routes ?? _defaultRoutes();
+    : _router = MavenRepositoryRouter(routes: routes);
+
   /// Group prefixes hosted on Google Maven (dl.google.com/dl/android/maven2).
-  static const googleHosted = <String>[
-    'androidx.',
-    'com.android.',
-    'com.google.android.',
-    'com.google.mlkit',
-    'com.google.firebase',
-    'com.google.gms',
-    'com.google.dagger',
-    'com.google.testing.platform',
-  ];
+  static const googleHosted = MavenRepositoryRouter.googleHosted;
 
   /// Group prefixes hosted on Maven Central.
-  static const centralHosted = <String>[
-    'org.jetbrains',
-    'com.squareup',
-    'org.slf4j',
-    'javax.',
-    'org.apache.',
-    'commons-',
-    'io.grpc',
-    'com.google.guava',
-    'com.google.code',
-    'com.fasterxml',
-    'org.checkerframework',
-    'org.osgi',
-    'net.sf',
-    'org.ow2.asm',
-  ];
+  static const centralHosted = MavenRepositoryRouter.centralHosted;
 
   /// Group prefixes available only on vendor repositories (routing hint:
   /// user repos are tried first).
-  static const vendorOnly = <String>['ru.rustore', 'ru.vk'];
+  static const vendorOnly = MavenRepositoryRouter.vendorOnly;
 
   static final MavenRepoRegistry instance = MavenRepoRegistry();
 
-  final List<({String prefix, MavenHost host})> _routes;
+  final MavenRepositoryRouter _router;
 
-  static List<({String prefix, MavenHost host})> _defaultRoutes() => [
-        for (final g in googleHosted) (prefix: g, host: MavenHost.google),
-        for (final g in vendorOnly) (prefix: g, host: MavenHost.vendor),
-        for (final g in centralHosted) (prefix: g, host: MavenHost.central),
-      ];
-
-  MavenHost hostFor(final String groupId) {
-    for (final r in _routes) {
-      if (groupId.startsWith(r.prefix)) return r.host;
-    }
-    return MavenHost.unknown;
-  }
+  MavenHost hostFor(final String groupId) => _router.hostFor(groupId);
 
   /// Ordered candidate URLs: primary host first, then the alternative
   /// store, then user repositories (vendor-only groups try user repos
@@ -164,42 +135,8 @@ class MavenRepoRegistry {
   List<String> candidatesFor(
     final MavenCoordinate c, {
     final List<String> userRepos = const [],
-  }) {
-    final urls = <String>[];
-    void add(final String u) {
-      if (!urls.contains(u)) urls.add(u);
-    }
-
-    String url(final MavenHost host) => switch (host) {
-          MavenHost.google =>
-            'https://dl.google.com/dl/android/maven2/${c.pathSegment}/${c.fileName}',
-          MavenHost.central =>
-            'https://repo1.maven.org/maven2/${c.pathSegment}/${c.fileName}',
-          _ => '',
-        };
-
-    final host = hostFor(c.groupId);
-    String normalizeBase(final String base) =>
-        base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-    final userUrls = [
-      for (final base in userRepos)
-        '${normalizeBase(base)}/${c.pathSegment}/${c.fileName}',
-    ];
-
-    // Vendor-only groups: user repos first (they host the artifacts).
-    if (host == MavenHost.vendor) {
-      userUrls.forEach(add);
-    }
-    add(url(MavenHost.google));
-    add(url(MavenHost.central));
-    if (host != MavenHost.vendor) {
-      userUrls.forEach(add);
-    }
-    return urls.where((final u) => u.isNotEmpty).toList();
-  }
+  }) => _router.candidatesFor(c, userRepos: userRepos);
 }
-
-enum MavenHost { google, central, vendor, unknown }
 
 /// Builds a Maven URL for [coord] via the default [MavenRepoRegistry].
 String googleMavenUrl(final MavenCoordinate coord) =>
@@ -208,53 +145,21 @@ String googleMavenUrl(final MavenCoordinate coord) =>
 /// Extracts `classes.jar` bytes from an AAR (zip) archive.
 ///
 /// Returns null when the AAR is a metadata-only shell (no classes.jar).
-Uint8List? tryExtractClassesJarFromAar(final List<int> aarBytes) {
-  final archive = ZipDecoder().decodeBytes(aarBytes);
-  for (final file in archive) {
-    if (file.isFile &&
-        (file.name == 'classes.jar' || file.name.endsWith('/classes.jar'))) {
-      return Uint8List.fromList(file.content as List<int>);
-    }
-  }
-  return null;
-}
+Uint8List? tryExtractClassesJarFromAar(final List<int> aarBytes) =>
+    archive.tryExtractClassesJarFromAar(aarBytes);
 
 /// Extracts `classes.jar` bytes from an AAR (zip) archive.
-Uint8List extractClassesJarFromAar(final List<int> aarBytes) {
-  final jar = tryExtractClassesJarFromAar(aarBytes);
-  if (jar != null) return jar;
-  throw Exception('classes.jar not found in AAR');
-}
+Uint8List extractClassesJarFromAar(final List<int> aarBytes) =>
+    archive.extractClassesJarFromAar(aarBytes);
 
 /// Writes extracted classes.jar to [destJarPath]; returns path.
 Future<String> extractClassesJarToFile(
   final List<int> aarBytes,
   final String destJarPath,
-) async {
-  final jarBytes = extractClassesJarFromAar(aarBytes);
-  await File(destJarPath).parent.create(recursive: true);
-  await File(destJarPath).writeAsBytes(jarBytes, flush: true);
-  return destJarPath;
-}
+) => archive.extractClassesJarToFile(aarBytes, destJarPath);
 
 /// Result of resolving one coordinate to a local JAR path.
-class ResolvedJar {
-
-  const ResolvedJar({
-    required this.coordinate,
-    required this.jarPath,
-    this.nativeLibsByAbi = const {},
-    this.resDirs = const [],
-  });
-  final MavenCoordinate coordinate;
-  final String jarPath;
-
-  /// Native libs extracted from an AAR: abi → .so paths (empty for jars).
-  final Map<String, List<String>> nativeLibsByAbi;
-
-  /// Resource dirs extracted from an AAR (values XML etc.), empty for jars.
-  final List<String> resDirs;
-}
+typedef ResolvedJar = archive.ResolvedJar;
 
 /// Extracts AAR payload beyond classes.jar: `jni/<abi>/*.so` natives and res/.
 ///
@@ -267,84 +172,54 @@ extractAarPayload(
   final List<int> aarBytes,
   final String destDir, {
   final bool verbose = false,
-}) async {
-  final archive = ZipDecoder().decodeBytes(aarBytes);
-  final natives = <String, List<String>>{};
-  var hasRes = false;
-
-  for (final file in archive) {
-    if (!file.isFile) continue;
-    final name = file.name.replaceAll(r'\', '/');
-
-    // jni/<abi>/lib*.so
-    final jniMatch = RegExp(
-      '^jni/([^/]+)/(lib[^/]+[.]so)' r'$',
-    ).firstMatch(name);
-    if (jniMatch != null) {
-      final abi = jniMatch.group(1)!;
-      final out = p.join(destDir, name);
-      await File(out).parent.create(recursive: true);
-      await File(out).writeAsBytes(
-        Uint8List.fromList(file.content as List<int>),
-        flush: true,
-      );
-      natives.putIfAbsent(abi, () => []).add(out);
-      continue;
-    }
-
-    // res/** — only values XML is aapt2-compile-ready as-is; copy the tree.
-    if (name.startsWith('res/') && name.endsWith('.xml')) {
-      hasRes = true;
-      final out = p.join(destDir, name);
-      await File(out).parent.create(recursive: true);
-      await File(out).writeAsBytes(
-        Uint8List.fromList(file.content as List<int>),
-        flush: true,
-      );
-    }
-  }
-
-  final resDirs = hasRes ? [p.join(destDir, 'res')] : const <String>[];
-  if (verbose && (natives.isNotEmpty || resDirs.isNotEmpty)) {
-    final n = natives.values.fold<int>(0, (final a, final b) => a + b.length);
-    print('   AAR payload: $n natives, ${resDirs.length} res dir(s)');
-  }
-  return (nativeLibsByAbi: natives, resDirs: resDirs);
-}
+}) => archive.extractAarPayload(aarBytes, destDir, verbose: verbose);
 
 /// Resolves Maven coordinates to local jars (ADR-0007): repo routing,
 /// download with packaging fallback, AAR payload extraction, POM-graph
 /// transitive resolution (parents, BOMs, properties), memoization and
 /// parallel BFS.
 class MavenResolver {
-
   MavenResolver({
     final String? cacheRoot,
     this.verbose = false,
     this.httpClient,
     this.allowNetwork = true,
     this.userRepos = const [],
-  }) : cacheRoot = cacheRoot ?? defaultCacheRoot();
+    MavenTransport? transport,
+    MavenArtifactRepository? artifactRepository,
+    MavenRepositoryRouter? repositoryRouter,
+    MavenMetadataParser? metadataParser,
+  }) : cacheRoot = cacheRoot ?? defaultCacheRoot(),
+       transport = transport ?? HttpMavenTransport(client: httpClient),
+       artifactRepository =
+           artifactRepository ?? const FileMavenArtifactRepository(),
+       repositoryRouter = repositoryRouter ?? MavenRepositoryRouter(),
+       metadataParser = metadataParser ?? const MavenMetadataParser();
   final String cacheRoot;
 
   /// Default cache root routes through the shared artifact store (ADR-0013):
   /// `<storeRoot>/maven` where `<storeRoot>` honors `OKA_CACHE`. The legacy
   /// root (`~/.oka/cache/maven`) keeps resolving when it exists and the
   /// store copy does not — existing caches stay valid, nothing re-downloads.
-  static String defaultCacheRoot({
-    final Map<String, String>? environment,
-  }) {
+  static String defaultCacheRoot({final Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
-    final storeMaven =
-        p.join(LocalArtifactStore.defaultRoot(environment: env), 'maven');
+    final storeMaven = p.join(
+      LocalArtifactStore.defaultRoot(environment: env),
+      'maven',
+    );
     if (Directory(storeMaven).existsSync()) return storeMaven;
     final home = env['HOME'] ?? env['USERPROFILE'] ?? '.';
     final legacy = p.join(home, '.oka', 'cache', 'maven');
     if (Directory(legacy).existsSync()) return legacy;
     return storeMaven;
   }
+
   final bool verbose;
   final http.Client? httpClient;
+  final MavenTransport transport;
+  final MavenArtifactRepository artifactRepository;
+  final MavenRepositoryRouter repositoryRouter;
+  final MavenMetadataParser metadataParser;
 
   /// Per-run memoization: coordinate -> resolved result. Shared across all
   /// plugins in one build so duplicate roots (kotlin-stdlib, androidx core…)
@@ -357,12 +232,12 @@ class MavenResolver {
   final List<String> userRepos;
 
   String localPathFor(final MavenCoordinate coord) => p.join(
-      cacheRoot,
-      coord.groupId.replaceAll('.', '/'),
-      coord.artifactId,
-      coord.version,
-      coord.fileName,
-    );
+    cacheRoot,
+    coord.groupId.replaceAll('.', '/'),
+    coord.artifactId,
+    coord.version,
+    coord.fileName,
+  );
 
   String jarPathFor(final MavenCoordinate coord) {
     if (coord.packaging == 'jar') {
@@ -397,14 +272,16 @@ class MavenResolver {
     if (existing != null) return existing;
     final fut = _resolveUncached(coord, fixtureBytes, extraRepos);
     _inflight[memoKey] = fut;
-    return fut.then((final r) {
-      _memo[memoKey] = r;
-      return r;
-    }).whenComplete(() {
-      // Map.remove returns the stored future — dropping it is intentional.
-      // ignore: discarded_futures
-      _inflight.remove(memoKey);
-    });
+    return fut
+        .then((final r) {
+          _memo[memoKey] = r;
+          return r;
+        })
+        .whenComplete(() {
+          // Map.remove returns the stored future — dropping it is intentional.
+          // ignore: discarded_futures
+          _inflight.remove(memoKey);
+        });
   }
 
   /// Registers a downloaded artifact into the shared artifact store (ADR-0013)
@@ -448,14 +325,14 @@ class MavenResolver {
   ) async {
     var working = coord;
     final jarPath = jarPathFor(working);
-    if (await File(jarPath).exists()) {
-      final existingLen = await File(jarPath).length();
+    if (await artifactRepository.exists(jarPath)) {
+      final existingLen = await artifactRepository.length(jarPath);
       // Do not treat metadata-only empty shells as a successful cache hit.
       if (existingLen > 200) {
         return ResolvedJar(coordinate: working, jarPath: jarPath);
       }
       try {
-        await File(jarPath).delete();
+        await artifactRepository.delete(jarPath);
       } catch (_) {}
     }
 
@@ -481,8 +358,7 @@ class MavenResolver {
         // AARs — and metadata-only POMs sometimes exist only as `pom`+jar.
         final alt = working.packaging == 'jar' ? 'aar' : 'jar';
         if (verbose) {
-          print('   ↳ $working@${
-          working.packaging} 404 — retrying as $alt');
+          print('   ↳ $working@${working.packaging} 404 — retrying as $alt');
         }
         final retried = await _downloadArtifact(
           MavenCoordinate(
@@ -499,8 +375,7 @@ class MavenResolver {
     }
 
     final artifactPath = localPathFor(working);
-    await File(artifactPath).parent.create(recursive: true);
-    await File(artifactPath).writeAsBytes(bytes, flush: true);
+    await artifactRepository.writeBytes(artifactPath, bytes, flush: true);
     await _registerStoreEntry(artifactPath, working, bytes);
 
     final outJar = jarPathFor(working);
@@ -512,11 +387,13 @@ class MavenResolver {
             '⚠️  $working has no classes.jar (metadata AAR); using empty jar',
           );
         }
-        await File(outJar).parent.create(recursive: true);
-        await File(outJar).writeAsBytes(minimalJarBytes(), flush: true);
+        await artifactRepository.writeBytes(
+          outJar,
+          minimalJarBytes(),
+          flush: true,
+        );
       } else {
-        await File(outJar).parent.create(recursive: true);
-        await File(outJar).writeAsBytes(classes, flush: true);
+        await artifactRepository.writeBytes(outJar, classes, flush: true);
       }
 
       // Extract natives + res alongside the classes jar (ADR: AAR processing).
@@ -587,53 +464,32 @@ class MavenResolver {
       );
     }
 
-    final client = httpClient ?? http.Client();
-    try {
-      for (final c in candidates) {
-        for (final url in _candidateUrls(c, extraRepos)) {
-          if (verbose) {
-            print('📥 Trying $c\n   $url');
-          }
-          try {
-            final response = await client
-                .get(
-                  Uri.parse(url),
-                  // Explicit identity encoding: some artifactory hosts
-                  // (e.g. vkpartner nexus) hang their gzip response stream,
-                  // which stalls the build indefinitely. Jars/AARs are zip
-                  // containers — transport compression gains nothing.
-                  headers: const {
-                    'Accept-Encoding': 'identity',
-                    'User-Agent': 'oka build tool',
-                  },
-                )
-                .timeout(const Duration(seconds: 60));
-            if (response.statusCode == 200 && response.bodyBytes.length > 32) {
-              return (coord: c, bytes: response.bodyBytes);
-            }
-            if (verbose) {
-              print('   ↳ HTTP ${response.statusCode} from $url');
-            }
-          } catch (e) {
-            if (verbose) print('   ↳ failed: $e');
-            // try next URL
-          }
+    for (final c in candidates) {
+      for (final url in _candidateUrls(c, extraRepos)) {
+        if (verbose) {
+          print('📥 Trying $c\n   $url');
+        }
+        try {
+          final bytes = await transport.get(Uri.parse(url));
+          if (bytes != null) return (coord: c, bytes: bytes);
+          if (verbose) print('   ↳ unavailable from $url');
+        } catch (e) {
+          if (verbose) print('   ↳ failed: $e');
+          // try next URL
         }
       }
-      throw Exception('Failed to download $coord from known repositories');
-    } finally {
-      if (httpClient == null) {
-        client.close();
-      }
     }
+    throw Exception('Failed to download $coord from known repositories');
   }
 
   /// Candidate URLs for [c]: built-in routing + user repositories.
-  List<String> _candidateUrls(final MavenCoordinate c, final List<String> extraRepos) =>
-      MavenRepoRegistry.instance.candidatesFor(
-        c,
-        userRepos: [...userRepos, ...extraRepos],
-      );
+  List<String> _candidateUrls(
+    final MavenCoordinate c,
+    final List<String> extraRepos,
+  ) => repositoryRouter.candidatesFor(
+    c,
+    userRepos: [...userRepos, ...extraRepos],
+  );
 
   /// Resolve the fixed Flutter embedding AndroidX set.
   Future<List<ResolvedJar>> resolveFlutterAndroidX({
@@ -715,7 +571,13 @@ class MavenResolver {
   /// Resolves one coordinate and computes its BFS expansion. Failures are
   /// isolated per artifact — one bad download never empties a plugin's
   /// classpath.
-  Future<({ResolvedJar? resolved, int length, List<({MavenCoordinate c, int depth})> next})>
+  Future<
+    ({
+      ResolvedJar? resolved,
+      int length,
+      List<({MavenCoordinate c, int depth})> next,
+    })
+  >
   _resolveAndExpand(
     final ({MavenCoordinate c, int depth}) item,
     final List<({MavenCoordinate c, int depth})> queue,
@@ -726,7 +588,7 @@ class MavenResolver {
   }) async {
     try {
       final resolved = await resolve(item.c, extraRepos: extraRepos);
-      final len = await File(resolved.jarPath).length();
+      final len = await artifactRepository.length(resolved.jarPath);
       final next = <({MavenCoordinate c, int depth})>[];
 
       // Prefer android/jvm variants when metadata-only (do not expand -ktx)
@@ -786,7 +648,11 @@ class MavenResolver {
     } catch (e) {
       if (verbose) print('   resolve skip ${item.c}: $e');
       onFailure?.call(item.c, e);
-      return (resolved: null, length: 0, next: const <({MavenCoordinate c, int depth})>[]);
+      return (
+        resolved: null,
+        length: 0,
+        next: const <({MavenCoordinate c, int depth})>[],
+      );
     }
   }
 
@@ -812,22 +678,23 @@ class MavenResolver {
     );
     final modulePath = localPathFor(moduleCoord);
     List<int> bytes;
-    if (await File(modulePath).exists()) {
-      bytes = await File(modulePath).readAsBytes();
+    if (await artifactRepository.exists(modulePath)) {
+      bytes = await artifactRepository.readBytes(modulePath);
     } else if (!allowNetwork) {
       return const [];
     } else {
       try {
         final dl = await _downloadArtifact(moduleCoord, extraRepos: extraRepos);
         bytes = dl.bytes;
-        await File(modulePath).parent.create(recursive: true);
-        await File(modulePath).writeAsBytes(bytes);
+        await artifactRepository.writeBytes(modulePath, bytes);
       } catch (_) {
         // No `.module` published — POM-only artifact.
         return const [];
       }
     }
-    return parseModuleRuntimeDependencies(String.fromCharCodes(bytes));
+    return metadataParser.moduleRuntimeDependencies(
+      String.fromCharCodes(bytes),
+    );
   }
 
   Future<List<MavenCoordinate>> _fetchPomDependencies(
@@ -844,20 +711,19 @@ class MavenResolver {
     // localPathFor uses packaging for filename — pom file
     final pomPath = localPathFor(pomCoord);
     List<int> bytes;
-    if (await File(pomPath).exists()) {
-      bytes = await File(pomPath).readAsBytes();
+    if (await artifactRepository.exists(pomPath)) {
+      bytes = await artifactRepository.readBytes(pomPath);
     } else {
       try {
         final dl = await _downloadArtifact(pomCoord, extraRepos: extraRepos);
         bytes = dl.bytes;
-        await File(pomPath).parent.create(recursive: true);
-        await File(pomPath).writeAsBytes(bytes);
+        await artifactRepository.writeBytes(pomPath, bytes);
       } catch (_) {
         return const [];
       }
     }
     final pomXml = String.fromCharCodes(bytes);
-    final deps = parsePomDependencies(pomXml);
+    final deps = metadataParser.dependencies(pomXml);
 
     // Version-less <dependency> entries (versions managed by a parent POM's
     // <dependencyManagement> or <properties>): fetch the parent once and
@@ -865,29 +731,36 @@ class MavenResolver {
     final needsVersion = deps.any((final d) => d.version.isEmpty);
     if (!needsVersion) return deps;
 
-    final parent = parsePomParent(pomXml);
+    final parent = metadataParser.parent(pomXml);
     if (parent == null) return deps;
     final parentXml = await _pomXml(parent, extraRepos);
     if (parentXml == null) return deps;
 
     // Walk the parent chain (bounded): grandparents may hold versions for
     // entries the direct parent leaves to BOM imports or deeper inheritance.
-    final managed = <String, String>{...parsePomManagedVersions(parentXml)};
-    final ownProps = parsePomProperties(pomXml);
-    final parentProps = parsePomProperties(parentXml);
+    final managed = <String, String>{
+      ...metadataParser.managedVersions(parentXml),
+    };
+    final ownProps = metadataParser.properties(pomXml);
+    final parentProps = metadataParser.properties(parentXml);
     // BOM imports of the direct parent: slf4j-bom etc. merge their managed
     // versions (resolving ${} refs against the parent's properties first).
-    final importsQueue = parsePomImports(parentXml)
-        .map((final c) => MavenCoordinate(
-              groupId: c.groupId,
-              artifactId: c.artifactId,
-              version: c.version.startsWith(r'${')
-                  ? (parsePomProperties(parentXml)[
-                          c.version.substring(2, c.version.length - 1)] ??
+    final importsQueue = metadataParser
+        .imports(parentXml)
+        .map(
+          (final c) => MavenCoordinate(
+            groupId: c.groupId,
+            artifactId: c.artifactId,
+            version: c.version.startsWith(r'${')
+                ? (metadataParser.properties(parentXml)[c.version.substring(
+                        2,
+                        c.version.length - 1,
+                      )] ??
                       '')
-                  : c.version,
-              packaging: 'pom',
-            ))
+                : c.version,
+            packaging: 'pom',
+          ),
+        )
         .where((final c) => c.version.isNotEmpty)
         .toList();
     if (verbose) {
@@ -904,29 +777,29 @@ class MavenResolver {
       final bomXml = await _pomXml(bom, extraRepos);
       if (verbose && bomXml == null) print('   BOM fetch failed: $bom');
       if (bomXml == null) continue;
-      final props = parsePomProperties(bomXml);
-      parsePomManagedVersions(bomXml).forEach((final k, final v) {
+      final props = metadataParser.properties(bomXml);
+      metadataParser.managedVersions(bomXml).forEach((final k, final v) {
         managed[k] = v.startsWith(r'${')
             ? (v == r'${project.version}'
-                ? bom.version
-                : props[v.substring(2, v.length - 1)] ?? v)
+                  ? bom.version
+                  : props[v.substring(2, v.length - 1)] ?? v)
             : v;
       });
       // Nested BOM imports (rare) — bounded.
-      for (final nested in parsePomImports(bomXml)) {
+      for (final nested in metadataParser.imports(bomXml)) {
         if (importsQueue.length < 24) importsQueue.add(nested);
       }
     }
 
-    var grandparent = parsePomParent(parentXml);
+    var grandparent = metadataParser.parent(parentXml);
     var levels = 0;
     while (grandparent != null && levels < 3) {
       levels++;
       final gpXml = await _pomXml(grandparent, extraRepos);
       if (gpXml == null) break;
-      managed.addAll(parsePomManagedVersions(gpXml));
-      parentProps.addAll(parsePomProperties(gpXml));
-      grandparent = parsePomParent(gpXml);
+      managed.addAll(metadataParser.managedVersions(gpXml));
+      parentProps.addAll(metadataParser.properties(gpXml));
+      grandparent = metadataParser.parent(gpXml);
     }
     String resolveVersion(final String v) {
       if (v.startsWith(r'${') && v.endsWith('}')) {
@@ -936,14 +809,21 @@ class MavenResolver {
       return v;
     }
 
-    return deps.map((final d) {
-      var v = d.version;
-      if (v.isEmpty) {
-        v = managed['${d.groupId}:${d.artifactId}'] ?? '';
-      }
-      v = resolveVersion(v);
-      return MavenCoordinate(groupId: d.groupId, artifactId: d.artifactId, version: v);
-    }).where((final d) => d.version.isNotEmpty && !d.version.contains(r'${')).toList();
+    return deps
+        .map((final d) {
+          var v = d.version;
+          if (v.isEmpty) {
+            v = managed['${d.groupId}:${d.artifactId}'] ?? '';
+          }
+          v = resolveVersion(v);
+          return MavenCoordinate(
+            groupId: d.groupId,
+            artifactId: d.artifactId,
+            version: v,
+          );
+        })
+        .where((final d) => d.version.isNotEmpty && !d.version.contains(r'${'))
+        .toList();
   }
 
   /// Downloads (or reads cached) POM XML for [coord]; null when unavailable.
@@ -958,11 +838,12 @@ class MavenResolver {
       packaging: 'pom',
     );
     final pomPath = localPathFor(pomCoord);
-    if (await File(pomPath).exists()) return File(pomPath).readAsString();
+    if (await artifactRepository.exists(pomPath)) {
+      return artifactRepository.readText(pomPath);
+    }
     try {
       final dl = await _downloadArtifact(pomCoord, extraRepos: extraRepos);
-      await File(pomPath).parent.create(recursive: true);
-      await File(pomPath).writeAsBytes(dl.bytes, flush: true);
+      await artifactRepository.writeBytes(pomPath, dl.bytes, flush: true);
       return String.fromCharCodes(dl.bytes);
     } catch (e) {
       if (verbose) print('   pom fetch failed for $coord: $e');
@@ -972,95 +853,22 @@ class MavenResolver {
 }
 
 /// Extracts `<parent>` coordinates from a POM, when present.
-MavenCoordinate? parsePomParent(final String pomXml) {
-  final m = RegExp(
-    r'<parent>\s*<groupId>([^<]+)</groupId>\s*<artifactId>([^<]+)</artifactId>\s*<version>([^<]+)</version>',
-  ).firstMatch(pomXml);
-  if (m == null) return null;
-  return MavenCoordinate(
-    groupId: m.group(1)!,
-    artifactId: m.group(2)!,
-    version: m.group(3)!,
-  );
-}
+MavenCoordinate? parsePomParent(final String pomXml) =>
+    const MavenMetadataParser().parent(pomXml);
 
 /// Extracts `<dependencyManagement><dependencies>` versions from a POM:
 /// map of `groupId:artifactId` → version.
-Map<String, String> parsePomManagedVersions(final String pomXml) {
-  final out = <String, String>{};
-  final mgmt = RegExp(
-    r'<dependencyManagement>([\s\S]*?)</dependencyManagement>',
-  ).firstMatch(pomXml);
-  if (mgmt == null) return out;
-  for (final block
-      in RegExp(r'<dependency>([\s\S]*?)</dependency>')
-          .allMatches(mgmt.group(1)!)) {
-    final body = block.group(1)!;
-    final g = RegExp('<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
-    final a =
-        RegExp('<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
-    final v = RegExp('<version>([^<]+)</version>').firstMatch(body)?.group(1);
-    if (g != null && a != null && v != null) out['$g:$a'] = v;
-  }
-  return out;
-}
+Map<String, String> parsePomManagedVersions(final String pomXml) =>
+    const MavenMetadataParser().managedVersions(pomXml);
 
 /// Extracts BOM imports (`<type>pom</type><scope>import</scope>`) from a
 /// POM's dependencyManagement — their managed versions merge transitively.
-List<MavenCoordinate> parsePomImports(final String pomXml) {
-  final out = <MavenCoordinate>[];
-  final mgmt = RegExp(
-    r'<dependencyManagement>([\s\S]*?)</dependencyManagement>',
-  ).firstMatch(pomXml);
-  if (mgmt == null) return out;
-  for (final block
-      in RegExp(r'<dependency>([\s\S]*?)</dependency>')
-          .allMatches(mgmt.group(1)!)) {
-    final body = block.group(1)!;
-    if (!RegExp(r'<scope>\s*import\s*</scope>').hasMatch(body)) continue;
-    if (!RegExp(r'<type>\s*pom\s*</type>').hasMatch(body)) continue;
-    final g = RegExp('<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
-    final a =
-        RegExp('<artifactId>([^<]+)</artifactId>').firstMatch(body)?.group(1);
-    final v = RegExp('<version>([^<]+)</version>').firstMatch(body)?.group(1);
-    if (g != null && a != null && v != null) {
-      out.add(
-        MavenCoordinate(groupId: g, artifactId: a, version: v, packaging: 'pom'),
-      );
-    }
-  }
-  return out;
-}
+List<MavenCoordinate> parsePomImports(final String pomXml) =>
+    const MavenMetadataParser().imports(pomXml);
 
 /// Extracts `<properties>` from a POM: map of property name → value.
-Map<String, String> parsePomProperties(final String pomXml) {
-  final section = RegExp(r'<properties>([\s\S]*?)</properties>')
-      .firstMatch(pomXml)
-      ?.group(1);
-  if (section == null) return const {};
-  final out = <String, String>{};
-  for (final m
-      in RegExp(r'<([a-zA-Z0-9._\-]+)>([^<]*)</([a-zA-Z0-9._\-]+)>')
-          .allMatches(section)) {
-    out[m.group(1)!] = m.group(2)!.trim();
-  }
-  return out;
-}
-
-/// Variant-name markers of non-Android/JVM platforms in Gradle module
-/// metadata — dependencies of such variants are irrelevant for Android
-/// builds and would otherwise pollute the resolution graph.
-const _moduleOtherPlatformMarkers = [
-  'ios',
-  'macos',
-  'tvos',
-  'watchos',
-  'linux',
-  'mingw',
-  'js',
-  'wasm',
-  'androidnative',
-];
+Map<String, String> parsePomProperties(final String pomXml) =>
+    const MavenMetadataParser().properties(pomXml);
 
 /// Parses runtime dependencies from Gradle module metadata JSON
 /// (`<artifact>-<version>.module`).
@@ -1076,132 +884,16 @@ const _moduleOtherPlatformMarkers = [
 /// `strictly`, in that order; entries without a resolvable version are
 /// skipped. Malformed JSON yields an empty list (best-effort by design —
 /// the POM graph remains the baseline).
-List<MavenCoordinate> parseModuleRuntimeDependencies(final String jsonText) {
-  final Object? root;
-  try {
-    root = jsonDecode(jsonText);
-  } on FormatException {
-    return const [];
-  }
-  if (root is! Map<String, dynamic>) return const [];
-  final variants = root['variants'];
-  if (variants is! List) return const [];
-  final out = <MavenCoordinate>[];
-  for (final v in variants) {
-    if (v is! Map<String, dynamic>) continue;
-    final name = (v['name'] as String? ?? '').toLowerCase();
-    if (!name.contains('runtime')) continue;
-    if (_moduleOtherPlatformMarkers.any(name.contains)) continue;
-    final deps = v['dependencies'];
-    if (deps is! List) continue;
-    for (final d in deps) {
-      if (d is! Map<String, dynamic>) continue;
-      final group = d['group'] as String? ?? '';
-      final module = d['module'] as String? ?? '';
-      if (group.isEmpty || module.isEmpty) continue;
-      final version = d['version'];
-      var versionStr = '';
-      if (version is Map) {
-        versionStr = (version['requires'] ??
-                version['prefers'] ??
-                version['strictly'] ??
-                '')
-            .toString();
-      } else if (version is String) {
-        versionStr = version;
-      }
-      if (versionStr.isEmpty || versionStr.startsWith(r'${')) continue;
-      out.add(
-        MavenCoordinate(groupId: group, artifactId: module, version: versionStr),
-      );
-    }
-  }
-  return out;
-}
+List<MavenCoordinate> parseModuleRuntimeDependencies(final String jsonText) =>
+    const MavenMetadataParser().moduleRuntimeDependencies(jsonText);
 
 /// Extract compile/runtime dependencies from a Maven POM (minimal).
-List<MavenCoordinate> parsePomDependencies(final String pomXml) {
-  final deps = <MavenCoordinate>[];
-  // Strip dependencyManagement / profiles / build sections first: their
-  // <dependency> blocks are build-time tooling, not runtime deps.
-  var scope = pomXml
-      .replaceAll(
-          RegExp(r'<dependencyManagement>[\s\S]*?</dependencyManagement>'), '')
-      .replaceAll(RegExp(r'<profiles>[\s\S]*?</profiles>'), '')
-      .replaceAll(RegExp(r'<build>[\s\S]*?</build>'), '');
-  // <project> → keep only the top-level <dependencies> block when present.
-  final ownDeps = RegExp(r'<dependencies>([\s\S]*?)</dependencies>')
-      .allMatches(scope)
-      .map((final m) => m.group(1)!)
-      .join('\n');
-  if (ownDeps.isNotEmpty) scope = ownDeps;
-  final depBlocks = RegExp(
-    r'<dependency>([\s\S]*?)</dependency>',
-    multiLine: true,
-  ).allMatches(scope);
-  for (final block in depBlocks) {
-    final body = block.group(1)!;
-    // skip test/provided
-    final scope = RegExp('<scope>([^<]+)</scope>').firstMatch(body)?.group(1);
-    if (scope == 'test' || scope == 'provided' || scope == 'system') continue;
-    final optional = RegExp('<optional>true</optional>').hasMatch(body);
-    if (optional) continue;
-
-    final g = RegExp('<groupId>([^<]+)</groupId>').firstMatch(body)?.group(1);
-    final a = RegExp(
-      '<artifactId>([^<]+)</artifactId>',
-    ).firstMatch(body)?.group(1);
-    var v = RegExp('<version>([^<]+)</version>').firstMatch(body)?.group(1) ?? '';
-    // Version may be absent (managed by a parent POM) or a property
-    // reference — both resolved later against the parent POM.
-    if (g == null || a == null) continue;
-    // Strip Maven version ranges: [1.1.7], (1.0,), etc. → first version token
-    v = v.trim();
-    if (v.startsWith('[') || v.startsWith('(')) {
-      final m = RegExp(r'[\d][\d.]*').firstMatch(v);
-      if (m == null) continue;
-      v = m.group(0)!;
-    }
-    // Skip BOMs (no classes)
-    if (a.endsWith('-bom') || a == 'bom') continue;
-    final type =
-        RegExp('<type>([^<]+)</type>').firstMatch(body)?.group(1) ?? 'jar';
-    final packaging = type == 'aar' ? 'aar' : 'jar';
-    // Heuristic: android-ish artifacts often aar
-    final pack =
-        (g.startsWith('androidx.') ||
-            g.startsWith('com.android.') ||
-            g.startsWith('com.google.android.') ||
-            g.startsWith('ru.rustore.'))
-        ? 'aar'
-        : packaging;
-    deps.add(
-      MavenCoordinate(
-        groupId: g.trim(),
-        artifactId: a.trim(),
-        version: v.trim(),
-        packaging: pack,
-      ),
-    );
-  }
-  return deps;
-}
+List<MavenCoordinate> parsePomDependencies(final String pomXml) =>
+    const MavenMetadataParser().dependencies(pomXml);
 
 /// Builds a minimal valid JAR (zip with empty META-INF) for tests.
-List<int> minimalJarBytes({final String entryName = 'META-INF/MANIFEST.MF'}) {
-  final archive = Archive();
-  const manifest = 'Manifest-Version: 1.0\n\n';
-  archive.addFile(ArchiveFile(entryName, manifest.length, manifest.codeUnits));
-  return ZipEncoder().encodeBytes(archive);
-}
+List<int> minimalJarBytes({final String entryName = 'META-INF/MANIFEST.MF'}) =>
+    archive.minimalJarBytes(entryName: entryName);
 
 /// Builds a minimal AAR containing classes.jar for tests.
-List<int> minimalAarBytes() {
-  final classesJar = minimalJarBytes();
-  final archive = Archive();
-  archive.addFile(ArchiveFile('classes.jar', classesJar.length, classesJar));
-  archive.addFile(
-    ArchiveFile('AndroidManifest.xml', 11, '<manifest/>'.codeUnits),
-  );
-  return ZipEncoder().encodeBytes(archive);
-}
+List<int> minimalAarBytes() => archive.minimalAarBytes();

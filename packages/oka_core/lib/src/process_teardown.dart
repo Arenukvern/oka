@@ -73,20 +73,30 @@ Future<TeardownOutcome> runTeardownSteps(
           .timeout(perStepTimeout);
       if (!result.ok) {
         failures.add((step: step.name, error: result.error ?? 'failed'));
-        write?.call('⚠️ teardown "${step.name}" failed: ${result.error}');
+        _safeWrite(write, '⚠️ teardown "${step.name}" failed: ${result.error}');
       }
     } on TimeoutException {
-      failures.add(
-        (step: step.name, error: 'timed out after ${perStepTimeout.inSeconds}s'),
-      );
-      write?.call(
+      failures.add((
+        step: step.name,
+        error: 'timed out after ${perStepTimeout.inSeconds}s',
+      ));
+      _safeWrite(
+        write,
         '⚠️ teardown "${step.name}" timed out after '
         '${perStepTimeout.inSeconds}s',
       );
     } on Object catch (e) {
       failures.add((step: step.name, error: e.toString()));
-      write?.call('⚠️ teardown "${step.name}" threw: $e');
+      _safeWrite(write, '⚠️ teardown "${step.name}" threw: $e');
     }
   }
   return TeardownOutcome(failures);
+}
+
+void _safeWrite(void Function(String line)? write, String line) {
+  try {
+    write?.call(line);
+  } on Object {
+    // Reporting is best effort and must never turn teardown into a failure.
+  }
 }

@@ -6,8 +6,8 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: release-pr-sync-versions-${{ github.event.pull_request.number }}
@@ -16,15 +16,23 @@ concurrency:
 jobs:
   detect-release-pr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       is_release_pr: ${{ steps.check.outputs.is_release_pr }}
     steps:
       - id: check
         name: Detect release-please PR
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
         run: |
-          title="${{ github.event.pull_request.title }}"
-          head="${{ github.head_ref }}"
-          if [[ "$head" == release-please--* ]] || [[ "$title" == *": release "* ]]; then
+          if [[ "$PR_HEAD_REPOSITORY" == "$BASE_REPOSITORY" ]] \
+            && [[ "$PR_HEAD" == release-please--* ]] \
+            && [[ "$PR_TITLE" == chore*": release "* ]]; then
             echo "is_release_pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
@@ -34,10 +42,14 @@ jobs:
     needs: detect-release-pr
     if: needs.detect-release-pr.outputs.is_release_pr == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - uses: dart-lang/setup-dart@v1
@@ -58,19 +70,27 @@ jobs:
           git add \
             VERSION \
             pubspec.yaml \
+            example/pubspec.yaml \
+            packages/*/pubspec.yaml \
+            packages/oka/lib/src/version.dart \
             .claude-plugin/marketplace.json \
             plugin/.cursor-plugin/plugin.json \
             plugin/.codex-plugin/plugin.json \
             plugin/.claude-plugin/plugin.json
           git commit -m "chore: sync release version touchpoints"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          git push origin "HEAD:${RELEASE_HEAD_REF}"
+        env:
+          RELEASE_HEAD_REF: ${{ github.head_ref }}
 
   contract-gates:
-    needs: detect-release-pr
-    if: needs.detect-release-pr.outputs.is_release_pr == 'true'
+    needs: auto-sync-versions
+    if: needs.auto-sync-versions.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
       - uses: dart-lang/setup-dart@v1
         with:

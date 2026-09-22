@@ -224,7 +224,11 @@ class Pipeline {
     return null;
   }
 
-  Future<StepResult> run(final BuildContext ctx, {final PipelineState? initialState}) async {
+  Future<StepResult> run(
+    final BuildContext ctx, {
+    final PipelineState? initialState,
+    final bool Function()? shouldCancel,
+  }) async {
     final validationError = validate();
     if (validationError != null) return StepResult.failure(validationError);
 
@@ -233,6 +237,11 @@ class Pipeline {
     final state = initialState ?? PipelineState();
     void emit(final PipelineEvent e) => onEvent?.call(e);
     for (final step in steps) {
+      // Let an in-flight step finish publishing its resource handles before
+      // teardown, but never start another acquisition after cancellation.
+      if (shouldCancel?.call() ?? false) {
+        return StepResult.failure('Pipeline cancelled before step "${step.name}".');
+      }
       if (verbose) print('▶ step: ${step.name}');
       emit(StepStarted(step.name));
       final sw = Stopwatch()..start();

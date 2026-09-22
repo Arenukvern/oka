@@ -30,6 +30,43 @@ const _sessionJson = {
 
 RunSession get _session => RunSession.fromJson(_sessionJson);
 
+final class FakeDiscoveryStore implements DevDiscoveryStore {
+  final calls = <String>[];
+  @override
+  Future<void> clearRunnerSession(String projectPath) async =>
+      calls.add('clear-runner:$projectPath');
+  @override
+  Future<void> clearVmUri(String projectPath) async =>
+      calls.add('clear-vm:$projectPath');
+  @override
+  DevSessionDiscoveryRecord? readRunnerSession(String projectPath) => null;
+  @override
+  String runnerSessionPath(String projectPath) => '$projectPath/runner.json';
+  @override
+  String vmUriPath(String projectPath) => '$projectPath/vm.uri';
+  @override
+  Future<void> writeRunnerSession(
+    String projectPath, {
+    required String vmServiceUri,
+    required int controlPort,
+    required String deviceId,
+    int? processPid,
+    DateTime? startedAt,
+  }) async => calls.add('write-runner:$projectPath:$controlPort');
+  @override
+  Future<void> writeVmUri(String projectPath, String uri) async =>
+      calls.add('write-vm:$projectPath:$uri');
+}
+
+final class RecordingDevRenderer implements DevEventRenderer {
+  final events = <DevEvent>[];
+  @override
+  Iterable<String> render(DevEvent event) {
+    events.add(event);
+    return const [];
+  }
+}
+
 void main() {
   group('control command tables', () {
     test('human keyboard loop: r/R/q/d', () {
@@ -166,6 +203,7 @@ void main() {
       final bool rebuildOnNative = false,
       final Object? Function(String method)? respondTo,
       final Object? Function(String method)? respondErrorTo,
+      final DevEventRenderer? renderer,
     }) async {
       final lines = <String>[];
       final t = FakeDaemonTransport()
@@ -181,6 +219,7 @@ void main() {
         commands: control.stream,
         rebuildOnNative: rebuildOnNative,
         startupTimeout: const Duration(seconds: 5),
+        renderer: renderer,
       );
       script(t);
       final done = Completer<DevSessionOutcome>();
@@ -230,6 +269,26 @@ void main() {
         json: true,
       );
       expect(outcome, DevSessionOutcome.quit, reason: lines.join('\n'));
+    });
+
+    test('injected renderer receives session, daemon and operation events',
+        () async {
+      final renderer = RecordingDevRenderer();
+      await drive(
+        script: (final t) => t.emitStartup(),
+        after: (final t, final control, final lines) async {
+          await Future<void>.delayed(Duration.zero);
+          control.add(DevControlCommand.reload);
+          await Future<void>.delayed(Duration.zero);
+          control.add(DevControlCommand.quit);
+        },
+        renderer: renderer,
+      );
+      final names = renderer.events.map((event) => event.name);
+      expect(names, contains('session.start'));
+      expect(names, contains('daemon.app.debugPort'));
+      expect(names, contains('session.ready'));
+      expect(names, containsAllInOrder(['operation.start', 'operation.success']));
     });
 
     test('programmatic reload works headless (agent acceptance)', () async {
@@ -571,6 +630,48 @@ void main() {
       expect(f.existsSync(), isFalse);
       // Clearing twice is fine (best-effort).
       await clearVmUriFile(projectPath);
+    });
+
+    test('discovery helpers use the injected store', () async {
+      final store = FakeDiscoveryStore();
+      await writeVmUriFile('/virtual', 'ws://host/ws', store: store);
+      await clearVmUriFile('/virtual', store: store);
+      await writeRunnerSessionFile(
+        '/virtual',
+        vmServiceUri: 'ws://host/ws',
+        controlPort: 1234,
+        deviceId: 'device-1',
+        store: store,
+      );
+      expect(
+        store.calls,
+        ['write-vm:/virtual:ws://host/ws', 'clear-vm:/virtual',
+          'write-runner:/virtual:1234'],
+      );
+    });
+
+    test('runner discovery rejects a non-object JSON root as FormatException',
+        () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_runner_root');
+      addTearDown(() => tmp.delete(recursive: true));
+      final file = File(runnerSessionFilePath(tmp.path));
+      await file.parent.create(recursive: true);
+      await file.writeAsString('[]');
+      expect(
+        () => readRunnerSessionFile(tmp.path),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('DevFlow sends failures to its injected diagnostic sink', () async {
+      final diagnostics = <String>[];
+      final flow = DevFlow(
+        prepare: () async => throw DevLaunchException('fixture failure'),
+        runBuild: () async => true,
+        diagnostics: diagnostics.add,
+      );
+      expect(await flow.run(), 1);
+      expect(diagnostics.single, contains('fixture failure'));
     });
   });
 }

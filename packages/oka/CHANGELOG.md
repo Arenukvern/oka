@@ -4,6 +4,32 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.2.0]
+
+### Added
+
+- Composable cache diagnostics with detailed device, profile, session and
+  registry records, `--kind` filtering, and structured observations in JSON.
+
+- Global `oka cache` overview, `clean` preview/apply, bounded project discovery
+  with `--scan`, saved cleanup plans, optional terminal confirmation, and a
+  machine-readable `schema` with next-action argv arrays.
+
+- `oka cache stats` reports storage by path/platform, including emulator and
+  simulator data; `oka cache prune` previews scoped cleanup and applies it only
+  with `--apply`. JSON output supports agent workflows.
+
+### Fixed
+
+- Cache size help accepts KB/GB and KiB/GiB suffixes; indexed-store GC handles
+  absent stores and measures extracted artifact payloads.
+
+- Use Dart for release and stewardship tooling, without a Python runtime dependency.
+- Harden release PR automation against shell interpretation of PR metadata.
+- Synchronize and publish the complete seven-package release train, including
+  compatible internal dependency constraints.
+- Correct contributor setup commands and add enforced real-build CI validation.
+
 ## [0.1.6] - 2026-07-29
 
 ### Added

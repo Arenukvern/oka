@@ -85,6 +85,14 @@
           "href": "/guides/build_and_config"
         },
         {
+          "title": "Cache Storage & Cleanup",
+          "href": "/guides/cache_storage"
+        },
+        {
+          "title": "Capability Architecture",
+          "href": "/guides/capability_architecture"
+        },
+        {
           "title": "Gradle Migration",
           "href": "/guides/gradle_migration"
         },

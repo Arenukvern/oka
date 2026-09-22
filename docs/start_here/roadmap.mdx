@@ -63,10 +63,10 @@ Work is grouped by horizon, not by date:
   the scripted-fake session), the runner-session lifecycle in
   `test/adr0011_dev_session_test.dart`, and the editor wiring in
   `docs/guides/hot_reload_plan.mdx`.
-- **Doctor and cache polish.** The secret audit and `oka cache gc` are
-  live; they grow only where real gaps show up (new secret-ish key
-  patterns) or where the store already records the data (age/size
-  reporting before gc deletes anything).
+- **Doctor and cache policy.** Extend the secret audit where real gaps show up.
+  Cache last-use tracking would require new metadata and a policy decision;
+  existing timestamps are creation/modification times. Storage inspection and
+  explicit pruning are covered by [the cache guide](../guides/cache_storage).
 - **Close the leakage ratchet.** One flagged flag name
   (`--skip-badging`) is the last exception in the ADR-0015 platform-
   leakage gate; ratify or deprecate it and the boundary is clean by

@@ -1,5 +1,9 @@
 # Sources
 
+- Capability/lifecycle/cache contracts: repository ADRs 0015 and 0018–0022.
+- Developer navigation/modularity inspiration, adapted to Oka rather than app UI:
+  https://github.com/Arenukvern/articles/blob/main/articles/2025_feb_flutter_app_architecture/en.md
+
 - Repo invariants and map: `oka/AGENTS.md` (project root)
 - Pipeline architecture decision: `oka/docs/decisions/0002-composable-build-pipeline.mdx`
 - Icon format decision: `oka/docs/decisions/0003-vector-first-launcher-icons.mdx`

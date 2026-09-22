@@ -1,0 +1,36 @@
+# Cache storage validation — 2026-09-21
+
+Decision: [ADR-0019](../decisions/0019-cache-storage-inventory-and-pruning).
+Usage: [cache storage and cleanup](../guides/cache_storage).
+
+## Evidence
+
+- `just test`: all 903 workspace tests passed, including the real no-Gradle
+  debug APK/AAB acceptance checks. Final cache refinements were then checked
+  with the focused gate below.
+- `steward action run oka.check.cache-storage --json`: 47 tests passed,
+  including actual CLI subprocess behavior against temporary fixtures,
+  JSON/exit status, preserved profiles, cache/SDK path overlap, individual
+  simulator/image discovery and indexed-store GC regressions.
+- `dart analyze`: no issues found.
+- All four release gate actions passed individually: version sync,
+  documentation drift, changelog and personal-path checks.
+- The contract smoke benchmark itself reported `durability_blocked` before
+  executing gates because stewardship contract/gate files have uncommitted
+  changes. Its exit code was 0; that does not mean the benchmark passed.
+- Local `cache prune --project example --json`: preview selected three
+  reproducible cache locations totaling 7,151,548,479 logical bytes, with
+  `apply: false`, zero freed bytes and no errors. No real-user cache deletion
+  was performed.
+
+## Scope and limits
+
+Discovery is host-dependent. Android fixtures cover SDK images and custom AVD
+paths; Apple fixtures cover device IDs and runtime entries; web fixtures prove
+profile preservation. Apple device names are not decoded from plist metadata.
+Stats reports logical bytes, not allocated blocks, and does not infer running
+device status from directories. Prune scans only eligible scopes, retaining the
+full location inventory for protection checks. Age means modification time for
+prune and creation time for legacy GC, never last use. Shared prune units are
+whole discovered categories; SDK, virtual-device and external-cache cleanup is
+left to their owning tools.

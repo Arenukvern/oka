@@ -3,15 +3,19 @@ import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
 
+import '../plugins/native_build_service.dart';
+import '../plugins/plugin_input_inspector.dart';
 import 'dependency_cache.dart';
 import 'gradle_dep_parser.dart';
 import 'host_codegen.dart';
 import 'plugin_discovery.dart';
 import 'toolchain.dart';
 
+export '../plugins/native_build_service.dart';
+export '../plugins/plugin_input_inspector.dart';
+
 /// Declared Maven inputs for one plugin (ADR-0008).
 class PluginDeclaredDeps {
-
   const PluginDeclaredDeps({
     required this.rootCoords,
     required this.extraRepos,
@@ -22,7 +26,6 @@ class PluginDeclaredDeps {
 
 /// Result of packaging one Flutter Android plugin for no-Gradle APK builds.
 class PackagedPlugin {
-
   const PackagedPlugin({
     required this.plugin,
     this.javaSources = const [],
@@ -58,7 +61,6 @@ class PackagedPlugin {
 
 /// Aggregate packaging result for all plugins in a project.
 class PluginPackagingResult {
-
   const PluginPackagingResult({
     required this.plugins,
     required this.failed,
@@ -85,13 +87,18 @@ class PluginPackagingResult {
 
 /// Collects sources, Maven deps, resources, and native libs for Flutter plugins.
 class PluginPackager {
-
   PluginPackager({
     required this.dependencyCache,
     required final ResolvedToolchain sdkLocator,
     this.verbose = false,
     this.allowNetwork = true,
-  }) : toolchain = sdkLocator;
+    PluginInputInspector? inputInspector,
+    NativeBuildService? nativeBuildService,
+  }) : toolchain = sdkLocator,
+       inputInspector = inputInspector ?? const FilePluginInputInspector(),
+       nativeBuildService =
+           nativeBuildService ??
+           CmakeNativeBuildService(toolchain: sdkLocator, verbose: verbose);
   final DependencyCache dependencyCache;
 
   /// Resolved toolchain (ADR-0013 T1). The constructor parameter stays
@@ -101,6 +108,8 @@ class PluginPackager {
   final ResolvedToolchain toolchain;
   final bool verbose;
   final bool allowNetwork;
+  final PluginInputInspector inputInspector;
+  final NativeBuildService nativeBuildService;
 
   /// Package all Android plugins from [discovery].
   ///
@@ -204,9 +213,11 @@ class PluginPackager {
   Future<PluginDeclaredDeps> collectDeclaredDeps(
     final DiscoveredPlugin plugin, {
     required final bool hasKotlinSources,
+    PluginInputs? inputs,
   }) async {
     final path = plugin.path;
-    final gradleFiles = await _findGradleFiles(path);
+    final gradleFiles =
+        (inputs ?? await inputInspector.inspect(path)).gradleFiles;
     final extraRepos = <String>[];
     final rootCoords = <MavenCoordinate>[];
     // Conditional-dep dedup (ADR-0007): collect all parsed deps across the
@@ -240,43 +251,55 @@ class PluginPackager {
     );
     for (final dep in keptDeps) {
       final packaging = await _guessPackaging(dep);
-      rootCoords.add(MavenCoordinate(
-        groupId: dep.groupId,
-        artifactId: dep.artifactId,
-        version: dep.version,
-        packaging: packaging,
-      ));
+      rootCoords.add(
+        MavenCoordinate(
+          groupId: dep.groupId,
+          artifactId: dep.artifactId,
+          version: dep.version,
+          packaging: packaging,
+        ),
+      );
     }
     // Always pull kotlin stdlib + coroutines-core when any Kotlin sources exist
     if (hasKotlinSources) {
-      rootCoords.add(const MavenCoordinate(
-        groupId: 'org.jetbrains.kotlin',
-        artifactId: 'kotlin-stdlib',
-        version: '2.0.21',
-      ));
-      rootCoords.add(const MavenCoordinate(
-        groupId: 'org.jetbrains.kotlinx',
-        artifactId: 'kotlinx-coroutines-core-jvm',
-        version: '1.10.2',
-      ));
-      rootCoords.add(const MavenCoordinate(
-        groupId: 'org.jetbrains.kotlinx',
-        artifactId: 'kotlinx-coroutines-android',
-        version: '1.10.2',
-      ));
+      rootCoords.add(
+        const MavenCoordinate(
+          groupId: 'org.jetbrains.kotlin',
+          artifactId: 'kotlin-stdlib',
+          version: '2.0.21',
+        ),
+      );
+      rootCoords.add(
+        const MavenCoordinate(
+          groupId: 'org.jetbrains.kotlinx',
+          artifactId: 'kotlinx-coroutines-core-jvm',
+          version: '1.10.2',
+        ),
+      );
+      rootCoords.add(
+        const MavenCoordinate(
+          groupId: 'org.jetbrains.kotlinx',
+          artifactId: 'kotlinx-coroutines-android',
+          version: '1.10.2',
+        ),
+      );
       // Common AndroidX KMP shells → ensure android variants are pulled
-      rootCoords.add(const MavenCoordinate(
-        groupId: 'androidx.datastore',
-        artifactId: 'datastore-preferences-android',
-        version: '1.1.7',
-        packaging: 'aar',
-      ));
-      rootCoords.add(const MavenCoordinate(
-        groupId: 'androidx.datastore',
-        artifactId: 'datastore-core-android',
-        version: '1.1.7',
-        packaging: 'aar',
-      ));
+      rootCoords.add(
+        const MavenCoordinate(
+          groupId: 'androidx.datastore',
+          artifactId: 'datastore-preferences-android',
+          version: '1.1.7',
+          packaging: 'aar',
+        ),
+      );
+      rootCoords.add(
+        const MavenCoordinate(
+          groupId: 'androidx.datastore',
+          artifactId: 'datastore-core-android',
+          version: '1.1.7',
+          packaging: 'aar',
+        ),
+      );
     }
     // Bootstrap classpath for typical Flutter Android plugins
     rootCoords.addAll(const [
@@ -302,10 +325,8 @@ class PluginPackager {
 
   /// Whether a plugin declares Kotlin host sources (gates the kotlin
   /// bootstrap dependency set).
-  Future<bool> hasKotlinSources(final DiscoveredPlugin plugin) async {
-    final kt = await _findSources(plugin.path, ['.kt']);
-    return kt.isNotEmpty;
-  }
+  Future<bool> hasKotlinSources(final DiscoveredPlugin plugin) async =>
+      (await inputInspector.inspect(plugin.path)).kotlinSources.isNotEmpty;
 
   /// Package a single plugin: sources, deps, res, natives.
   Future<PackagedPlugin> packageOne(
@@ -323,11 +344,9 @@ class PluginPackager {
       );
     }
 
-    final javaSources = await _findSources(path, ['.java']);
-    final kotlinSources = await _findSources(path, ['.kt']);
-    // Exclude test sources
-    final javaMain = javaSources.where((final s) => !_isTestPath(s)).toList();
-    final ktMain = kotlinSources.where((final s) => !_isTestPath(s)).toList();
+    final inputs = await inputInspector.inspect(path);
+    final javaMain = inputs.javaSources;
+    final ktMain = inputs.kotlinSources;
 
     final jarDeps = <String>[];
     // Declared Maven inputs (ADR-0008): shared with the `oka explain --deps`
@@ -335,6 +354,7 @@ class PluginPackager {
     final declared = await collectDeclaredDeps(
       plugin,
       hasKotlinSources: ktMain.isNotEmpty,
+      inputs: inputs,
     );
     final extraRepos = declared.extraRepos;
     final rootCoords = declared.rootCoords;
@@ -352,26 +372,19 @@ class PluginPackager {
       }
     }
 
-    final resDirs = <String>[];
-    final resMain = p.join(path, 'android', 'src', 'main', 'res');
-    if (await Directory(resMain).exists()) resDirs.add(resMain);
-
-    final manifests = <String>[];
-    final man = p.join(path, 'android', 'src', 'main', 'AndroidManifest.xml');
-    if (await File(man).exists()) manifests.add(man);
-
-    // Prebuilt .so under jni/ or libs/
-    final nativesByAbi = <String, List<String>>{};
-    await _collectPrebuiltNatives(path, nativesByAbi);
+    final resDirs = inputs.resourceDirs;
+    final manifests = inputs.manifestPaths;
+    final nativesByAbi = <String, List<String>>{
+      for (final entry in inputs.nativeLibsByAbi.entries)
+        entry.key: [...entry.value],
+    };
 
     // jni / cmake native build
-    final needsNative = plugin.name == 'jni' ||
-        await File(p.join(path, 'src', 'CMakeLists.txt')).exists() ||
-        await _gradleHasExternalNativeBuild(path);
+    final needsNative = plugin.name == 'jni' || inputs.needsNativeBuild;
 
     if (needsNative && nativesByAbi.isEmpty) {
       try {
-        final built = await buildCmakeNative(
+        final built = await nativeBuildService.build(
           pluginPath: path,
           workDir: p.join(workDir, 'native'),
           abis: abis,
@@ -398,9 +411,7 @@ class PluginPackager {
         ktMain.isEmpty &&
         plugin.pluginClass == null &&
         nativesByAbi.isEmpty) {
-      return PackagedPlugin(
-        plugin: plugin,
-      );
+      return PackagedPlugin(plugin: plugin);
     }
 
     // Must have sources if we have a pluginClass to register
@@ -417,7 +428,7 @@ class PluginPackager {
     final buildConfigSources = <String>[];
     final pkg = plugin.androidPackage;
     if (pkg != null && pkg.isNotEmpty) {
-      final bc = await _writeBuildConfig(
+      final bc = await inputInspector.writeBuildConfig(
         workDir: workDir,
         packageName: pkg,
         debuggable: true,
@@ -441,107 +452,6 @@ class PluginPackager {
       resDirs: resDirs,
       manifestPaths: manifests,
     );
-  }
-
-  /// Minimal AGP-compatible BuildConfig for plugin sources that reference it.
-  Future<String> _writeBuildConfig({
-    required final String workDir,
-    required final String packageName,
-    required final bool debuggable,
-  }) async {
-    final rel = packageName.replaceAll('.', '/');
-    final path = p.join(workDir, 'gen', rel, 'BuildConfig.java');
-    await File(path).parent.create(recursive: true);
-    await File(path).writeAsString('''
-package $packageName;
-
-public final class BuildConfig {
-  public static final boolean DEBUG = $debuggable;
-  public static final String LIBRARY_PACKAGE_NAME = "$packageName";
-  public static final String BUILD_TYPE = "${debuggable ? 'debug' : 'release'}";
-  private BuildConfig() {}
-}
-''');
-    return path;
-  }
-
-  Future<List<String>> _findSources(final String pluginPath, final List<String> exts) async {
-    // Scan entire main trees — Java files often live under kotlin/ (Pigeon).
-    final roots = [
-      p.join(pluginPath, 'android', 'src', 'main'),
-      p.join(pluginPath, 'java', 'src', 'main'),
-      p.join(pluginPath, 'android'),
-    ];
-    final files = <String>[];
-    for (final root in roots) {
-      final dir = Directory(root);
-      if (!await dir.exists()) continue;
-      await for (final e in dir.list(recursive: true, followLinks: false)) {
-        if (e is! File) continue;
-        if (_isTestPath(e.path)) continue;
-        if (exts.any((final x) => e.path.endsWith(x))) {
-          files.add(e.path);
-        }
-      }
-    }
-    return files.toSet().toList();
-  }
-
-  bool _isTestPath(final String path) {
-    final n = path.replaceAll(r'\', '/');
-    return n.contains('/test/') ||
-        n.contains('/androidTest/') ||
-        n.contains('/src/test/');
-  }
-
-  Future<List<String>> _findGradleFiles(final String pluginPath) async {
-    final candidates = [
-      p.join(pluginPath, 'android', 'build.gradle'),
-      p.join(pluginPath, 'android', 'build.gradle.kts'),
-    ];
-    final out = <String>[];
-    for (final c in candidates) {
-      if (await File(c).exists()) out.add(c);
-    }
-    return out;
-  }
-
-  Future<bool> _gradleHasExternalNativeBuild(final String pluginPath) async {
-    for (final gf in await _findGradleFiles(pluginPath)) {
-      final t = await File(gf).readAsString();
-      if (t.contains('externalNativeBuild') || t.contains('cmake')) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Future<void> _collectPrebuiltNatives(
-    final String pluginPath,
-    final Map<String, List<String>> out,
-  ) async {
-    final searchRoots = [
-      p.join(pluginPath, 'android', 'src', 'main', 'jniLibs'),
-      p.join(pluginPath, 'android', 'libs'),
-      p.join(pluginPath, 'android', 'src', 'main', 'libs'),
-    ];
-    for (final root in searchRoots) {
-      final dir = Directory(root);
-      if (!await dir.exists()) continue;
-      await for (final e in dir.list(recursive: true, followLinks: false)) {
-        if (e is File && e.path.endsWith('.so')) {
-          // expect .../<abi>/libfoo.so
-          final parts = p.split(e.path);
-          final abiIdx = parts.length - 2;
-          if (abiIdx >= 0) {
-            final abi = parts[abiIdx];
-            if (['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'].contains(abi)) {
-              out.putIfAbsent(abi, () => []).add(e.path);
-            }
-          }
-        }
-      }
-    }
   }
 
   Future<String> _guessPackaging(final ParsedGradleDep dep) async {
@@ -568,162 +478,9 @@ public final class BuildConfig {
     required final String pluginPath,
     required final String workDir,
     required final List<String> abis,
-  }) async {
-    final cmakeLists = File(p.join(pluginPath, 'src', 'CMakeLists.txt'));
-    if (!await cmakeLists.exists()) {
-      // try android path
-      final alt = File(p.join(pluginPath, 'android', 'CMakeLists.txt'));
-      if (!await alt.exists()) {
-        throw Exception('CMakeLists.txt not found under $pluginPath/src');
-      }
-    }
-
-    final androidSdk = await toolchain.findAndroidSdk();
-    final ndk = await findNdkHome(androidSdk);
-    if (ndk == null) {
-      throw Exception(
-        'Android NDK not found under $androidSdk. '
-        'Install with: sdkmanager "ndk;27.0.12077973"',
-      );
-    }
-
-    final cmake = await findCmake(androidSdk);
-    if (cmake == null) {
-      throw Exception(
-        'CMake not found. Install Android SDK cmake or system cmake.',
-      );
-    }
-
-    final srcDir = p.join(pluginPath, 'src');
-    final result = <String, String>{};
-
-    for (final abi in abis) {
-      final abiNorm = abi;
-      final abiTriple = _ndkAbiTriple(abiNorm);
-      final outDir = p.join(workDir, abiNorm);
-      await Directory(outDir).create(recursive: true);
-
-      final ndkToolchain = p.join(
-        ndk,
-        'build',
-        'cmake',
-        'android.toolchain.cmake',
-      );
-      if (!await File(ndkToolchain).exists()) {
-        throw Exception('NDK toolchain missing: $ndkToolchain');
-      }
-
-      final configure = await Process.run(cmake, [
-        '-S',
-        srcDir,
-        '-B',
-        outDir,
-        '-DCMAKE_TOOLCHAIN_FILE=$ndkToolchain',
-        '-DANDROID_ABI=$abiNorm',
-        '-DANDROID_PLATFORM=android-21',
-        '-DANDROID_STL=c++_static',
-        '-DCMAKE_BUILD_TYPE=Release',
-        '-DANDROID=TRUE',
-      ]);
-      if (configure.exitCode != 0) {
-        throw Exception(
-          'cmake configure failed for $abiNorm: ${configure.stderr}\n${configure.stdout}',
-        );
-      }
-
-      final build = await Process.run(cmake, [
-        '--build',
-        outDir,
-        '--config',
-        'Release',
-        '-j',
-        '${Platform.numberOfProcessors}',
-      ]);
-      if (build.exitCode != 0) {
-        throw Exception(
-          'cmake build failed for $abiNorm: ${build.stderr}\n${build.stdout}',
-        );
-      }
-
-      // Find libdartjni.so / *.so
-      String? soPath;
-      await for (final e in Directory(outDir).list(recursive: true)) {
-        if (e is File && e.path.endsWith('.so')) {
-          soPath = e.path;
-          // prefer dartjni
-          if (p.basename(e.path).contains('dartjni') ||
-              p.basename(e.path) == 'libdartjni.so') {
-            soPath = e.path;
-            break;
-          }
-        }
-      }
-      if (soPath == null) {
-        throw Exception('No .so produced for ABI $abiNorm under $outDir');
-      }
-      result[abiNorm] = soPath;
-      if (verbose) {
-        print('   native $abiNorm ($abiTriple): $soPath');
-      }
-    }
-    return result;
-  }
-}
-
-String _ndkAbiTriple(final String abi) {
-  switch (abi) {
-    case 'arm64-v8a':
-      return 'aarch64-linux-android';
-    case 'armeabi-v7a':
-      return 'armv7a-linux-androideabi';
-    case 'x86_64':
-      return 'x86_64-linux-android';
-    case 'x86':
-      return 'i686-linux-android';
-    default:
-      return abi;
-  }
-}
-
-/// Locate NDK under Android SDK.
-Future<String?> findNdkHome(final String androidSdk) async {
-  final env = Platform.environment['ANDROID_NDK_HOME'] ??
-      Platform.environment['NDK_HOME'];
-  if (env != null && await Directory(env).exists()) return env;
-
-  final ndkRoot = Directory(p.join(androidSdk, 'ndk'));
-  if (await ndkRoot.exists()) {
-    final versions = <String>[];
-    await for (final e in ndkRoot.list()) {
-      if (e is Directory) versions.add(p.basename(e.path));
-    }
-    if (versions.isNotEmpty) {
-      versions.sort();
-      return p.join(ndkRoot.path, versions.last);
-    }
-  }
-  final bundle = p.join(androidSdk, 'ndk-bundle');
-  if (await Directory(bundle).exists()) return bundle;
-  return null;
-}
-
-/// Locate cmake binary (SDK side-by-side or system).
-Future<String?> findCmake(final String androidSdk) async {
-  final cmakeRoot = Directory(p.join(androidSdk, 'cmake'));
-  if (await cmakeRoot.exists()) {
-    final versions = <String>[];
-    await for (final e in cmakeRoot.list()) {
-      if (e is Directory) versions.add(p.basename(e.path));
-    }
-    versions.sort();
-    for (final v in versions.reversed) {
-      final bin = p.join(cmakeRoot.path, v, 'bin', 'cmake');
-      if (await File(bin).exists()) return bin;
-    }
-  }
-  try {
-    final r = await Process.run('which', ['cmake']);
-    if (r.exitCode == 0) return (r.stdout as String).trim();
-  } catch (_) {}
-  return null;
+  }) => nativeBuildService.build(
+    pluginPath: pluginPath,
+    workDir: workDir,
+    abis: abis,
+  );
 }

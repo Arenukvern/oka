@@ -79,7 +79,15 @@ void main(List<String> arguments) async {
         // dispatch to a matching target or fail naming the available ones.
         await dispatchUnknownVerb(command, commandArgs);
     }
+  } on CacheCommandError catch (e) {
+    stderr.writeln('Error: ${e.message}');
+    exit(e.exitCode);
   } catch (e, stackTrace) {
+    if (arguments.isNotEmpty && arguments.first == 'cache') {
+      stderr.writeln('Error: $e');
+      if (arguments.contains('--verbose')) stderr.writeln(stackTrace);
+      exit(e is ArgParserException ? 64 : 1);
+    }
     print('❌ Error: $e');
     if (arguments.contains('--verbose')) {
       print(stackTrace);
@@ -116,6 +124,7 @@ Commands:
              identity-verified, never signals a recycled pid)
   get       Install missing Android SDK dependencies
   clean     Clean build cache
+  cache     Storage stats and preview/apply pruning across platforms
 
 Options:
 ${parser.usage}

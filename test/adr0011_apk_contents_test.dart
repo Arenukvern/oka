@@ -6,8 +6,8 @@
 //   construction — the flag the checklist calls out explicitly);
 // * debug assemble target is the JIT `debug_android_application`.
 //
-// Real-pipeline parts (skip gracefully when no Flutter/Android SDK — the
-// `determinism_test` skip pattern; CI/device tiers follow PHASE_CHECKLIST):
+// Real-pipeline parts (skip locally when no Flutter/Android SDK; CI sets
+// OKA_REQUIRE_REAL_ANDROID_SMOKE to make missing tools a failure):
 // * build a debug APK of a minimal fixture project through the real
 //   no-Gradle pipeline (FlutterApkBuilder → defaultApkPipeline — the only
 //   build path, no Gradle), then assert the packaged zip entries:
@@ -52,8 +52,16 @@ class HotReloadFixture extends StatelessWidget {
 }
 ''';
 
-BuildContext _fixtureContext(final String projectPath) {
-  final buildDir = p.join(projectPath, '.oka_cache', 'build', 'debug');
+BuildContext _fixtureContext(
+  final String projectPath, {
+  final bool buildAab = false,
+}) {
+  final buildDir = p.join(
+    projectPath,
+    '.oka_cache',
+    'build',
+    buildAab ? 'debug-aab' : 'debug',
+  );
   return BuildContext.fromJson({
     'project_path': projectPath,
     'build_dir': buildDir,
@@ -72,23 +80,19 @@ BuildContext _fixtureContext(final String projectPath) {
         'abis': ['x86_64'],
         'java_version': 11,
       },
-      'flutter': {
-        'entrypoint': 'lib/main.dart',
-        'build_mode': 'debug',
-      },
+      'flutter': {'entrypoint': 'lib/main.dart', 'build_mode': 'debug'},
     },
     'cache_dir': p.join(projectPath, '.oka_cache'),
     'temp_dir': p.join(buildDir, 'temp'),
     'verbose': false,
     'target_abi': 'x86_64',
-    'build_aab': false,
+    'build_aab': buildAab,
   });
 }
 
 void main() {
   group('H0 static: debug assemble args are hot-reload capable', () {
-    test('debug passes -dTrackWidgetCreation=true (JIT widget inspector)',
-        () {
+    test('debug passes -dTrackWidgetCreation=true (JIT widget inspector)', () {
       final args = buildFlutterAssembleArgs(
         outputDir: 'out',
         targetFile: 'lib/main.dart',
@@ -106,13 +110,14 @@ void main() {
         mode: BuildMode.release,
         targetPlatform: 'android-arm64',
       );
-      expect(args.where((final a) => a.startsWith('-dTrackWidgetCreation')),
-          isEmpty);
+      expect(
+        args.where((final a) => a.startsWith('-dTrackWidgetCreation')),
+        isEmpty,
+      );
       expect(args, contains('release_android_application'));
     });
 
-    test('debug assemble argv stays a batch CLI (no gradle, no build apk)',
-        () {
+    test('debug assemble argv stays a batch CLI (no gradle, no build apk)', () {
       final args = buildFlutterAssembleArgs(
         outputDir: 'out',
         targetFile: 'lib/main.dart',
@@ -135,8 +140,8 @@ void main() {
 
     test('oka-built debug APK has kernel_blob.bin, no AOT libapp.so; '
         'run_session.json recorded next to it', () async {
-      // Requires the real Flutter + Android SDKs; skips gracefully on
-      // machines/CI without them (the emulator tier owns device evidence).
+      // Requires the real Flutter + Android SDKs. Local runs may skip when
+      // those tools are absent; CI sets OKA_REQUIRE_REAL_ANDROID_SMOKE.
       final toolchain = ResolvedToolchain();
       String flutterSdk;
       String androidSdk;
@@ -157,14 +162,15 @@ void main() {
       final main = File(p.join(project, 'lib', 'main.dart'));
       await main.create(recursive: true);
       await main.writeAsString(_fixtureMain);
-      await File(p.join(project, 'pubspec.yaml')).writeAsString(_fixturePubspec);
+      await File(
+        p.join(project, 'pubspec.yaml'),
+      ).writeAsString(_fixturePubspec);
 
       // Real pub get (assemble never runs it implicitly).
-      final pubGet = await Process.run(
-        p.join(flutterSdk, 'bin', 'flutter'),
-        ['pub', 'get'],
-        workingDirectory: project,
-      );
+      final pubGet = await Process.run(p.join(flutterSdk, 'bin', 'flutter'), [
+        'pub',
+        'get',
+      ], workingDirectory: project);
       if (pubGet.exitCode != 0) {
         return onSkip('flutter pub get failed: ${pubGet.stderr}');
       }
@@ -173,8 +179,11 @@ void main() {
       // (no Gradle — phase-0 invariant).
       final builder = FlutterApkBuilder(toolchain);
       final artifact = await builder.buildApk(_fixtureContext(project));
-      expect(artifact.success, isTrue,
-          reason: 'oka debug build must succeed for H0: ${artifact.error}');
+      expect(
+        artifact.success,
+        isTrue,
+        reason: 'oka debug build must succeed for H0: ${artifact.error}',
+      );
 
       final apk = File(artifact.apkPath);
       expect(apk.existsSync(), isTrue);
@@ -192,7 +201,8 @@ void main() {
       expect(
         find('flutter_assets/kernel_blob.bin'),
         isNotNull,
-        reason: 'JIT debug build must ship kernel_blob.bin (the hot-reload '
+        reason:
+            'JIT debug build must ship kernel_blob.bin (the hot-reload '
             'kernel flutter attach replaces)',
       );
       expect(
@@ -210,16 +220,18 @@ void main() {
         isFalse,
         reason: 'AOT libapp.so must NOT be in a debug (JIT) APK',
       );
-      expect(
-        entries.any((final e) => e.endsWith('classes.dex')),
-        isTrue,
-      );
+      expect(entries.any((final e) => e.endsWith('classes.dex')), isTrue);
 
       // H1 golden evidence at the pipeline level: the default pipeline
       // recorded the session manifest next to the APK.
       final session = RunSession.forApk(apk.path);
-      expect(session, isNotNull, reason: 'run_session.json must be recorded '
-          'next to the APK by the default pipeline');
+      expect(
+        session,
+        isNotNull,
+        reason:
+            'run_session.json must be recorded '
+            'next to the APK by the default pipeline',
+      );
       expect(session!.buildMode, 'debug');
       expect(session.flutterSdkPath, flutterSdk);
       expect(session.engineRevision, isNotEmpty);
@@ -230,11 +242,54 @@ void main() {
         isTrue,
         reason: 'the recorded SDK must hold the session flutter binary',
       );
+
+      // Exercise the sibling no-Gradle AAB pipeline against the same fixture.
+      final aabArtifact = await builder.buildApk(
+        _fixtureContext(project, buildAab: true),
+      );
+      expect(
+        aabArtifact.success,
+        isTrue,
+        reason: 'oka debug AAB build must succeed: ${aabArtifact.error}',
+      );
+      final aab = File(aabArtifact.apkPath);
+      expect(aab.existsSync(), isTrue);
+      final aabEntries = ZipDecoder()
+          .decodeBytes(await aab.readAsBytes())
+          .where((final f) => f.isFile)
+          .map((final f) => f.name)
+          .toList();
+      expect(aabEntries, contains('BundleConfig.pb'));
+      expect(aabEntries, contains('base/dex/classes.dex'));
+      expect(
+        aabEntries,
+        contains('base/assets/flutter_assets/kernel_blob.bin'),
+      );
+      expect(
+        aabEntries.any(
+          (final e) => e.contains('base/lib/') && e.endsWith('libflutter.so'),
+        ),
+        isTrue,
+      );
+      expect(
+        aabEntries.any((final e) => e.endsWith('/libapp.so')),
+        isFalse,
+        reason: 'AOT libapp.so must not be in a debug AAB',
+      );
+      expect(
+        RunSession.forApk(aab.path),
+        isNotNull,
+        reason: 'run_session.json must be recorded next to the AAB',
+      );
     }, timeout: const Timeout(Duration(minutes: 10)));
   });
 }
 
 void onSkip(final String reason) {
+  final required = Platform.environment['OKA_REQUIRE_REAL_ANDROID_SMOKE'];
+  if (required == '1' || required == 'true') {
+    fail('real Android smoke is required but unavailable: $reason');
+  }
   // ignore: avoid_print
   print('skipped: $reason');
 }

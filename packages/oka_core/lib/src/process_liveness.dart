@@ -106,12 +106,12 @@ final class HostProcessLiveness implements ProcessLiveness {
   const HostProcessLiveness();
 
   static Never _windows() => throw UnimplementedError(
-        'HostProcessLiveness: Windows is outside the L0 evidence surface '
-        '(ADR-0018 phased plan) — liveness/identity/kill need a Windows '
-        'implementation (e.g. WMI process CreationDate) before leases are '
-        'reconciled there. Report-never-guess: callers must treat this as '
-        '"identity unknown, never signal".',
-      );
+    'HostProcessLiveness: Windows is outside the L0 evidence surface '
+    '(ADR-0018 phased plan) — liveness/identity/kill need a Windows '
+    'implementation (e.g. WMI process CreationDate) before leases are '
+    'reconciled there. Report-never-guess: callers must treat this as '
+    '"identity unknown, never signal".',
+  );
 
   @override
   Future<bool> isAlive(final int pid) async {
@@ -139,15 +139,34 @@ final class HostProcessLiveness implements ProcessLiveness {
   }
 
   @override
-  Future<bool> kill(final int pid, {final Duration grace = const Duration(seconds: 3)}) async {
+  Future<bool> kill(
+    final int pid, {
+    final Duration grace = const Duration(seconds: 3),
+  }) async {
     if (pid <= 0) return false;
     if (Platform.isWindows) _windows();
+    final String? originalIdentity;
+    try {
+      originalIdentity = await identityToken(pid);
+    } on Object {
+      return false;
+    }
+    if (originalIdentity == null) return false;
     if (!Process.killPid(pid)) return false;
     await Future<void>.delayed(grace);
     if (await isAlive(pid)) {
+      final String? currentIdentity;
+      try {
+        currentIdentity = await identityToken(pid);
+      } on Object {
+        return false;
+      }
+      if (currentIdentity == null || currentIdentity != originalIdentity) {
+        return false;
+      }
       // Force is the *last* rung of the ladder (ADR-0018 §1); a process
       // that ignored SIGTERM for [grace] gets SIGKILL.
-      Process.killPid(pid, ProcessSignal.sigkill);
+      return Process.killPid(pid, ProcessSignal.sigkill);
     }
     return true;
   }

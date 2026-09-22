@@ -1,0 +1,39 @@
+# 0022 — Capability boundaries and lifecycle ownership
+
+Status: accepted for implementation, 2026-09-22.
+
+## Decision checkpoint
+
+The user authorized the architecture plan and maintenance-skill enforcement.
+Preserve package/public contracts while extracting one capability at a time.
+
+## Decision
+
+- CLI parses, confirms and renders. Typed transactions own workflow sequencing;
+  repositories own persisted conversion/I/O. Use explicit constructor composition.
+- Selection uses measured entries and explicit time; apply rediscovers protections
+  and remeasures. Diagnostics never grants deletion authority.
+- Execution owns signals before forward work, once-only teardown and disposal.
+  Signals request cancellation between steps, after the current step publishes
+  acquired handles. Steps own host-operation timeouts; cleanup failure never
+  masks forward failure.
+- Borrowed leases require explicit force, including PID zero. PID zero is unknown,
+  not stale. Forced hint-only stops may invoke a semantic stop; failed hints retain
+  records. This intentionally corrects the former PID-zero ownership bypass.
+- Owned PID stops verify identity and confirm termination. Unknown liveness or
+  failed escalation retains leases and profiles. Platforms supply readiness and
+  graceful operations rather than duplicating core policy.
+- An explicit external Chrome PID captures current identity and uses verified
+  stopping; it grants no profile-deletion authority. Implicit artifact PIDs need
+  matching leases, preventing stale state from signaling a different process.
+- APK/AAB share deterministic bytecode compilation; format/packaging differences
+  remain explicit. Native Android compatibility mode stays supported.
+- Separate Maven/tool/plugin/dev capabilities with focused persistence, transport,
+  policy and presentation. Preserve public helpers/defaults/schemas through
+  delegates. LOC is advisory; no new UI framework or storage dependency by default.
+
+## Evidence
+
+Use slice-specific tests from the architecture plan and existing Steward actions.
+Skill decision fixtures complement structural validation. Real build/runtime
+claims require matching evidence; mocks provide narrower proof.

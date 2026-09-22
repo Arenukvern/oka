@@ -9,12 +9,19 @@ humans steer. That shapes how contributions work.
 
 ## Setup
 
+Install Dart 3.13 or newer and `just` for the contributor tooling. Real Android build tests also need
+Flutter and the Android SDK; see the [build guide](../guides/build_and_config).
+
 ```bash
 git clone https://github.com/Arenukvern/oka.git && cd oka
-just install    # dart pub get
+just install    # workspace dependencies (excludes the Flutter example)
 just test       # dart test
 just lint       # dart analyze
 ```
+
+Repository stewardship tools are implemented in Dart; shell commands are
+entry points. The release and documentation gates use only the Dart SDK and
+can run before dependency installation. See [`AGENTS.md`](../../AGENTS.md).
 
 ## Ground rules
 
@@ -55,33 +62,55 @@ changelog and version bumps:
 
 ## Releases
 
-Releases are automated on `main` via **release-please**:
+Releases are automated on `main` via **release-please**. Configure the existing
+`RELEASE_PLEASE_TOKEN` secret for release PR creation and sync pushes when
+those events need to trigger subsequent CI runs automatically. With the
+repository-token fallback, PR workflow runs may require approval and tag pushes
+do not start the publication workflow. See [GitHub workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+The sync workflow also runs its contract checks after synchronization.
+
+Release sequence:
 
 1. Merge PRs to `main` with conventional commit titles.
 2. release-please opens or updates a **Release PR** (e.g.
-   `chore: release 0.1.7`) with `CHANGELOG.md` and `VERSION`.
+   `chore: release 0.2.0`) with `packages/oka/CHANGELOG.md` and `VERSION`.
    [`.github/workflows/release_pr_sync_versions.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/release_pr_sync_versions.yml)
-   derives `pubspec.yaml`, plugin manifests, and the marketplace catalog from
+   derives package versions, internal dependency constraints, plugin manifests,
+   and the marketplace catalog from
    that one version and commits any drift.
 3. Review the Release PR, run `just check-contracts`, then merge it.
 4. release-please creates the `vX.Y.Z` tag and GitHub release **with changelog
    notes**.
 5. [`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
    runs on the tag: asserts tag == `VERSION`, per-package dry-run preflight,
-   then publishes to pub.dev **in dependency order**: `oka_core` →
-   `oka_android` → `oka` (the split packages share the release train's
-   version; `oka_android` declares a hosted `oka_core` constraint, so the
-   first train must publish core before android/root). Host projects that
-   need the packages before their first release bootstrap with
-   `dependency_overrides` (see the build guide).
+   then publishes all seven packages in dependency order. The package inventory
+   and ordering live in the release tooling under `tool/release/`.
+   Each dependency must be available on pub.dev before a dependent package
+   is published. All packages share `VERSION`; web requires core `0.2.0`
+   or newer. A workspace dry-run does not prove hosted consumer compatibility.
+   The publish workflow checks an independent hosted consumer after the complete
+   train is available. Configure pub.dev automated publishing for each package
+   before the first tag-driven release.
+
+Local preflight (does not publish):
+
+```bash
+just publish-dry-run
+bash tool/ci/check_package_consumer.sh  # isolated local package consumer
+```
+
+CI also runs `test/adr0011_apk_contents_test.dart` with
+`OKA_REQUIRE_REAL_ANDROID_SMOKE=true`: missing prerequisites fail that job
+instead of skipping the real APK/AAB builds.
 
 Manual fallback (when automation is blocked):
 
 ```bash
-bash tool/release/sync_version.sh --version 0.1.7   # or: just sync-version
-# edit CHANGELOG.md, bump .release-please-manifest.json
+bash tool/release/sync_version.sh --version 0.2.0   # or: just sync-version
+# update packages/oka/CHANGELOG.md; keep the release-please manifest
+# at the last actually released version until the release is recorded
 just check-contracts
-git commit -am "chore: release 0.1.7" && git tag v0.1.7 && git push --tags
+git commit -am "chore: release 0.2.0" && git tag v0.2.0 && git push --tags
 ```
 
 ## Contract gates
@@ -90,7 +119,7 @@ Run before every merge (`just check-contracts`):
 
 | Gate | Checks |
 |---|---|
-| `check_version_sync.sh` | VERSION == pubspec == plugin manifests == marketplace |
+| `check_version_sync.sh` | VERSION == all package versions and internal constraints == plugin manifests == marketplace |
 | `check_docs_drift.sh` | Invariants documented; fast-settings keys present; docs.json sidebar resolves |
 | `check_no_personal_paths.sh` | No `/Users/<maintainer>/` paths in tracked files |
 | `check_changelog_markdown.sh` | MD052 disable header kept; no bare `[bracket]` identifiers |

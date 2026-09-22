@@ -71,7 +71,7 @@ List<File> _cliFiles() => [
       File(p.join(Directory.current.path, 'packages', 'oka', 'bin', 'oka.dart')),
       ...Directory(p.join(
               Directory.current.path, 'packages', 'oka', 'lib', 'src', 'cli'))
-          .listSync()
+          .listSync(recursive: true, followLinks: false)
           .whereType<File>()
           .where((f) => f.path.endsWith('.dart')),
     ];

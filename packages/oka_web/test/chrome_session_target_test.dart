@@ -30,7 +30,7 @@ class FakeSessionProcess implements SessionProcess {
 class FakeLiveness implements ProcessLiveness {
   FakeLiveness({this.alive = true, this.token = 'tok-1'});
 
-  final bool alive;
+  bool alive;
   String? token;
 
   final List<int> killed = [];
@@ -42,18 +42,22 @@ class FakeLiveness implements ProcessLiveness {
   Future<String?> identityToken(final int pid) async => token;
 
   @override
-  Future<bool> kill(final int pid, {final Duration grace = const Duration(seconds: 3)}) async {
+  Future<bool> kill(
+    final int pid, {
+    final Duration grace = const Duration(seconds: 3),
+  }) async {
     killed.add(pid);
+    alive = false;
     return true;
   }
 }
 
 BuildContext ctx(final Directory temp) => BuildContext(
-      projectPath: temp.path,
-      buildDir: p.join(temp.path, '.oka', 'build'),
-      mode: BuildMode.debug,
-      config: OkaConfig.empty,
-    );
+  projectPath: temp.path,
+  buildDir: p.join(temp.path, '.oka', 'build'),
+  mode: BuildMode.debug,
+  config: OkaConfig.empty,
+);
 
 void main() {
   late Directory temp;
@@ -113,7 +117,8 @@ void main() {
 
   group('parseVersionJson', () {
     test('extracts the Browser field from a /json/version body', () {
-      const body = '{"Browser":"Chrome/126.0.6478.126",'
+      const body =
+          '{"Browser":"Chrome/126.0.6478.126",'
           '"Protocol-Version":"1.3","webSocketDebuggerUrl":"ws://x"}';
       expect(parseVersionJson(body), 'Chrome/126.0.6478.126');
     });
@@ -141,8 +146,7 @@ void main() {
       expect(chromeSessionIssues(specWithProtocol(DebugProtocol.cdp)), isEmpty);
     });
 
-    test('debugProtocol mismatch fails closed naming the accepted surface',
-        () {
+    test('debugProtocol mismatch fails closed naming the accepted surface', () {
       for (final protocol in DebugProtocol.values) {
         if (protocol == DebugProtocol.cdp) continue;
         final issues = chromeSessionIssues(specWithProtocol(protocol));
@@ -153,8 +157,9 @@ void main() {
     });
 
     test('spec-level issues flow through', () {
-      final issues =
-          chromeSessionIssues(const BrowserSessionSpec(binaryPath: ''));
+      final issues = chromeSessionIssues(
+        const BrowserSessionSpec(binaryPath: ''),
+      );
       expect(issues, hasLength(1));
       expect(issues.single, contains('binaryPath is empty'));
     });
@@ -164,37 +169,34 @@ void main() {
     const spec = BrowserSessionSpec(binaryPath: '/usr/bin/google-chrome');
 
     test('name passes ADR-0015 target-name validation', () {
-      expect(validateTargetName(const ChromeSessionTarget(spec: spec).name),
-          isNull);
       expect(
-        const ChromeSessionTarget(spec: spec).name,
-        'chrome-session',
+        validateTargetName(const ChromeSessionTarget(spec: spec).name),
+        isNull,
       );
+      expect(const ChromeSessionTarget(spec: spec).name, 'chrome-session');
     });
 
     test('compile produces ensure-chrome-session; chain validates; '
         'artifacts follow the ADR-0017 §2 convention', () {
       const target = ChromeSessionTarget(spec: spec);
       final steps = target.compile(ctx(temp));
-      expect(steps.map((final s) => s.name).toList(), ['ensure-chrome-session']);
+      expect(steps.map((final s) => s.name).toList(), [
+        'ensure-chrome-session',
+      ]);
       expect(Pipeline(steps).validate(), isNull);
 
       final step = steps.single as EnsureChromeSessionStep;
       expect(step.handleArtifact.id, 'session-chrome-main-handle');
       expect(step.portArtifact.id, 'session-chrome-main-cdp-port');
-      expect(step.provides.map((final a) => a.id).toSet(),
-          {step.handleArtifact.id, step.portArtifact.id});
-      expect(
-        target.description,
-        contains('session-chrome-main-handle'),
-      );
+      expect(step.provides.map((final a) => a.id).toSet(), {
+        step.handleArtifact.id,
+        step.portArtifact.id,
+      });
+      expect(target.description, contains('session-chrome-main-handle'));
     });
 
     test('sessionName namespaces the artifact ids', () {
-      final step = EnsureChromeSessionStep(
-        spec: spec,
-        sessionName: 'showcase',
-      );
+      final step = EnsureChromeSessionStep(spec: spec, sessionName: 'showcase');
       expect(step.handleArtifact.id, 'session-chrome-showcase-handle');
       expect(step.portArtifact.id, 'session-chrome-showcase-cdp-port');
       expect(step.pidArtifact.id, 'session-chrome-showcase-pid');
@@ -222,10 +224,7 @@ void main() {
       Uri? probedUrl;
       var spawns = 0;
       final step = EnsureChromeSessionStep(
-        spec: const BrowserSessionSpec(
-          binaryPath: binaryPath,
-          debugPort: 9222,
-        ),
+        spec: const BrowserSessionSpec(binaryPath: binaryPath, debugPort: 9222),
         probe: (final url) async {
           probes++;
           probedUrl = url;
@@ -243,10 +242,7 @@ void main() {
       expect(probes, 1);
       expect(spawns, 0, reason: 'reuse must not spawn');
       expect(probedUrl.toString(), 'http://127.0.0.1:9222/json/version');
-      expect(
-        state[step.handleArtifact.id],
-        'http://127.0.0.1:9222',
-      );
+      expect(state[step.handleArtifact.id], 'http://127.0.0.1:9222');
       expect(state[step.portArtifact.id], 9222);
       // A reused session records no pid — it is not ours to stop.
       expect(state[step.pidArtifact.id], isNull);
@@ -369,8 +365,13 @@ void main() {
 
       expect(result.ok, isFalse);
       final error = result.error!;
-      expect(error, contains('did not answer CDP at '
-          'http://127.0.0.1:9444/json/version within 0s'));
+      expect(
+        error,
+        contains(
+          'did not answer CDP at '
+          'http://127.0.0.1:9444/json/version within 0s',
+        ),
+      );
       // The exact remedy, not a bare timeout.
       expect(error, contains('Remedies:'));
       expect(error, contains('/opt/chrome-wrong'));
@@ -378,10 +379,14 @@ void main() {
       expect(error, contains('headless: false'));
       // ADR-0018 problem A: the half-booted browser is stopped via the
       // held process handle — never left behind.
-      expect(processes.single.killed, isTrue,
-          reason: 'a half-booted browser must never be left behind');
-      expect(liveness.killed, [1717],
-          reason: 'force rung of the graceful→force ladder');
+      expect(
+        processes.single.killed,
+        isTrue,
+        reason: 'a half-booted browser must never be left behind',
+      );
+      expect(liveness.killed, [
+        1717,
+      ], reason: 'force rung of the graceful→force ladder');
       // The lease is cleaned up on the failure path.
       expect(await registry.list(), isEmpty);
       expect(state[step.handleArtifact.id], isNull);
@@ -433,8 +438,9 @@ void main() {
     test('kills only the recorded pid and deletes only the recorded '
         'ephemeral profile dir', () async {
       final killed = <int>[];
-      final profileDir =
-          Directory.systemTemp.createTempSync('oka_chrome_teardown_');
+      final profileDir = Directory.systemTemp.createTempSync(
+        'oka_chrome_teardown_',
+      );
       addTearDown(() {
         if (profileDir.existsSync()) profileDir.deleteSync(recursive: true);
       });
@@ -443,9 +449,30 @@ void main() {
       state['session-chrome-main-pid'] = 4242;
       state['session-chrome-main-profile-dir'] = profileDir.path;
 
+      final liveness = FakeLiveness();
+      final registry = ProcessLeaseRegistry.forProject(
+        temp.path,
+        liveness: liveness,
+      );
+      await registry.upsert(
+        ProcessLease(
+          id: 'chrome-main',
+          pid: 4242,
+          kind: 'chrome-session',
+          identity: const {processLeasePidTokenKey: 'tok-1'},
+          scope: LeaseScope.ephemeral,
+          ownership: LeaseOwnership.owned,
+          ownerCmd: 'test',
+          startedAt: DateTime.utc(2026),
+          stopHint: const LeaseStopHint(tool: 'kill', args: ['4242']),
+        ),
+      );
       final step = StopChromeSessionStep(
+        liveness: liveness,
+        leaseRegistry: registry,
         killProcess: (final pidValue) {
           killed.add(pidValue);
+          liveness.alive = false;
           return true;
         },
       );
@@ -453,9 +480,81 @@ void main() {
 
       expect(result.ok, isTrue, reason: result.error);
       expect(killed, [4242]);
-      expect(profileDir.existsSync(), isFalse,
-          reason: 'ephemeral profile dir is deleted');
+      expect(
+        profileDir.existsSync(),
+        isFalse,
+        reason: 'ephemeral profile dir is deleted',
+      );
     });
+
+    test(
+      'missing or mismatched lease never authorizes an artifact PID',
+      () async {
+        final profile = Directory('${temp.path}/protected-profile')
+          ..createSync();
+        final host = FakeLiveness();
+        final registry = ProcessLeaseRegistry.forProject(
+          temp.path,
+          liveness: host,
+        );
+        final killed = <int>[];
+        final state = PipelineState()
+          ..[chromeSessionPidArtifactId('main')] = 4242
+          ..[chromeSessionProfileDirArtifactId('main')] = profile.path;
+        final step = StopChromeSessionStep(
+          liveness: host,
+          leaseRegistry: registry,
+          killProcess: (pid) {
+            killed.add(pid);
+            return true;
+          },
+        );
+        expect((await step.run(ctx(temp), state)).ok, isFalse);
+        await registry.upsert(
+          ProcessLease(
+            id: 'chrome-main',
+            pid: 5555,
+            kind: 'chrome-session',
+            identity: const {processLeasePidTokenKey: 'tok-1'},
+            scope: LeaseScope.ephemeral,
+            ownership: LeaseOwnership.owned,
+            ownerCmd: 'test',
+            startedAt: DateTime.utc(2026),
+            stopHint: const LeaseStopHint(tool: 'kill', args: ['5555']),
+          ),
+        );
+        expect((await step.run(ctx(temp), state)).ok, isFalse);
+        expect(killed, isEmpty);
+        expect(profile.existsSync(), isTrue);
+        expect(await registry.read('chrome-main'), isNotNull);
+      },
+    );
+
+    test(
+      'explicit external PID uses verification and preserves profile data',
+      () async {
+        final profile = Directory('${temp.path}/external-profile')
+          ..createSync();
+        final host = FakeLiveness();
+        final registry = ProcessLeaseRegistry.forProject(
+          temp.path,
+          liveness: host,
+        );
+        final state = PipelineState()
+          ..[chromeSessionProfileDirArtifactId('main')] = profile.path;
+        final step = StopChromeSessionStep(
+          pid: 4242,
+          liveness: host,
+          leaseRegistry: registry,
+          killProcess: (_) {
+            host.alive = false;
+            return true;
+          },
+        );
+        expect((await step.run(ctx(temp), state)).ok, isTrue);
+        expect(profile.existsSync(), isTrue);
+      },
+    );
 
     test('fails actionably when nothing was recorded', () async {
       final result = await StopChromeSessionStep(
@@ -464,6 +563,46 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.error, contains('No chrome session "ghost" recorded'));
       expect(result.error, contains('A reused session records no pid'));
+    });
+
+    test('borrowed lease is refused and its profile is retained', () async {
+      final profile = Directory('${temp.path}/borrowed-profile')
+        ..createSync(recursive: true);
+      final liveness = FakeLiveness();
+      final registry = ProcessLeaseRegistry(
+        Directory('${temp.path}/leases'),
+        liveness: liveness,
+      );
+      await registry.upsert(
+        ProcessLease(
+          id: 'chrome-main',
+          pid: 4242,
+          kind: 'chrome-session',
+          identity: const {
+            processLeasePidTokenKey: 'tok-1',
+            'profile_dir': 'borrowed-profile',
+          },
+          scope: LeaseScope.ephemeral,
+          ownership: LeaseOwnership.borrowed,
+          ownerCmd: 'external chrome',
+          startedAt: DateTime.utc(2026, 9, 22),
+          stopHint: const LeaseStopHint(tool: 'kill', args: ['4242']),
+        ),
+      );
+      final state = PipelineState()
+        ..[chromeSessionPidArtifactId('main')] = 4242
+        ..[chromeSessionProfileDirArtifactId('main')] = profile.path;
+      final step = StopChromeSessionStep(
+        liveness: liveness,
+        leaseRegistry: registry,
+        killProcess: (_) => true,
+      );
+      final result = await step.run(ctx(temp), state);
+      expect(result.ok, isFalse);
+      expect(result.error, contains('borrowed'));
+      expect(profile.existsSync(), isTrue);
+      expect(await registry.read('chrome-main'), isNotNull);
+      expect(liveness.killed, isEmpty);
     });
   });
 
@@ -512,14 +651,21 @@ void main() {
       expect(lease!.pid, 1717);
       expect(lease.kind, 'chrome-session');
       expect(lease.ownership, LeaseOwnership.owned);
-      expect(lease.scope, LeaseScope.ephemeral,
-          reason: 'ephemeral profile → ephemeral session');
+      expect(
+        lease.scope,
+        LeaseScope.ephemeral,
+        reason: 'ephemeral profile → ephemeral session',
+      );
       expect(lease.identity['cdp_port'], '9223');
+      expect(lease.identity['session_name'], 'main');
+      expect(
+        lease.identity['profile_dir'],
+        startsWith(Directory.systemTemp.resolveSymbolicLinksSync()),
+      );
       expect(lease.identity[processLeasePidTokenKey], 'tok-1');
       expect(lease.stopHint.tool, 'kill');
       expect(lease.stopHint.args, ['1717']);
-      expect(liveness.killed, isEmpty,
-          reason: 'success path never signals');
+      expect(liveness.killed, isEmpty, reason: 'success path never signals');
     });
 
     test('persistent profile → persistent scope', () async {
@@ -536,43 +682,44 @@ void main() {
       );
       final r = await step.run(ctx(temp), PipelineState());
       expect(r.ok, isTrue, reason: r.error);
-      expect((await registry.read(step.leaseId))?.scope,
-          LeaseScope.persistent);
+      expect((await registry.read(step.leaseId))?.scope, LeaseScope.persistent);
     });
 
-    test('reuse path flips an owned lease to borrowed, kills nothing',
-        () async {
-      final step = EnsureChromeSessionStep(
-        spec: const BrowserSessionSpec(
-          binaryPath: '/opt/chrome',
-          debugPort: 9223,
-        ),
-        pollInterval: const Duration(milliseconds: 10),
-        probe: (final url) async => '{"Browser": "Chrome/126"}',
-        liveness: liveness,
-        leaseRegistry: registry,
-      );
-      // A prior run (another terminal) owned this session.
-      await registry.upsert(
-        ProcessLease(
-          id: 'chrome-main',
-          pid: 1717,
-          kind: 'chrome-session',
-          identity: const {'cdp_port': '9223'},
-          scope: LeaseScope.ephemeral,
-          ownership: LeaseOwnership.owned,
-          ownerCmd: 'oka run chrome-session',
-          startedAt: DateTime.now().toUtc(),
-          stopHint: const LeaseStopHint(tool: 'kill', args: ['1717']),
-        ),
-      );
-      final r = await step.run(ctx(temp), PipelineState());
-      expect(r.ok, isTrue, reason: r.error);
-      final lease = await registry.read('chrome-main');
-      expect(lease!.ownership, LeaseOwnership.borrowed);
-      expect(lease.identity['cdp_port'], '9223');
-      expect(liveness.killed, isEmpty);
-    });
+    test(
+      'reuse path flips an owned lease to borrowed, kills nothing',
+      () async {
+        final step = EnsureChromeSessionStep(
+          spec: const BrowserSessionSpec(
+            binaryPath: '/opt/chrome',
+            debugPort: 9223,
+          ),
+          pollInterval: const Duration(milliseconds: 10),
+          probe: (final url) async => '{"Browser": "Chrome/126"}',
+          liveness: liveness,
+          leaseRegistry: registry,
+        );
+        // A prior run (another terminal) owned this session.
+        await registry.upsert(
+          ProcessLease(
+            id: 'chrome-main',
+            pid: 1717,
+            kind: 'chrome-session',
+            identity: const {'cdp_port': '9223'},
+            scope: LeaseScope.ephemeral,
+            ownership: LeaseOwnership.owned,
+            ownerCmd: 'oka run chrome-session',
+            startedAt: DateTime.now().toUtc(),
+            stopHint: const LeaseStopHint(tool: 'kill', args: ['1717']),
+          ),
+        );
+        final r = await step.run(ctx(temp), PipelineState());
+        expect(r.ok, isTrue, reason: r.error);
+        final lease = await registry.read('chrome-main');
+        expect(lease!.ownership, LeaseOwnership.borrowed);
+        expect(lease.identity['cdp_port'], '9223');
+        expect(liveness.killed, isEmpty);
+      },
+    );
 
     test('reused session with no prior lease records one as borrowed '
         '(pid 0)', () async {
@@ -593,43 +740,51 @@ void main() {
       expect(lease.pid, 0);
     });
 
-    test('recycled pid on the timeout path → NOT signaled, lease dropped',
-        () async {
-      // Token changes AFTER the lease records it (pid-recycling
-      // simulation): spawn → token captured (tok-1) → lease written → the
-      // OS recycles the pid → the gate then sees tok-RECYCLED. Probe call
-      // #1 is the reuse check; readiness probes (#2+) run after the lease
-      // write, so the token flip happens there.
-      var probes = 0;
-      final step = EnsureChromeSessionStep(
-        spec: const BrowserSessionSpec(
-          binaryPath: '/opt/chrome-wrong',
-          debugPort: 9444,
-          bootTimeout: Duration(milliseconds: 120),
-        ),
-        pollInterval: const Duration(milliseconds: 10),
-        killGrace: const Duration(milliseconds: 5),
-        probe: (final url) async {
-          // Probe call #1 is the reuse check (before spawn + lease write);
-          // readiness probes (#2+) run after the lease is recorded — flip
-          // the token there to simulate pid recycling mid-readiness.
-          if (probes++ == 0) return null;
-          liveness.token = 'tok-RECYCLED';
-          return null;
-        },
-        startProcess: (final exe, final args) async =>
-            FakeSessionProcess(1717),
-        liveness: liveness,
-        leaseRegistry: registry,
-      );
-      final r = await step.run(ctx(temp), PipelineState());
-      expect(r.ok, isFalse);
-      expect(r.error, isNot(contains('was stopped')));
-      expect(liveness.killed, isEmpty,
-          reason: 'a recycled pid belongs to an innocent process');
-      expect(await registry.list(), isEmpty,
-          reason: 'the provably-stale record is dropped');
-    });
+    test(
+      'recycled pid on the timeout path → NOT signaled, lease dropped',
+      () async {
+        // Token changes AFTER the lease records it (pid-recycling
+        // simulation): spawn → token captured (tok-1) → lease written → the
+        // OS recycles the pid → the gate then sees tok-RECYCLED. Probe call
+        // #1 is the reuse check; readiness probes (#2+) run after the lease
+        // write, so the token flip happens there.
+        var probes = 0;
+        final step = EnsureChromeSessionStep(
+          spec: const BrowserSessionSpec(
+            binaryPath: '/opt/chrome-wrong',
+            debugPort: 9444,
+            bootTimeout: Duration(milliseconds: 120),
+          ),
+          pollInterval: const Duration(milliseconds: 10),
+          killGrace: const Duration(milliseconds: 5),
+          probe: (final url) async {
+            // Probe call #1 is the reuse check (before spawn + lease write);
+            // readiness probes (#2+) run after the lease is recorded — flip
+            // the token there to simulate pid recycling mid-readiness.
+            if (probes++ == 0) return null;
+            liveness.token = 'tok-RECYCLED';
+            return null;
+          },
+          startProcess: (final exe, final args) async =>
+              FakeSessionProcess(1717),
+          liveness: liveness,
+          leaseRegistry: registry,
+        );
+        final r = await step.run(ctx(temp), PipelineState());
+        expect(r.ok, isFalse);
+        expect(r.error, isNot(contains('was stopped')));
+        expect(
+          liveness.killed,
+          isEmpty,
+          reason: 'a recycled pid belongs to an innocent process',
+        );
+        expect(
+          await registry.list(),
+          isEmpty,
+          reason: 'the provably-stale record is dropped',
+        );
+      },
+    );
   });
 
   group('ADR-0018 L1 teardown composition', () {
@@ -641,8 +796,7 @@ void main() {
       cacheDir: '/tmp/x/.oka_cache',
     );
 
-    test('ephemeral session → unconditional teardown step (ADR-0017 §5)',
-        () {
+    test('ephemeral session → unconditional teardown step (ADR-0017 §5)', () {
       const target = ChromeSessionTarget(
         spec: BrowserSessionSpec(binaryPath: '/opt/chrome'),
       );

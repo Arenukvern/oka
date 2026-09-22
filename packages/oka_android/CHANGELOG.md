@@ -1,3 +1,11 @@
+## 0.2.0
+
+- Add a composable AVD diagnostics provider with stored configuration,
+  userdata/snapshot measurements and recorded session links.
+
+- Join the complete package release train with compatible `0.2.0` internal
+  dependency constraints.
+
 ## 0.1.6
 
 - Dependency-plan dry-run (`oka explain --deps`), artifact comparison gate

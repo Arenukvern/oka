@@ -1,0 +1,46 @@
+# 0020 — One global cache workflow for developers and agents
+
+Status: accepted
+
+## Decision checkpoint
+
+ADR-0019 requires users to select a project and understand separate cache
+scopes. The next workflow starts with the question "what can I reclaim?" and
+includes every known project. A dedicated MCP server would add installation,
+transport and lifecycle work without improving the underlying operation.
+
+## Decision
+
+- `oka cache` opens a non-interactive global overview. `--json` returns the
+  same inventory with discovery coverage and structured next-action argv arrays.
+  `stats` remains an explicit alias. `--project PATH` narrows the project part;
+  shared storage remains global. `--global` explicitly names the default.
+- `oka cache --scan ROOT` discovers existing projects under repeatable explicit
+  roots and remembers canonical project paths in `~/.oka/cache-projects.json`.
+  Known projects with absent caches are skipped. Scanning never follows links,
+  searches unrelated drives, or hides traversal limits/errors. The overview
+  says "known projects", never claims an exhaustive machine scan.
+- Oka build entrypoints best-effort register projects so future global views
+  require no manual setup. The registry is metadata, not a cache-prune target.
+- `oka cache clean` previews reproducible build/shared cleanup; `prune` is a
+  compatible alias. `--apply` executes an explicitly requested cleanup.
+  `--interactive` offers a yes/no confirmation only on a real terminal.
+- `clean --save-plan FILE` writes a preview for review; `clean --apply-plan FILE`
+  applies only those entries after rediscovering ownership/session protections
+  and verifying filesystem measurements. User-edited plans cannot create
+  arbitrary deletion authority. Newly discovered entries are never added while
+  applying a saved plan. Ordinary `--apply` recalculates selection.
+- JSON includes versioned schemas, reclaimable/preserved totals, project
+  coverage, warnings and next actions as argument arrays. `oka cache schema`
+  describes the machine interface without a filesystem scan. No command prompts
+  unless `--interactive` was explicitly supplied; redirected input cannot hang.
+- Platform data protections from ADR-0019 remain. Current SDK, emulator and
+  simulator inventory is informational. Prune cannot erase user device data.
+
+## Acceptance
+
+Temporary multi-project fixtures prove global cleanup, explicit narrowing,
+registry persistence, overlapping scan-root deduplication, active-session
+protection, bounded discovery and exact saved-plan application. JSON stays clean
+through the real CLI entrypoint. Local validation performs inventory/preview
+only. MCP can later wrap these operations without implementing another policy.

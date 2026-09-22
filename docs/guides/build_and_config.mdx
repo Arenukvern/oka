@@ -307,6 +307,10 @@ oka doctor                     # [Dev Loop (ADR-0011)] readiness checks:
 
 ## ⚡ Incremental build cache
 
+For disk usage, emulator/simulator storage and scoped cleanup, see
+[cache storage and cleanup](cache_storage): `oka cache stats`, then
+`oka cache prune --apply` (omit `--apply` to preview).
+
 `plugin-packaging`, `flutter-assemble`, `release-aot` and `compile-and-dex`
 are fingerprint-gated (content-hash for sources/manifests/res; size+mtime for
 jars). Unchanged inputs skip Maven resolution, kotlinc and d8 entirely —
@@ -405,7 +409,8 @@ pipeline:
   extra_deps:
     - "com.squareup.okhttp3:okhttp:4.12.0"
 ```
-It resolves from Google Maven / Maven Central into `~/.oka/cache/maven` and is
+It resolves from Google Maven / Maven Central into the shared store's `maven/`
+directory (with a legacy fallback; see [cache locations](cache_storage)) and is
 dexed into the APK.
 
 **Q: A build fails with `NoClassDefFoundError: Lfoo/Bar;` — what now?**

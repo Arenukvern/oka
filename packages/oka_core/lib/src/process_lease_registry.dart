@@ -44,18 +44,17 @@ final class ProcessLeaseRegistry {
   /// Creates a registry over [directory] (created lazily on first write).
   /// [liveness] defaults to [HostProcessLiveness]; tests inject fakes.
   ProcessLeaseRegistry(this.directory, {final ProcessLiveness? liveness})
-      : _liveness = liveness ?? const HostProcessLiveness();
+    : _liveness = liveness ?? const HostProcessLiveness();
 
   /// Registry rooted at the standard project location:
   /// `<projectPath>/.oka_cache/processes/`.
   factory ProcessLeaseRegistry.forProject(
     final String projectPath, {
     final ProcessLiveness? liveness,
-  }) =>
-      ProcessLeaseRegistry(
-        Directory(p.absolute(projectPath, '.oka_cache', 'processes')),
-        liveness: liveness,
-      );
+  }) => ProcessLeaseRegistry(
+    Directory(p.absolute(projectPath, '.oka_cache', 'processes')),
+    liveness: liveness,
+  );
 
   /// The lease directory (`<project>/.oka_cache/processes`).
   final Directory directory;
@@ -72,8 +71,11 @@ final class ProcessLeaseRegistry {
     await directory.create(recursive: true);
     final target = _leaseFile(lease.id);
     final tmp = File(
-      p.absolute(directory.path, '${lease.id}.json'
-          '.${DateTime.now().microsecondsSinceEpoch}.tmp'),
+      p.absolute(
+        directory.path,
+        '${lease.id}.json'
+        '.${DateTime.now().microsecondsSinceEpoch}.tmp',
+      ),
     );
     try {
       await tmp.writeAsString(lease.toJsonString(), flush: true);
@@ -92,28 +94,66 @@ final class ProcessLeaseRegistry {
     return ProcessLease.fromJsonString(await file.readAsString());
   }
 
-  /// All valid lease records, sorted by id. Corrupt records (crash
-  /// mid-write of a pre-rename file, manual tampering) are skipped and
-  /// reported on stdout — they are exactly the stale entries the L2
-  /// reconcile sweep exists to clean up, never a crash.
-  Future<List<ProcessLease>> list() async {
-    if (!directory.existsSync()) return const [];
+  /// All valid lease records, sorted by id. Corrupt records are skipped;
+  /// [inspect] exposes those records as structured issues.
+  Future<List<ProcessLease>> list() async => (await inspect()).leases;
+
+  /// Reads every lease without writing or printing. Valid leases and parse
+  /// failures are both retained in the returned snapshot.
+  Future<ProcessLeaseRegistrySnapshot> inspect() async {
     final leases = <ProcessLease>[];
-    for (final entity in directory.listSync()) {
-      if (entity is! File) continue;
-      if (!entity.path.endsWith('.json')) continue;
-      try {
-        leases.add(ProcessLease.fromJsonString(entity.readAsStringSync()));
-      } on FormatException catch (e) {
-        // Advisory registry: a corrupt record is reported, never fatal.
-        print('⚠️ Skipping corrupt lease record ${entity.path}: ${e.message}');
-      } on FileSystemException catch (e) {
-        print('⚠️ Skipping unreadable lease record ${entity.path}: '
-            '${e.message}');
+    final issues = <ProcessLeaseIssue>[];
+    try {
+      final type = FileSystemEntity.typeSync(
+        directory.path,
+        followLinks: false,
+      );
+      if (type == FileSystemEntityType.notFound) {
+        return const ProcessLeaseRegistrySnapshot();
       }
+      if (type != FileSystemEntityType.directory ||
+          FileSystemEntity.typeSync(
+                directory.parent.path,
+                followLinks: false,
+              ) ==
+              FileSystemEntityType.link) {
+        return ProcessLeaseRegistrySnapshot(
+          issues: [
+            ProcessLeaseIssue(
+              path: directory.path,
+              message:
+                  'Lease registry is not a directory or has a linked cache parent; excluded.',
+            ),
+          ],
+        );
+      }
+      for (final entity in directory.listSync(followLinks: false)) {
+        if (!entity.path.endsWith('.json')) continue;
+        if (entity is! File) {
+          issues.add(
+            ProcessLeaseIssue(
+              path: entity.path,
+              message: 'Lease record is not a regular file.',
+            ),
+          );
+          continue;
+        }
+        try {
+          leases.add(ProcessLease.fromJsonString(entity.readAsStringSync()));
+        } on Object catch (error) {
+          issues.add(
+            ProcessLeaseIssue(path: entity.path, message: error.toString()),
+          );
+        }
+      }
+    } on Object catch (error) {
+      issues.add(
+        ProcessLeaseIssue(path: directory.path, message: error.toString()),
+      );
     }
-    final sorted = leases.toList()..sort((final a, final b) => a.id.compareTo(b.id));
-    return sorted;
+    leases.sort((a, b) => a.id.compareTo(b.id));
+    issues.sort((a, b) => a.path.compareTo(b.path));
+    return ProcessLeaseRegistrySnapshot(leases: leases, issues: issues);
   }
 
   /// Deletes the lease with [id]. Returns whether a record existed.
@@ -127,8 +167,8 @@ final class ProcessLeaseRegistry {
   /// Liveness + identity reconciliation of one lease against the host
   /// (ADR-0018 §1/§5, the crash-recovery primitive):
   ///
-  /// * pid unknown (`0`) or dead → [LeaseLiveness.deadPid] — the leased
-  ///   process is gone; the record is stale and safe to delete.
+  /// * pid unknown (`0`) → [LeaseLiveness.unknown]; it does not prove the
+  ///   leased process is gone. A positive dead pid yields [deadPid].
   /// * pid alive but the start-time token differs →
   ///   [LeaseLiveness.reusedPid] — pid recycling; the record is stale and
   ///   the pid must **never** be signaled.
@@ -136,7 +176,7 @@ final class ProcessLeaseRegistry {
   ///   [LeaseLiveness.unknown] — report, never guess.
   /// * pid alive and token matches → [LeaseLiveness.live].
   Future<LeaseLiveness> checkLiveness(final ProcessLease lease) async {
-    if (lease.pid <= 0) return LeaseLiveness.deadPid;
+    if (lease.pid <= 0) return LeaseLiveness.unknown;
     final bool alive;
     try {
       alive = await _liveness.isAlive(lease.pid);
@@ -153,9 +193,7 @@ final class ProcessLeaseRegistry {
       return LeaseLiveness.unknown;
     }
     if (current == null) return LeaseLiveness.unknown;
-    return current == recorded
-        ? LeaseLiveness.live
-        : LeaseLiveness.reusedPid;
+    return current == recorded ? LeaseLiveness.live : LeaseLiveness.reusedPid;
   }
 }
 
@@ -175,6 +213,22 @@ enum LeaseLiveness {
   /// Identity could not be established — report, never guess.
   unknown;
 
-  /// Whether the record is stale (anything other than [live]).
-  bool get isStale => this != live;
+  /// Whether the record is provably stale and safe for reconciliation.
+  bool get isStale => this == deadPid || this == reusedPid;
+}
+
+final class ProcessLeaseIssue {
+  const ProcessLeaseIssue({required this.path, required this.message});
+  final String path;
+  final String message;
+}
+
+final class ProcessLeaseRegistrySnapshot {
+  const ProcessLeaseRegistrySnapshot({
+    this.leases = const [],
+    this.issues = const [],
+  });
+  final List<ProcessLease> leases;
+  final List<ProcessLeaseIssue> issues;
+  bool get complete => issues.isEmpty;
 }

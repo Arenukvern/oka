@@ -73,10 +73,17 @@ void main() {
   });
 
   test(
-    'flutter_apk_builder wires compile zip helpers (source contract)',
+    'resource compilation wires compile zip helpers (source contract)',
     () async {
       final text = await File(
-        p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'toolchain.dart'),
+        p.join(
+          'packages',
+          'oka_android',
+          'lib',
+          'src',
+          'compilation',
+          'resource_compilation.dart',
+        ),
       ).readAsString();
       expect(text, contains('buildAapt2CompileDirArgs'));
       expect(text, contains('buildAapt2LinkArgs'));

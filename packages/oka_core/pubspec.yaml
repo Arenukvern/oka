@@ -3,7 +3,7 @@ description: >-
   Core contracts for oka: typed build context, composable pipeline
   (BuildStep, Artifact, Pipeline), the declarative Oka composition root, and
   typed oka.yaml config values.
-version: 0.1.6
+version: 0.2.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_core
 issue_tracker: https://github.com/Arenukvern/oka/issues

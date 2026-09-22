@@ -1,4 +1,17 @@
-## Unreleased
+## 0.2.0
+
+- Add composable `CacheDiagnostics` providers, typed reports and partial,
+  read-only registry inspection. PID-zero leases remain unknown and preserved.
+
+- Add a persistent cache project registry, best-effort build registration and
+  saved cleanup plans that revalidate current ownership and filesystem state.
+
+- Add platform-neutral storage inventory and preview/apply pruning contracts,
+  with overlap accounting, protected locations and filesystem safety checks.
+- Fix absent-store GC, include extracted payload bytes and count only successful
+  deletions; reject sweep paths that escape the shared store.
+
+- Release the platform-neutral `Target.explainDetails` hook used by web targets.
 
 - Directory-artifact convention (ADR-0016 W2): `PublishTarget.artifactIsDirectory`
   (default `false` — file targets unchanged) and `PublishPlan.artifactIsDirectory`

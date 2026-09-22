@@ -46,9 +46,10 @@ import 'package:path/path.dart' as p;
 
 import '../android_artifacts.dart';
 import '../android_state.dart';
-import '../build/flutter_assemble.dart' show readFlutterEngineRevision;
 import '../build/toolchain.dart';
 import 'device_steps.dart' show findNewestBuiltApk;
+import 'flutter_sdk_probe.dart';
+import 'run_manifest_repository.dart';
 
 /// File name of the session manifest, written next to the APK.
 const String runSessionFileName = 'run_session.json';
@@ -147,32 +148,37 @@ class RunSession {
 
   /// Loads and parses the manifest at [path]. Missing or corrupt manifests
   /// throw [RunSessionException] with the rebuild fix.
-  factory RunSession.load(final String path) {
-    final f = File(path);
-    if (!f.existsSync()) {
+  factory RunSession.load(final String path) => RunSession.loadFrom(path);
+
+  /// Loads through an injected repository. [load] remains the file-backed
+  /// compatibility entry point.
+  static RunSession loadFrom(
+    final String path, {
+    final RunManifestRepository repository = const FileRunManifestRepository(),
+  }) {
+    try {
+      return RunSession.fromJson(repository.read(path));
+    } on FileSystemException {
       throw RunSessionException(
         'No session manifest at $path. Rebuild with the manifest-emitting '
         'oka pipeline: `oka build apk --debug`.',
       );
-    }
-    final Map<String, dynamic> json;
-    try {
-      json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
     } on FormatException catch (e) {
       throw RunSessionException(
         'Corrupt session manifest at $path ($e). Re-run '
         '`oka build apk --debug` to regenerate it.',
       );
     }
-    return RunSession.fromJson(json);
   }
 
   /// Finds the manifest for [apkPath] (same directory, fixed name), or null
   /// when none was recorded (pre-H1 build).
-  static RunSession? forApk(final String apkPath) {
-    final manifest = p.join(p.dirname(apkPath), runSessionFileName);
-    if (!File(manifest).existsSync()) return null;
-    return RunSession.load(manifest);
+  static RunSession? forApk(
+    final String apkPath, {
+    final RunManifestRepository repository = const FileRunManifestRepository(),
+  }) {
+    final json = repository.readForArtifact(apkPath, runSessionFileName);
+    return json == null ? null : RunSession.fromJson(json);
   }
 
   final int schema;
@@ -214,11 +220,10 @@ class RunSession {
       const JsonEncoder.withIndent('  ').convert(toJson());
 
   /// Writes the manifest to [path] (parent dirs created).
-  Future<File> write(final String path) async {
-    final f = File(path);
-    await f.parent.create(recursive: true);
-    return f.writeAsString('${encode()}\n', flush: true);
-  }
+  Future<File> write(
+    final String path, {
+    final RunManifestRepository repository = const FileRunManifestRepository(),
+  }) => repository.write(path, toJson());
 }
 
 /// The requested session — what `oka dev` was asked to run. Only fields a
@@ -425,8 +430,63 @@ Future<DevSessionCheck> checkDevSession({
   final List<String> dartDefinePairs = const [],
   final String? dartDefineFromFile,
   final String requestedBuildMode = 'debug',
+  final RunManifestRepository manifestRepository =
+      const FileRunManifestRepository(),
+  final FlutterSdkProbe sdkProbe = const HostFlutterSdkProbe(),
+  final Future<String?> Function(String projectPath)? discoverApk,
+}) => DevSessionPreflight(
+  manifestRepository: manifestRepository,
+  sdkProbe: sdkProbe,
+  discoverApk: discoverApk ?? findNewestBuiltApk,
+).run(
+  projectPath: projectPath,
+  targetFile: targetFile,
+  dartDefinePairs: dartDefinePairs,
+  dartDefineFromFile: dartDefineFromFile,
+  requestedBuildMode: requestedBuildMode,
+);
+
+/// Typed preflight transaction composed from persistence and SDK capabilities.
+final class DevSessionPreflight {
+  const DevSessionPreflight({
+    this.manifestRepository = const FileRunManifestRepository(),
+    this.sdkProbe = const HostFlutterSdkProbe(),
+    this.discoverApk = findNewestBuiltApk,
+  });
+
+  final RunManifestRepository manifestRepository;
+  final FlutterSdkProbe sdkProbe;
+  final Future<String?> Function(String projectPath) discoverApk;
+
+  Future<DevSessionCheck> run({
+    required String projectPath,
+    String? targetFile,
+    List<String> dartDefinePairs = const [],
+    String? dartDefineFromFile,
+    String requestedBuildMode = 'debug',
+  }) => _checkDevSession(
+    projectPath: projectPath,
+    targetFile: targetFile,
+    dartDefinePairs: dartDefinePairs,
+    dartDefineFromFile: dartDefineFromFile,
+    requestedBuildMode: requestedBuildMode,
+    manifestRepository: manifestRepository,
+    sdkProbe: sdkProbe,
+    discoverApk: discoverApk,
+  );
+}
+
+Future<DevSessionCheck> _checkDevSession({
+  required final String projectPath,
+  required final RunManifestRepository manifestRepository,
+  required final FlutterSdkProbe sdkProbe,
+  required final Future<String?> Function(String projectPath) discoverApk,
+  final String? targetFile,
+  final List<String> dartDefinePairs = const [],
+  final String? dartDefineFromFile,
+  final String requestedBuildMode = 'debug',
 }) async {
-  final apk = await findNewestBuiltApk(projectPath);
+  final apk = await discoverApk(projectPath);
   if (apk == null) {
     return const DevSessionCheck.refused(
       'No built APK found under .oka_cache/build/.\n'
@@ -434,7 +494,7 @@ Future<DevSessionCheck> checkDevSession({
       'oka-built debug APK only.',
     );
   }
-  final session = RunSession.forApk(apk);
+  final session = RunSession.forApk(apk, repository: manifestRepository);
   if (session == null) {
     return DevSessionCheck.refused(
       'The newest APK has no session manifest (built before oka recorded '
@@ -494,9 +554,8 @@ Future<DevSessionCheck> checkDevSession({
 
   // The session must run on the SDK that produced the APK's kernel. If the
   // SDK at the recorded path was upgraded since the build, refuse.
-  final currentRevision = await readEngineRevisionFromSdk(
-    session.flutterSdkPath,
-  );
+  final sdk = await sdkProbe.inspect(session.flutterSdkPath);
+  final currentRevision = sdk.engineRevision;
   if (session.engineRevision.isNotEmpty &&
       currentRevision.isNotEmpty &&
       currentRevision != session.engineRevision) {
@@ -509,11 +568,10 @@ Future<DevSessionCheck> checkDevSession({
     );
   }
 
-  final binary = flutterBinaryForSdk(session.flutterSdkPath);
-  if (!binary.exists) {
+  if (!sdk.binaryExists) {
     return DevSessionCheck.refused(
       'The recorded Flutter SDK has no flutter binary: '
-      '${binary.path}\n'
+      '${sdk.binaryPath}\n'
       '   fix: reinstall the SDK (fvm/flutter install) or re-run '
       '`oka build apk --debug` against the SDK you intend to use.',
     );
@@ -527,7 +585,7 @@ Future<DevSessionCheck> checkDevSession({
       '📱 APK: $apk',
       sessionLine,
       '🛠  Flutter SDK: ${session.flutterSdkPath}',
-      ' ↔ flutter binary: ${binary.path}',
+      ' ↔ flutter binary: ${sdk.binaryPath}',
       if (requestedDefines != null && requestedDefines.isNotEmpty)
         '🏷  Defines: ${definesToLine(requestedDefines)}',
     ],
@@ -540,35 +598,17 @@ Future<DevSessionCheck> checkDevSession({
 /// PATH. Returns the platform-appropriate binary path; [exists] reports
 /// whether it is actually present.
 ({String path, bool exists}) flutterBinaryForSdk(final String flutterSdkPath) {
-  final binary = p.join(
-    flutterSdkPath,
-    'bin',
-    'flutter${Platform.isWindows ? '.bat' : ''}',
-  );
-  return (path: binary, exists: File(binary).existsSync());
+  final path = p.join(flutterSdkPath, 'bin',
+      'flutter${Platform.isWindows ? '.bat' : ''}');
+  return (path: path, exists: File(path).existsSync());
 }
 
 /// Reads the engine revision for a Flutter SDK **without running flutter**:
 /// `<sdk>/bin/internal/engine.version` is authoritative and stable. Falls
 /// back to `flutter --version --machine` via the SDK's own binary (never
 /// PATH) when the file is absent (older SDK layouts).
-Future<String> readEngineRevisionFromSdk(final String flutterSdkPath) async {
-  final versionFile = File(
-    p.join(flutterSdkPath, 'bin', 'internal', 'engine.version'),
-  );
-  if (versionFile.existsSync()) {
-    return versionFile.readAsStringSync().trim();
-  }
-  final binary = flutterBinaryForSdk(flutterSdkPath);
-  if (!binary.exists) return '';
-  final viaTool = await readFlutterEngineRevision(
-    runProcess: (
-      final executable,
-      final args,
-    ) => Process.run(binary.path, args),
-  );
-  return viaTool ?? '';
-}
+Future<String> readEngineRevisionFromSdk(final String flutterSdkPath) async =>
+    (await const HostFlutterSdkProbe().inspect(flutterSdkPath)).engineRevision;
 
 /// Records `run_session.json` next to the packaged artifact (APK/AAB) at
 /// the end of the no-Gradle pipelines (ADR-0011 H1).

@@ -217,11 +217,11 @@ void main() {
       );
     });
 
-    test('deadPid: pid 0 (borrowed-by-discovery) is stale by definition',
+    test('unknown: pid 0 (borrowed-by-discovery) remains unverifiable',
         () async {
       expect(
         await registry.checkLiveness(lease(pid: 0)),
-        LeaseLiveness.deadPid,
+        LeaseLiveness.unknown,
       );
     });
 

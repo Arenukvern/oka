@@ -1,0 +1,36 @@
+# Global cache workflow validation — 2026-09-22
+
+Decision: [ADR-0020](../decisions/0020-global-cache-workflow).
+Usage: [cache storage and cleanup](../guides/cache_storage).
+
+## Verified
+
+- The complete `just test` run reported 946 passes across the workspace and
+  package suites, with an isolated HOME/registry. Real no-Gradle APK and AAB
+  builds succeeded. Four emulator boot/reuse checks self-skipped because
+  adb/emulator binaries were not on PATH; this is not live-emulator evidence.
+- After the final metadata-protection fix,
+  `steward action run oka.check.cache-storage --json` passed all 89 focused
+  tests (exit 0). Coverage includes multi-project discovery and persistence,
+  narrowed project cleanup, automatic build registration, unchanged inspection
+  modes, saved-plan changes/protection checks, schema/next actions and nonterminal
+  interaction refusal. A cache root overlapping `~/.oka` preserves the registry
+  and its lock while still reclaiming eligible artifact data.
+- `dart analyze`: no issues found. `git diff --check`: clean.
+- A real PTY fixture confirmed both interactive answers: `n` preserved the
+  reviewed 7-byte cache, and `y` removed exactly that fixture. No real-user
+  caches were deleted during validation.
+- Version synchronization, documentation drift, changelog hygiene and
+  personal-path actions passed individually. The combined contract benchmark
+  reported `durability_blocked` because contract/gate files remain uncommitted;
+  it did not execute the gates itself.
+
+## Limits
+
+Global means all known projects, not an exhaustive disk crawl. Explicit scans
+are bounded and skip hidden/generated directories and nested links. Ordinary
+apply recalculates selection; saved-plan apply checks exact selected paths and
+metadata against current discovery, but does not hash contents or lock external
+writers. SDKs, emulator/simulator data and browser profiles remain protected.
+Registry writes are serialized in-process and use an OS lock; cross-isolate
+lock stress and Windows execution were not validated on this macOS host.

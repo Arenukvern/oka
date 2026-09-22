@@ -129,11 +129,10 @@ with evidence, not into a checked box.
   dart-define keys slip through the pattern table. Why now: the audit is
   live and cheap to extend, but pattern tables need evidence of real gaps
   before growing.
-- **`oka cache gc` polish: age/size reporting.** Make `oka cache gc`
-  report reclaimable bytes and last-use age before deleting, so purging is
-  inspectable like everything else. Why now: the store layout
-  (`oka_store.json` per entry) already records what's needed; this is pure
-  reporting on existing data.
+- **Cache last-use policy, if needed.** Last-use eviction requires a new
+  access-tracking contract; existing metadata only supports creation age and
+  filesystem modification age. Storage inspection and explicit prune previews
+  are separate from this policy (see [ADR-0019](decisions/0019-cache-storage-inventory-and-pruning)).
 - **Leakage-ratchet final exception: the `--skip-badging` flag name.**
   Decide whether to keep it as public CLI surface or deprecate it toward
   the typed `DeviceTarget`/`AndroidBuild` config and empty the ratchet.

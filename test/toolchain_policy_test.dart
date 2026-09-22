@@ -62,6 +62,19 @@ void main() {
   }
 
   group('android-sdk precedence policy', () {
+    test('pure policy describes sources and remediation without host I/O', () {
+      const policy = AndroidToolPolicy(
+        hasConfiguredAndroidSdk: true,
+        hasConfiguredFlutterSdk: false,
+      );
+      expect(policy.androidSdkSources.first.kind, ToolSourceKind.config);
+      expect(
+        policy.describe('aapt2').first.label,
+        'androidSdkPath → build-tools/<latest>/aapt2',
+      );
+      expect(policy.remediation('adb'), contains('platform-tools'));
+    });
+
     test('1. explicit config wins and is reported as source', () async {
       final sdk = await makeSdk('cfg');
       final other = await makeSdk('env_sdk');
@@ -339,5 +352,38 @@ void main() {
         isTrue,
       );
     });
+  });
+  test('host process resolution is injectable', () async {
+    final flutter = Directory(p.join(tmp.path, 'flutter'));
+    await Directory(p.join(flutter.path, 'bin')).create(recursive: true);
+    final calls = <String>[];
+    final toolchain = AndroidToolchain(
+      env: env(path: tmp.path),
+      processRunner:
+          (
+            executable,
+            arguments, {
+            environment,
+            stdoutEncoding,
+            stderrEncoding,
+          }) async {
+            calls.add('$executable ${arguments.join(' ')}');
+            if (executable == 'flutter') {
+              return ProcessResult(1, 0, '{}', '');
+            }
+            if (executable == 'which' && arguments.single == 'flutter') {
+              return ProcessResult(
+                1,
+                0,
+                '${p.join(flutter.path, 'bin', 'flutter')}\n',
+                '',
+              );
+            }
+            return ProcessResult(1, 1, '', 'missing');
+          },
+    );
+
+    expect(await toolchain.require(const ToolQuery('flutter-sdk')), isNotNull);
+    expect(calls, ['flutter --version --machine', 'which flutter']);
   });
 }

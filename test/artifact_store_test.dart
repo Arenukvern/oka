@@ -8,13 +8,23 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 /// Rewrites one entry's creation time in its per-entry index (gc seeding).
-void _seedAge(final LocalArtifactStore store, final ContentKey key,
-    {required final DateTime at}) {
+void _seedAge(
+  final LocalArtifactStore store,
+  final ContentKey key, {
+  required final DateTime at,
+}) {
   final indexFile = File(
-    p.join(store.root, key.category, key.name, key.dirName, key.platform,
-        LocalArtifactStore.indexFileName),
+    p.join(
+      store.root,
+      key.category,
+      key.name,
+      key.dirName,
+      key.platform,
+      LocalArtifactStore.indexFileName,
+    ),
   );
-  final record = jsonDecode(indexFile.readAsStringSync()) as Map<String, dynamic>;
+  final record =
+      jsonDecode(indexFile.readAsStringSync()) as Map<String, dynamic>;
   record['created'] = at.toUtc().toIso8601String();
   indexFile.writeAsStringSync(jsonEncode(record));
 }
@@ -92,10 +102,9 @@ void main() {
   group('LocalArtifactStore root resolution', () {
     test('OKA_CACHE overrides home default', () {
       expect(
-        LocalArtifactStore.defaultRoot(environment: {
-          'OKA_CACHE': '/shared/oka-cache',
-          'HOME': '/home/u',
-        }),
+        LocalArtifactStore.defaultRoot(
+          environment: {'OKA_CACHE': '/shared/oka-cache', 'HOME': '/home/u'},
+        ),
         '/shared/oka-cache',
       );
     });
@@ -155,8 +164,7 @@ void main() {
         '${key.platform}/annotation-jvm-1.9.1.jar',
       );
       expect(
-        File(p.join(tmp.path, key.relativePath, 'oka_store.json'))
-            .existsSync(),
+        File(p.join(tmp.path, key.relativePath, 'oka_store.json')).existsSync(),
         isTrue,
         reason: 'per-entry JSON index must exist',
       );
@@ -193,17 +201,16 @@ void main() {
 
       expect(await store.delete(key), isTrue);
       expect(
-        Directory(p.join(
-          tmp.path, key.category, key.name, key.dirName, key.platform,
-        )).existsSync(),
+        Directory(
+          p.join(tmp.path, key.category, key.name, key.dirName, key.platform),
+        ).existsSync(),
         isFalse,
       );
       expect(await store.entries(), isEmpty);
       expect(await store.delete(key), isFalse);
     });
 
-    test('hand-deleted files are re-fetched, never silently reused',
-        () async {
+    test('hand-deleted files are re-fetched, never silently reused', () async {
       final key = ContentKey.compute(
         category: 'tools',
         name: 'd8',
@@ -247,6 +254,12 @@ void main() {
 
     tearDown(() async {
       if (await tmp.exists()) await tmp.delete(recursive: true);
+    });
+
+    test('purge on an absent store is an empty successful operation', () async {
+      final result = await store.purge(maxTotalBytes: 1024);
+      expect(result.deleted, 0);
+      expect(result.bytesFreed, 0);
     });
 
     Future<ContentKey> seed({
@@ -354,6 +367,63 @@ void main() {
       expect(left, hasLength(1));
       expect(left.single.key.category, 'keepme');
     });
+
+    test('failed deletion is not reported as deleted or freed', () async {
+      final key = await seed(
+        name: 'outside',
+        createdAt: DateTime.now().toUtc().subtract(const Duration(days: 40)),
+        sizeBytes: 10,
+      );
+      final entryDir = p.join(
+        tmp.path,
+        key.category,
+        key.name,
+        key.dirName,
+        key.platform,
+      );
+      final index = File(p.join(entryDir, 'oka_store.json'));
+      final json = jsonDecode(index.readAsStringSync()) as Map<String, dynamic>;
+      json['sweepDir'] = p.join(tmp.path, '..', 'outside-cache');
+      index.writeAsStringSync(jsonEncode(json));
+
+      final result = await store.purge(olderThan: const Duration(days: 1));
+      expect(result.deleted, 0);
+      expect(result.bytesFreed, 0);
+      expect(await store.entries(), hasLength(1));
+    });
+
+    test('symlinked sweep roots cannot escape the store', () async {
+      final key = await seed(
+        name: 'linked',
+        createdAt: DateTime.now().toUtc().subtract(const Duration(days: 40)),
+        sizeBytes: 10,
+      );
+      final outside = await Directory.systemTemp.createTemp('oka_outside_');
+      final link = Link(p.join(tmp.path, 'linked-root'));
+      try {
+        await link.create(outside.path);
+        final entryDir = p.join(
+          tmp.path,
+          key.category,
+          key.name,
+          key.dirName,
+          key.platform,
+        );
+        final index = File(p.join(entryDir, 'oka_store.json'));
+        final json =
+            jsonDecode(index.readAsStringSync()) as Map<String, dynamic>;
+        json['sweepDir'] = p.join(link.path, 'child');
+        index.writeAsStringSync(jsonEncode(json));
+
+        final result = await store.purge(olderThan: const Duration(days: 1));
+        expect(result.deleted, 0);
+        expect(result.bytesFreed, 0);
+        expect(await store.entries(), hasLength(1));
+      } finally {
+        if (await link.exists()) await link.delete();
+        if (await outside.exists()) await outside.delete(recursive: true);
+      }
+    });
   });
 
   group('foreign-layout registration (producer-written index)', () {
@@ -369,16 +439,22 @@ void main() {
       if (await tmp.exists()) await tmp.delete(recursive: true);
     });
 
-    test('producer index is discovered and the entry is purgeable',
-        () async {
+    test('producer index is discovered and the entry is purgeable', () async {
       // Simulate the Maven layout: <root>/maven/g/a/1.0/{artifact, index}
       final versionDir = Directory(
         p.join(tmp.path, 'maven', 'androidx.core', 'core', '1.13.1'),
       )..createSync(recursive: true);
       final artifact = File(p.join(versionDir.path, 'core-1.13.1.aar'))
         ..writeAsStringSync('aar-bytes');
-      File(p.join(versionDir.path, 'core-1.13.1-classes.jar'))
-          .writeAsStringSync('classes');
+      File(
+        p.join(versionDir.path, 'core-1.13.1-classes.jar'),
+      ).writeAsStringSync('classes');
+      Directory(
+        p.join(versionDir.path, 'payload', 'jni', 'arm64-v8a'),
+      ).createSync(recursive: true);
+      File(
+        p.join(versionDir.path, 'payload', 'jni', 'arm64-v8a', 'lib.so'),
+      ).writeAsStringSync('native');
       final key = ContentKey.compute(
         category: 'maven',
         name: 'androidx.core:core',
@@ -403,7 +479,7 @@ void main() {
       final entries = await store.entries();
       expect(entries, hasLength(1));
       expect(entries.single.key, key);
-      expect(entries.single.sizeBytes, 9);
+      expect(entries.single.sizeBytes, 22);
       expect(entries.single.source, 'maven-resolver');
 
       // find() resolves registered entries that live off their own path.
@@ -490,8 +566,10 @@ void main() {
     });
 
     test('why maps a logical artifact to its key and path', () async {
-      await CacheCommand(out: output.writeln, store: store)
-          .run(['why', 'androidx/annotation/1.9.1']);
+      await CacheCommand(
+        out: output.writeln,
+        store: store,
+      ).run(['why', 'androidx/annotation/1.9.1']);
       final text = output.toString();
       expect(text, contains('androidx/annotation/1.9.1-'));
       expect(text, contains('annotation-jvm-1.9.1.jar'));
@@ -506,14 +584,16 @@ void main() {
       );
     });
 
-    test('gc refuses to run without explicit criteria (never interactive)',
-        () async {
-      await expectLater(
-        CacheCommand(out: output.writeln, store: store).run(['gc']),
-        throwsA(isA<CacheCommandError>()),
-      );
-      expect(output.toString(), contains('explicit criteria'));
-    });
+    test(
+      'gc refuses to run without explicit criteria (never interactive)',
+      () async {
+        await expectLater(
+          CacheCommand(out: output.writeln, store: store).run(['gc']),
+          throwsA(isA<CacheCommandError>()),
+        );
+        expect(output.toString(), contains('explicit criteria'));
+      },
+    );
 
     test('gc --dry-run reports without deleting', () async {
       _seedAge(
@@ -521,8 +601,10 @@ void main() {
         (await store.entries()).single.key,
         at: DateTime.now().toUtc().subtract(const Duration(days: 40)),
       );
-      await CacheCommand(out: output.writeln, store: store)
-          .run(['gc', '--older-than=30d', '--dry-run']);
+      await CacheCommand(
+        out: output.writeln,
+        store: store,
+      ).run(['gc', '--older-than=30d', '--dry-run']);
       final text = output.toString();
       expect(text, contains('Would purge'));
       expect(text, contains('1 entries'));
@@ -535,8 +617,10 @@ void main() {
         (await store.entries()).single.key,
         at: DateTime.now().toUtc().subtract(const Duration(days: 40)),
       );
-      await CacheCommand(out: output.writeln, store: store)
-          .run(['gc', '--older-than=30d']);
+      await CacheCommand(
+        out: output.writeln,
+        store: store,
+      ).run(['gc', '--older-than=30d']);
       expect(output.toString(), contains('Purged 1 entries'));
       expect(await store.entries(), isEmpty);
     });

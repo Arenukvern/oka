@@ -8,8 +8,9 @@ import 'composition.dart';
 import 'config/build_context.dart';
 import 'config/oka_config.dart';
 import 'pipeline/pipeline.dart';
-import 'process_teardown.dart';
 import 'publish/publish_target.dart';
+import 'store/cache_projects.dart';
+import 'target_execution_scope.dart';
 import 'targets/describe.dart';
 import 'targets/target.dart';
 
@@ -96,6 +97,7 @@ Future<void> okaRun(
   required final Oka oka,
   final String? projectPath,
   final ArgParser? extraArgs,
+  final Future<void> Function(String projectPath)? registerCacheProject,
 }) async {
   final parser = _okaRunParser;
   final results = parser.parse(args);
@@ -107,10 +109,12 @@ Future<void> okaRun(
   // the CLI dispatcher to name available targets in unknown-verb errors.
   if (results['oka-list-targets'] as bool) {
     validateTargets(oka);
-    stdout.writeln(jsonEncode([
-      for (final t in oka.targets)
-        {'name': t.name, 'description': t.description},
-    ]));
+    stdout.writeln(
+      jsonEncode([
+        for (final t in oka.targets)
+          {'name': t.name, 'description': t.description},
+      ]),
+    );
     return;
   }
 
@@ -127,9 +131,9 @@ Future<void> okaRun(
       mode: BuildMode.debug,
       config: await loadOkaYaml(root),
     );
-    stdout.writeln(jsonEncode([
-      for (final t in oka.targets) _describeTargetSafely(t, ctx),
-    ]));
+    stdout.writeln(
+      jsonEncode([for (final t in oka.targets) _describeTargetSafely(t, ctx)]),
+    );
     return;
   }
 
@@ -206,10 +210,7 @@ Future<void> okaRun(
   if (target != null) {
     // ADR-0015: target pipelines go through the same composition-time
     // artifact validation as platform builds — before any tool runs.
-    final targetPipeline = Pipeline(
-      target.compile(ctx),
-      verbose: verbose,
-    );
+    final targetPipeline = Pipeline(target.compile(ctx), verbose: verbose);
     final validationError = targetPipeline.validate();
     if (validationError != null) {
       stderr.writeln(
@@ -220,7 +221,21 @@ Future<void> okaRun(
     // The state handle survives the run: publish targets put their
     // ADR-0014 dry-run plan into it (PublishPlanStep.plan), read below.
     final targetState = PipelineState();
-    result = await targetPipeline.run(ctx, initialState: targetState);
+    await registerCacheProjectBestEffort(root, register: registerCacheProject);
+    final teardownSteps = target.compileTeardown(ctx);
+    final execution = TargetExecutionScope(
+      teardownSteps: teardownSteps,
+      ctx: ctx,
+      state: targetState,
+      write: verbose ? stdout.writeln : null,
+    );
+    result = await execution.run(
+      () => targetPipeline.run(
+        ctx,
+        initialState: targetState,
+        shouldCancel: () => execution.cancellationRequested,
+      ),
+    );
     final plan = targetState[PublishPlanStep.plan.id];
     if (result.ok && plan is PublishPlan) {
       stdout.writeln('📋 Publish plan for "${target.name}":');
@@ -232,33 +247,8 @@ Future<void> okaRun(
     // steps, run best-effort after the forward pipeline (success OR
     // failure), never masking its result. Owned vs borrowed enforcement
     // and identity gates live in the steps/registry, not here.
-    final teardownSteps = target.compileTeardown(ctx);
     if (teardownSteps.isNotEmpty) {
-      // Best-effort signal safety (ADR-0018 problem B): SIGINT/SIGTERM run
-      // the composed teardown before exiting. SIGKILL bypasses every
-      // handler by definition — the lease registry + reconcile sweep is
-      // the guarantee that survives it. Windows: signal watching may be
-      // unavailable — advisory, never fatal.
-      for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
-        try {
-          signal.watch().listen((final s) async {
-            await runTeardownSteps(
-              teardownSteps,
-              ctx: ctx,
-              state: targetState,
-            );
-            exit(s == ProcessSignal.sigint ? 130 : 143);
-          });
-        } on Object {
-          // Signal watching unsupported on this platform — skip.
-        }
-      }
-      final teardown = await runTeardownSteps(
-        teardownSteps,
-        ctx: ctx,
-        state: targetState,
-        write: verbose ? stdout.writeln : null,
-      );
+      final teardown = await execution.teardown();
       if (!teardown.ok) {
         stderr.writeln(
           '⚠️ target "${target.name}" teardown finished with '
@@ -268,6 +258,7 @@ Future<void> okaRun(
       }
     }
   } else {
+    await registerCacheProjectBestEffort(root, register: registerCacheProject);
     result = await pipeline!.run(ctx);
   }
   if (!result.ok) {
@@ -277,6 +268,28 @@ Future<void> okaRun(
   final apkPath = result.data['apk_path'];
   if (apkPath is String && apkPath.isNotEmpty) {
     stdout.writeln('✅ Build complete: $apkPath');
+  }
+}
+
+/// Remembers executed projects for global cache management (ADR-0020).
+/// Registration is advisory: failures never prevent a build and diagnostics
+/// go to stderr so machine-readable stdout stays intact. The callback permits
+/// embedders to use their own registry without changing the build contract.
+Future<void> registerCacheProjectBestEffort(
+  String projectPath, {
+  Future<void> Function(String projectPath)? register,
+  void Function(String message)? warning,
+}) async {
+  try {
+    await (register ?? CacheProjectRegistry().register)(projectPath);
+  } on Object catch (error) {
+    final message =
+        'Warning: could not register project for global cache management: $error';
+    if (warning == null) {
+      stderr.writeln(message);
+    } else {
+      warning(message);
+    }
   }
 }
 
@@ -311,8 +324,10 @@ Map<String, dynamic> mergeConfigMaps(
   for (final entry in override.entries) {
     final existing = out[entry.key];
     if (existing is Map && entry.value is Map) {
-      out[entry.key] = mergeConfigMaps(_stringKeyed(existing),
-          _stringKeyed(entry.value as Map));
+      out[entry.key] = mergeConfigMaps(
+        _stringKeyed(existing),
+        _stringKeyed(entry.value as Map),
+      );
     } else {
       out[entry.key] = entry.value;
     }
@@ -339,7 +354,10 @@ Future<String?> findPipelineEntrypoint(final String projectPath) async {
       ? pipelineSection['dart_entrypoint']?.toString()
       : null;
   if (explicit != null && explicit.isNotEmpty) return explicit;
-  for (final candidate in const ['tool/oka_pipeline.dart', 'bin/oka_pipeline.dart']) {
+  for (final candidate in const [
+    'tool/oka_pipeline.dart',
+    'bin/oka_pipeline.dart',
+  ]) {
     if (await File('$projectPath/$candidate').exists()) return candidate;
   }
   return null;
@@ -428,7 +446,9 @@ Future<dynamic> _loadYamlAny(final File file) async =>
 
 dynamic _yamlToJson(final Object? value) {
   if (value is YamlMap) {
-    return value.map((final k, final v) => MapEntry(k.toString(), _yamlToJson(v)));
+    return value.map(
+      (final k, final v) => MapEntry(k.toString(), _yamlToJson(v)),
+    );
   } else if (value is YamlList) {
     return value.map(_yamlToJson).toList();
   }
@@ -446,7 +466,9 @@ Map<String, String> parseDartDefineFile(final String? path) {
   if (decoded is! Map) {
     throw FormatException('dart-define-from-file must be a JSON object', path);
   }
-  return decoded.map((final k, final v) => MapEntry(k.toString(), v.toString()));
+  return decoded.map(
+    (final k, final v) => MapEntry(k.toString(), v.toString()),
+  );
 }
 
 /// Parses a single `key=value` define; a bare key maps to `'true'`
@@ -457,9 +479,7 @@ Map<String, String> parseDartDefineFile(final String? path) {
 Map<String, String> _parseTargetArg(final String kv) {
   final i = kv.indexOf('=');
   if (i <= 0) {
-    throw ArgumentError(
-      'invalid --oka-target-arg "$kv" — expected key=value.',
-    );
+    throw ArgumentError('invalid --oka-target-arg "$kv" — expected key=value.');
   }
   return {kv.substring(0, i): kv.substring(i + 1)};
 }

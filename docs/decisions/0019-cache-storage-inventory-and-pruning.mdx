@@ -1,0 +1,55 @@
+# 0019 — Storage inventory and explicit cache pruning
+
+Status: accepted
+
+The directory inventory and protection rules remain in force. Default project
+coverage and the simplified CLI workflow are extended by
+[ADR-0020](0020-global-cache-workflow).
+
+## Decision checkpoint
+
+The cache audit found that the indexed shared store does not describe total
+storage: project outputs, legacy dependencies, tools, SDKs, emulators and
+browser profiles live outside it. The requested `stats` and `prune` commands
+extend ADR-0013 with a platform-neutral directory inventory rather than
+pretending every large directory is a disposable artifact.
+
+## Decision
+
+- Core owns typed storage locations, recursive measurement, deterministic
+  prune selection and execution. CLI discovery supplies platform locations.
+- `oka cache stats [--project <path>] [--json]` reports locations, logical
+  file bytes, platform, category, ownership, eligibility and incomplete scans.
+  Logical bytes are not allocated disk blocks, especially for sparse emulator
+  images. Overlapping locations must not inflate totals; links are not followed.
+- Discovery covers project build outputs and browser profiles, the configured
+  shared store, legacy Maven/AI caches, managed tools and Android SDK components,
+  Android virtual devices, Apple simulator data, and common Dart/Flutter caches
+  when their locations are known. External locations are informational.
+- `oka cache prune [--scope build|shared|tools] [--older-than <age>]
+  [--max-size <bytes>] [--project <path>] [--json] [--apply]` previews by default.
+  Default scope is `build,shared`. With no age/budget, select all eligible units
+  in scope. Budget applies to the selected eligible pool; age is filesystem
+  modification age, never claimed to be last-use age. Age selection precedes
+  oldest-first budget selection. `--dry-run` explicitly requests preview.
+- Build pruning preserves browser profiles, process leases and unknown project
+  state. Shared dependency caches and managed tool downloads are reproducible;
+  SDK installations, emulator disks/snapshots and simulator devices are not
+  generic cache-prune targets. Stats explains their external management path.
+- Refuse unsafe roots/links and incomplete measurements, revalidate before
+  deletion, report only successful deletions, and avoid project build deletion
+  while recorded sessions are live or their liveness is uncertain. No process
+  stopping, package-manager invocation or real-user cache deletion is part of
+  implementation validation.
+- Existing `list`, `why` and `gc` remain compatible indexed-store views. Fix
+  absent-store GC and size syntax; their age remains creation age.
+
+## Consequences and acceptance
+
+One stats command explains storage, one explicit prune apply command reclaims
+eligible caches. Platform extensions add locations without changing the core
+engine. External runtime inventory is host-dependent and does not claim live
+emulator status from files alone. Tests use temporary roots, exercise overlap,
+links, preserved user data, selection and actual deletion results. Local runtime
+validation uses stats/preview only. User documentation links to these contracts
+and must distinguish indexed artifact bytes from directory measurements.

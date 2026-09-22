@@ -48,30 +48,28 @@ List<String> avdManagerCreateArgs({
   required final String name,
   required final String image,
   final String? deviceProfile,
-}) =>
-    [
-      'create',
-      'avd',
-      '--force',
-      '--name',
-      name,
-      '--package',
-      image,
-      if (deviceProfile != null) ...['--device', deviceProfile],
-    ];
+}) => [
+  'create',
+  'avd',
+  '--force',
+  '--name',
+  name,
+  '--package',
+  image,
+  if (deviceProfile != null) ...['--device', deviceProfile],
+];
 
 /// `emulator -avd <name> [flags]`.
 List<String> emulatorLaunchArgs({
   required final String name,
   final bool headless = true,
   final bool noSnapshotSave = true,
-}) =>
-    [
-      '-avd',
-      name,
-      if (headless) ...['-no-window', '-no-audio', '-no-boot-anim'],
-      if (noSnapshotSave) '-no-snapshot-save',
-    ];
+}) => [
+  '-avd',
+  name,
+  if (headless) ...['-no-window', '-no-audio', '-no-boot-anim'],
+  if (noSnapshotSave) '-no-snapshot-save',
+];
 
 /// Parses `avdmanager list avd` output for the AVD names (`Name: <x>`
 /// blocks, ignoring blanks and INFO noise).
@@ -96,8 +94,7 @@ String? parseEmuAvdName(final String output) {
 
 /// True when [output] (from `adb shell getprop sys.boot_completed`) means
 /// "booted".
-bool parseBootCompleted(final String output) =>
-    output.trim() == '1';
+bool parseBootCompleted(final String output) => output.trim() == '1';
 
 // -- Target ------------------------------------------------------------------
 
@@ -215,24 +212,24 @@ class EmulatorTarget extends Target {
 
   @override
   List<BuildStep> compile(final BuildContext ctx) => [
-        EnsureAvdStep(
-          avdName: avdName,
-          systemImage: _systemImage,
-          deviceProfile: deviceProfile,
-          createIfMissing: createIfMissing,
-          avdManagerPath: avdManagerPath,
-          toolchain: toolchain,
-        ),
-        BootEmulatorStep(
-          avdName: avdName,
-          headless: headless,
-          bootTimeout: bootTimeout,
-          deviceId: deviceId,
-          adbPath: adbPath,
-          emulatorPath: emulatorPath,
-          toolchain: toolchain,
-        ),
-      ];
+    EnsureAvdStep(
+      avdName: avdName,
+      systemImage: _systemImage,
+      deviceProfile: deviceProfile,
+      createIfMissing: createIfMissing,
+      avdManagerPath: avdManagerPath,
+      toolchain: toolchain,
+    ),
+    BootEmulatorStep(
+      avdName: avdName,
+      headless: headless,
+      bootTimeout: bootTimeout,
+      deviceId: deviceId,
+      adbPath: adbPath,
+      emulatorPath: emulatorPath,
+      toolchain: toolchain,
+    ),
+  ];
 
   /// ADR-0018 §2: when [stopOnExit] is set, the run ends with
   /// `adb emu kill` on the booted/adopted serial (best-effort, never
@@ -241,16 +238,16 @@ class EmulatorTarget extends Target {
   /// stop-on-exit declaration the owner's intent — while `oka stop`
   /// (lease-based) keeps the borrowed refusal.
   @override
-  List<BuildStep> compileTeardown(final BuildContext ctx) =>
-      stopOnExit
-          ? [StopEmulatorStep(adbPath: adbPath, toolchain: toolchain)]
-          : const <BuildStep>[];
+  List<BuildStep> compileTeardown(final BuildContext ctx) => stopOnExit
+      ? [StopEmulatorStep(adbPath: adbPath, toolchain: toolchain)]
+      : const <BuildStep>[];
 }
 
 /// Host-ABI default: arm64-v8a on ARM hosts, x86_64 otherwise.
 String defaultAbi() {
   final a = Abi.current();
-  final isArm = a == Abi.macosArm64 ||
+  final isArm =
+      a == Abi.macosArm64 ||
       a == Abi.linuxArm64 ||
       a == Abi.androidArm64 ||
       a == Abi.iosArm64;
@@ -296,17 +293,13 @@ class EnsureAvdStep extends BuildStep {
   @override
   String get name => 'ensure-avd';
 
-  Future<ProcessResult> _run(
-    final String exe,
-    final List<String> args,
-  ) =>
+  Future<ProcessResult> _run(final String exe, final List<String> args) =>
       _runProcess(exe, args);
 
   static Future<ProcessResult> _defaultRun(
     final String exe,
     final List<String> args,
-  ) =>
-      Process.run(exe, args);
+  ) => Process.run(exe, args);
 
   @override
   Future<StepResult> run(
@@ -354,17 +347,18 @@ class EnsureAvdStep extends BuildStep {
     if (created.exitCode != 0 ||
         out.contains('Error:') ||
         out.contains('error:')) {
-      final missingImage = out.contains('Could not find') ||
+      final missingImage =
+          out.contains('Could not find') ||
           out.contains('has not been downloaded') ||
           out.contains('Failed to find');
       return StepResult.failure(
         missingImage
             ? 'System image "$systemImage" is not installed. Install it '
-                'non-interactively, accepting licenses first:\n'
-                '   yes | sdkmanager --licenses\n'
-                '   sdkmanager "$systemImage"\n'
-                '   (or accept licenses once, then `oka get android-sdk` '
-                'provisions through the oka store).'
+                  'non-interactively, accepting licenses first:\n'
+                  '   yes | sdkmanager --licenses\n'
+                  '   sdkmanager "$systemImage"\n'
+                  '   (or accept licenses once, then `oka get android-sdk` '
+                  'provisions through the oka store).'
             : 'avmmanager create avd failed:\n$out',
       );
     }
@@ -392,8 +386,8 @@ class BootEmulatorStep extends BuildStep {
     this.ownerCmd = 'oka run emulator',
     final Future<ProcessResult> Function(String, List<String>)? runProcess,
     final Future<Process> Function(String, List<String>)? startProcess,
-  })  : _runProcess = runProcess ?? Process.run,
-        _startProcess = startProcess ?? Process.start;
+  }) : _runProcess = runProcess ?? Process.run,
+       _startProcess = startProcess ?? Process.start;
 
   final String avdName;
   final bool headless;
@@ -441,9 +435,18 @@ class BootEmulatorStep extends BuildStep {
     final String adb;
     final String emulator;
     try {
-      adb = await _resolveTool(state, explicit: adbPath, toolchain: toolchain, tool: 'adb');
-      emulator =
-          await _resolveTool(state, explicit: emulatorPath, toolchain: toolchain, tool: 'emulator');
+      adb = await _resolveTool(
+        state,
+        explicit: adbPath,
+        toolchain: toolchain,
+        tool: 'adb',
+      );
+      emulator = await _resolveTool(
+        state,
+        explicit: emulatorPath,
+        toolchain: toolchain,
+        tool: 'emulator',
+      );
     } on ToolchainException {
       return StepResult.failure(
         'adb/emulator not found — install platform-tools + emulator '
@@ -465,7 +468,12 @@ class BootEmulatorStep extends BuildStep {
         .map((final l) => l.split(RegExp(r'\s+')).first)
         .toList();
     for (final serial in serials) {
-      final avdOut = await runCmd([...adbSerialArgs(serial), 'emu', 'avd', 'name']);
+      final avdOut = await runCmd([
+        ...adbSerialArgs(serial),
+        'emu',
+        'avd',
+        'name',
+      ]);
       if (parseEmuAvdName(avdOut.stdout as String) == avdName) {
         print('✅ Emulator for "$avdName" already running ($serial) — reusing.');
         await _adoptLease(serial, ctx);
@@ -538,7 +546,10 @@ class BootEmulatorStep extends BuildStep {
 
     if (process != null) {
       // Fill the lease in with the discovered serial + adb stop_hint.
-      await _upsertLease(spawnLease(process.pid, pidToken, serial: serial), ctx);
+      await _upsertLease(
+        spawnLease(process.pid, pidToken, serial: serial),
+        ctx,
+      );
     }
 
     final booted = await _awaitBoot(serial, runCmd, deadline);
@@ -590,27 +601,30 @@ class BootEmulatorStep extends BuildStep {
   /// `adb [-s serial] emu kill`). [serial] is filled in once discovery
   /// finds the new emulator-* entry.
   @visibleForTesting
-  ProcessLease spawnLease(final int pid, final String? pidToken, {final String? serial}) =>
-      ProcessLease(
-        id: _leaseId,
-        pid: pid,
-        kind: 'android-emulator',
-        identity: {
-          'avd': avdName,
-          'serial': ?serial,
-          processLeasePidTokenKey: ?pidToken,
-        },
-        scope: LeaseScope.ephemeral,
-        ownership: LeaseOwnership.owned,
-        ownerCmd: ownerCmd,
-        startedAt: DateTime.now().toUtc(),
-        stopHint: LeaseStopHint(
-          tool: 'adb',
-          args: serial == null
-              ? ['emu', 'kill']
-              : [...adbSerialArgs(serial), 'emu', 'kill'],
-        ),
-      );
+  ProcessLease spawnLease(
+    final int pid,
+    final String? pidToken, {
+    final String? serial,
+  }) => ProcessLease(
+    id: _leaseId,
+    pid: pid,
+    kind: 'android-emulator',
+    identity: {
+      'avd': avdName,
+      'serial': ?serial,
+      processLeasePidTokenKey: ?pidToken,
+    },
+    scope: LeaseScope.ephemeral,
+    ownership: LeaseOwnership.owned,
+    ownerCmd: ownerCmd,
+    startedAt: DateTime.now().toUtc(),
+    stopHint: LeaseStopHint(
+      tool: 'adb',
+      args: serial == null
+          ? ['emu', 'kill']
+          : [...adbSerialArgs(serial), 'emu', 'kill'],
+    ),
+  );
 
   /// Adopt path (ADR-0018 §3): flip any existing lease for this AVD to
   /// ownership `borrowed`; if none exists, record one as borrowed (pid 0 —
@@ -620,14 +634,12 @@ class BootEmulatorStep extends BuildStep {
     try {
       final registry = _registryFor(ctx);
       for (final lease in await registry.list()) {
-        if (lease.kind == 'android-emulator' && lease.identity['avd'] == avdName) {
+        if (lease.kind == 'android-emulator' &&
+            lease.identity['avd'] == avdName) {
           if (lease.ownership == LeaseOwnership.borrowed) return;
           await registry.upsert(
             lease.copyWith(
-              identity: {
-                ...lease.identity,
-                'serial': serial,
-              },
+              identity: {...lease.identity, 'serial': serial},
               ownership: LeaseOwnership.borrowed,
               stopHint: LeaseStopHint(
                 tool: 'adb',
@@ -670,35 +682,27 @@ class BootEmulatorStep extends BuildStep {
     final BuildContext ctx,
   ) async {
     if (process == null) return true; // nothing spawned, nothing to clean
-    final verified = await verifyKillIdentity(_host, process.pid, pidToken);
-    if (verified == KillIdentity.recycled) {
-      // The record's pid belongs to someone else now — the *record* is
-      // provably stale; drop it, but never signal the recycled pid.
-      await _deleteLease(ctx);
-      print('⚠️ Emulator pid ${process.pid} was recycled — not signaled '
-          '(pid-reuse guard, ADR-0018 §1); lease dropped as stale.');
-      return false;
+    final registry = _registryFor(ctx);
+    final lease = await registry.read(_leaseId);
+    if (lease == null) return false;
+    final outcome = await ProcessStopPolicy(
+      registry: registry,
+      liveness: _host,
+      verifyGrace: killGrace,
+      pollInterval: pollInterval,
+    ).stop(lease, force: false, gracefulStop: (_) async => process.kill());
+    if (outcome.disposition == ProcessStopDisposition.stopped) {
+      print('🛑 Spawned emulator process (pid ${process.pid}) stopped.');
+      return true;
     }
-    if (verified == KillIdentity.unknown) {
-      // Identity unobtainable: report-never-guess. Keep the lease so the
-      // reconcile sweep (L2) can surface it.
-      print('⚠️ Emulator pid ${process.pid} identity unverified — not '
-          'signaled (pid-reuse guard, ADR-0018 §1); lease kept for '
-          'reconciliation.');
-      return false;
-    }
-    process.kill(); // SIGTERM — graceful-first.
-    await Future<void>.delayed(killGrace);
-    if (await _isAlive(process.pid)) {
-      // Last rung of the ladder: force.
-      Process.killPid(process.pid, ProcessSignal.sigkill);
-    }
-    await _deleteLease(ctx);
-    print('🛑 Spawned emulator process (pid ${process.pid}) stopped.');
-    return true;
+    print('⚠️ ${outcome.message ?? 'Emulator stop was not verified.'}');
+    return false;
   }
 
-  Future<void> _upsertLease(final ProcessLease lease, final BuildContext ctx) async {
+  Future<void> _upsertLease(
+    final ProcessLease lease,
+    final BuildContext ctx,
+  ) async {
     try {
       await _registryFor(ctx).upsert(lease);
     } on Object catch (e) {
@@ -707,27 +711,11 @@ class BootEmulatorStep extends BuildStep {
     }
   }
 
-  Future<void> _deleteLease(final BuildContext ctx) async {
-    try {
-      await _registryFor(ctx).delete(_leaseId);
-    } on Object {
-      // Advisory; a leftover record is reconciled later.
-    }
-  }
-
   Future<String?> _identityToken(final int pid) async {
     try {
       return await _host.identityToken(pid);
     } on Object {
       return null;
-    }
-  }
-
-  Future<bool> _isAlive(final int pid) async {
-    try {
-      return await _host.isAlive(pid);
-    } on Object {
-      return false;
     }
   }
 
@@ -749,12 +737,20 @@ class BootEmulatorStep extends BuildStep {
 /// Stops a booted emulator (`adb -s <serial> emu kill`) — compose into
 /// teardown targets; requires [emulatorSerial] (or an explicit serial).
 class StopEmulatorStep extends BuildStep {
-  StopEmulatorStep({this.serial, this.adbPath, this.toolchain});
+  StopEmulatorStep({
+    this.serial,
+    this.adbPath,
+    this.toolchain,
+    this.liveness,
+    this.leaseRegistry,
+  });
 
   /// Explicit serial; null → the [emulatorSerial] artifact from upstream.
   final String? serial;
   final String? adbPath;
   final ResolvedToolchain? toolchain;
+  final ProcessLiveness? liveness;
+  final ProcessLeaseRegistry? leaseRegistry;
 
   @override
   String get name => 'stop-emulator';
@@ -767,8 +763,7 @@ class StopEmulatorStep extends BuildStep {
     final BuildContext ctx,
     final PipelineState state,
   ) async {
-    final target =
-        serial ?? state[emulatorSerial.id] as String?;
+    final target = serial ?? state[emulatorSerial.id] as String?;
     if (target == null || target.isEmpty) {
       return StepResult.failure(
         'No emulator serial to stop — run the emulator target first or '
@@ -781,7 +776,46 @@ class StopEmulatorStep extends BuildStep {
       toolchain: toolchain,
       tool: 'adb',
     );
-    await Process.run(adb, [...adbSerialArgs(target), 'emu', 'kill']);
+    final registry =
+        leaseRegistry ?? ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: liveness);
+    ProcessLease? lease;
+    for (final candidate in await registry.list()) {
+      if (candidate.kind == 'android-emulator' &&
+          candidate.identity['serial'] == target) {
+        lease = candidate;
+        break;
+      }
+    }
+    if (lease != null) {
+      final outcome =
+          await ProcessStopPolicy(
+            registry: registry,
+            liveness: liveness ?? const HostProcessLiveness(),
+          ).stop(
+            lease,
+            force: false,
+            gracefulStop: (_) async {
+              final result = await Process.run(adb, [
+                ...adbSerialArgs(target),
+                'emu',
+                'kill',
+              ]);
+              return result.exitCode == 0;
+            },
+          );
+      if (!outcome.ok) {
+        return StepResult.failure(outcome.message ?? 'stop failed');
+      }
+    } else {
+      final result = await Process.run(adb, [
+        ...adbSerialArgs(target),
+        'emu',
+        'kill',
+      ]);
+      if (result.exitCode != 0) {
+        return StepResult.failure('adb could not stop emulator $target.');
+      }
+    }
     print('🛑 Emulator $target stopped.');
     return StepResult.success();
   }

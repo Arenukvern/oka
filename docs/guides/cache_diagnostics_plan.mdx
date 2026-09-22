@@ -1,0 +1,23 @@
+# Cache diagnostics delivery plan
+
+The architecture checkpoint is [ADR 0021](../decisions/0021-composable-cache-diagnostics).
+The public Dart API and first-party CLI composition are implemented and validated.
+See [delivery evidence](../evidence/cache-diagnostics-2026-09-22). The table below
+records the implementation handoff agreed before coding.
+
+| Work | Owner | Acceptance |
+| --- | --- | --- |
+| Typed report, context, provider runner, IDs and actions | Primary agent | Custom providers compose; errors/duplicates become issues; deterministic JSON |
+| Read-only project/lease metadata providers and PID-zero correction | Core subagent | Partial corrupt registries; missing projects visible; no writes or stdout; unknown leases retained |
+| Android AVD provider | Android subagent | Config/image/API/ABI metadata, userdata/snapshot bytes, session links; custom AVD paths; malformed metadata issues |
+| Web profile provider and durable profile identity | Web subagent | Persistent and recorded temporary profiles; old leases remain readable; no private browser contents |
+| Apple adapter, CLI rendering/filtering, integration and docs | Primary agent | Stored simulator/runtime records, one global view, clean JSON, unchanged cleanup behavior |
+
+Platform agents consume the shared contract and own only their package files.
+The core metadata agent owns registry/process files and its provider. The primary
+agent owns contracts, CLI and integration. No broad formatting or unrelated
+release-file changes. Validate focused provider tests first, then combined cache
+and lifecycle suites, analyzer and applicable stewardship checks.
+
+Deferred work: opt-in semantic runtime probes, transport wrappers and interactive
+views. Keep these as explicit future work rather than flags with partial behavior.

@@ -18,9 +18,39 @@
         { "type": "test", "section": "Miscellaneous", "hidden": true }
       ],
       "extra-files": [
+        { "type": "generic", "path": "pubspec.yaml" },
+        { "type": "generic", "path": "example/pubspec.yaml" },
         {
           "type": "generic",
           "path": "packages/oka/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_core/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_android/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_conformance/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_huawei/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_play/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_web/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka/lib/src/version.dart"
         },
         {
           "type": "json",

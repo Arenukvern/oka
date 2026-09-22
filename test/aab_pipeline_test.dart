@@ -7,7 +7,14 @@ import 'package:test/test.dart';
 void main() {
   test('default pipeline exposes AAB steps', () async {
     final text = await File(
-      p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'default_pipeline.dart'),
+      p.join(
+        'packages',
+        'oka_android',
+        'lib',
+        'src',
+        'pipeline',
+        'default_pipeline.dart',
+      ),
     ).readAsString();
     expect(text, contains('defaultAabPipeline'));
     expect(text, contains('CompileProtoAndDexStep'));
@@ -15,19 +22,43 @@ void main() {
     expect(text, contains('ValidateAabLayoutStep'));
   });
 
-  test('toolchain uses proto-format link for AAB', () async {
+  test('resource compilation uses proto-format link for AAB', () async {
     final text = await File(
-      p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'toolchain.dart'),
+      p.join(
+        'packages',
+        'oka_android',
+        'lib',
+        'src',
+        'compilation',
+        'resource_compilation.dart',
+      ),
     ).readAsString();
     expect(text, contains('buildAapt2LinkProtoFormatArgs'));
     expect(text, contains('resources_proto.ap_'));
+    final signing = await File(
+      p.join(
+        'packages',
+        'oka_android',
+        'lib',
+        'src',
+        'signing',
+        'android_signing.dart',
+      ),
+    ).readAsString();
     // Bundles sign with jarsigner (v1), never apksigner.
-    expect(text, contains('signAab'));
+    expect(signing, contains('signAab'));
   });
 
   test('builder dispatches on ctx.buildAab (no fallback warning)', () async {
     final builder = await File(
-      p.join('packages', 'oka_android', 'lib', 'src', 'build', 'flutter_apk_builder.dart'),
+      p.join(
+        'packages',
+        'oka_android',
+        'lib',
+        'src',
+        'build',
+        'flutter_apk_builder.dart',
+      ),
     ).readAsString();
     expect(builder, contains('ctx.buildAab'));
     expect(builder, contains('defaultAabPipeline'));

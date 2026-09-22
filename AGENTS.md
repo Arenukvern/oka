@@ -22,14 +22,16 @@ follow links.
 | Understand what oka owns / boundaries | `docs/start_here/why_this_repo_matters.mdx` |
 | Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
 | Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
+| Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |
 | Migrate an existing Gradle app | `docs/guides/gradle_migration.mdx` (works / needs config / unsupported + verification loop) |
 | Check phase status & evidence | `docs/PHASE_CHECKLIST.mdx` |
 | Browse the docs site | `docs/` (published via docs.page) |
 | See CLI commands | `packages/oka/bin/oka.dart`, `packages/oka/lib/src/cli/` |
-| Understand/extend the build pipeline | `lib/src/pipeline/` (steps in `pipeline/steps/`, tool invocations in `pipeline/toolchain.dart`) — see ADR 0002 |
-| Add a dependency / fix missing-class crashes | Build guide → Dependencies Station; table in `lib/src/build/dependency_suggest.dart` |
+| Understand/extend the build pipeline | `packages/oka_android/lib/src/pipeline/`; shared contracts in `packages/oka_core/lib/src/pipeline/` — see ADR 0002 |
+| Add a dependency / fix missing-class crashes | Build guide → Dependencies Station; table in `packages/oka_android/lib/src/build/dependency_suggest.dart` |
 | Local .aar files / AAR natives & res | Build guide → Assets & Icon Station (`local_aars`); `extractAarPayload` in `dependency_cache.dart` |
-| Compose a custom pipeline in Dart | `example/tool/oka_pipeline.dart`; contracts in `lib/src/pipeline/pipeline.dart` |
+| Compose a custom pipeline in Dart | `example/tool/oka_pipeline.dart`; contracts in `packages/oka_core/lib/src/pipeline/pipeline.dart` |
+| Review responsibility boundaries or refactor a large file | `docs/guides/capability_architecture.mdx`, ADR 0022; `plugin/skills/oka-maintenance/references/architecture.md`; `steward action inspect oka.check.architecture --json` |
 | Icons, deeplinks, extra assets config | Build guide → Assets & Icon Station |
 | Enable hot reload / dev loop (`oka dev`) | `docs/decisions/0011-hot-reload-run-loop.mdx`, `docs/guides/hot_reload_plan.mdx` |
 | Launch/declare browser sessions (Chrome, WebMCP flags) for testing | `docs/decisions/0017-browser-session-targets.mdx`, `packages/oka_web/lib/src/session/` |
@@ -38,6 +40,9 @@ follow links.
 | Install agent skills | `npx skills add Arenukvern/oka --skill oka-maintenance` |
 
 ## Skill Steward
+
+Implement repository stewardship tooling in Dart. Shell scripts may remain as
+thin entry points; do not introduce Python runtime dependencies for these tools.
 
 Oka is under [Skill Steward](https://github.com/Arenukvern/skill_steward)
 stewardship (`steward.yaml`, archetype `cli_tool`). Agent workflow:

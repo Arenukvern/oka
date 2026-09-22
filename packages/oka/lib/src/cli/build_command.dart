@@ -71,10 +71,7 @@ class BuildCommand {
         'dart-define',
         help: 'Dart defines passed to flutter assemble (key=value)',
       )
-      ..addOption(
-        'dart-define-from-file',
-        help: 'JSON file with Dart defines',
-      );
+      ..addOption('dart-define-from-file', help: 'JSON file with Dart defines');
 
     final results = parser.parse(args);
     if (results['dry-run'] as bool) {
@@ -115,9 +112,7 @@ class BuildCommand {
     final dartEntrypoint = await findPipelineEntrypoint(projectPath);
     if (dartEntrypoint != null) {
       print('🪝 Delegating to Dart entrypoint: $dartEntrypoint\n');
-      final defines = [
-        ...results['dart-define'] as List<String>,
-      ];
+      final defines = [...results['dart-define'] as List<String>];
       final defineFile = results['dart-define-from-file'] as String?;
       final args = [
         '--platform',
@@ -126,17 +121,22 @@ class BuildCommand {
         if (wantsAab) '--aab',
         if (wantsAab && (results['verify-aab'] as bool)) '--verify-aab',
         if (verbose) '--verbose',
-        if ((results['flavor'] as String?)?.isNotEmpty ?? false)
-          ...['--flavor', results['flavor'] as String],
+        if ((results['flavor'] as String?)?.isNotEmpty ?? false) ...[
+          '--flavor',
+          results['flavor'] as String,
+        ],
         if ((results['abi'] as String).isNotEmpty) ...[
           '--abi',
           results['abi'] as String,
         ],
-        if ((results['target'] as String?)?.isNotEmpty ?? false)
-          ...['--target', results['target'] as String],
+        if ((results['target'] as String?)?.isNotEmpty ?? false) ...[
+          '--target',
+          results['target'] as String,
+        ],
         for (final d in defines) ...['--dart-define', d],
         if (defineFile != null) ...['--dart-define-from-file', defineFile],
       ];
+      await registerCacheProjectBestEffort(projectPath);
       final proc = await Process.run(
         'dart',
         ['run', dartEntrypoint, ...args],
@@ -202,6 +202,7 @@ class BuildCommand {
 
     final toolchain = ResolvedToolchain(verbose: verbose);
 
+    await registerCacheProjectBestEffort(projectPath);
     BuildArtifact artifact;
     if (useNativeAndroid) {
       // Legacy non-Flutter Android shell pipeline (not for Flutter apps).

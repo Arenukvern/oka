@@ -58,6 +58,66 @@ docs:
   "Design FAQ": docs/guides/design_faq.mdx
 
 actions:
+  oka.check.architecture:
+    kind: command
+    desc: Check recursive package and cache-layer dependencies; report large-file hotspots without a size-only failure.
+    command:
+      argv: [dart, tool/contracts/check_architecture.dart, --json]
+      shell: false
+    cwd: .
+    effects:
+      fs_read: [packages, tool/contracts/check_architecture.dart]
+      fs_write: []
+      git: false
+      network: false
+      secrets: false
+      destructive: false
+    safety:
+      class: bounded_local
+      default_policy: auto
+      requires_confirmation: false
+    limits:
+      timeout_ms: 10000
+      max_output_bytes: 200000
+    outputs:
+      - id: stdout
+        kind: stream
+        required: true
+        retention: summary
+        format: json
+    evidence:
+      redaction: steward/redaction/v1
+      summary_fields: [exit_code, duration_ms, output_digest]
+  oka.check.cache-storage:
+    kind: command
+    desc: Verify global discovery, diagnostics providers, lifecycle metadata, reviewed cleanup plans and CLI contracts using temporary fixtures.
+    command:
+      argv: [dart, test, test/cache_storage_command_test.dart, test/cache_global_workflow_test.dart, test/cache_project_registration_test.dart, test/storage_discovery_test.dart, test/artifact_store_test.dart, test/cache_diagnostics_command_test.dart, packages/oka_core/test/storage_inventory_test.dart, packages/oka_core/test/cache_projects_test.dart, packages/oka_core/test/cache_diagnostics_test.dart, packages/oka_core/test/core_cache_diagnostics_test.dart, packages/oka_core/test/process_lease_test.dart, packages/oka_core/test/process_surface_test.dart, packages/oka_android/test/cache_diagnostics_test.dart, packages/oka_web/test/chrome_session_diagnostics_test.dart, packages/oka_web/test/chrome_session_target_test.dart]
+      shell: false
+    cwd: .
+    effects:
+      fs_read: [packages, test, pubspec.yaml, pubspec.lock, .dart_tool]
+      fs_write: [.dart_tool, '$TMPDIR']
+      git: false
+      network: false
+      secrets: false
+      destructive: false
+    safety:
+      class: bounded_local
+      default_policy: auto
+      requires_confirmation: false
+    limits:
+      timeout_ms: 120000
+      max_output_bytes: 200000
+    outputs:
+      - id: stdout
+        kind: stream
+        required: true
+        retention: summary
+        format: text
+    evidence:
+      redaction: steward/redaction/v1
+      summary_fields: [exit_code, duration_ms, output_digest]
   oka.check.version-sync:
     kind: command
     desc: Verify repo VERSION matches every oka release touchpoint.
@@ -66,7 +126,7 @@ actions:
       shell: false
     cwd: .
     effects:
-      fs_read: [tool/release/check_version_sync.sh, VERSION, pubspec.yaml]
+      fs_read: [tool/release/check_version_sync.sh, tool/release/train.dart, VERSION, pubspec.yaml, example/pubspec.yaml, packages, plugin, .claude-plugin]
       fs_write: []
       git: false
       network: false
@@ -96,7 +156,7 @@ actions:
       shell: false
     cwd: .
     effects:
-      fs_read: [tool/contracts/check_docs_drift.sh, AGENTS.md, docs.json, README.md]
+      fs_read: [tool/contracts/check_docs_drift.sh, tool/contracts/check_docs_drift.dart, AGENTS.md, docs.json, README.md]
       fs_write: []
       git: false
       network: false
@@ -189,6 +249,7 @@ actions:
     effects:
       fs_read:
         - tool/benchmarks/build_benchmarks.sh
+        - tool/benchmarks/build_benchmarks.dart
       fs_write:
         - example/.oka_cache
         - .steward/benchmark-summaries

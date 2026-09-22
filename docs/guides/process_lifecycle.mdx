@@ -39,7 +39,7 @@ step contract as the build, so you get timeouts, artifact flow, and
 structured events for free:
 
 ```dart
-// One-shot CI/agent flow: boot, test, stop — orphans impossible.
+// One-shot CI/agent flow: boot, test, attempt verified teardown.
 Oka(
   targets: [
     EmulatorTarget(apiLevel: 34, stopOnExit: true),
@@ -63,6 +63,12 @@ best-effort and bounded (`TeardownRunner`): a failing or hanging stop
 step is reported as a warning and never masks the build result. That is
 a hard law (ADR-0018 §2): cleanup errors must not corrupt the signal
 your build already produced.
+
+`TargetExecutionScope` installs signal handlers before target work. A signal
+requests cancellation at the next pipeline step boundary: the current step
+finishes publishing acquired handles, later steps are skipped, and one teardown
+pass consumes those handles before exit. This does not interrupt a hung step;
+step implementations still own timeouts for their host operations.
 
 ### Write your own teardown step
 
@@ -110,7 +116,7 @@ Reading `oka processes list` output:
 
 ```text
 emulator-oka-emulator  pid 4242  android-emulator  owned/ephemeral  running  (avd=oka-emulator serial=emulator-5554)
-chrome-main            pid 0    chrome-session    borrowed/ephemeral  stale (process gone)  (cdp_port=9222)
+chrome-main            pid 0    chrome-session    borrowed/ephemeral  identity unknown  (cdp_port=9222)
 ```
 
 - `running` — live and identity-verified.
@@ -119,7 +125,8 @@ chrome-main            pid 0    chrome-session    borrowed/ephemeral  stale (pro
 - `stale (pid recycled)` — the pid now belongs to a *different* process.
   **Never killed by oka.** Only the record is removed.
 - `identity unknown` — oka could not verify; reported, kept, never
-  signaled.
+  signaled by PID. PID zero also means unknown. Explicit semantic stop hints
+  may be used; borrowed leases require `--force`, including PID-zero leases.
 
 ### The JSON contract (stable, for tooling)
 
@@ -139,7 +146,8 @@ and survives oka crashes).
 
 `kill -9`, a Dart crash, a closed laptop — no handler runs, but the lease
 file survives. The **reconcile sweep** (`oka doctor`, `oka stop --stale`,
-and any oka run's lease inspection) reconciles records against the host:
+and explicit reconciliation) checks records against the host. Inventory reads
+only report state; they do not delete records. During reconciliation:
 
 - provably stale records (process gone, pid recycled) are dropped;
 - live leases are classified and **reported, never auto-stopped** —
@@ -172,6 +180,8 @@ Everything else — discovery (`oka processes`), stopping
 
 - Registry, records, liveness seam: `packages/oka_core/lib/src/process_*.dart`
 - The stop/inventory/reconcile semantics: `packages/oka_core/lib/src/process_surface.dart`
+- Shared verified stop policy: `packages/oka_core/lib/src/process_stop_policy.dart`
+- Target execution and signal ownership: `packages/oka_core/lib/src/target_execution_scope.dart`
 - Emulator wiring: `packages/oka_android/lib/src/dev/emulator_target.dart`
 - Browser wiring: `packages/oka_web/lib/src/session/chrome_session_target.dart`
 - Design law: [ADR-0018](/decisions/0018-process-lifecycle-leases)

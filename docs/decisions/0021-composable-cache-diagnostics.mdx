@@ -1,0 +1,67 @@
+# 0021 — Composable cache diagnostics
+
+Status: accepted
+
+## Decision checkpoint
+
+Storage bytes alone cannot explain which device, browser profile or process
+owns data. Developers need the same inspection API as the CLI, with platform
+packages contributing knowledge without coupling `oka_core` to those packages.
+The user approved planning around a codable, composable API before delegation.
+
+## Decision
+
+`CacheDiagnostics(providers: [...]).inspect(context)` is an independent,
+read-only Dart operation. It does not require an `Oka` build, invoke project
+entrypoints, register projects, reconcile leases, or run cleanup. Callers choose
+providers explicitly; the CLI supplies a first-party composition. Custom
+packages implement `CacheDiagnosticProvider` without changing a core enum or
+CLI switch. No executable plugin discovery or MCP transport is introduced.
+
+The context carries explicit projects, environment, an existing `StorageReport`,
+an observation timestamp and an injectable process-liveness implementation.
+Each provider returns typed records and issues. Common record fields are stable
+ID, kind, label, platform, project/path, related record IDs, storage paths,
+observations and action descriptors. Provider-specific, JSON-compatible metadata
+is namespaced by provider ID. IDs are project-qualified where ownership is local.
+Kinds are open strings; first-party kinds are `session`, `registry`, `project`,
+`emulator`, `simulator`, `runtime` and `browser-profile`.
+
+Observations name their source (`recorded`, `filesystem`, `process`) and time.
+Missing metadata and unverifiable runtime identity stay unknown. A PID of zero
+does not prove a process dead. Device metadata never proves a device is running.
+Actions are inert argv arrays plus an explicit working directory, never shell
+strings or automatically executed commands. Diagnostic records do not grant
+deletion authority and their sizes are not added to storage totals.
+
+Provider failures and malformed records produce partial reports with structured
+issues, preserving valid siblings. Project-registry inspection retains missing
+projects and reports schema validity; mutation paths remain strict. Inspection
+must not print warnings outside the returned report or read browser secrets.
+
+`oka cache --details` renders all diagnostic records alongside storage.
+`--kind KIND` selects diagnostic records (repeatable, implies details).
+`--json` includes the same additive, separately versioned diagnostic report.
+Default text remains compact, with diagnostic counts and a details hint.
+Global coverage means known projects, not every process/profile on the machine.
+
+## Delivery and acceptance
+
+1. Core contracts and provider isolation; read-only project/lease inspection;
+   PID-zero correction with reconciliation regression tests.
+2. Android AVD metadata and size breakdown, Chrome profile/session linkage and
+   durable profile identity, Apple stored simulator/runtime records. Providers
+   belong to their platform package; Apple remains a CLI adapter until an Apple
+   package exists. XML/binary plist support must be explicit, never guessed.
+3. Thin CLI composition, filtering, structured JSON, documentation and fixture
+   validation. Custom-provider tests prove extension without CLI changes.
+
+Host runtime probes (ADB, CDP, simctl), an interactive dashboard and MCP transport
+are subsequent increments over this API. They require explicit opt-in, bounded
+execution and separate semantic observations; this delivery exposes recorded
+metadata, filesystem measurements and identity-checked process liveness only.
+
+Completion requires tests for corrupt metadata, missing projects, duplicate IDs,
+provider failure isolation, cross-project identity, no mutation during diagnostic
+inspection, and unchanged prune protections. Record measured validation in an
+evidence document; do not treat fixture evidence as a live device acceptance run.

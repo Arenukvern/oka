@@ -27,8 +27,10 @@ jobs:
 
       - name: Assert release tag matches VERSION
         if: github.event_name == 'push'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          tag="${{ github.ref_name }}"
+          tag="$RELEASE_TAG"
           version="$(tr -d '[:space:]' < VERSION)"
           tag_version="${tag#v}"
           if [[ "$tag_version" != "$version" ]]; then
@@ -41,29 +43,13 @@ jobs:
       # default, which fails under plain Dart (flutter_test is sdk-sourced).
       - run: dart pub get --no-example
 
-      # Split packages (ADR-0006) publish in dependency order:
-      # oka_core -> oka_android -> oka (the CLI, packages/oka). Hosted deps
-      # resolve against pub.dev, so the first release trains publish core
-      # before android/cli.
-      - name: Publish oka_core (dry-run preflight)
-        working-directory: packages/oka_core
-        run: dart pub publish --dry-run
-      - name: Publish oka_android (dry-run preflight)
-        working-directory: packages/oka_android
-        run: dart pub publish --dry-run
-      - name: Publish oka (dry-run preflight)
-        working-directory: packages/oka
-        run: dart pub publish --dry-run
+      - name: Validate complete package train
+        run: bash tool/release/publish_packages.sh --dry-run
 
-      - name: Publish oka_core
+      - name: Publish complete package train
         if: github.event_name == 'push'
-        working-directory: packages/oka_core
-        run: dart pub publish --force
-      - name: Publish oka_android
+        run: bash tool/release/publish_packages.sh --publish
+
+      - name: Verify published packages from a fresh hosted consumer
         if: github.event_name == 'push'
-        working-directory: packages/oka_android
-        run: dart pub publish --force
-      - name: Publish oka
-        if: github.event_name == 'push'
-        working-directory: packages/oka
-        run: dart pub publish --force
+        run: bash tool/ci/check_package_consumer.sh --hosted

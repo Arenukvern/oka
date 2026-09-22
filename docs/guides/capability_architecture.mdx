@@ -1,0 +1,86 @@
+# Maintaining capability boundaries
+
+Oka exposes typed Dart operations to both package consumers and CLI commands.
+Use [ADR 0022](../decisions/0022-capability-boundaries-and-lifecycle-ownership)
+when changing ownership or lifecycle behavior. The bundled
+`oka-maintenance` skill carries the maintenance rules and review fixtures.
+
+## Where a change belongs
+
+| Responsibility | Location |
+| --- | --- |
+| Platform-neutral composition, execution, process ownership and storage policy | `packages/oka_core/lib/src/` |
+| Cache inspect/preview/save/apply transactions and workspace composition | `packages/oka/lib/src/cache/` |
+| Arguments, confirmation, human output and CLI JSON schemas | `packages/oka/lib/src/cli/` |
+| Android resource/bytecode compilation, packaging and signing | `packages/oka_android/lib/src/compilation/`, `packaging/`, `signing/` |
+| Maven transport, persistence and metadata policy | `packages/oka_android/lib/src/dependencies/` |
+| Plugin input inspection and native builds | `packages/oka_android/lib/src/plugins/` |
+| Dev manifests, discovery records, SDK probes and event rendering | Named capabilities in `packages/oka_android/lib/src/dev/` |
+| Platform metadata, readiness and graceful stop operations | The owning Android/web package |
+
+Compose dependencies through constructors or functions. Keep pure policy over
+typed inputs separate from filesystem, process and network operations. Compatibility
+exports preserve old import paths; new code should use the public package barrel.
+Do not hide a large class in `part` files or replace it with an equally broad service.
+
+## Call cache workflows from Dart
+
+The default workspace includes known projects and shared storage. Inspection does
+not scan arbitrary disks or register projects. Registration is a separate explicit
+`discoverAndRemember` operation, or the combined application transaction
+`CacheTransactions.discoverAndInspect`. Plain `inspect` rejects scan roots so a
+read-only call cannot silently change its meaning.
+
+```dart
+import 'package:oka/oka.dart';
+
+Future<void> inspectCache() async {
+  final workspaces = CacheWorkspaceRepository();
+  final cache = CacheTransactions(workspaces: workspaces);
+  final result = await cache.inspect(
+    const CacheWorkspaceRequest(),
+    const CacheInspectRequest(),
+  );
+  // Typed values: storage measurements, diagnostics, coverage and cleanup preview.
+  print(result.workspace.toJson());
+  print(result.storage.toJson());
+  print(result.diagnostics.toJson());
+}
+```
+
+Use `preview` to select from measured eligible storage, `savePlan` to persist the
+reviewed selection, and `applySavedPlan` to apply it after fresh discovery and
+validation. Inject a `CacheCleanupPlanRepository` to change plan persistence.
+Diagnostic providers describe resources; they do not authorize deletion.
+See the [cache guide](cache_storage) for command recipes and extension examples.
+
+## Substitute a host capability
+
+Use the smallest interface matching the operation. `RunManifestRepository` owns
+manifest I/O, `FlutterSdkProbe` reports the recorded SDK, and `DevEventRenderer`
+turns session events into output. `DevSessionPreflight` accepts the repository
+and probe; `DevSession` accepts its renderer; `DevFlow` accepts a diagnostic sink.
+The daemon state machine and its serialized command queue retain one owner.
+
+Likewise, Maven graph traversal composes a transport, artifact repository and
+metadata parser. Plugin packaging composes input inspection and native build
+capabilities. Preserve per-build memoization and existing traversal defaults when
+substituting these operations. Simple file-backed implementations remain defaults.
+
+## Review and validate changes
+
+```bash
+steward action inspect oka.check.architecture --json
+steward action run oka.check.architecture --json
+steward validate skills/
+```
+
+The architecture action checks recursive Dart import/export boundaries and
+reports files over 800 physical lines as advisory hotspots. It is a lightweight
+source check, not a complete Dart dependency analyzer. Review a hotspot for mixed
+responsibilities, hidden I/O and duplicated policy before deciding to split it.
+
+Tests should exercise the substituted capability and observable behavior. Keep
+per-package test execution in its package directory. Compilation changes also
+require real no-Gradle APK/AAB builds; lifecycle mocks cannot establish behavior
+on an attached device. Record evidence and limitations separately.

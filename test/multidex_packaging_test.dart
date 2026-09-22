@@ -124,16 +124,30 @@ void main() {
     });
   });
 
-  test(
-    'flutter_apk_builder packages multi-dex list (source contract)',
-    () async {
-      final src = await File(
-        p.join('packages', 'oka_android', 'lib', 'src', 'pipeline', 'toolchain.dart'),
-      ).readAsString();
-      expect(src, contains('listDexOutputs'));
-      expect(src, contains('dexFiles:'));
-      // Must not return a single classes.dex path only
-      expect(src, contains('dexFiles'));
-    },
-  );
+  test('APK packaging owns the multi-dex list (source contract)', () async {
+    final packaging = await File(
+      p.join(
+        'packages',
+        'oka_android',
+        'lib',
+        'src',
+        'packaging',
+        'apk_packaging.dart',
+      ),
+    ).readAsString();
+    final compilation = await File(
+      p.join(
+        'packages',
+        'oka_android',
+        'lib',
+        'src',
+        'compilation',
+        'bytecode_compilation.dart',
+      ),
+    ).readAsString();
+    expect(compilation, contains('listDexOutputs'));
+    expect(packaging, contains('dexFiles:'));
+    // Must not return a single classes.dex path only
+    expect(compilation, contains('dexFiles'));
+  });
 }

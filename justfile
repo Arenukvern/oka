@@ -6,7 +6,7 @@ default:
 
 # Install dependencies
 install:
-    dart pub get
+    dart pub get --no-example
 
 # Rebuild and install global version from packages/oka (clears snapshot cache)
 global:
@@ -45,13 +45,13 @@ sync-version:
 bench:
     bash tool/benchmarks/build_benchmarks.sh example
 
-# Dry-run pub.dev publish (the CLI package)
+# Dry-run the complete pub.dev package train
 publish-dry-run:
-    cd packages/oka && dart pub publish --dry-run
+    bash tool/release/publish_packages.sh --dry-run
 
-# Publish to pub.dev (requires publisher auth)
+# Publish the complete package train (requires publisher auth)
 publish:
-    cd packages/oka && dart pub publish --force
+    bash tool/release/publish_packages.sh --publish
 
 # Run oka locally without global install
 dev:

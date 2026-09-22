@@ -1,196 +1,101 @@
 ---
 name: oka-maintenance
 description: >-
-  Maintains the oka no-Gradle Flutter Android build system — pipeline steps,
-  dependency recovery, icons/assets/deeplinks fast-settings, docs sync, and
-  device validation. Use when changing oka's lib/src/pipeline or lib/src/build
-  code, adding oka.yaml settings, fixing missing-class crashes, updating
-  FAQs/ADRs after oka changes, or validating builds on an Android device.
+  Maintain Oka's Dart CLI and platform packages: composable builds, cache and
+  session APIs, dependency resolution, architecture refactoring, release/docs
+  contracts and no-Gradle Android validation. Use when changing Oka itself,
+  reviewing capability boundaries or preventing mixed-responsibility files.
 license: MIT
 metadata:
-  version: 1.3.0
+  version: 1.4.0
   author: Arenukvern
 compatibility:
-  - android-sdk
-  - flutter
   - dart
+  - flutter
+  - android-sdk
 ---
 
 # Oka maintenance
 
-Oka is a Dart CLI replacing Gradle for Flutter Android builds. Repo map:
-`AGENTS.md`. Behavior SSOT is code + tests; docs link, never paraphrase.
-
-## When to use / not use
-
-**Use:** pipeline or build-code changes, new `oka.yaml` settings, missing-class
-crash recovery, docs sync after behavior changes, device validation.
-
-**Not use:** end-user Flutter app questions (point at
-https://docs.page/arenukvern/oka), iOS/desktop targets (out of scope), or
-Gradle debugging (oka has none).
+Read the repository `AGENTS.md` map and relevant capability code/tests. Use for
+Oka itself, including platform-neutral APIs and web sessions; ordinary Flutter
+application UI work is outside this skill's scope.
 
 ## Workflow
 
-1. **Locate** the change surface (see Map below).
-2. **Check invariants** before coding (Non-negotiables).
-3. **Implement** following existing step/toolchain patterns.
-4. **Test**: `just test` (dart test) + `just lint` (dart analyze).
-5. **Validate on device** when behavior changes packaging or runtime deps.
-6. **Sync docs** per the rules below — why → design FAQ / ADR, how → build guide.
+1. Run `steward doctor --json` and `steward actions list --json`. Inspect intended
+   actions with `steward action inspect <id> --json` before execution.
+2. Read the active plan and relevant ADR. For architecture, persistence, CLI
+   workflows or lifecycle changes, read [architecture.md](references/architecture.md).
+3. Identify the implementation owner and preserved public contracts. Record a
+   decision checkpoint/ADR before a design fork. Respect plan-only requests;
+   otherwise implement authorized work without an extra approval ceremony.
+4. Delegate disjoint files when useful, fixing shared signatures first. The primary
+   agent owns integration, public exports and independent review.
+5. Validate affected behavior first; package tests run from their package directory.
+   Broaden to `just test`, `just lint` and `just check-contracts` for integration.
+   Packaging changes require real no-Gradle APK/AAB acceptance; device claims
+   require device evidence.
+6. Update usage docs/ADRs and dated evidence. Keep plans forward-only: extract
+   completed work into evidence/history and remove completed plan items.
 
-## Non-negotiables (from AGENTS.md)
+## Invariants
 
-- Default path never shells out to `flutter build apk`/Gradle as success.
-- Never mutate shared `rust_wrapper/Cargo.toml`.
-- Design forks → decision checkpoint + ADR (`docs/decisions/`) before coding.
-- `resources.arsc` must be STORED (uncompressed) + zipalign `-p 4` — Android
-  11+ rejects installs otherwise. See `lib/src/build/apk_layout.dart`.
+- Default Flutter Android success never comes from Gradle or `flutter build apk`.
+  Preserve `flutter assemble` plus direct Android tools. No Rust hybrid revival.
+- Constructors and typed contracts are the extension surface. Preserve `Oka`,
+  `Target`, `Pipeline`, artifact validation and compatibility facades.
+- Inspection is read-only unless explicit discovery/registration is requested.
+  Diagnostics never grants cleanup authority; apply revalidates current state.
+- Unknown identity is not death. Shared lifecycle policy owns verification,
+  ownership and lease retention; platform adapters own ADB/CDP specifics.
+- APK `resources.arsc` stays uncompressed and correctly aligned. APK and AAB
+  signing differ; never assume apksigner signs bundles or remove user app data.
+- Use Dart for repository automation; shell may be a thin entry point. Do not
+  add Python runtime dependencies or a storage framework for simple JSON files.
 
-## Map
+## Capability map
 
-| Change | Location |
-|---|---|
-| Pipeline steps | `lib/src/pipeline/steps/*.dart` |
-| Step contracts / state | `lib/src/pipeline/pipeline.dart` |
-| Tool invocations (aapt2/javac/d8/sign) | `lib/src/pipeline/toolchain.dart` |
-| Default step order + YAML overrides parsing | `lib/src/pipeline/default_pipeline.dart` |
-| Dependency set + Maven cache | `lib/src/build/dependency_cache.dart` |
-| AAR payload extraction (natives/res) | `extractAarPayload` in `dependency_cache.dart`; local AARs via `_LocalAarsStep` in `default_pipeline.dart` |
-| Crash-class → artifact mapping | `lib/src/build/dependency_suggest.dart` |
-| Gradle `.module` metadata parsing (metadata-only runtime deps, e.g. camera → atomicfu) | `parseModuleRuntimeDependencies` in `lib/src/maven_resolver.dart` |
-| Manifest spec (typed surface + `manifest_elements` escape hatch) | `lib/src/manifest_spec.dart`, rendering in `lib/src/build/host_codegen.dart` |
-| Launcher icons (name/manifest_ref, user-icon precedence) | `lib/src/build/launcher_icon.dart`, skip logic in `pipeline/steps/host_steps.dart` |
-| Config sources (oka.yaml / pubspec `oka:` / Dart entrypoint) | `loadOkaYaml` in `packages/oka_core/lib/src/oka_run.dart` |
-| Artifact diff gate | `lib/src/compare.dart` + `oka compare` |
-| Device smoke test | `oka launch` (`packages/oka/lib/src/cli/launch_command.dart`) |
-| DEX symbol check | `oka debug dex <apk> --find <Class>` |
-| Launcher icons | `lib/src/build/launcher_icon.dart` |
-| Extra assets / deeplinks | `lib/src/pipeline/steps/asset_steps.dart` |
-| Manifest/host codegen | `lib/src/build/host_codegen.dart` |
-| AAB layout & signing | `lib/src/build/aab_layout.dart`, proto link in `toolchain.dart` |
+Paths are workspace-relative; follow public exports when modules move.
 
-## Device validation loop
+| Capability | Owner |
+| --- | --- |
+| Composition, step contracts and artifacts | `packages/oka_core/lib/src/` |
+| Cache storage, selection, registries and diagnostic contracts | `packages/oka_core/lib/src/store/` |
+| Cache application workflows and default composition | `packages/oka/lib/src/cache/`; compatibility exports may remain in `src/cli/` |
+| CLI parsing, terminal interaction and presentation | `packages/oka/lib/src/cli/` |
+| Android compilation, dependencies, tools and packaging | `packages/oka_android/lib/src/` |
+| Browser targets and profiles | `packages/oka_web/lib/src/session/` |
+| Store publishing | `packages/oka_play/`, `packages/oka_huawei/` |
+| Release inventory and synchronization | `tool/release/train.dart` and thin shell wrappers |
 
-```bash
-export ANDROID_SDK_ROOT=~/.oka/android-sdk
-cd example && dart ../packages/oka/bin/oka.dart build apk
-oka launch                                   # install newest APK + launch + logcat scan
-oka debug dex .oka_cache/build/debug/app-debug.apk --find some.pkg.Class
-oka compare gradle-built.apk .oka_cache/build/debug/app-debug.apk
-```
+## Maintenance checks
 
-`oka launch` clears logcat, installs, launches, waits, then scans for failure
-signatures (FATAL EXCEPTION, NoClassDefFoundError, GeneratedPluginRegistrant
-failure, `Error registering plugin`, channel-error). Exit 1 + signature list =
-regression. `oka debug dex` catches missing runtime classes BEFORE installing.
+- Preserve aliases, exit codes, schemas, source precedence and exact cleanup-plan
+  selection. Prefer compatibility delegates for public moves.
+- Source-contract tests follow implementation owners. Do not substitute source
+  assertions for behavior evidence or weaken a gate merely to allow a move.
+- Project-specific dependencies stay in the project. Shared embedding dependencies
+  affect every host. Keep compile-only/runtime classification and JVM/Android
+  variant precedence explicit.
+- Run `steward validate skills/` for skill changes. Use the decision fixtures in
+  [architecture_eval.md](references/architecture_eval.md) for behavior evaluation;
+  structural validation alone does not prove skill behavior.
+- Versions follow `tool/release/train.dart`; run `just check-contracts`.
+  Publishing/tagging remains an explicit task.
 
-Missing class at runtime → add to `kKnownClassArtifacts`
-(`dependency_suggest.dart`) if generally useful; project-specific deps go in
-the project's `pipeline.extra_deps`. Metadata-only Gradle module deps
-(`.module`) parse automatically — extend `parseModuleRuntimeDependencies`
-tests if a new variant shape appears.
+## Docs and distribution
 
-AAR payload not landing in APK → check `payload/` dir next to the cached
-classes.jar; local AARs extract under `<build_dir>/local_aars/<name>/`.
+Architecture decisions belong in `docs/decisions/`; usage belongs in the relevant
+guide. Update indexes/sidebar and AGENTS when ownership moves. Prefer links to
+behavior SSOT over duplicated implementation prose.
 
-APK inspection:
-```bash
-unzip -l app.apk | grep <pattern>                       # entries
-aapt2 dump badging app.apk                              # manifest/icon info
-aapt2 dump xmltree --file AndroidManifest.xml app.apk   # compiled manifest
-```
-
-## Release train
-
-Releases are automated via release-please; `VERSION` is the single version
-source. Golden path:
-
-1. Merge PRs to `main` with conventional commit titles (`feat:`, `fix:`,
-   `docs:`).
-2. release-please opens a **Release PR** (`chore: release X.Y.Z`). The
-   `release_pr_sync_versions.yml` workflow runs `tool/release/sync_version.sh`
-   and commits drift to pubspec + plugin manifests automatically.
-3. Run `just check-contracts` locally, review, merge.
-4. Tag `vX.Y.Z` is created by release-please → `pub_publish.yml` publishes to
-   pub.dev (asserts tag == VERSION first).
-
-Manual fallback when automation is blocked:
+Canonical skill: `plugin/skills/oka-maintenance`; root `skills` is its symlink.
+Update an existing installed editable copy only when present and appropriate;
+do not modify cached/system skills or implicitly add a global installation.
 
 ```bash
-bash tool/release/sync_version.sh --version X.Y.Z   # or: just sync-version
-# edit CHANGELOG.md under [X.Y.Z]; bump .release-please-manifest.json
-just check-contracts
-git commit -am "chore: release X.Y.Z" && git tag vX.Y.Z && git push --tags
+npx skills add Arenukvern/oka --skill oka-maintenance
 ```
 
-Version touchpoints that must match `VERSION`: `pubspec.yaml`,
-`plugin/.cursor-plugin/plugin.json`, `plugin/.codex-plugin/plugin.json`,
-`plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`
-(`plugins[0].version`). Adding a new touchpoint = update `sync_version.sh`,
-`check_version_sync.sh`, and `release-please-config.json` `extra-files`
-together.
-
-## Skill distribution
-
-Canonical skills live in `plugin/skills/`; root `skills` symlink exposes them
-to `npx skills add Arenukvern/oka`. When editing a skill, update **both** the
-plugin copy and your installed copy (or reinstall via
-`npx skills add Arenukvern/oka --skill oka-maintenance`).
-
-## Docs sync rules
-
-After any change:
-
-| Change type | Update |
-|---|---|
-| Internal trade-off / architecture | `docs/guides/design_faq.mdx` Q&A (≤3 sentences) and/or new ADR |
-| Public API / usage / config key | `docs/guides/build_and_config.mdx` (copy-paste valid block) |
-| Settled strategic decision | `docs/decisions/NNNN-*.mdx` + index row |
-| Phase-level feature completion | `docs/PHASE_CHECKLIST.mdx` evidence table |
-
-No duplication between files — link instead. Source-contract tests (tests that
-read source text) must follow moved code: update their file paths when
-refactoring.
-
-Docs are published via docs.page (`docs.json` sidebar): when adding a doc file,
-add it to the sidebar in `docs.json` too.
-
-## Common failure modes
-
-- **Editing a step but testing the wrong pipeline**: default order lives in
-  `default_pipeline.dart`; the example app composes it via `oka.yaml`, not
-  code. Verify with `cd example && oka build apk`.
-- **Adding a dep to the embedding set when it should be project-local**:
-  `flutterEmbeddingAndroidXDeps()` ships to *every* host — prefer
-  `pipeline.extra_deps` unless every Flutter app needs it.
-- **Forgetting source-contract tests**: tests under `test/` read source text;
-  moving code without updating their paths breaks CI even when behavior is fine.
-- **Signing assumptions**: APKs sign with apksigner; AABs sign with jarsigner
-  v1 (apksigner does not sign bundles). Debug keystore by default — never
-  commit release keystores.
-- **Hardcoding app-specific knowledge in oka**: dependency companions,
-  icon resource names, manifest entries — all must stay configurable
-  (IconConfig `name`/`manifest_ref`, `manifest_elements`, `extra_deps`).
-  A fix that only works for one app is not fixed (see
-  `docs/guides/gradle_migration.mdx` for the general mapping).
-- **`filterRuntimeJars` version ties**: KMP root jars (`atomicfu`) carry no
-  JVM classes — the platform-suffixed variant (`-jvm`/`-android`) must win
-  ties or d8 silently drops the classes.
-- **Stale generated res**: icon/theme artifacts from earlier builds survive
-  in `.oka_cache/build/<mode>/res` — cleanup logic lives in host-steps icon
-  staging; clean the build dir when changing generation logic.
-- **Device-side**: `unauthorized` = accept the USB prompt;
-  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` = signing mismatch — sign with the
-  same key, NEVER uninstall an app holding user data;
-  `adb: no devices` mid-session = flaky USB, retry with `adb kill-server`.
-
-## Install
-
-```bash
-npx skills add arenukvern/skill_steward --skill oka-maintenance
-```
-
-## Sources
-
-See [references/sources.md](references/sources.md).
+Sources: [sources.md](references/sources.md).

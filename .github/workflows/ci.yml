@@ -31,6 +31,37 @@ jobs:
             fi
           done
 
+  android-real-smoke:
+    # This is the acceptance path for the Phase 0 no-Gradle invariant. It
+    # deliberately invokes the repository's Dart pipeline test, never
+    # `flutter build apk` or Gradle.
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v3
+      - name: Install Android build tools required by oka
+        run: sdkmanager --install 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Prepare Flutter Android artifacts
+        run: |
+          flutter config --no-analytics
+          flutter precache --android
+          flutter doctor -v
+      - name: Resolve workspace packages
+        run: dart pub get --no-example
+      - name: Real no-Gradle APK and AAB smoke
+        env:
+          OKA_REQUIRE_REAL_ANDROID_SMOKE: 'true'
+        run: dart test test/adr0011_apk_contents_test.dart
+
   contracts:
     runs-on: ubuntu-latest
     steps:
@@ -54,6 +85,8 @@ jobs:
         with:
           sdk: stable
       - run: dart pub get --no-example
+      - name: Standalone staged package consumer
+        run: bash tool/ci/check_package_consumer.sh
       - name: Publish dry-runs
         run: |
           set -e

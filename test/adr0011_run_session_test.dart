@@ -36,6 +36,38 @@ RunSession _fixtureSession() => const RunSession(
       trackWidgetCreation: true,
     );
 
+final class FakeManifestRepository implements RunManifestRepository {
+  FakeManifestRepository(this.json);
+  final Map<String, dynamic> json;
+  int artifactReads = 0;
+
+  @override
+  Map<String, dynamic> read(String path) => json;
+
+  @override
+  Map<String, dynamic>? readForArtifact(String artifactPath, String fileName) {
+    artifactReads++;
+    return json;
+  }
+
+  @override
+  Future<File> write(String path, Map<String, dynamic> json) =>
+      throw UnsupportedError('unused');
+}
+
+final class FakeSdkProbe implements FlutterSdkProbe {
+  int calls = 0;
+  @override
+  Future<FlutterSdkSnapshot> inspect(String sdkPath) async {
+    calls++;
+    return const FlutterSdkSnapshot(
+      binaryPath: '/injected/flutter/bin/flutter',
+      binaryExists: true,
+      engineRevision: 'f88005a259ba379c2c1156178aa1870936be7b7f',
+    );
+  }
+}
+
 BuildContext _ctx(final String projectPath) =>
     BuildContext(
       projectPath: projectPath,
@@ -179,6 +211,15 @@ void main() {
     test('corrupt manifest throws fail-closed', () {
       final path = p.join(tmp.path, runSessionFileName);
       File(path).writeAsStringSync('{not json');
+      expect(
+        () => RunSession.load(path),
+        throwsA(isA<RunSessionException>()),
+      );
+    });
+
+    test('non-object manifest root throws RunSessionException', () {
+      final path = p.join(tmp.path, 'run_session.json');
+      File(path).writeAsStringSync('[]');
       expect(
         () => RunSession.load(path),
         throwsA(isA<RunSessionException>()),
@@ -544,6 +585,21 @@ void main() {
       final c = await check();
       expect(c.ok, isFalse);
       expect(c.refusal, contains('changed since the build'));
+    });
+
+    test('preflight uses injected manifest repository and SDK probe', () async {
+      final repository = FakeManifestRepository(_fixtureSession().toJson());
+      final probe = FakeSdkProbe();
+      final result = await checkDevSession(
+        projectPath: '/virtual/project',
+        discoverApk: (_) async => '/virtual/project/app-debug.apk',
+        manifestRepository: repository,
+        sdkProbe: probe,
+      );
+      expect(result.ok, isTrue, reason: result.refusal);
+      expect(repository.artifactReads, 1);
+      expect(probe.calls, 1);
+      expect(result.lines.join('\n'), contains('/injected/flutter/bin/flutter'));
     });
   });
 }

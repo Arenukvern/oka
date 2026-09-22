@@ -23,8 +23,6 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
-
 import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
@@ -34,6 +32,8 @@ import '../android_artifacts.dart';
 import '../build/toolchain.dart';
 import 'adb_tool.dart';
 import 'daemon_adapter.dart';
+import 'dev_discovery_store.dart';
+import 'dev_events.dart';
 import 'device_target.dart';
 import 'run_session.dart';
 
@@ -178,30 +178,24 @@ class DevLaunchException implements Exception {
 /// tools (e.g. `flutter_mcp_cli --vm-service-uri`) read this instead of
 /// scraping the `oka dev --json` stream. Absent = no live session.
 String vmUriFilePath(final String projectPath) =>
-    p.join(projectPath, '.oka_cache', 'dev', 'vm.uri');
+    const FileDevDiscoveryStore().vmUriPath(projectPath);
 
 /// Writes the discovery file (best-effort: a failed write must never break
 /// the dev session).
 Future<void> writeVmUriFile(
   final String projectPath,
   final String vmServiceUri,
+  {final DevDiscoveryStore store = const FileDevDiscoveryStore()}
 ) async {
-  try {
-    final f = File(vmUriFilePath(projectPath));
-    await f.parent.create(recursive: true);
-    await f.writeAsString('$vmServiceUri\n', flush: true);
-  } on FileSystemException {
-    // best-effort — the session itself does not depend on the file.
-  }
+  await store.writeVmUri(projectPath, vmServiceUri);
 }
 
 /// Removes the discovery file (session over → no live endpoint).
-Future<void> clearVmUriFile(final String projectPath) async {
-  try {
-    await File(vmUriFilePath(projectPath)).delete();
-  } on FileSystemException {
-    // already gone — fine.
-  }
+Future<void> clearVmUriFile(
+  final String projectPath, {
+  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
+}) async {
+  await store.clearVmUri(projectPath);
 }
 
 /// Path of the live dev-session discovery file (spec v2 — the
@@ -213,7 +207,7 @@ Future<void> clearVmUriFile(final String projectPath) async {
 /// session exit. Readers reject unknown `schema` values; absent file = no
 /// live delegable session. The `runner` field is display metadata only.
 String runnerSessionFilePath(final String projectPath) =>
-    p.join(projectPath, '.flutter_mcp', 'runner-session.json');
+    const FileDevDiscoveryStore().runnerSessionPath(projectPath);
 
 /// Writes the runner-session discovery file per spec v2 (best-effort,
 /// same law as the vm.uri file: a failed write must never break the dev
@@ -229,38 +223,26 @@ Future<void> writeRunnerSessionFile(
   required final String deviceId,
   final int? processPid,
   final DateTime? startedAt,
+  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
 }) async {
-  try {
-    final f = File(runnerSessionFilePath(projectPath));
-    await f.parent.create(recursive: true);
-    final map = <String, Object?>{
-      'schema': 1,
-      'runner': 'oka-dev',
-      'vm_service_uri': vmServiceUri,
-      'control_port': controlPort,
-      'device_id': deviceId,
-      'pid': processPid ?? pid,
-      'started_at':
-          (startedAt ?? DateTime.now().toUtc()).toIso8601String(),
-    };
-    await f.writeAsString(
-      '${const JsonEncoder.withIndent('  ').convert(map)}\n',
-      flush: true,
-    );
-  } on FileSystemException {
-    // best-effort — the session itself does not depend on the file.
-  }
+  await store.writeRunnerSession(
+    projectPath,
+    vmServiceUri: vmServiceUri,
+    controlPort: controlPort,
+    deviceId: deviceId,
+    processPid: processPid,
+    startedAt: startedAt,
+  );
 }
 
 /// Removes the runner-session discovery file (session over → no live
 /// channel). Only the file is deleted — never the `.flutter_mcp/`
 /// directory or any sibling file (e.g. the toolkit's `state.json`).
-Future<void> clearRunnerSessionFile(final String projectPath) async {
-  try {
-    await File(runnerSessionFilePath(projectPath)).delete();
-  } on FileSystemException {
-    // already gone — fine.
-  }
+Future<void> clearRunnerSessionFile(
+  final String projectPath, {
+  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
+}) async {
+  await store.clearRunnerSession(projectPath);
 }
 
 /// Typed view of `.flutter_mcp/runner-session.json` (see
@@ -289,50 +271,18 @@ class DevSessionDiscovery {
 /// Reads the session discovery file: `null` when absent (no live
 /// session); [FormatException] when the file exists but is unreadable or
 /// carries an unknown `schema` (readers reject unknown schema values).
-DevSessionDiscovery? readRunnerSessionFile(final String projectPath) {
-  final f = File(runnerSessionFilePath(projectPath));
-  if (!f.existsSync()) return null;
-  late final Map<String, Object?> json;
-  try {
-    json = (jsonDecode(f.readAsStringSync()) as Map).cast<String, Object?>();
-  } on FormatException catch (e) {
-    throw FormatException(
-      'Unreadable ${runnerSessionFilePath(projectPath)}: ${e.message}\n'
-      '   fix: delete the stale file (or let the owning `oka dev` exit — '
-      'it clears it) and re-run.',
-    );
-  }
-  final schema = json['schema'];
-  if (schema != 1) {
-    throw FormatException(
-      'Unsupported runner-session.json schema: $schema (supported: 1).\n'
-      '   fix: re-run `oka dev` to rewrite the file with the current '
-      'schema, or upgrade the reader.',
-    );
-  }
-  final uri = json['vm_service_uri'];
-  final port = json['control_port'];
-  final device = json['device_id'];
-  final pid = json['pid'];
-  final startedAt = json['started_at'];
-  if (uri is! String ||
-      port is! int ||
-      device is! String ||
-      pid is! int ||
-      startedAt is! String) {
-    throw FormatException(
-      'Incomplete ${runnerSessionFilePath(projectPath)} — all fields '
-      '(schema, vm_service_uri, control_port, device_id, pid, '
-      'started_at) are required.\n'
-      '   fix: re-run `oka dev` to rewrite the file.',
-    );
-  }
+DevSessionDiscovery? readRunnerSessionFile(
+  final String projectPath, {
+  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
+}) {
+  final record = store.readRunnerSession(projectPath);
+  if (record == null) return null;
   return DevSessionDiscovery(
-    vmServiceUri: uri,
-    controlPort: port,
-    deviceId: device,
-    pid: pid,
-    startedAt: DateTime.parse(startedAt),
+    vmServiceUri: record.vmServiceUri,
+    controlPort: record.controlPort,
+    deviceId: record.deviceId,
+    pid: record.pid,
+    startedAt: record.startedAt,
   );
 }
 
@@ -355,6 +305,7 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   final String? adbPath,
   final int waitSeconds = 3,
   final bool verbose = false,
+  final DevDiscoveryStore discoveryStore = const FileDevDiscoveryStore(),
 }) async {
   final ctx = BuildContext(
     projectPath: projectPath,
@@ -405,7 +356,7 @@ Future<DevLaunchPrepared> prepareDevLaunch({
     uri: vmUri,
   );
   final hostUri = forwardedVmServiceUri(info, localPort);
-  await writeVmUriFile(projectPath, hostUri);
+  await discoveryStore.writeVmUri(projectPath, hostUri);
   return DevLaunchPrepared(
     apkPath: state[apkPath.id] as String? ?? '',
     vmServiceUri: hostUri,
@@ -507,7 +458,11 @@ class DevSession {
     this.startupTimeout = const Duration(seconds: 90),
     this.onReady,
     this.onResult,
-  });
+    DevEventRenderer? renderer,
+  }) : _renderer = renderer ??
+            (json
+                ? const JsonDevEventRenderer()
+                : HumanDevEventRenderer(verbose: verbose));
 
   /// The spawned daemon adapter (real process or scripted fake).
   final FlutterDaemonAdapter adapter;
@@ -546,6 +501,7 @@ class DevSession {
   /// `restart.result`, `restart.fallback`, and `app.stopped` with the
   /// event's data. Purely additive: rendering is unchanged.
   final void Function(String event, Map<String, Object?> data)? onResult;
+  final DevEventRenderer _renderer;
 
   final _commandGate = Completer<DevSessionOutcome>();
   final _queued = <DevControlCommand>[];
@@ -746,29 +702,31 @@ class DevSession {
     final Future<DaemonResponse> Function() operation, {
     required final String label,
   }) async {
-    write('🔁 $label…');
+    _render(DevEvent('operation.start', {'label': label}));
     try {
       final r = await operation();
       // A fallback (e.g. app stopped mid-restart) may have ended the session
       // while this operation was in flight — late writes are noise.
       if (_commandGate.isCompleted) return false;
       if (r.ok) {
-        write('✅ $label complete.');
+        _render(DevEvent('operation.success', {'label': label}));
         return true;
       }
-      write(
-        '❌ $label failed: ${r.errorText}\n'
-        '   fix: resolve the error above (most often a Dart compile error — '
-        'check the edited file), then retry.',
-      );
+      _render(DevEvent('operation.failure', {
+        'label': label,
+        'error': r.errorText,
+        'fix': 'resolve the error above (most often a Dart compile error — '
+            'check the edited file), then retry.',
+      }));
       return false;
     } on DaemonException catch (e) {
       if (_commandGate.isCompleted) return false;
-      write(
-        '❌ $label failed: ${e.message}\n'
-        '   fix: if the daemon is gone, re-run `oka dev` '
-        '(and `oka run device` first if the app is not running).',
-      );
+      _render(DevEvent('operation.failure', {
+        'label': label,
+        'error': e.message,
+        'fix': 'if the daemon is gone, re-run `oka dev` '
+            '(and `oka run device` first if the app is not running).',
+      }));
       return false;
     }
   }
@@ -782,34 +740,7 @@ class DevSession {
   }
 
   void _renderEvent(final DaemonEvent e) {
-    if (json) {
-      _emitJson('daemon.${e.event}', e.params);
-      return;
-    }
-    switch (e.event) {
-      case 'app.progress':
-        final finished = e.field('finished') == true;
-        final message = e.field('message')?.toString() ?? e.event;
-        if (!finished) write('⏳ $message');
-      case 'app.started':
-        write('✅ App started.');
-      case 'app.debugPort' || 'app.devTools' || 'app.dtd' || 'daemon.connected':
-        if (verbose) write('[daemon] ${e.event}: ${e.params}');
-      case 'app.reloadRecommended':
-        final reason =
-            e.field('reason')?.toString() ??
-            'files changed outside the session';
-        write(
-          '💡 flutter_tools recommends a reload ($reason).\n'
-          '   → press `r` (or send `reload` with --json).',
-        );
-      case 'app.stop' || 'app.start':
-        break; // session-level handling covers these
-      default:
-        // Unknown events are tolerated (feature-detect) and logged at -v
-        // only (ADR-0011 §2).
-        if (verbose) write('[daemon] ${e.event}: ${e.params}');
-    }
+    _render(DevEvent('daemon.${e.event}', e.params));
   }
 
   void _emit(final String event, final Map<String, Object?> data) {
@@ -823,37 +754,11 @@ class DevSession {
           'app.stopped':
         onResult?.call(event, data);
     }
-    if (json) {
-      _emitJson(event, data);
-      return;
-    }
-    switch (event) {
-      case 'session.start':
-        write(
-          '🚀 oka dev — attach session on $deviceId '
-          '(target=${session.targetFile}, mode=${session.buildMode})',
-        );
-        write(
-          '   r hot reload · R hot restart (state loss) · '
-          'q quit · d detach',
-        );
-      case 'session.ready':
-        write('✅ Connected. Session commands ready.');
-      case 'reload.result' || 'restart.result' || 'app.stopped':
-      case 'rebuild.required':
-        break; // dispatch / rebuild routing already rendered
-    }
+    _render(DevEvent(event, data));
   }
 
-  void _emitJson(final String event, final Map<String, Object?> data) {
-    write(
-      jsonEncode({
-        'scope': 'dev',
-        'event': event,
-        'params': data,
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-      }),
-    );
+  void _render(DevEvent event) {
+    _renderer.render(event).forEach(write);
   }
 }
 
@@ -874,7 +779,11 @@ String fullRebuildMessage() =>
 /// parity flags the session was validated against), then re-attach.
 /// Quit/detach/daemon-exit end the flow.
 class DevFlow {
-  DevFlow({required this.prepare, required this.runBuild});
+  DevFlow({
+    required this.prepare,
+    required this.runBuild,
+    void Function(String message)? diagnostics,
+  }) : diagnostics = diagnostics ?? stderr.writeln;
 
   /// Prepares the device (install/launch/VM-service steps) and spawns one
   /// attach session. Called once per attach (again after each rebuild).
@@ -883,6 +792,7 @@ class DevFlow {
   /// Runs the full rebuild (`oka build apk --debug` with the session's
   /// parity flags). Returns false on failure (the flow stops).
   final Future<bool> Function() runBuild;
+  final void Function(String message) diagnostics;
 
   /// Runs the flow; returns the process exit code.
   Future<int> run() async {
@@ -891,7 +801,7 @@ class DevFlow {
       try {
         session = await prepare();
       } on DevLaunchException catch (e) {
-        stderr.writeln('❌ $e');
+        diagnostics('❌ $e');
         return 1;
       }
       final outcome = await session.run();
@@ -904,7 +814,7 @@ class DevFlow {
         case DevSessionOutcome.rebuildRequested:
           final ok = await runBuild();
           if (!ok) {
-            stderr.writeln(
+            diagnostics(
               '❌ Rebuild failed — fix the errors above and re-run '
               '`oka dev`.',
             );
@@ -913,7 +823,7 @@ class DevFlow {
         case DevSessionOutcome.relaunchRequested:
           // Relaunch + re-attach only — no build. `prepare` reinstalls the
           // same APK (idempotent) and re-attaches with a fresh VM service.
-          stderr.writeln('↩️  Relaunching and re-attaching…');
+          diagnostics('↩️  Relaunching and re-attaching…');
       }
     }
   }

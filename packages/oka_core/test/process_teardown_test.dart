@@ -11,8 +11,7 @@ class OkStep extends BuildStep {
   Future<StepResult> run(
     final BuildContext ctx,
     final PipelineState state,
-  ) async =>
-      StepResult.success();
+  ) async => StepResult.success();
 }
 
 class FailingStep extends BuildStep {
@@ -20,8 +19,10 @@ class FailingStep extends BuildStep {
   String get name => 'failing-step';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async =>
-      StepResult.failure('device not attached');
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async => StepResult.failure('device not attached');
 }
 
 class ThrowingStep extends BuildStep {
@@ -29,8 +30,10 @@ class ThrowingStep extends BuildStep {
   String get name => 'throwing-step';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async =>
-      throw StateError('broken step');
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async => throw StateError('broken step');
 }
 
 class SlowStep extends BuildStep {
@@ -39,7 +42,10 @@ class SlowStep extends BuildStep {
 
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
-      Future<StepResult>.delayed(const Duration(seconds: 5), StepResult.success);
+      Future<StepResult>.delayed(
+        const Duration(seconds: 5),
+        StepResult.success,
+      );
 }
 
 class ReadingStep extends BuildStep {
@@ -51,19 +57,21 @@ class ReadingStep extends BuildStep {
   String get name => 'reading-step';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async =>
-      (state[artifact.id] as String?) == null
-          ? StepResult.failure('missing artifact')
-          : StepResult.success();
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async => (state[artifact.id] as String?) == null
+      ? StepResult.failure('missing artifact')
+      : StepResult.success();
 }
 
 BuildContext _ctx() => const BuildContext(
-      projectPath: '/tmp/x',
-      buildDir: '/tmp/x/.oka_cache',
-      mode: BuildMode.debug,
-      config: OkaConfig.empty,
-      cacheDir: '/tmp/x/.oka_cache',
-    );
+  projectPath: '/tmp/x',
+  buildDir: '/tmp/x/.oka_cache',
+  mode: BuildMode.debug,
+  config: OkaConfig.empty,
+  cacheDir: '/tmp/x/.oka_cache',
+);
 
 void main() {
   test('all clean → ok, no failures', () async {
@@ -72,21 +80,30 @@ void main() {
     expect(o.failures, isEmpty);
   });
 
-  test('a failing step is collected, never throws; later steps still run',
-      () async {
-    final o = await runTeardownSteps([
-      FailingStep(),
-      OkStep(),
-    ], ctx: _ctx());
-    expect(o.ok, isFalse);
-    expect(o.failures.single.step, 'failing-step');
-    expect(o.failures.single.error, contains('device not attached'));
-  });
+  test(
+    'a failing step is collected, never throws; later steps still run',
+    () async {
+      final o = await runTeardownSteps([FailingStep(), OkStep()], ctx: _ctx());
+      expect(o.ok, isFalse);
+      expect(o.failures.single.step, 'failing-step');
+      expect(o.failures.single.error, contains('device not attached'));
+    },
+  );
 
   test('a throwing step is a collected failure, not a crash', () async {
     final o = await runTeardownSteps([ThrowingStep()], ctx: _ctx());
     expect(o.ok, isFalse);
     expect(o.failures.single.error, contains('broken step'));
+  });
+
+  test('a throwing reporter never escapes teardown', () async {
+    final outcome = await runTeardownSteps(
+      [FailingStep()],
+      ctx: _ctx(),
+      write: (_) => throw StateError('broken reporter'),
+    );
+    expect(outcome.ok, isFalse);
+    expect(outcome.failures, hasLength(1));
   });
 
   test('per-step timeout bounds a hung stop', () async {
@@ -103,8 +120,7 @@ void main() {
   });
 
   test("steps consume the forward run's state artifacts", () async {
-    final state = PipelineState()
-      ..['apk-path'] = '/tmp/x/app.apk';
+    final state = PipelineState()..['apk-path'] = '/tmp/x/app.apk';
     final ok = await runTeardownSteps(
       [ReadingStep(const Artifact<String>('apk-path'))],
       ctx: _ctx(),

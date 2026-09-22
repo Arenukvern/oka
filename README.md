@@ -3,7 +3,7 @@
 [![skills.sh](https://skills.sh/b/arenukvern/oka)](https://skills.sh/arenukvern/oka)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-docs.page-02569B)](https://docs.page/arenukvern/oka)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/arenukevrn/oka)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/arenukvern/oka)
 [![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
 [![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.44-blue.svg)](https://flutter.dev)
 [![All Contributors](https://img.shields.io/github/all-contributors/Arenukvern/oka?color=ee8449&style=flat-square)](https://github.com/Arenukvern/oka#contributors-)
@@ -29,10 +29,10 @@ typed, drift-checked Dart + deploy targets). Three words carry the design:
   byte-equivalence gates, and failures that name the fix. _An agent can set
   up and fix a platform build from oka's messages alone._
 
-Production-validated on real apps (18-plugin production app;
-bundletool-validated release AABs).
+Validated on real apps; see the [production-app migration walkthrough](docs/guides/gradle_migration.mdx)
+and [phase evidence](docs/archive/PHASE_CHECKLIST_2026-09.mdx).
 
-## Quickstart: first build in under two minutes
+## Quickstart
 
 Install once — either the one-liner (installs via `dart pub global
 activate`; requires Dart, not Flutter):
@@ -144,16 +144,15 @@ the [web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_
 Every operation is checkable and scriptable — this is what "AI-native"
 means here, not a chat wrapper:
 
-```
 | Command | What an agent gets |
 |---|---|
 | `oka explain` / `oka build --dry-run` | The validated plan: steps, artifact chain, signing, versions — zero tools invoked |
 | `oka explain --targets` | Every project-declared target with its compiled step chain (ADR-0015) |
 | `oka debug step <name>` | One pipeline step re-run against `.oka_cache` — 10-minute loops become 30-second probes |
 | `oka compare a.apk b.apk` | Byte-equivalence gate (badging + zip entries) — refactors prove, not claim |
-| `oka cache list/gc/why` | Inspectable views over the shared artifact store (ADR-0013) |
+| `oka cache --json` | Global known-project storage, reclaimable totals and next-action argument arrays |
+| `oka cache clean` / `oka cache schema` | Cleanup preview and saved plans; machine interface without a scan |
 | `oka doctor` | Full environment + build-health audit, including secret-tier and dev-loop readiness |
-```
 
 ## Configuration
 
@@ -226,12 +225,17 @@ one; resolution order is explicit config → env vars → oka-managed → system
 printed by `oka doctor`. Run `oka doctor` to verify your layout.
 
 **Where is the cache, and can I inspect it?**
-Yes — that's the contract ([ADR-0013](docs/decisions/0013-toolchain-provisioning-artifact-store.mdx)).
-The shared store is a plain directory with human-decodable layout
-(`~/.oka/store/aapt2/8.0.2-<hash>/…`), relocatable via `OKA_CACHE`;
-per-project build outputs stay in `.oka_cache/`. Inspect with `ls` — or
-with `oka cache list`, `oka cache gc --older-than=30d`, and
-`oka cache why androidx/annotation-jvm/1.9.1`.
+Run `oka cache` for storage across known projects, including Android emulators
+and Apple simulator data on macOS. Run `oka cache clean --apply` to reclaim
+eligible build/shared caches; omit `--apply` to preview. Builds remember projects
+automatically. Use `oka cache --scan "$HOME/projects"` once to discover older
+projects; known projects are not an exhaustive disk scan.
+
+SDKs, emulator user data and browser profiles are preserved. The shared store
+defaults to `~/.oka/store` (`OKA_CACHE` overrides it); project outputs live in
+`.oka_cache/`. `--project PATH` narrows project coverage. See the
+[cache guide](docs/guides/cache_storage.mdx) for saved cleanup plans, terminal
+confirmation, JSON automation and advanced selection.
 
 **How do secrets work?**
 By tier ([ADR-0014](docs/decisions/0014-distribution-targets-secrets-model.mdx)):
@@ -301,7 +305,6 @@ Full charter: [why oka matters](https://docs.page/arenukvern/oka/start_here/why_
 
 Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukvern/oka)**
 
-```
 | I want to… | Read |
 |---|---|
 | Copy-paste the common loops | [Quick recipes](https://docs.page/arenukvern/oka/start_here/quick_recipes) |
@@ -311,7 +314,6 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 | Migrate an existing Gradle app | [Gradle migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
 | Check phase status | [`docs/PHASE_CHECKLIST.mdx`](docs/PHASE_CHECKLIST.mdx) |
-```
 
 ## Contributing
 

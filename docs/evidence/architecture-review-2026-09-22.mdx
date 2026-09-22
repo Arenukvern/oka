@@ -1,0 +1,153 @@
+# Architecture review — 2026-09-22
+
+Status: source review complete; implementation not started.
+
+Scope: current working tree, including the new cache diagnostics. Three independent
+audits covered cache/storage, Android builds/dependencies, and process/dev lifecycle.
+Findings are source-backed; no live failure reproduction or new test execution was
+performed for this review. Existing uncommitted work was preserved.
+
+## Review lens
+
+The requested [architecture article](https://github.com/Arenukvern/articles/blob/main/articles/2025_feb_flutter_app_architecture/en.md)
+emphasizes developer navigation, domain knowledge, clear module roles and stable
+external surfaces as implementation evolves. The xsoulspace maintainer skill
+adds thin presentation, explicit transaction boundaries, capability/persistence
+ownership, typed conversions and repository-native composition. Apply these roles
+to this Dart CLI; Flutter widgets, reactive stores and service locators are not
+needed here.
+
+File length is a screening signal. A file is a refactoring candidate when it has
+independent reasons to change, duplicated policy or an inappropriate dependency.
+
+## Measured hotspots
+
+Physical lines, including comments and blanks; production Dart sources only in
+this table. Counts describe the reviewed snapshot, not architectural severity.
+
+| File | Lines | Actual responsibility concern |
+| --- | ---: | --- |
+| `oka_android/src/maven_resolver.dart` | 1207 | Graph traversal, metadata interpretation, transport, storage and archive extraction |
+| `oka_android/src/build/toolchain.dart` | 1202 | Tool policy/resolution, AndroidX provisioning, compatibility facade |
+| `oka_android/src/pipeline/toolchain.dart` | 979 | Compilation, packaging, signing, classpath policy; duplicated compilation |
+| `oka/src/cli/cache_command.dart` | 922 | CLI parsing/rendering, workflows, cleanup-plan persistence, interaction |
+| `oka_android/src/dev/dev_session.dart` | 920 | Session state machine, discovery persistence, event formatting |
+| `oka_android/src/dev/emulator_target.dart` | 788 | Target composition plus runtime discovery/spawn/stop policy |
+| `oka_web/src/session/chrome_session_target.dart` | 729 | Target composition plus browser launch/profile/lease/stop policy |
+| `oka_android/src/build/plugin_packager.dart` | 729 | Plugin orchestration plus input inspection and native compilation |
+
+All paths above are below `packages/<package>/lib/`. Five production files exceed
+800 lines; smaller lifecycle files contain some of the higher-priority findings.
+
+## Findings, ordered by risk
+
+### P1 — Target execution does not own its complete lifetime
+
+`packages/oka_core/lib/src/oka_run.dart:225` awaits the forward pipeline before
+installing signal handlers at line 244. Teardown is not in a `finally`, signal
+subscriptions are not retained/cancelled, and signal cleanup can race the normal
+cleanup call at line 254. The orchestration cannot reliably guarantee its stated
+cleanup lifetime. Extract one execution scope owning forward execution, signal
+subscriptions and once-only teardown. Reuse `runTeardownSteps`.
+
+### P1 — Duplicated stop policy can discard evidence before confirming shutdown
+
+`packages/oka_android/lib/src/dev/emulator_target.dart:690` sends SIGTERM, then
+uses direct `Process.killPid` at line 694 and deletes the lease without verifying
+the result. `packages/oka_web/lib/src/session/chrome_session_target.dart:617`
+ignores the boolean result of `_host.kill` before deleting the lease at line 619.
+Both helpers treat liveness errors as false. The core stop surface already has a
+stronger retain-on-failure path (`packages/oka_core/lib/src/process_surface.dart:237`).
+
+Share stop outcomes and identity/ownership policy, retaining platform-specific
+ADB/CDP discovery and graceful operations. Audit explicit stop steps too. The
+PID-zero branch in `process_surface.dart:183` precedes the borrowed-ownership
+guard at line 224; its current hint-only stop behavior is covered by tests. A
+uniform borrowed/PID-zero policy needs an explicit decision, not a silent move.
+
+### P1 — Duplicate APK/AAB compilation has already diverged
+
+`packages/oka_android/lib/src/pipeline/toolchain.dart:229` sorts APK D8 input
+lists. Equivalent AAB lists at line 507 are unsorted. The helper described as
+shared at line 403 is called only from the proto/AAB path at line 385. This is a
+source-level determinism gap; byte-level output differences were not measured.
+Extract one Kotlin/Java/JAR/D8 transaction with shared classpath policy.
+
+### P2 — Cache presentation owns application workflows and persistence
+
+`packages/oka/lib/src/cli/cache_command.dart:398` reads saved plans; line 458
+executes cleanup; line 466 validates/writes plan destinations; line 525
+rediscovers protections after confirmation. These coexist with parsers, help,
+JSON, human formatting, legacy store operations and terminal interaction.
+
+Extract typed inspect/preview/apply transactions and a plan repository. Keep
+confirmation and rendering in the CLI. Moving these methods into a single
+equally broad service would preserve the same problem.
+
+### P2 — Cache selection and lease policy have multiple sources of truth
+
+Stats measures at `cache_command.dart:194`, then `prune()` at line 209 scans
+eligible storage again (`storage_inventory.dart:331`). Totals and reclaimable
+bytes can describe different moments, and large trees are traversed twice.
+Extract pure selection over a measured report and explicit time; retain fresh
+filesystem checks for apply and scoped-only measurement for ordinary pruning.
+
+`packages/oka/lib/src/cli/storage_discovery.dart:84` still manually reads leases
+to avoid stdout warnings, although `process_lease_registry.dart:99` now delegates
+to silent structured inspection. Discovery and diagnostics consequently have
+different path/corruption handling. Use one registry snapshot and protection
+policy instead of a third lease parser.
+
+### P2 — Capability ownership is difficult to discover and compose
+
+`packages/oka/lib/oka.dart:59` exports reusable APIs from `src/cli`.
+`cache_workspace.dart:46` constructs its repository internally; selection,
+discovery and remembering projects share a boolean-mode function. Platform layout
+knowledge remains in `storage_discovery.dart:303` despite ADR-0015's intended
+thin verb layer. ADR-0021 explicitly permits the temporary Apple adapter; this
+is an acknowledged placement compromise, not a reason to create an Apple package.
+
+Place application orchestration under a cache capability folder and compose
+explicit repositories/location sources. Distinguish read-only inspection,
+explicit scan-and-remember, and cleanup resolution. Keep convenient compatibility
+exports and the default platform composition in `oka`.
+
+### P2 — Android and dev modules bundle independently reusable capabilities
+
+- `build/toolchain.dart:819` provisions AndroidX inside the tool-resolution file;
+  `ResolvedToolchain` at line 978 is also a compatibility facade.
+- `maven_resolver.dart:319` begins a resolver owning cache/index persistence
+  (line 416), downloads (546), graph traversal (654), parent/BOM resolution (833)
+  and parsing (975); AAR extraction sits at line 211.
+- `build/plugin_packager.dart:109` orchestrates plugins but also parses declarations
+  (204), scans sources (468), compiles native code (567) and locates tools (689).
+- `dev/dev_session.dart:497` mixes state-machine/command serialization with
+  human/JSON rendering (784 onward); discovery-file persistence starts at 185.
+- `dev/run_session.dart:150` mixes manifest values with persistence; preflight at
+  422 also performs SDK/tool probing and formats user messages.
+
+Extract at capability boundaries, retaining orchestration where it belongs.
+The detailed sequence and acceptance criteria are in the linked delivery plan.
+
+## Preserve rather than rewrite
+
+- `Oka`, `Target`, `Pipeline`, typed artifacts and constructor composition.
+- `CacheDiagnostics(providers: ...)`, platform-owned diagnostic providers and
+  structured failure isolation. Its 267-line contract module is not a priority.
+- Cohesive `runTeardownSteps` and the existing typed lease outcomes.
+- `SdkLocator` and `DependencyCache`: these are genuine compatibility delegates,
+  not additional independent resolvers. Their defaults must remain compatible.
+- Explicit native Android mode: `build_command.dart:206` still calls its legacy
+  builder; the default Flutter path uses `FlutterApkBuilder`. Do not silently
+  remove this mode or confuse it with a Gradle fallback.
+
+## Governance gap
+
+The current platform-leakage gate uses selected text markers and a flat directory
+scan (`test/adr0015_cli_platform_leakage_gate_test.dart`). It does not establish
+all dependency directions or cover nested feature folders. Extend it during the
+refactor with recursive coverage and focused import rules. Keep file-length
+reporting advisory; semantic composition/behavior tests are the stronger gate.
+Repair stale root `lib/src/...` navigation in AGENTS.md when the new map lands.
+
+Next: [architecture refactoring plan](../guides/architecture_refactoring_plan).

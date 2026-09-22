@@ -1,0 +1,116 @@
+# Capability refactoring — 2026-09-22
+
+Implementation follows the [review](architecture-review-2026-09-22) and
+[ADR 0022](../decisions/0022-capability-boundaries-and-lifecycle-ownership).
+The user authorized implementation and lighter-model delegation. Three
+`gpt-5.6-sol` agents handled disjoint capability slices; the primary integrated
+public exports and independently reviewed behavior.
+
+## Completed changes
+
+- The maintenance skill now specifies capability ownership, constructor
+  composition, compatibility, read-only inspection, verified lifecycle cleanup,
+  meaningful validation and forward-only plans.
+- `TargetExecutionScope` owns signal subscriptions and once-only teardown.
+  Cancellation occurs between steps after resource handles are published.
+  Shared stop policy retains unverified leases; both the policy and host kill
+  implementation recheck identity before escalation. Chrome refuses mismatched
+  or missing implicit leases; external PID stops do not delete profile data.
+- Cache transactions expose inspect/preview/save/apply through Dart. Registry,
+  location, plan persistence, clock and liveness are injectable. CLI inspection
+  uses the same transaction and measured snapshot; apply rediscovers protections.
+  Old import paths remain compatibility exports.
+- APK and AAB share resource-format dispatch and bytecode compilation. Pure
+  argument policy does not read files or mutate caller lists. Runtime/compile-only
+  selection stays deterministic; a D8 retry clears partial outputs first.
+  Packaging and signing have named modules and retain their distinct formats.
+- `oka.check.architecture` uses existing Steward custom actions to check recursive
+  dependency boundaries and report advisory large-file hotspots. Four fixtures
+  cover nested/relative forbidden imports, application-to-presentation direction,
+  and a cohesive large file that warns without failing.
+- Maven routing/parsing, transport/repository and archive operations now have
+  dedicated modules. Plugin packaging composes input inspection and native build
+  services. Tool source policy, host execution, resolution, AndroidX provisioning
+  and the compatibility adapter have separate owners; `build/toolchain.dart`
+  is an export facade.
+- Dev manifests, discovery storage, SDK probing and event rendering are injectable.
+  The preflight transaction uses the repository/probe; the daemon state machine
+  keeps its command queue and transitions together. Compatibility helpers remain.
+- Independent cache review led to protection of both injected and host home roots,
+  rejection of linked saved-plan ancestors, explicit `discoverAndInspect`, and
+  consistent usage errors for relative project paths in saved plans.
+- Final integration review removed duplicate plugin inspection, routed Maven
+  graph metadata through the injected repository, and verified consumer-package
+  compilation after the toolchain move. Source-contract checks now follow the
+  implementation owners while retaining their original behavioral assertions.
+
+## Skill behavior evaluation
+
+Structural `steward validate skills/` passed before and after the update.
+A lighter agent then evaluated a new plan-only desktop diagnostic-provider and
+saved-plan request. It selected constructor-composed providers and a narrow JSON
+repository, preserved read-only inspection and fresh apply validation, rejected
+diagnostic deletion authority, and made no production edits for that prompt.
+It deferred universal_storage until a demonstrated advanced persistence need.
+
+This was a same-context forward evaluation: spawning a fresh agent hit the task's
+agent-thread limit. It provides narrower evidence than a blind skill evaluation.
+The agent also reviewed the shared compilation/resource/packaging/signing source
+against the former implementation and reported no actionable regression; that
+review did not itself run real builds.
+
+## Dependency and stewardship decisions
+
+Skill Steward already supports repository-owned actions and structural
+architecture guidance. Oka-specific rules belong in this repository, so no
+upstream Skill Steward change was needed. The supplied universal_storage path
+resolves to several packages (including interface and filesystem packages);
+the current small JSON records do not justify adding that dependency. Persistence
+interfaces leave room for a later adapter when requirements warrant it.
+
+## Final integration evidence
+
+`OKA_REQUIRE_REAL_ANDROID_SMOKE=1 just test` passed: **1,017 tests**.
+
+| Suite | Passed |
+| --- | ---: |
+| Root cross-package suite | 651 |
+| oka_android | 26 |
+| oka_conformance | 15 |
+| oka_core | 92 |
+| oka_huawei | 41 |
+| oka_play | 36 |
+| oka_web | 156 |
+
+The root run built a real debug APK (147.15 MB) and AAB (133.16 MB) through the
+shared no-Gradle pipeline and checked their contents. The final run completed
+after the moved source checks, plugin inspection and tool-constructor fixes.
+Earlier integration failures were resolved before this accepted run.
+
+- Workspace `dart analyze`: no issues.
+- Four release/documentation contract gates: passed.
+- Steward architecture action: passed, zero forbidden dependencies.
+- Steward cache action: 181 tests passed; skill structural validation passed.
+- `git diff --check`: passed.
+
+The strict `oka.contract-status-smoke` benchmark reported `blocked`, not passed:
+its durability requirement rejects uncommitted `steward.yaml`,
+`tool/release/check_version_sync.sh`, and `tool/contracts/check_docs_drift.sh`.
+The individual contract commands passed. No commit was created to bypass this
+working-tree requirement.
+
+## Validation limits
+
+Signal cancellation is cooperative: a hung step still needs its own host-operation
+timeout. Fixture tests do not establish real emulator/browser lifecycle behavior.
+No live emulator/browser lifecycle validation or publication was performed.
+The architecture source check is lightweight, not a complete Dart analyzer.
+
+## Retained hotspots
+
+The advisory report still flags Maven resolution, dev-session orchestration and
+emulator orchestration. Their new transport/persistence/presentation capabilities
+are separate; graph traversal and per-build memoization, serialized daemon
+transitions, and AVD/readiness sequencing remain with their respective owners.
+Large-file warnings remain visible for future responsibility reviews rather than
+being suppressed or converted into mandatory arbitrary splits.
