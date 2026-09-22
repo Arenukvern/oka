@@ -23,6 +23,8 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+final _repoRoot = Directory.current.path;
+
 // ─── Fixtures (in-process contracts) ─────────────────────────────────────
 
 class _EchoTarget extends Target {
@@ -206,16 +208,16 @@ void main() {
     setUp(() async {
       sandbox = Directory(
         p.join(
-          Directory.current.path,
+          _repoRoot,
           '.oka_cache',
           'adr0015_test_${DateTime.now().microsecondsSinceEpoch}',
         ),
       );
       await Directory(p.join(sandbox.path, 'tool')).create(recursive: true);
-      File(p.join(Directory.current.path, 'test/fixtures/adr0015_entrypoint.dart'))
+      File(p.join(_repoRoot, 'test/fixtures/adr0015_entrypoint.dart'))
           .copySync(p.join(sandbox.path, 'tool', 'oka_pipeline.dart'));
       relBin = p.relative(
-        p.join(Directory.current.path, 'packages', 'oka', 'bin', 'oka.dart'),
+        p.join(_repoRoot, 'packages', 'oka', 'bin', 'oka.dart'),
         from: sandbox.path,
       );
     });
@@ -265,7 +267,7 @@ void main() {
       // Empty sandbox: no tool/oka_pipeline.dart, no oka.yaml.
       final bare = Directory(
         p.join(
-          Directory.current.path,
+          _repoRoot,
           '.oka_cache',
           'adr0015_bare_${DateTime.now().microsecondsSinceEpoch}',
         ),
