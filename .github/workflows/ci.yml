@@ -48,6 +48,10 @@ jobs:
           channel: stable
           cache: true
       - uses: android-actions/setup-android@v3
+        with:
+          # `tools` was removed from the Android SDK repository, but remains
+          # the action's default package list.
+          packages: 'platform-tools'
       - name: Install Android build tools required by oka
         run: sdkmanager --install 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0'
       - name: Prepare Flutter Android artifacts
