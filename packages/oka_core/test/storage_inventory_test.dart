@@ -121,6 +121,12 @@ void main() {
     () async {
       await file('older/data', 10);
       await file('newer/data', 20);
+      // Explicit ages: filesystems with coarse mtime granularity give both
+      // files identical timestamps, and the selector's path tie-break would
+      // then order 'newer' before 'older' alphabetically.
+      await File(
+        p.join(root.path, 'older/data'),
+      ).setLastModified(DateTime.now().subtract(const Duration(minutes: 5)));
       final inventory = StorageInventory(
         locations: [location('older'), location('newer')],
       );
