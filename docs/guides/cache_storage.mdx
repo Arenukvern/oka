@@ -89,7 +89,7 @@ not followed. Incomplete scans carry warnings and are not eligible for pruning.
 | Known projects' `.oka_cache/build/` (or the explicitly selected project) | Build scope; browser profiles remain |
 | Shared store at `OKA_CACHE` or `~/.oka/store` | Shared scope |
 | Existing legacy Maven/AI directories | Shared scope |
-| Oka tools at `~/.oka/tools` | Explicit tools scope |
+| Oka tools at `~/.oka/tools` | Explicit tools scope, one unit per tool (`tools-r8`, `tools-kotlin-*`, `tools-bundletool.jar`, …) when the platform packages supply tool guidance; otherwise one coarse unit. Notes name the `oka get` command to re-provision |
 | Managed and configured Android SDK components | Report only, including system images and emulator binaries |
 | Android AVD directories and custom locations referenced by `.ini` files | Report only; these contain user data and snapshots |
 | Apple simulator devices and known runtime directories on macOS | Report only |

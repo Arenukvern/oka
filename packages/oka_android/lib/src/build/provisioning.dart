@@ -52,6 +52,35 @@ final Map<String, Future<void> Function()> androidProvisioners = {
   'bundletool': provisionBundletool,
 };
 
+/// Cache-discovery guidance for one oka-provisioned tool under
+/// `~/.oka/tools` (ADR-0019/0022). A structural record so the CLI's
+/// storage discovery stays platform-agnostic: it splits the tools directory
+/// per child and applies whatever guidance the composition root supplies —
+/// the *knowledge* of which tools oka provisions stays here, in
+/// oka_android (ADR-0022 capability boundaries).
+typedef ProvisionedToolGuidance = ({String match, String guidance});
+
+/// Tools oka provisions into `~/.oka/tools` (ADR-0007 self-heal + `oka
+/// get`). [ProvisionedToolGuidance.match] is a basename prefix; children
+/// without a match fall back to the discovery layer's generic note.
+const List<ProvisionedToolGuidance> okaProvisionedToolGuidance = [
+  (
+    match: 'r8',
+    guidance:
+        'R8 shrinker jar (Google Maven); re-provision with `oka get r8`.',
+  ),
+  (
+    match: 'bundletool',
+    guidance:
+        'bundletool jar (AAB verification, ADR-0004); re-provision with '
+        '`oka get bundletool`.',
+  ),
+  (
+    match: 'kotlin',
+    guidance: 'Kotlin compiler; re-provision with `oka get kotlin`.',
+  ),
+];
+
 /// Install bundletool.jar for AAB verification (ADR-0004).
 Future<void> provisionBundletool() async {
   print('📦 Installing bundletool (AAB verification tool)...\n');

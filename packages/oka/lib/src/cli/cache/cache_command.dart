@@ -17,7 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:oka_core/oka_core.dart';
+import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 
 import '../../cache/cache_transactions.dart';
@@ -61,6 +61,9 @@ class CacheCommand {
     workspaces: CacheWorkspaceRepository(
       environment: environment,
       currentDirectory: currentDirectory,
+      // Android knowledge stays in oka_android (ADR-0022): the CLI only
+      // forwards the guidance to the generic discovery layer.
+      toolGuidance: okaProvisionedToolGuidance,
     ),
     diagnosticProviders: diagnosticProviders,
     environment: environment,
@@ -159,6 +162,9 @@ class CacheCommand {
       environment: environment,
       currentDirectory: currentDirectory,
       inspection: inspection,
+      // Android knowledge stays in oka_android (ADR-0022): the CLI only
+      // forwards the guidance to the generic discovery layer.
+      toolGuidance: okaProvisionedToolGuidance,
     );
   }
 

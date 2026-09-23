@@ -213,4 +213,77 @@ void main() {
     expect(locations.single.prunable, isFalse);
     expect(locations.single.note, contains('Symbolic link'));
   }, skip: Platform.isWindows ? 'Symlink privileges vary on Windows.' : false);
+  test(
+    'supplied tool guidance splits ~/.oka/tools into per-tool units',
+    () async {
+      final tools = p.join(home, '.oka/tools');
+      await file(p.join(tools, 'r8/r8-9.4.24.jar'));
+      await file(p.join(tools, 'kotlin-2.1.0/bin/kotlinc'));
+      await file(p.join(tools, 'bundletool.jar'));
+      await file(p.join(tools, 'mystery-tool/data'));
+      final locations = await discoverStorageLocations(
+        projectPath: project,
+        environment: {'HOME': home},
+        hostPlatform: 'linux',
+        toolGuidance: const [
+          (
+            match: 'r8',
+            guidance:
+                'R8 shrinker jar (Google Maven); re-provision with `oka get r8`.',
+          ),
+          (
+            match: 'bundletool',
+            guidance: 'bundletool jar (AAB verification, ADR-0004).',
+          ),
+          (match: 'kotlin', guidance: 'Kotlin compiler; `oka get kotlin`.'),
+        ],
+      );
+      // No coarse unit: every child got its own unit.
+      expect(locations.any((l) => l.category == 'tools'), isFalse);
+      String noteOf(String category) =>
+          locations.singleWhere((l) => l.category == category).note!;
+      expect(noteOf('tools-r8'), contains('oka get r8'));
+      expect(noteOf('tools-bundletool.jar'), contains('AAB verification'));
+      expect(noteOf('tools-kotlin-2.1.0'), contains('Kotlin compiler'));
+      // Unknown children keep a generic note and stay discovered.
+      expect(noteOf('tools-mystery-tool'), contains('matching `oka get`'));
+      final r8 = locations.singleWhere((l) => l.category == 'tools-r8');
+      expect(r8.prunable, isTrue);
+      expect(r8.scope, 'tools');
+      expect(r8.ownership, 'oka');
+    },
+  );
+  test(
+    'empty guidance keeps the coarse tools unit (platform-agnostic default)',
+    () async {
+      final tools = p.join(home, '.oka/tools');
+      await file(p.join(tools, 'r8/r8-9.4.24.jar'));
+      await file(p.join(tools, 'kotlin-2.1.0/bin/kotlinc'));
+      final locations = await discoverStorageLocations(
+        projectPath: project,
+        environment: {'HOME': home},
+        hostPlatform: 'linux',
+      );
+      final coarse = locations.singleWhere((l) => l.category == 'tools');
+      expect(coarse.path, tools);
+      expect(coarse.prunable, isTrue);
+      expect(coarse.scope, 'tools');
+      expect(locations.any((l) => l.category.startsWith('tools-')), isFalse);
+    },
+  );
+  test(
+    'empty tools directory stays one coarse unit even with guidance',
+    () async {
+      Directory(p.join(home, '.oka/tools')).createSync(recursive: true);
+      final locations = await discoverStorageLocations(
+        projectPath: project,
+        environment: {'HOME': home},
+        hostPlatform: 'linux',
+        toolGuidance: const [(match: 'r8', guidance: 'R8 shrinker jar.')],
+      );
+      final coarse = locations.singleWhere((l) => l.category == 'tools');
+      expect(coarse.path, p.join(home, '.oka/tools'));
+      expect(locations.any((l) => l.category.startsWith('tools-')), isFalse);
+    },
+  );
 }

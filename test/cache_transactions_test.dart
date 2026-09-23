@@ -107,6 +107,7 @@ void main() {
               required includeShared,
               required includeProject,
               required liveness,
+              toolGuidance = const [],
             }) async {
               locationReads++;
               return const [];
@@ -138,6 +139,7 @@ void main() {
         required includeShared,
         required includeProject,
         required liveness,
+        toolGuidance = const [],
       }) async => const [],
     );
     final api = CacheTransactions(workspaces: repository);

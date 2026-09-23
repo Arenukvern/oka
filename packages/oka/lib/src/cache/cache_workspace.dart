@@ -63,6 +63,7 @@ typedef CacheLocationSource =
       required bool includeShared,
       required bool includeProject,
       required ProcessLiveness liveness,
+      List<({String match, String guidance})> toolGuidance,
     });
 
 Future<List<StorageLocation>> defaultCacheLocationSource({
@@ -71,12 +72,14 @@ Future<List<StorageLocation>> defaultCacheLocationSource({
   required bool includeShared,
   required bool includeProject,
   required ProcessLiveness liveness,
+  List<({String match, String guidance})> toolGuidance = const [],
 }) => discoverStorageLocations(
   projectPath: projectPath,
   environment: environment,
   includeShared: includeShared,
   includeProject: includeProject,
   liveness: liveness,
+  toolGuidance: toolGuidance,
 );
 
 final class CacheWorkspaceRequest {
@@ -103,6 +106,7 @@ final class CacheWorkspaceRepository {
     String? currentDirectory,
     CacheProjectSource? projects,
     this.locations = defaultCacheLocationSource,
+    this.toolGuidance = const [],
     this.liveness = const HostProcessLiveness(),
   }) : environment = environment ?? Platform.environment,
        currentDirectory = currentDirectory ?? Directory.current.path,
@@ -118,6 +122,11 @@ final class CacheWorkspaceRepository {
   final String currentDirectory;
   final CacheProjectSource projects;
   final CacheLocationSource locations;
+
+  /// Per-tool guidance forwarded to [locations]; supplied by the CLI
+  /// composition root from oka_android (ADR-0022: Android knowledge stays
+  /// in the platform package; this layer stays generic).
+  final List<({String match, String guidance})> toolGuidance;
   final ProcessLiveness liveness;
 
   Future<CacheWorkspace> inspect([
@@ -145,6 +154,7 @@ final class CacheWorkspaceRepository {
     remember: remember,
     projectSource: projects,
     locationSource: locations,
+    toolGuidance: toolGuidance,
     liveness: liveness,
   );
 }
@@ -156,10 +166,12 @@ Future<CacheWorkspace> loadCacheWorkspace({
   Map<String, String>? environment,
   String? currentDirectory,
   bool inspection = false,
+  List<({String match, String guidance})> toolGuidance = const [],
 }) {
   final repository = CacheWorkspaceRepository(
     environment: environment,
     currentDirectory: currentDirectory,
+    toolGuidance: toolGuidance,
   );
   final request = CacheWorkspaceRequest(
     projectPath: projectPath,
@@ -182,6 +194,7 @@ Future<CacheWorkspace> _loadCacheWorkspace({
   required CacheProjectSource projectSource,
   required CacheLocationSource locationSource,
   required ProcessLiveness liveness,
+  required List<({String match, String guidance})> toolGuidance,
   String? projectPath,
   List<String> scanRoots = const [],
   List<String>? savedProjects,
@@ -270,6 +283,7 @@ Future<CacheWorkspace> _loadCacheWorkspace({
       includeShared: true,
       includeProject: sorted.isNotEmpty,
       liveness: liveness,
+      toolGuidance: toolGuidance,
     ),
   );
   for (final project in sorted.skip(1)) {
@@ -280,6 +294,7 @@ Future<CacheWorkspace> _loadCacheWorkspace({
         includeShared: false,
         includeProject: true,
         liveness: liveness,
+        toolGuidance: toolGuidance,
       ),
     );
   }

@@ -5,6 +5,13 @@ import 'package:path/path.dart' as p;
 
 /// Discovers directory storage without invoking platform package managers.
 /// External caches and device data are always informational.
+///
+/// [toolGuidance] is supplied by the composition root (oka_android owns
+/// the knowledge of which tools oka provisions, ADR-0022): when provided,
+/// `~/.oka/tools` is reported per tool child with the matching guidance;
+/// children without a match keep a generic note. When empty (callers that
+/// carry no platform knowledge), the tools directory stays one coarse
+/// unit — the behavior is a function of supplied knowledge only.
 Future<List<StorageLocation>> discoverStorageLocations({
   required String projectPath,
   Map<String, String>? environment,
@@ -12,6 +19,7 @@ Future<List<StorageLocation>> discoverStorageLocations({
   bool includeShared = true,
   bool includeProject = true,
   ProcessLiveness liveness = const HostProcessLiveness(),
+  List<({String match, String guidance})> toolGuidance = const [],
 }) async {
   final env = environment ?? Platform.environment;
   final host = hostPlatform ?? Platform.operatingSystem;
@@ -288,14 +296,43 @@ Future<List<StorageLocation>> discoverStorageLocations({
         prunable: true,
       );
     }
-    await add(
-      p.join(home, '.oka', 'tools'),
-      'tools',
-      'all',
-      'oka',
-      scope: 'tools',
-      prunable: true,
-    );
+    final toolsRoot = p.join(home, '.oka', 'tools');
+    final toolChildren = await children(toolsRoot);
+    if (toolGuidance.isEmpty || toolChildren.isEmpty) {
+      await add(
+        toolsRoot,
+        'tools',
+        'all',
+        'oka',
+        scope: 'tools',
+        prunable: true,
+      );
+    } else {
+      // Per-tool units (mirroring the android-sdk per-package breakdown):
+      // surgical `oka cache prune --scope tools` selection.
+      for (final child in toolChildren) {
+        final base = p.basename(child.path);
+        String? guidance;
+        for (final unit in toolGuidance) {
+          if (base.startsWith(unit.match)) {
+            guidance = unit.guidance;
+            break;
+          }
+        }
+        await add(
+          child.path,
+          'tools-$base',
+          'all',
+          'oka',
+          scope: 'tools',
+          prunable: true,
+          note:
+              guidance ??
+              'oka-provisioned tool; re-provision with the matching '
+              '`oka get` command.',
+        );
+      }
+    }
     await sdk(p.join(home, '.oka', 'android-sdk'), 'oka');
   }
   for (final key in ['OKA_ANDROID_SDK', 'ANDROID_HOME', 'ANDROID_SDK_ROOT']) {
