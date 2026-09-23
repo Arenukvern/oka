@@ -104,6 +104,7 @@ export 'src/build/launcher_icon.dart';
 export 'src/build/plugin_discovery.dart';
 export 'src/build/plugin_packager.dart';
 export 'src/build/provisioning.dart';
+export 'src/build/r8_tool.dart';
 export 'src/build/sdk_locator.dart';
 export 'src/build/toolchain.dart';
 export 'src/build/version_manager.dart';

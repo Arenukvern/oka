@@ -123,26 +123,48 @@ void main() {
       expect(filterRuntimeJars([root.path, jvm.path]), [jvm.path]);
       expect(filterRuntimeJars([jvm.path, root.path]), [jvm.path]);
     });
-    test('R8 arguments keep program closure and deterministic reports', () {
-      const policy = BytecodeCommandPolicy(pathSeparator: ':');
-      final args = policy.r8Args(
-        outputDir: 'dex',
-        minApi: '23',
-        androidJar: 'android.jar',
-        programJars: const ['a.jar', 'b.jar'],
-        libraryJars: const ['annotations.jar'],
-        configFile: 'r8/config.pro',
-        mappingFile: 'r8/mapping.txt',
-        seedsFile: 'r8/seeds.txt',
-        usageFile: 'r8/usage.txt',
-        printedConfigFile: 'r8/configuration.txt',
-      );
-      expect(args, containsAllInOrder(['--output', 'dex', '--min-api', '23']));
-      expect(args, containsAllInOrder(['--lib', 'android.jar']));
-      expect(args, containsAllInOrder(['--pg-conf', 'r8/config.pro']));
-      expect(args, containsAllInOrder(['--pg-map-output', 'r8/mapping.txt']));
-      expect(args, containsAllInOrder(['a.jar', 'b.jar']));
-    });
+    test(
+      'R8 arguments keep program closure, use documented CLI flags only',
+      () {
+        const policy = BytecodeCommandPolicy(pathSeparator: ':');
+        final args = policy.r8Args(
+          outputDir: 'dex',
+          minApi: '23',
+          androidJar: 'android.jar',
+          programJars: const ['a.jar', 'b.jar'],
+          libraryJars: const ['annotations.jar'],
+          configFile: 'r8/config.pro',
+          mappingFile: 'r8/mapping.txt',
+          confOutputFile: 'r8/configuration.txt',
+        );
+        // Verified against `java -cp r8.jar com.android.tools.r8.R8 --help`
+        // (R8 9.4.24): --seeds/--usage/--printconfiguration do not exist.
+        expect(args.first, '--release');
+        expect(
+          args,
+          containsAllInOrder(['--output', 'dex', '--min-api', '23']),
+        );
+        expect(args, containsAllInOrder(['--lib', 'android.jar']));
+        expect(args, containsAllInOrder(['--pg-conf', 'r8/config.pro']));
+        expect(args, containsAllInOrder(['--pg-map-output', 'r8/mapping.txt']));
+        expect(
+          args,
+          containsAllInOrder(['--pg-conf-output', 'r8/configuration.txt']),
+        );
+        expect(args, containsAllInOrder(['a.jar', 'b.jar']));
+        // Only flags that exist in the R8 CLI — a regression here is a broken
+        // release build on every machine.
+        expect(args.where((final a) => a.startsWith('--')).toSet(), const {
+          '--release',
+          '--output',
+          '--min-api',
+          '--lib',
+          '--pg-conf',
+          '--pg-map-output',
+          '--pg-conf-output',
+        });
+      },
+    );
   });
 
   group('compileAndroidBytecode', () {
@@ -286,6 +308,8 @@ void main() {
           androidJar: 'android.jar',
           embeddingJar: 'embedding.jar',
           dependencyJars: const [],
+          // Tests must not touch the network: self-heal injected as "no".
+          ensureR8Tool: ({verbose = false}) async => null,
           processRunner: (executable, arguments, {environment}) async {
             executables.add(executable);
             return ProcessResult(1, 0, '', '');

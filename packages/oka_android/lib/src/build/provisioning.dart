@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 
 import '../auto_resolve.dart' show installKotlinCompiler;
 import 'bundletool.dart' show downloadBundletool, findBundletool;
+import 'r8_tool.dart' show findR8Jar, installR8, kR8Version, r8MavenDownloadUrl;
 import 'toolchain.dart' show ResolvedToolchain;
 
 /// Usage text for `oka get` (provisioning nouns + examples). Owned here so
@@ -101,49 +102,34 @@ Future<void> provisionBuildTools() async {
   }
 }
 
-/// Install the R8 optimizer (build-tools;34.0.0 via the SDK Manager).
+/// Install the R8 optimizer (Google Maven jar via the artifact store).
+///
+/// R8 is **not** shipped in build-tools — installing build-tools does not
+/// provide it. oka provisions the standalone `com.android.tools:r8` jar
+/// from Google Maven into `~/.oka/tools/r8` (ADR-0013).
 Future<void> provisionR8() async {
   print('📦 Installing R8 optimizer...\n');
 
-  final toolchain = ResolvedToolchain();
-
   try {
-    // Check if R8 already exists
-    final existingR8 = await toolchain.findR8();
+    final existingR8 = await findR8Jar();
     if (existingR8 != null) {
       print('✅ R8 is already installed at: $existingR8');
       return;
     }
 
-    // Find sdkmanager
-    final sdkmanager = await _findSdkManager();
-
-    if (sdkmanager != null) {
-      print('🔧 Using Android SDK Manager to install build-tools...\n');
-
-      // Install latest build-tools which includes R8
-      final result = await Process.run(sdkmanager, [
-        '--install',
-        'build-tools;34.0.0',
-      ], runInShell: true);
-
-      if (result.exitCode == 0) {
-        print('✅ Build tools installed successfully!');
-        print('   R8 should now be available.');
-        print('');
-        print('💡 Run "oka doctor" to verify installation');
-      } else {
-        print('❌ Failed to install build-tools');
-        print('   Error: ${result.stderr}');
-        _printManualInstructions();
-      }
-    } else {
-      print('⚠️  Android SDK Manager (sdkmanager) not found');
-      _printManualInstructions();
-    }
+    final jar = await installR8(verbose: true);
+    print('✅ R8 installed: $jar');
+    print('');
+    print('💡 Release builds use R8 automatically (mapping.txt is written');
+    print('   to <buildDir>/r8/mapping.txt).');
   } catch (e) {
     print('❌ Error: $e');
-    _printManualInstructions();
+    print('');
+    print('Manual download:');
+    print(
+      '  curl -L -o ~/.oka/tools/r8/r8-$kR8Version.jar '
+      '${r8MavenDownloadUrl()}',
+    );
   }
 }
 
@@ -232,7 +218,9 @@ Future<void> provisionKotlinCompiler() async {
 
     // Get oka cache directory
     final homeDir =
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '';
     if (homeDir.isEmpty) {
       throw Exception('Could not determine home directory');
     }
@@ -262,9 +250,7 @@ Future<void> provisionKotlinCompiler() async {
     print('   Location: $kotlinDir');
     print('   Version: $kotlinVersion');
     print('');
-    print(
-      '💡 Kotlin compiler will be used automatically by oka during builds',
-    );
+    print('💡 Kotlin compiler will be used automatically by oka during builds');
     print('');
     print('To use it system-wide, add to your PATH:');
     if (Platform.isWindows) {

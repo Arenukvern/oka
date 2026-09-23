@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
+import '../build/r8_tool.dart' show findR8Jar, kR8Version;
 import 'android_tool_policy.dart';
 import 'tool_host.dart';
 
@@ -355,6 +356,24 @@ class AndroidToolchain implements Toolchain {
   // r8 (optional; jar fallback) ----------------------------------------------
 
   Future<ToolResolution> _resolveR8() async {
+    // oka-managed R8 first (ADR-0013): the Google Maven jar provisioned by
+    // `oka get r8` / build self-heal. R8 does not ship in build-tools — the
+    // SDK candidates below only match AGP-style layouts.
+    final managedR8 = await findR8Jar(
+      environment: _env.values,
+      home: _env.home,
+    );
+    if (managedR8 != null) {
+      return ToolResolution(
+        tool: ResolvedTool(
+          name: 'r8',
+          path: managedR8,
+          version: kR8Version,
+          source: const ToolSource(ToolSourceKind.managed, '~/.oka/tools/r8'),
+        ),
+      );
+    }
+
     final sdk = await resolve(const ToolQuery('android-sdk'));
     if (!sdk.ok) return sdk;
     final tried = <ToolSource>[

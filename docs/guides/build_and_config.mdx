@@ -145,7 +145,7 @@ oka build apk --release
 # output: .oka_cache/build/release/app-release.apk
 ```
 Release mode AOT-compiles Dart to native `libapp.so` (no JIT snapshot),
-applies tree-shaking, and signs with the release keystore: `android/key.properties`
+applies R8 shrinking, and signs with the release keystore: `android/key.properties`
 (Gradle-compatible: `storeFile`, `keyAlias`, `storePassword`, `keyPassword`)
 → `oka.yaml` `android.signing:` → debug keystore fallback (a ⚠️ warning is
 printed when a release build falls back to the debug keystore — store uploads
@@ -155,6 +155,37 @@ oka build aab --release --verify-aab
 ```
 Same plugins, deps, icons and deeplinks as debug; incremental caches are
 shared per-step and keyed by mode.
+
+**Q: How does R8 shrinking work (and what do I need to install)?**
+Release builds run the **real R8 shrinker** (tree-shaking + minification) over
+the full program closure (app + Flutter embedding + plugin jars). R8 ships via
+Google Maven, not build-tools, so oka provisions it into `~/.oka/tools/r8`:
+
+```bash
+oka get r8          # or let the build self-heal (OKA_NO_AUTO_INSTALL=1 opts out)
+```
+
+R8 is invoked with documented CLI flags only (`--release --min-api --lib
+--pg-conf --pg-map-output --pg-conf-output`), verified against R8 9.4.24.
+Outputs land under `<buildDir>/r8/`: `mapping.txt` (upload it with your Play
+release for deobfuscation) and `configuration.txt` (the merged rules). A
+release build fails hard if R8 is missing or produces no mapping — no silent
+D8 fallback.
+
+oka's default keep rules cover the reflection surface real apps rely on
+(Flutter embedding, plugin registrants, manifest components, JNI `native`
+methods, `Parcelable.CREATOR`, enum `values()/valueOf()`, reflection
+attributes). Project rules are typed config (ADR-0010):
+
+```dart
+AndroidBuild(
+  // default: release shrinks. Set false only deliberately:
+  // enableOptimization: false,   // keeps R8 + mapping, disables shaking
+  proguardFiles: ['android/proguard-rules.pro'],  // merged with defaults
+)
+```
+
+A missing rule file fails the build; keep `proguard_files` in review.
 
 **Q: How do I install & launch on a device?**
 ```bash

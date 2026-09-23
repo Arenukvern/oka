@@ -63,6 +63,47 @@ Two laws are enforced by a shared conformance suite
   path references (`CredentialRef`) exist beyond the upload step's local
   scope; a dump can never leak a credential.
 
+## The delivery verification gate (ADR-0023 §3)
+
+A real (non-dry-run) upload is gated: compose a platform verifier into the
+target, and oka inserts a shared `verify-delivery` step between artifact
+staging and the upload tail. A failed gate aborts before any HTTP:
+
+```dart
+import 'package:oka_android/oka_android.dart';
+
+Oka(targets: [
+  PlayPublishTarget(
+    dryRun: false,
+    verifier: AndroidDeliveryVerifier(),   // bundletool validate + device-spec splits
+  ),
+  HuaweiPublishTarget(dryRun: false, /* … */, verifier: AndroidDeliveryVerifier()),
+  RuStorePublishTarget(dryRun: false, packageName: 'dev.example.app'),
+])
+```
+
+Gate semantics:
+
+- **Google Play:** `AndroidDeliveryVerifier` runs `bundletool validate`, can
+  generate a device spec from a connected device, builds the matching split
+  APK set, and reports independent gates (sha256, ABIs, split APKs) in the
+  delivery report.
+- **Huawei:** the artifact gate runs by default (`verifyArtifact: true`) —
+  manifest presence plus the GMS-free dependency rule. Delivery-form
+  selection (split vs universal) is AppGallery's decision at upload time;
+  oka does not claim it from bundle ZIP entries.
+- **RuStore:** the archive gate checks what the bundle can actually prove
+  (`.aab`, base manifest, v1 signature entries). Package/version policy is
+  typed *configuration* validation and runs at plan time.
+
+A report must record an unavailable verifier as a failed or unverified gate —
+never silently as compatibility evidence.
+
+Plan-time refusals: a real run that cannot proceed (e.g. RuStore has no
+upload adapter yet — readiness planning and verification only) fails during
+composition validation, before any tool or HTTP runs; dry-run plans still
+render.
+
 ## The tier rule (ADR-0014) — where values may live
 
 | Tier | Mechanism | May hold | Resolved by | Example |
@@ -194,7 +235,11 @@ Before a real upload, the target must verify all of the following:
 3. the signing identity satisfies the app's registered RuStore upload
    signature constraints and remains stable across releases.
 
-An artifact that fails any of these checks is rejected before the upload step.
+Checks 1–2 run as the archive gate on the real bundle; check 3 is satisfied
+by composing the delivery verifier (see the gate section above) and by the
+stable release-key requirement in ADR-0023 §4. Note: oka currently ships
+RuStore readiness planning and verification only — a real upload is refused
+at plan time until a project supplies its credential/upload adapter.
 Credentials remain build-host path references under the
 [three-tier secrets model](../decisions/0014-distribution-targets-secrets-model).
 The target-specific package and live endpoint setup are intentionally separate

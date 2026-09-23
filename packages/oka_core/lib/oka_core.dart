@@ -96,6 +96,7 @@ export 'src/process_surface.dart';
 export 'src/process_teardown.dart';
 export 'src/publish/conformance.dart';
 export 'src/publish/publish_target.dart';
+export 'src/publish/stage_aab_step.dart';
 export 'src/store/artifact_store.dart';
 export 'src/store/cache_diagnostics.dart';
 export 'src/store/cache_projects.dart';

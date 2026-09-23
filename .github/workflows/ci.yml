@@ -22,6 +22,10 @@ jobs:
       - name: Root test suite (cross-package conformance)
         run: dart test
       - name: Package test suites
+        env:
+          # Real-R8 shrinking fixture: CI has javac; allow provisioning the
+          # Google Maven R8 jar so the release-shrink evidence runs on CI.
+          OKA_R8_FIXTURE_ALLOW_DOWNLOAD: '1'
         run: |
           set -e
           for pkg in packages/*/; do

@@ -19,20 +19,19 @@ class AndroidDeliveryVerifier implements DeliveryVerifier {
     required String outputDirectory,
     DeliveryVerificationOptions options = const DeliveryVerificationOptions(),
     bool verbose = false,
-  }) =>
-      verifyAndroidDelivery(
-        aabPath: artifact,
-        outputDirectory: outputDirectory,
-        deviceSpecPath: options.deviceSpecPath,
-        bundletoolPath: options.toolPath,
-        serial: options.deviceId,
-        install: options.install,
-        launch: options.launch,
-        packageName: options.packageName,
-        activity: options.activity,
-        reportPath: options.reportPath,
-        verbose: verbose,
-      );
+  }) => verifyAndroidDelivery(
+    aabPath: artifact,
+    outputDirectory: outputDirectory,
+    deviceSpecPath: options.deviceSpecPath,
+    bundletoolPath: options.toolPath,
+    serial: options.deviceId,
+    install: options.install,
+    launch: options.launch,
+    packageName: options.packageName,
+    activity: options.activity,
+    reportPath: options.reportPath,
+    verbose: verbose,
+  );
 }
 
 /// Runs the offline/online portions of release verification. The callback
@@ -57,7 +56,21 @@ Future<DeliveryVerificationReport> verifyAndroidDelivery({
   Future<void> Function()? launchApp,
 }) async {
   final file = File(aabPath);
-  final bytes = await file.readAsBytes();
+  // Read the bundle first: the gate below must be observable (a missing
+  // artifact yields a failed report, not an exception).
+  final List<int> bytes;
+  try {
+    bytes = await file.readAsBytes();
+  } on FileSystemException catch (error) {
+    return DeliveryVerificationReport(
+      artifact: aabPath,
+      artifactSha256: '',
+      artifactBytes: 0,
+      abis: const [],
+      gates: {'artifact_exists': false},
+      metadata: {'error': error.message},
+    );
+  }
   final archive = ZipDecoder().decodeBytes(bytes);
   final abis = <String>{};
   final entries = <String>[];
@@ -66,7 +79,7 @@ Future<DeliveryVerificationReport> verifyAndroidDelivery({
     final match = RegExp('(?:^|/)lib/([^/]+)/').firstMatch(entry.name);
     if (match != null) abis.add(match.group(1)!);
   }
-  final gates = <String, bool>{'artifact_exists': file.existsSync()};
+  final gates = <String, bool>{'artifact_exists': true};
   final sha = sha256.convert(bytes).toString();
   final output = Directory(outputDirectory);
   await output.create(recursive: true);
@@ -108,10 +121,9 @@ Future<DeliveryVerificationReport> verifyAndroidDelivery({
     final apksPath = p.join(outputDirectory, 'device.apks');
     // An injected runner is commonly used for offline tests and does not
     // need a host Android SDK/debug keystore.
-    final ks = keystorePath ??
-        (runBundletool == null
-            ? await (keystore ?? debugKeystore)()
-            : '');
+    final ks =
+        keystorePath ??
+        (runBundletool == null ? await (keystore ?? debugKeystore)() : '');
     final result = await run([
       'build-apks',
       '--bundle=$aabPath',
@@ -125,7 +137,9 @@ Future<DeliveryVerificationReport> verifyAndroidDelivery({
     gates['device_specific_apks'] =
         result.exitCode == 0 && File(apksPath).existsSync();
     if (gates['device_specific_apks']!) {
-      final decoded = ZipDecoder().decodeBytes(await File(apksPath).readAsBytes());
+      final decoded = ZipDecoder().decodeBytes(
+        await File(apksPath).readAsBytes(),
+      );
       generated = [];
       for (final entry in decoded) {
         if (!entry.isFile || !entry.name.endsWith('.apk')) continue;
@@ -163,8 +177,10 @@ Future<DeliveryVerificationReport> verifyAndroidDelivery({
       if (launchApp != null) {
         await launchApp();
       } else if (packageName != null && activity != null) {
-        await AdbTool(adbPath: adbPath ?? 'adb', serial: serial)
-            .launch(packageName, activity);
+        await AdbTool(
+          adbPath: adbPath ?? 'adb',
+          serial: serial,
+        ).launch(packageName, activity);
       } else {
         throw ArgumentError('packageName and activity are required for launch');
       }
@@ -199,17 +215,16 @@ Future<DeliveryVerificationReport> verifyAndroidDeliveryFromCli({
   required String outputDirectory,
   required DeliveryVerificationOptions options,
   bool verbose = false,
-}) =>
-    verifyAndroidDelivery(
-      aabPath: aabPath,
-      outputDirectory: outputDirectory,
-      deviceSpecPath: options.deviceSpecPath,
-      bundletoolPath: options.toolPath,
-      serial: options.deviceId,
-      install: options.install,
-      launch: options.launch,
-      packageName: options.packageName,
-      activity: options.activity,
-      reportPath: options.reportPath,
-      verbose: verbose,
-    );
+}) => verifyAndroidDelivery(
+  aabPath: aabPath,
+  outputDirectory: outputDirectory,
+  deviceSpecPath: options.deviceSpecPath,
+  bundletoolPath: options.toolPath,
+  serial: options.deviceId,
+  install: options.install,
+  launch: options.launch,
+  packageName: options.packageName,
+  activity: options.activity,
+  reportPath: options.reportPath,
+  verbose: verbose,
+);

@@ -19,6 +19,34 @@ with evidence, not into a checked box.
 
 ## Now (unblocked, code-ready)
 
+- **R8 release shrinking (ADR-0023/ADR-0024 release-readiness work) —
+  implemented, live-device evidence pending.** Release builds invoke the real
+  R8 shrinker over the full program closure with documented CLI flags only
+  (`--release --min-api --lib --pg-conf --pg-map-output --pg-conf-output`,
+  verified against R8 9.4.24); `--seeds`/`--usage`/`--printconfiguration` do
+  not exist in the R8 CLI and were removed. R8 is provisioned from Google
+  Maven (`oka get r8` / build self-heal via the artifact store) — it is **not**
+  in build-tools. Release shrinks by default (`enable_optimization: false`
+  keeps R8 + mapping but disables shaking); `mapping.txt`/
+  `configuration.txt` land under `<buildDir>/r8/`; default keep rules cover
+  Flutter embedding, plugin registrants, manifest components, JNI, Parcelable
+  CREATOR, enum members, reflection attributes; `proguard_files` merges user
+  rules (missing file = build failure). Evidence: real-R8 fixture
+  `packages/oka_android/test/r8_release_fixture_test.dart` (javac → jar → R8 →
+  dex + mapping with an unused class tree-shaken; runs in CI with
+  `OKA_R8_FIXTURE_ALLOW_DOWNLOAD=1`) + arg-shape tests. Remaining gates:
+  a real production app's release AAB with runtime smoke on a device, retrace
+  check, and mapping upload evidence with a Play release.
+- **Delivery verification wiring (ADR-0023 §3).** The shared
+  `DeliveryVerificationStep` gates real store uploads when a verifier is
+  composed (`PlayPublishTarget(verifier: AndroidDeliveryVerifier())`);
+  Huawei's artifact gate is default-on; RuStore checks real bundle facts and
+  refuses real mode at plan time (no upload adapter yet); `oka_core` staging
+  is shared (`StageAabStep`) instead of per-store copies. Evidence:
+  `packages/oka_android/test/release_verification_test.dart`,
+  `packages/oka_rustore` policy tests, conformance suites. Remaining gates:
+  wire the verifier in a real release composition and record one device-spec
+  split run per store family as evidence.
 - **Done (ADR-0016 W0–W2, pending archive with evidence):**
   **W0** — `oka_web` shell station package (typed spec/contribution/entries,
   generate + inject emitters, emit + zip steps, `web-shell`/`web-build`

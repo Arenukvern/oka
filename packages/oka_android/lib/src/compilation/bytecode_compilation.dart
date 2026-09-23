@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
+import '../auto_resolve.dart' show ensureR8;
 import '../build/apk_layout.dart';
+import '../build/r8_tool.dart' show defaultR8KeepRules, r8Command;
 import '../build/toolchain.dart';
 import 'process_runner.dart';
 
@@ -109,6 +111,11 @@ class BytecodeCommandPolicy {
     ...programJars,
   ];
 
+  /// R8 CLI arguments (verified against R8 9.4.24 `--help`).
+  ///
+  /// Only documented R8 CLI flags are emitted: `--seeds`/`--usage` outputs
+  /// and `--printconfiguration` do **not** exist in the R8 command line
+  /// (the correct collective-config output flag is `--pg-conf-output`).
   List<String> r8Args({
     required String outputDir,
     required String minApi,
@@ -117,10 +124,11 @@ class BytecodeCommandPolicy {
     required List<String> libraryJars,
     required String configFile,
     required String mappingFile,
-    required String seedsFile,
-    required String usageFile,
-    required String printedConfigFile,
+    required String confOutputFile,
+    bool noTreeShaking = false,
+    bool noMinification = false,
   }) => [
+    '--release',
     '--output',
     outputDir,
     '--min-api',
@@ -132,12 +140,10 @@ class BytecodeCommandPolicy {
     configFile,
     '--pg-map-output',
     mappingFile,
-    '--seeds',
-    seedsFile,
-    '--usage',
-    usageFile,
-    '--printconfiguration',
-    printedConfigFile,
+    '--pg-conf-output',
+    confOutputFile,
+    if (noTreeShaking) '--no-tree-shaking',
+    if (noMinification) '--no-minification',
     ...programJars,
   ];
 }
@@ -155,6 +161,10 @@ Future<CompileDexOutcome> compileAndroidBytecode({
   int? javaVersionOverride,
   AndroidProcessRunner processRunner = runAndroidProcess,
   BytecodeCommandPolicy? commandPolicy,
+
+  /// Injectable self-heal seam (tests inject `() async => null` so the
+  /// release path never touches the network); default = ADR-0007 auto-install.
+  Future<String?> Function({bool verbose}) ensureR8Tool = ensureR8,
   Future<Map<String, String>> Function({bool verbose}) environmentLoader =
       kotlinJavaEnvironment,
 }) async {
@@ -258,27 +268,41 @@ Future<CompileDexOutcome> compileAndroidBytecode({
     final shrinkerArtifacts = <String, String>{};
     ProcessResult result;
     if (ctx.mode.isRelease) {
-      final r8 = tools.r8;
+      var r8 = tools.r8;
       if (r8 == null || r8.isEmpty) {
-        return const CompileDexOutcome(
-          ok: false,
-          error: 'R8 is required for release builds but was not found.',
-        );
+        // ADR-0007 self-heal: download the Google Maven R8 jar when allowed.
+        final jar = await ensureR8Tool(verbose: ctx.verbose);
+        if (jar == null) {
+          return const CompileDexOutcome(
+            ok: false,
+            error:
+                'R8 is required for release builds but was not found. '
+                'Run: oka get r8',
+          );
+        }
+        r8 = jar;
       }
       final reportsDir = p.join(ctx.buildDir, 'r8');
       await Directory(reportsDir).create(recursive: true);
-      final configFile = p.join(reportsDir, 'config.pro');
-      await File(configFile).writeAsString(
-        '-keep class io.flutter.** { *; }\n'
-        '-keep class **PluginRegistrant { *; }\n'
-        '-keep class * extends android.app.Activity { *; }\n',
-      );
+      final defaultRules = p.join(reportsDir, 'oka-default-rules.pro');
+      await File(defaultRules).writeAsString(defaultR8KeepRules);
+      // User rules (ADR-0010 `android.proguard_files`, project-relative):
+      // missing files fail the build instead of being silently skipped.
+      final userRules = <String>[];
+      for (final rule in ctx.config.android.proguardFiles) {
+        final path = p.isAbsolute(rule) ? rule : p.join(ctx.projectPath, rule);
+        if (!await File(path).exists()) {
+          return CompileDexOutcome(
+            ok: false,
+            error: 'proguard rule file not found: $rule (resolved: $path)',
+          );
+        }
+        userRules.add(path);
+      }
       final reports = <String, String>{
         'mapping': p.join(reportsDir, 'mapping.txt'),
-        'seeds': p.join(reportsDir, 'seeds.txt'),
-        'usage': p.join(reportsDir, 'usage.txt'),
         'config': p.join(reportsDir, 'configuration.txt'),
-        'input_config': configFile,
+        'input_config': defaultRules,
       };
       shrinkerArtifacts.addAll(reports);
       final args = policy.r8Args(
@@ -287,16 +311,17 @@ Future<CompileDexOutcome> compileAndroidBytecode({
         androidJar: androidJar,
         programJars: programs,
         libraryJars: compileOnly,
-        configFile: configFile,
+        configFile: defaultRules,
         mappingFile: reports['mapping']!,
-        seedsFile: reports['seeds']!,
-        usageFile: reports['usage']!,
-        printedConfigFile: reports['config']!,
+        confOutputFile: reports['config']!,
+        // Release shrinks by default; `enable_optimization: false` keeps
+        // R8 (mapping + dex) but disables tree-shaking/minification.
+        noTreeShaking: !(ctx.config.android.enableOptimization ?? true),
+        noMinification: !(ctx.config.android.enableOptimization ?? true),
       );
-      final isJar = r8.toLowerCase().endsWith('.jar');
       result = await processRunner(
-        isJar ? 'java' : r8,
-        isJar ? ['-jar', r8, ...args] : args,
+        r8Command(r8, args).first,
+        r8Command(r8, args).sublist(1),
       );
       if (result.exitCode != 0) {
         return CompileDexOutcome(

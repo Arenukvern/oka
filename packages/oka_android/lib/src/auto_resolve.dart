@@ -11,13 +11,13 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'build/r8_tool.dart' show findR8Jar, installR8;
 import 'build/toolchain.dart';
 
 /// Set when automatic tool installation should be suppressed.
 const noAutoInstallEnv = 'OKA_NO_AUTO_INSTALL';
 
-bool get autoInstallEnabled =>
-    Platform.environment[noAutoInstallEnv] != '1';
+bool get autoInstallEnabled => Platform.environment[noAutoInstallEnv] != '1';
 
 /// Ensures the Kotlin compiler is available, downloading it into
 /// `~/.oka/tools` when missing. Returns true when kotlinc is usable.
@@ -33,7 +33,9 @@ Future<bool> ensureKotlinc({final bool verbose = false}) async {
     }
     return false;
   }
-  print('🛠️  kotlinc not found — auto-installing (escape: $noAutoInstallEnv=1)');
+  print(
+    '🛠️  kotlinc not found — auto-installing (escape: $noAutoInstallEnv=1)',
+  );
   try {
     await installKotlinCompiler(verbose: verbose);
     return await ResolvedToolchain().findKotlinc() != null;
@@ -114,7 +116,30 @@ Future<void> _installKotlinCompiler({final bool verbose = false}) async {
   if (verbose) print('   Kotlin $kotlinVersion installed at $kotlinDir');
 }
 
-/// Highest `sourceCompatibility JavaVersion.VERSION_NN` (or
+/// Ensures the R8 shrinker jar is available, downloading the Google Maven
+/// release into `~/.oka/tools/r8` when missing (ADR-0007 self-heal, shared
+/// with `oka get r8`). Returns the jar path, or null when unavailable and
+/// auto-install is disabled/failed.
+Future<String?> ensureR8({final bool verbose = false}) async {
+  final existing = await findR8Jar();
+  if (existing != null) return existing;
+  if (!autoInstallEnabled) {
+    if (verbose) {
+      print('   auto-install disabled ($noAutoInstallEnv) — skipping r8');
+    }
+    return null;
+  }
+  print('🛠️  r8 not found — auto-installing (escape: $noAutoInstallEnv=1)');
+  try {
+    final jar = await installR8(verbose: verbose);
+    return File(jar).existsSync() ? jar : null;
+  } on Exception catch (e) {
+    print('⚠️  R8 auto-install failed: $e');
+    print('   Run manually: oka get r8');
+    return null;
+  }
+}
+
 /// `sourceCompatibility "NN"`) declared in any of [gradleFiles]; null when
 /// nothing declares one.
 int? detectRequiredJavaLevel(final Iterable<String> gradleFiles) {
@@ -123,13 +148,17 @@ int? detectRequiredJavaLevel(final Iterable<String> gradleFiles) {
     if (!File(file).existsSync()) continue;
     final text = File(file).readAsStringSync();
     // Matches `JavaVersion.VERSION_17`, `VERSION_21`, etc.
-    for (final m in RegExp('VERSION_([0-9]+)', caseSensitive: false).allMatches(text)) {
+    for (final m in RegExp(
+      'VERSION_([0-9]+)',
+      caseSensitive: false,
+    ).allMatches(text)) {
       final level = int.tryParse(m.group(1)!) ?? 0;
       if (level > maxLevel) maxLevel = level;
     }
     // Matches `sourceCompatibility = "17"` / `sourceCompatibility 17`.
-    for (final m in RegExp("sourceCompatibility\\s*=?\\s*['\"]?(\\d+)")
-        .allMatches(text)) {
+    for (final m in RegExp(
+      "sourceCompatibility\\s*=?\\s*['\"]?(\\d+)",
+    ).allMatches(text)) {
       final level = int.tryParse(m.group(1)!) ?? 0;
       if (level > maxLevel) maxLevel = level;
     }

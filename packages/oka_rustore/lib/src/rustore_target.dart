@@ -2,35 +2,11 @@ import 'package:oka_core/oka_core.dart';
 
 import 'rustore_policy.dart';
 
-/// Stages an AAB path without touching the filesystem, preserving dry-run.
-class RuStoreStageAabStep extends BuildStep {
-  RuStoreStageAabStep({this.artifactPath});
-
-  static const aab = Artifact<String>('rustore-aab-path');
-  final String? artifactPath;
-
-  @override
-  String get name => 'rustore-stage-aab';
-
-  @override
-  Set<Artifact<Object>> get provides => {aab};
-
-  @override
-  Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
-  ) async {
-    final path =
-        artifactPath ??
-        (state['aab-path'] as String? ??
-            '${ctx.buildDir}/aab/app-${ctx.mode.name}.aab');
-    state[aab.id] = path;
-    return StepResult.success({'rustore-aab-path': path});
-  }
-}
-
-/// RuStore target. Publishing remains dry-run until a project supplies its
-/// credential/upload adapter; readiness checks are still typed and composable.
+/// RuStore target (ADR-0023): composes the shared AAB staging contract
+/// (`oka_core` [StageAabStep]) with a typed readiness policy and a publish
+/// tail. Publishing remains dry-run until a project supplies its
+/// credential/upload adapter; a real run without one is refused at
+/// composition/plan time ([validateRealMode]), before tools run.
 class RuStorePublishTarget extends PublishTarget {
   const RuStorePublishTarget({
     required this.packageName,
@@ -40,7 +16,7 @@ class RuStorePublishTarget extends PublishTarget {
     this.versionName = '',
     this.artifactPath,
     this.policy,
-    this.metadataReader,
+    this.verifier,
   });
 
   final String targetName;
@@ -49,10 +25,18 @@ class RuStorePublishTarget extends PublishTarget {
   final String versionName;
   final String? artifactPath;
   final RuStoreDistributionPolicy? policy;
-  final RuStoreArtifactMetadata Function(List<String> entries)? metadataReader;
+
+  /// Pre-upload delivery gate (ADR-0023 §3), composed by the project root —
+  /// for Android AAB uploads: `RuStorePublishTarget(
+  /// verifier: AndroidDeliveryVerifier())`.
+  @override
+  final DeliveryVerifier? verifier;
 
   @override
   final bool dryRun;
+
+  RuStoreDistributionPolicy get effectivePolicy =>
+      policy ?? RuStoreDistributionPolicy(packageName: packageName);
 
   @override
   String get name => targetName;
@@ -64,7 +48,7 @@ class RuStorePublishTarget extends PublishTarget {
   @override
   String get track => 'production';
   @override
-  String get artifactId => RuStoreStageAabStep.aab.id;
+  String get artifactId => StageAabStep.aab.id;
   @override
   Map<String, String> get metadata => {
     'packageName': packageName,
@@ -72,31 +56,40 @@ class RuStorePublishTarget extends PublishTarget {
     if (versionName.isNotEmpty) 'versionName': versionName,
   };
 
+  /// Real (non-dry-run) refusals, checked at composition/plan time
+  /// (ADR-0023: fail before tools run):
+  ///
+  /// * no project-provided credential/upload adapter exists yet — oka ships
+  ///   readiness planning and verification, not a RuStore API client;
+  /// * the declared config violates the typed policy.
+  @override
+  List<String> validateRealMode() {
+    const noAdapter =
+        'RuStore upload requires a project-provided credential adapter; '
+        'use dryRun for a readiness plan';
+    return [
+      noAdapter,
+      ...effectivePolicy.validateConfig(
+        packageName: packageName,
+        versionCode: versionCode,
+        versionName: versionName,
+      ),
+    ];
+  }
+
+  /// Staging (shared primitive) + real-bundle-fact verification gate.
   @override
   List<BuildStep> publishSteps(final BuildContext ctx) => [
-    RuStoreStageAabStep(artifactPath: artifactPath),
+    StageAabStep(artifactPath: artifactPath),
     if (!dryRun)
       RuStoreArtifactVerificationStep(
-        artifact: RuStoreStageAabStep.aab,
-        policy: policy ?? RuStoreDistributionPolicy(packageName: packageName),
-        metadata:
-            metadataReader ??
-            (final entries) => RuStoreArtifactMetadata(
-              packageName: packageName,
-              versionCode: versionCode ?? 0,
-              versionName: versionName,
-              signatureEntries: [
-                for (final entry in entries)
-                  if (entry.startsWith('META-INF/') &&
-                      (entry.endsWith('.RSA') ||
-                          entry.endsWith('.DSA') ||
-                          entry.endsWith('.EC')))
-                    entry,
-              ],
-            ),
+        artifact: StageAabStep.aab,
+        policy: effectivePolicy,
       ),
   ];
 
+  /// The upload tail. Unreachable through [compile] (real mode is refused
+  /// at plan time); kept as a hard stop for direct step composition.
   @override
   BuildStep uploadStep(final BuildContext ctx) => _RuStoreUploadStep(this);
 }
@@ -108,7 +101,7 @@ class _RuStoreUploadStep extends BuildStep {
   @override
   String get name => 'rustore-upload';
   @override
-  Set<Artifact<Object>> get requires => {RuStoreStageAabStep.aab};
+  Set<Artifact<Object>> get requires => {StageAabStep.aab};
 
   @override
   Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>

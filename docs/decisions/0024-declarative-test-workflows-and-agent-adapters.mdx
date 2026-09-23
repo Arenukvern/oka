@@ -1,0 +1,160 @@
+# 0024 — Declarative test workflows and agent adapters
+
+- **Status:** accepted
+- **Date:** 2026-09-23
+- **Decision-makers:** oka maintainers
+- **Depends on:** ADR-0006 (declarative Dart composition), ADR-0015 (CLI
+  verb/target split), ADR-0017 (browser session targets), ADR-0018 (process
+  leases and teardown), ADR-0020 (CLI/MCP boundary)
+
+## Context
+
+Testing an oka build today means either driving the CLI by hand (`oka
+launch`, logcat scans, screenshot scripts) or bolting a separate test
+engine onto the pipeline. The `mcp_flutter` showcase shows the pattern
+oka should converge on: capabilities are *typed code registered at
+bootstrap* (`AgentCallEntry.tool/resource`), not CLI invocations; the
+session inventory is declarative (`.flutter_mcp/apps.yaml`); and the
+verification oracle (`flutter_mcp_cli`) reads a session handle that the
+runner publishes (`runner-session.json`). The evidence for this division of
+labor is recorded in the hot-reload MCP oracle doc: oka owns compile/sync
+and process lifecycle; the MCP toolkit is the observation oracle.
+
+## Decision
+
+### 1. Tests are targets, not a second engine
+
+A test workflow is a project-declared [Target] composed from typed
+`BuildStep`s — the same plan/validate/execute contract as any other target.
+There is no parallel test runner, no test DSL, and no `oka test` execution
+path of its own; a future `oka test <name>` is a convenience alias that
+resolves a declared target through the same machinery as `oka run <name>`.
+A `TestTarget` helper is added only once repeated test-specific behavior is
+proven.
+
+The decomposable shape is:
+
+```text
+provision/install → launch/connect → observe → assert → report → teardown
+```
+
+Each segment is an independently composable step, so the same runtime
+session serves smoke tests, interactive debugging, screenshot baselines,
+and CI checks.
+
+### 2. Typed artifacts are the test contract
+
+Tests consume and produce typed artifacts (session-handle convention,
+ADR-0017/0018):
+
+```dart
+Artifact<String>('apk-path')
+Artifact<String>('session-device-serial')
+Artifact<Uri>('vm-service-uri')
+Artifact<Uri>('browser-debug-uri')
+Artifact<TestReport>('test-report')
+```
+
+Session-producing targets publish handles once; downstream assertion steps
+consume them. Tests never parse arbitrary command output to discover a
+session.
+
+### 3. Run and assert are separate
+
+An observation step (`CaptureSemanticsStep`, `CaptureScreenshotStep`) never
+asserts. An assertion step (`AssertTextPresentStep`, `AssertNoAppErrorsStep`)
+consumes observations and produces a typed report. This keeps the same
+composition usable for agent-driven inspection (MCP) and CI gates.
+
+### 4. Reports are typed and machine-readable
+
+`StepResult.data` is not the long-term report contract. The typed report
+model (phased in `oka_core`, package TBD) carries:
+
+```text
+TestReport
+  schemaVersion
+  target
+  status          # pass | fail | skipped | blocked
+  cases / assertions
+  diagnostics
+  artifacts / evidence
+  duration
+```
+
+A missing device, absent toolkit extension, or unavailable browser
+protocol is represented as `skipped` or `blocked` — never silently as
+success. This is the same evidence law ADR-0023 applies to delivery
+verification.
+
+### 5. CLI is canonical; MCP is an adapter
+
+The layering matches the mcp_flutter principle (typed execution core →
+canonical CLI/JSON → MCP adapter → client integration):
+
+```text
+project-declared Target
+  → typed BuildSteps + artifacts/session handles
+  → observations/assertions
+  → typed test report
+  → CLI JSON (`oka explain --targets --json`, `oka run <target> --json`)
+  → MCP/Cline adapter (discovery, planning, bounded execution, reports)
+```
+
+The MCP adapter must not reimplement target selection, artifact validation,
+teardown policy, install policy, or lifecycle safety — it projects them.
+In-app dynamic tool registration (the mcp_flutter `AgentCallEntry` pattern)
+is an *observation capability* source, not the test surface: test evidence
+must be reproducible without a live MCP session.
+
+### 6. Invocation overlays remain an escape hatch
+
+The project declaration owns runtime selection, artifact selection, install
+policy, launch behavior, observation, assertions, and teardown. `oka run
+<declared-target>` is the workflow model; the generic invocation-arg
+overlay (`--oka-target-arg`, Android `DeviceInvocation`) is an escape hatch
+for CI and debugging, never the public workflow model.
+
+## Alternatives considered
+
+- **A separate `oka test` verb with its own runner** — rejected: it would
+  duplicate planning, validation, artifacts, and teardown, and drift from
+  the pipeline.
+- **MCP as the source of truth for tests** — rejected: evidence must be
+  reproducible from the CLI alone; MCP is an adapter (ADR-0020).
+- **In-app registered assertions as the oracle mechanism** — rejected as
+  the primary path: evidence depends on a live session. Accepted as an
+  additional observation source.
+
+## Consequences
+
+Good:
+
+- One composition surface for build, install, run, verify, and test.
+- Machine-readable plans and reports by construction (existing target
+  contract).
+- Agent integrations (MCP/Cline) project the same catalog the CLI exposes.
+
+Bad / Neutral:
+
+- Assertion/report steps and the typed `TestReport` model land
+  incrementally; until then, smoke verification remains composed targets
+  with plain step results.
+- `oka test <name>` aliasing is deferred until the target-category story is
+  exercised in practice.
+
+## Phased plan
+
+1. **Contract first:** document test-as-target; stabilize artifact ids
+   (apk-path, session handles, vm-service-uri, browser-debug-uri);
+   JSON plan/report output.
+2. **Typed reports:** `TestReport` model + report-serialization step,
+   depending only on `oka_core`.
+3. **Assertion steps:** semantics/screenshot/error assertions consuming
+   session artifacts; Android + browser smoke compositions.
+4. **Agent adapters:** MCP adapter over the target catalog + reports;
+   skills/`oka agent` install story stays outside core semantics.
+
+**Authoritative source:** this ADR, `docs/evidence/hot-reload-mcp-oracle`
+(division of labor), and the target/session contracts in oka_core and
+oka_android.

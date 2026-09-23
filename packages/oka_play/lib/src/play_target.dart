@@ -3,6 +3,12 @@ import 'package:oka_core/oka_core.dart';
 import 'play_credentials.dart';
 import 'play_upload_step.dart';
 
+/// Stages the publish artifact (`Artifact<String>('aab-path')` — the
+/// publish contract, ADR-0014). Moved to `oka_core` (ADR-0023 §2: staging
+/// is a shared Android delivery primitive, not a per-store copy); kept as a
+/// re-export for existing imports.
+export 'package:oka_core/oka_core.dart' show StageAabStep;
+
 /// Play release track (androidpublisher/v3 track ids).
 enum PlayTrack {
   /// The `internal` track — oka's default (ADR-0014 P1: AAB → internal).
@@ -64,6 +70,7 @@ class PlayPublishTarget extends PublishTarget {
     this.serviceAccountPath,
     this.serviceAccountEnvVar,
     this.artifactPath,
+    this.verifier,
   });
 
   /// Typed dry-run flag — `true` by default (safe-by-default publishing:
@@ -106,6 +113,19 @@ class PlayPublishTarget extends PublishTarget {
   /// from the pipeline state (an in-pipeline AAB build) or oka's default
   /// AAB output location.
   final String? artifactPath;
+
+  /// Pre-upload delivery gate (ADR-0023 §3). Compose the platform
+  /// verifier in the project root — for Android AAB uploads:
+  ///
+  /// ```dart
+  /// PlayPublishTarget(verifier: AndroidDeliveryVerifier())
+  /// ```
+  ///
+  /// When set (and [dryRun] is false), the compiled chain inserts a
+  /// [DeliveryVerificationStep] between staging and the upload tail; a
+  /// failed gate aborts before any HTTP.
+  @override
+  final DeliveryVerifier? verifier;
 
   /// The credential path reference (never a value).
   CredentialRef get serviceAccountRef => playServiceAccountRef(
@@ -182,59 +202,4 @@ class PlayPublishTarget extends PublishTarget {
   @override
   String toString() =>
       'PlayPublishTarget(${releaseTrack.apiName}${dryRun ? ' [dry-run]' : ''})';
-}
-
-/// Stages the publish artifact (`Artifact<String>('aab-path')` — the
-/// publish contract, ADR-0014).
-///
-/// Precedence: the typed [artifactPath] override wins; then an explicit
-/// `aab-path` upstream (already staged); then the Android build's shared
-/// artifact slot `apk_path` (an AAB build); the fallback is oka's default
-/// AAB output location `<buildDir>/aab/app-<mode>.aab` — where `oka build
-/// aab` writes the signed bundle (the `aab/` subdirectory + mode suffix is
-/// produced by `packageAndSignAab`). The *existence* check happens in
-/// [PlayUploadStep] (dry-run must succeed without a produced AAB — the
-/// plan describes what a real run would upload).
-class StageAabStep extends BuildStep {
-  /// Wraps the optional typed path override.
-  StageAabStep({this.artifactPath});
-
-  /// The publish artifact the upload tail consumes.
-  static const Artifact<String> aab = Artifact<String>('aab-path');
-
-  /// Typed-config path override (null → state / default layout).
-  final String? artifactPath;
-
-  /// Step name: `stage-aab`.
-  @override
-  String get name => 'stage-aab';
-
-  /// Provides the AAB path artifact.
-  @override
-  Set<Artifact<Object>> get provides => {aab};
-
-  /// Resolves the AAB path (typed override → state → default AAB output)
-  /// and records it in [PipelineState]; never touches the filesystem.
-  @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
-    final path = artifactPath ?? _resolveStaged(ctx, state);
-    if (path.isNotEmpty) state[aab.id] = path;
-    return Future<StepResult>.value(StepResult.success());
-  }
-
-  /// State resolution (typed override already handled): an upstream
-  /// `aab-path` wins over the Android build's shared `apk_path` slot;
-  /// the fallback is oka's real AAB output path.
-  String _resolveStaged(final BuildContext ctx, final PipelineState state) {
-    final existing = state[aab.id];
-    if (existing is String && existing.isNotEmpty) return existing;
-    final androidAab = state['apk_path'];
-    if (androidAab is String && androidAab.isNotEmpty) return androidAab;
-    return defaultAabPath(ctx);
-  }
-
-  /// oka's default AAB output location: `<buildDir>/aab/app-<mode>.aab`
-  /// (matches `packageAndSignAab` in oka_android — keep in sync).
-  static String defaultAabPath(final BuildContext ctx) =>
-      '${ctx.buildDir}/aab/app-${ctx.mode.name}.aab';
 }

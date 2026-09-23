@@ -40,8 +40,17 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
   /// Resource directories
   List<String> get resDirs => jsonDecodeListAs<String>(value['res_dirs']);
 
-  /// Whether to enable ProGuard/R8 optimization
-  bool get enableOptimization => jsonDecodeBool(value['enable_optimization']);
+  /// Whether to enable R8 tree-shaking/minification for release builds.
+  ///
+  /// Tri-state: `null` (unset) → **release shrinks by default** (ADR-0023
+  /// release semantics); an explicit `enable_optimization: false` disables
+  /// tree-shaking and minification (mapping.txt is still produced). Debug
+  /// builds never invoke R8, so this never affects them.
+  bool? get enableOptimization {
+    final raw = value['enable_optimization'];
+    if (raw == null) return null;
+    return jsonDecodeBool(raw);
+  }
 
   /// ProGuard rules files
   List<String> get proguardFiles =>

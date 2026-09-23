@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import '../config/build_context.dart';
 import '../credentials/credential_ref.dart';
+import '../delivery_verification.dart';
 import '../pipeline/pipeline.dart';
 import '../targets/target.dart';
 
@@ -28,26 +29,27 @@ class PublishPlan {
 
   /// Decodes from the plan payload (also what [PublishPlanStep] stores).
   factory PublishPlan.fromJson(final Map<String, dynamic> json) => PublishPlan(
-        target: json['target']?.toString() ?? '',
-        endpoint: json['endpoint']?.toString() ?? '',
-        track: json['track']?.toString() ?? '',
-        artifactId: json['artifactId']?.toString() ?? '',
-        artifactPath: json['artifactPath']?.toString() ?? '',
-        metadata: (json['metadata'] as Map<dynamic, dynamic>? ?? const {})
-            .map((final k, final v) => MapEntry(k.toString(), v.toString())),
-        credentials: [
-          for (final c in (json['credentials'] as List<dynamic>? ?? const []))
-            CredentialRef(
-              target: (c as Map<dynamic, dynamic>)['target']?.toString() ?? '',
-              kind: c['kind']?.toString() ?? '',
-              explicitPath: c['explicitPath']?.toString(),
-              envVar: c['envVar']?.toString(),
-              wellKnownFileName: c['wellKnownFileName']?.toString(),
-            ),
-        ],
-        dryRun: json['dryRun']?.toString() == 'true',
-        artifactIsDirectory: json['artifactIsDirectory']?.toString() == 'true',
-      );
+    target: json['target']?.toString() ?? '',
+    endpoint: json['endpoint']?.toString() ?? '',
+    track: json['track']?.toString() ?? '',
+    artifactId: json['artifactId']?.toString() ?? '',
+    artifactPath: json['artifactPath']?.toString() ?? '',
+    metadata: (json['metadata'] as Map<dynamic, dynamic>? ?? const {}).map(
+      (final k, final v) => MapEntry(k.toString(), v.toString()),
+    ),
+    credentials: [
+      for (final c in (json['credentials'] as List<dynamic>? ?? const []))
+        CredentialRef(
+          target: (c as Map<dynamic, dynamic>)['target']?.toString() ?? '',
+          kind: c['kind']?.toString() ?? '',
+          explicitPath: c['explicitPath']?.toString(),
+          envVar: c['envVar']?.toString(),
+          wellKnownFileName: c['wellKnownFileName']?.toString(),
+        ),
+    ],
+    dryRun: json['dryRun']?.toString() == 'true',
+    artifactIsDirectory: json['artifactIsDirectory']?.toString() == 'true',
+  );
 
   /// Target name ([Target.name]).
   final String target;
@@ -94,25 +96,25 @@ class PublishPlan {
 
   /// Encodes to the plan payload.
   Map<String, dynamic> toJson() => {
-        'target': target,
-        'endpoint': endpoint,
-        'track': track,
-        'artifactId': artifactId,
-        'artifactPath': artifactPath,
-        if (artifactIsDirectory) 'artifactIsDirectory': true,
-        'metadata': metadata,
-        'credentials': [
-          for (final c in credentials)
-            {
-              'target': c.target,
-              'kind': c.kind,
-              'explicitPath': ?c.explicitPath,
-              'envVar': ?c.envVar,
-              'wellKnownFileName': ?c.wellKnownFileName,
-            },
-        ],
-        'dryRun': dryRun,
-      };
+    'target': target,
+    'endpoint': endpoint,
+    'track': track,
+    'artifactId': artifactId,
+    'artifactPath': artifactPath,
+    if (artifactIsDirectory) 'artifactIsDirectory': true,
+    'metadata': metadata,
+    'credentials': [
+      for (final c in credentials)
+        {
+          'target': c.target,
+          'kind': c.kind,
+          'explicitPath': ?c.explicitPath,
+          'envVar': ?c.envVar,
+          'wellKnownFileName': ?c.wellKnownFileName,
+        },
+    ],
+    'dryRun': dryRun,
+  };
 
   @override
   bool operator ==(final Object other) =>
@@ -130,28 +132,28 @@ class PublishPlan {
   /// Hash over all plan fields (equality is field-wise).
   @override
   int get hashCode => Object.hash(
-        target,
-        endpoint,
-        track,
-        artifactId,
-        artifactPath,
-        artifactIsDirectory,
-        dryRun,
-        Object.hashAll(metadata.keys),
-        Object.hashAll(credentials),
-      );
+    target,
+    endpoint,
+    track,
+    artifactId,
+    artifactPath,
+    artifactIsDirectory,
+    dryRun,
+    Object.hashAll(metadata.keys),
+    Object.hashAll(credentials),
+  );
 
   /// Debug string: target → endpoint, track, dry-run marker.
   @override
-  String toString() => 'PublishPlan($target → $endpoint, track $track, '
+  String toString() =>
+      'PublishPlan($target → $endpoint, track $track, '
       'artifact $artifactId'
       '${artifactIsDirectory ? ' (directory)' : ''}'
       '${dryRun ? ', dry run' : ''})';
 }
 
 bool _mapsEqual(final Map<String, String> a, final Map<String, String> b) =>
-    a.length == b.length &&
-    a.entries.every((final e) => b[e.key] == e.value);
+    a.length == b.length && a.entries.every((final e) => b[e.key] == e.value);
 
 bool _listsEqual(final List<CredentialRef> a, final List<CredentialRef> b) =>
     a.length == b.length && a.indexed.every((final e) => b[e.$1] == e.$2);
@@ -188,7 +190,10 @@ class PublishPlanStep extends BuildStep {
   /// Resolves the artifact path from state and produces [target]'s plan;
   /// fails actionably when the artifact is missing.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final artifact = state[target.artifactId];
     if (artifact is! String || artifact.isEmpty) {
       return StepResult.failure(
@@ -260,6 +265,27 @@ abstract class PublishTarget extends Target {
   /// paths only and redacts in [CredentialRef.toString].
   List<CredentialRef> get credentialRefs => const [];
 
+  /// The delivery verifier gating a real upload (ADR-0023 §3).
+  ///
+  /// Platform packages supply implementations (`AndroidDeliveryVerifier` in
+  /// oka_android); the composition root wires the verifier for its platform:
+  ///
+  /// ```dart
+  /// PlayPublishTarget(verifier: AndroidDeliveryVerifier())
+  /// ```
+  ///
+  /// When set (and [dryRun] is false), [compile] inserts a
+  /// [DeliveryVerificationStep] between [publishSteps] and the upload tail —
+  /// a failing gate aborts before any HTTP. Null means the target performs
+  /// no shared delivery gate (its own verification, if any, lives in
+  /// [publishSteps]).
+  DeliveryVerifier? get verifier => null;
+
+  /// Plan-time refusal issues for a real (non-dry-run) run (ADR-0023: fail
+  /// during composition validation, before tools run). Empty = the real run
+  /// may proceed. [compile] throws when non-empty and [dryRun] is false.
+  List<String> validateRealMode() => const [];
+
   /// Steps that produce/transform the publish artifact. Run before the
   /// upload tail; the last one must provide [artifactId].
   List<BuildStep> publishSteps(final BuildContext ctx) => const [];
@@ -273,26 +299,41 @@ abstract class PublishTarget extends Target {
   PublishPlan plan(
     final BuildContext ctx, {
     required final String artifactPath,
-  }) =>
-      PublishPlan(
-        target: name,
-        endpoint: endpoint,
-        track: track,
-        artifactId: artifactId,
-        artifactPath: artifactPath,
-        metadata: Map.unmodifiable(metadata),
-        credentials: List.unmodifiable(credentialRefs),
-        dryRun: dryRun,
-        artifactIsDirectory: artifactIsDirectory,
-      );
+  }) => PublishPlan(
+    target: name,
+    endpoint: endpoint,
+    track: track,
+    artifactId: artifactId,
+    artifactPath: artifactPath,
+    metadata: Map.unmodifiable(metadata),
+    credentials: List.unmodifiable(credentialRefs),
+    dryRun: dryRun,
+    artifactIsDirectory: artifactIsDirectory,
+  );
 
-  /// Compile to the publish contract: staging steps, then the plan step
-  /// (dry run) or the real upload tail.
+  /// Compile to the publish contract: staging steps, the delivery gate
+  /// (real runs with a verifier, ADR-0023 §3), then the plan step (dry run)
+  /// or the real upload tail. A real run with plan-time refusals throws here
+  /// — before tools, credentials, or HTTP.
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [
-        ...publishSteps(ctx),
-        if (dryRun) PublishPlanStep(this) else uploadStep(ctx),
-      ];
+  List<BuildStep> compile(final BuildContext ctx) {
+    if (!dryRun) {
+      final issues = validateRealMode();
+      if (issues.isNotEmpty) {
+        throw ArgumentError(
+          'target "$name" cannot run for real: ${issues.join('; ')}'
+          ' (dry-run plans still render with --dry-run)',
+        );
+      }
+    }
+    final v = verifier;
+    return [
+      ...publishSteps(ctx),
+      if (!dryRun && v != null)
+        DeliveryVerificationStep(artifactId: artifactId, verifier: v),
+      if (dryRun) PublishPlanStep(this) else uploadStep(ctx),
+    ];
+  }
 
   /// Debug string: target name plus dry-run marker.
   @override
