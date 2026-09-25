@@ -143,10 +143,11 @@ with evidence, not into a checked box.
   execution and filesystem junction/locked-path evidence; Linux and
   network-filesystem lock evidence; and real-browser acceptance on remaining
   supported hosts.
-  Managed profile acquisition and Chrome launch setup work on Windows using
-  inherited directory ACLs, which `dart:io` does not verify. POSIX `0700`
-  remains enforced on Linux/macOS; destructive session-state cleanup remains
-  report-only on Windows pending filesystem safety evidence.
+  First launch of a newly Oka-created Chrome profile works on Windows using
+  inherited directory ACLs, which `dart:io` does not verify. Existing-profile
+  reuse remains unknown until Windows `SingletonLock` semantics are verified.
+  POSIX `0700` remains enforced on Linux/macOS; destructive session-state
+  cleanup remains report-only on Windows pending filesystem safety evidence.
 - **S1: browser doctor + provisioning.** `oka doctor` browser detection
   (engines, versions, flag support); chrome-for-testing into the ADR-0013
   artifact store. Gate: S0.

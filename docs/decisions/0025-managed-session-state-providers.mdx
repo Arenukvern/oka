@@ -571,8 +571,10 @@ Bad / Neutral:
    escapes, locked paths, quarantine, concurrent reservation/reconciliation,
    host mismatch, root-missing versus root-unavailable behavior, and Windows
    liveness/filesystem semantics before enabling destructive cleanup there.
-   Windows managed directory creation and Chrome launch setup are compatible
-   using inherited ACLs, but those ACLs are not verified by `dart:io`.
+   Windows permits first launch of a newly Oka-created Chrome profile using
+   inherited ACLs, but existing-profile reuse remains unknown while
+   `SingletonLock` semantics are unverified. The ACLs are not verified by
+   `dart:io`.
 
 ## Acceptance evidence
 

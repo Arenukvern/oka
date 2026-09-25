@@ -51,6 +51,8 @@ jobs:
         run: dart test packages/oka_core/test/session_state_test.dart --plain-name "creates a managed directory on Windows without chmod"
       - name: Verify Windows Chrome managed profile launch setup
         run: dart test packages/oka_web/test/chrome_session_target_test.dart --plain-name "Windows Chrome managed profile acquisition and launch setup"
+      - name: Verify Windows Chrome first-launch safety boundary
+        run: dart test packages/oka_web/test/chrome_profile_state_test.dart --plain-name "Windows permits only the first launch of a new profile without a lock"
       - name: Verify Windows host boot identity
         run: dart test packages/oka_core/test/session_state_test.dart --plain-name "records a Windows boot identity when running on Windows"
       - name: Verify Windows state cleanup remains fail-closed

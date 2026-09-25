@@ -27,6 +27,10 @@ SessionStateContext<ChromeProfileHandle> _context(
   final String profilePath, {
   final int? processPid,
   final String? processPidToken,
+  final int ownerPid = 1,
+  final SessionStateAcquisitionMode acquisitionMode =
+      SessionStateAcquisitionMode.created,
+  final Map<String, Object?> metadata = const {},
 }) {
   final now = DateTime.utc(2026);
   return SessionStateContext(
@@ -40,7 +44,7 @@ SessionStateContext<ChromeProfileHandle> _context(
       retention: SessionStateRetention.ephemeral,
       processScope: LeaseScope.ephemeral,
       ownership: SessionStateOwnership.oka,
-      acquisitionMode: SessionStateAcquisitionMode.created,
+      acquisitionMode: acquisitionMode,
       phase: SessionStatePhase.ready,
       resourceKind: SessionStateResourceKind.directory,
       rootPath: p.dirname(profilePath),
@@ -49,10 +53,11 @@ SessionStateContext<ChromeProfileHandle> _context(
       hostId: 'host',
       bootId: 'boot',
       ownerProject: p.dirname(profilePath),
-      ownerPid: 1,
+      ownerPid: ownerPid,
       ownerPidToken: 'owner-token',
       processPid: processPid,
       processPidToken: processPidToken,
+      metadata: metadata,
       createdAt: now,
       updatedAt: now,
     ),
@@ -152,6 +157,37 @@ void main() {
       expect(finding.reason, contains('not cleanup evidence'));
       expect(finding.details['authority'], 'launch-only');
     });
+
+    test(
+      'Windows permits only the first launch of a new profile without a lock',
+      () async {
+        if (!Platform.isWindows) return;
+        final fresh = _context(
+          profile.path,
+          ownerPid: pid,
+          metadata: const {'process_snapshot_required': false},
+        );
+        final launch = await const ChromeProfileLaunchInspector().inspect(
+          fresh,
+        );
+        expect(launch.use, SessionStateUse.unused);
+        expect(launch.reason, contains('first launch'));
+
+        final reused = SessionStateContext(
+          handle: fresh.handle,
+          lease: fresh.lease.copyWith(
+            acquisitionMode: SessionStateAcquisitionMode.reused,
+          ),
+        );
+        final reusedLaunch = await const ChromeProfileLaunchInspector().inspect(
+          reused,
+        );
+        expect(reusedLaunch.use, SessionStateUse.unknown);
+
+        final cleanup = await const ChromeProfileUseInspector().inspect(fresh);
+        expect(cleanup.use, SessionStateUse.unknown);
+      },
+    );
 
     test(
       'a dead singleton without a matching process snapshot is unknown',

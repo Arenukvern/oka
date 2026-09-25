@@ -183,15 +183,32 @@ Future<SessionStateFinding> _inspectChromeProfileSingleton(
   required final String inspectorId,
   required final bool allowLaunchWithDeadOwner,
 }) async {
+  final lockPath = p.join(context.handle.path, 'SingletonLock');
+  final type = await FileSystemEntity.type(lockPath, followLinks: false);
   if (!Platform.isLinux && !Platform.isMacOS) {
+    final firstWindowsLaunch =
+        Platform.isWindows &&
+        allowLaunchWithDeadOwner &&
+        context.lease.acquisitionMode == SessionStateAcquisitionMode.created &&
+        context.lease.ownerPid == pid &&
+        context.lease.processPid == null &&
+        context.lease.processLeaseId == null &&
+        context.lease.metadata['process_snapshot_required'] == false;
+    if (firstWindowsLaunch && type == FileSystemEntityType.notFound) {
+      return SessionStateFinding(
+        inspectorId: inspectorId,
+        use: SessionStateUse.unused,
+        reason:
+            'New Oka-created profile has no prior process snapshot or '
+            'SingletonLock; this first launch does not infer cleanup safety.',
+      );
+    }
     return SessionStateFinding(
       inspectorId: inspectorId,
       use: SessionStateUse.unknown,
       reason: 'SingletonLock semantics are unverified on this host OS.',
     );
   }
-  final lockPath = p.join(context.handle.path, 'SingletonLock');
-  final type = await FileSystemEntity.type(lockPath, followLinks: false);
   if (type == FileSystemEntityType.notFound) {
     return SessionStateFinding(
       inspectorId: inspectorId,
@@ -219,9 +236,9 @@ Future<SessionStateFinding> _inspectChromeProfileSingleton(
     );
   }
   final host = target.substring(0, separator);
-  final pid = int.tryParse(target.substring(separator + 1));
-  if (pid == null ||
-      pid <= 0 ||
+  final singletonPid = int.tryParse(target.substring(separator + 1));
+  if (singletonPid == null ||
+      singletonPid <= 0 ||
       host.toLowerCase() != Platform.localHostname.toLowerCase()) {
     return SessionStateFinding(
       inspectorId: inspectorId,
@@ -231,42 +248,42 @@ Future<SessionStateFinding> _inspectChromeProfileSingleton(
     );
   }
   try {
-    if (await liveness.isAlive(pid)) {
+    if (await liveness.isAlive(singletonPid)) {
       return SessionStateFinding(
         inspectorId: inspectorId,
         use: SessionStateUse.busy,
-        reason: 'SingletonLock owner process $pid is still alive.',
-        details: {'pid': pid},
+        reason: 'SingletonLock owner process $singletonPid is still alive.',
+        details: {'pid': singletonPid},
       );
     }
     if (allowLaunchWithDeadOwner &&
-        context.lease.processPid == pid &&
+        context.lease.processPid == singletonPid &&
         context.lease.processPidToken != null) {
       return SessionStateFinding(
         inspectorId: inspectorId,
         use: SessionStateUse.unused,
         reason:
-            'SingletonLock owner process $pid is stopped; a new '
+            'SingletonLock owner process $singletonPid is stopped; a new '
             'browser launch may proceed, but this is not cleanup evidence.',
-        details: {'pid': pid, 'authority': 'launch-only'},
+        details: {'pid': singletonPid, 'authority': 'launch-only'},
       );
     }
     return SessionStateFinding(
       inspectorId: inspectorId,
       use: SessionStateUse.unknown,
       reason:
-          'SingletonLock owner process $pid is stopped, but a present lock '
+          'SingletonLock owner process $singletonPid is stopped, but a present lock '
           'does not match a verified process snapshot for launch or prove '
           'that no detached child or concurrent opener uses the profile; '
           'cleanup is not authorized.',
-      details: {'pid': pid},
+      details: {'pid': singletonPid},
     );
   } on Object catch (error) {
     return SessionStateFinding(
       inspectorId: inspectorId,
       use: SessionStateUse.unknown,
       reason: 'Could not verify SingletonLock owner process: $error',
-      details: {'pid': pid},
+      details: {'pid': singletonPid},
     );
   }
 }

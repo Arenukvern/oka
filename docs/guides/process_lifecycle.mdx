@@ -142,10 +142,11 @@ Applied cleanup reports repeat the safety boundary: process identity and
 provider markers do not prove every detached child or concurrent opener is
 absent, and path checks cannot prevent same-user filesystem races.
 
-On Windows, Chrome managed profile acquisition and launch setup are supported
-using the profile directory's inherited ACL. `dart:io` cannot verify those
-ACLs, so all destructive session-state directory cleanup remains report-only
-on Windows. Linux/macOS managed directories retain POSIX `0700` enforcement.
+On Windows, first launch of a newly Oka-created Chrome profile is supported
+using the profile directory's inherited ACL. Reuse of an existing profile
+remains unknown because Windows `SingletonLock` semantics are unverified;
+cleanup is report-only on Windows. `dart:io` cannot verify inherited ACLs.
+Linux/macOS managed directories retain POSIX `0700` enforcement.
 
 If provisioning failed, its `partial` lease remains durable. `resume <id>` is
 an explicit, non-preview action: it reruns the exact composed workflow from the
