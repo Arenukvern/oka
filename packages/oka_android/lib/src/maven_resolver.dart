@@ -329,11 +329,27 @@ class MavenResolver {
       final existingLen = await artifactRepository.length(jarPath);
       // Do not treat metadata-only empty shells as a successful cache hit.
       if (existingLen > 200) {
-        return ResolvedJar(coordinate: working, jarPath: jarPath);
+        return _resolvedWithAarPayload(working, jarPath);
       }
       try {
         await artifactRepository.delete(jarPath);
       } catch (_) {}
+    } else if (working.packaging != 'aar') {
+      // AAR-shaped warm hit: coordinates parse as `jar` by default, but a
+      // previous cold resolve (packaging fallback) stored the `.aar` and its
+      // extracted `-classes.jar`. Recognize that shape instead of
+      // re-downloading the artifact on every build.
+      final aarCoord = MavenCoordinate(
+        groupId: working.groupId,
+        artifactId: working.artifactId,
+        version: working.version,
+        packaging: 'aar',
+      );
+      final classesJarPath = jarPathFor(aarCoord);
+      if (await artifactRepository.exists(classesJarPath) &&
+          await artifactRepository.length(classesJarPath) > 200) {
+        return _resolvedWithAarPayload(aarCoord, classesJarPath);
+      }
     }
 
     List<int> bytes;
@@ -397,16 +413,9 @@ class MavenResolver {
       }
 
       // Extract natives + res alongside the classes jar (ADR: AAR processing).
-      final payloadDir = p.join(
-        cacheRoot,
-        working.groupId.replaceAll('.', '/'),
-        working.artifactId,
-        working.version,
-        'payload',
-      );
       final payload = await extractAarPayload(
         bytes,
-        payloadDir,
+        _payloadDirFor(working),
         verbose: verbose,
       );
       return ResolvedJar(
@@ -419,6 +428,49 @@ class MavenResolver {
 
     return ResolvedJar(coordinate: working, jarPath: outJar);
   }
+
+  /// Warm-hit AAR payload recovery: a previous cold resolve stored the
+  /// `.aar` and extracted its payload. Rebuild the complete [ResolvedJar]
+  /// (natives + res) so warm and cold resolves are indistinguishable to
+  /// consumers — without this, cached AARs silently lose their native libs
+  /// and the APK builds fine but crashes at runtime (`UnsatisfiedLinkError`).
+  Future<ResolvedJar> _resolvedWithAarPayload(
+    final MavenCoordinate coord,
+    final String jarPath,
+  ) async {
+    final aarPath = localPathFor(
+      MavenCoordinate(
+        groupId: coord.groupId,
+        artifactId: coord.artifactId,
+        version: coord.version,
+        packaging: 'aar',
+      ),
+    );
+    if (!await artifactRepository.exists(aarPath)) {
+      return ResolvedJar(coordinate: coord, jarPath: jarPath);
+    }
+    final payload = await extractAarPayload(
+      await artifactRepository.readBytes(aarPath),
+      _payloadDirFor(coord),
+      verbose: verbose,
+    );
+    return ResolvedJar(
+      coordinate: coord,
+      jarPath: jarPath,
+      nativeLibsByAbi: payload.nativeLibsByAbi,
+      resDirs: payload.resDirs,
+    );
+  }
+
+  /// Payload extraction directory for a coordinate's AAR (`jni/` + `res/`),
+  /// next to the stored artifact in the shared store.
+  String _payloadDirFor(final MavenCoordinate coord) => p.join(
+    cacheRoot,
+    coord.groupId.replaceAll('.', '/'),
+    coord.artifactId,
+    coord.version,
+    'payload',
+  );
 
   Future<({MavenCoordinate coord, List<int> bytes})> _downloadArtifact(
     final MavenCoordinate coord, {

@@ -71,16 +71,22 @@ void main() {
       expect(payload.nativeLibsByAbi, isEmpty);
     });
 
-    test('ignores non-xml res and non-jni so files', () async {
+    test('extracts the full res tree; non-jni so files stay ignored', () async {
       final aar = buildTestAar({
         'classes.jar': _classesJarBytes,
+        // Binary drawables must ship too: values XML references them
+        // (androidx.core notification_bg → notification_bg_normal.png).
         'res/drawable/icon.png': [9, 9],
         'libs/other.so': [7], // libs/, not jni/
       });
       final payload = await extractAarPayload(aar, p.join(tmp.path, 'p'));
 
       expect(payload.nativeLibsByAbi, isEmpty);
-      expect(payload.resDirs, isEmpty);
+      expect(payload.resDirs, hasLength(1));
+      expect(
+        File(p.join(tmp.path, 'p', 'res', 'drawable', 'icon.png')).existsSync(),
+        isTrue,
+      );
     });
 
     test('aar with no payload yields empty result', () async {

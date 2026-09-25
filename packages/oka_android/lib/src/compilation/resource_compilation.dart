@@ -40,12 +40,35 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
         ? '34'
         : ctx.config.android.compileSdk;
     final androidJar = await resolveAndroidJar(androidSdk, compileSdk);
+    // Each res source compiles to its own zip and links as an overlay:
+    // same-named FILEs (values.xml, values-v21.xml, …) from different AARs
+    // no longer clobber each other in one shared tree — aapt2 merges at the
+    // resource level with later -R zips overriding earlier ones. The primary
+    // res dir (codegen + project res) is passed last by the link builders so
+    // app resources win over AAR/plugin resources.
     final resDir = p.join(ctx.buildDir, 'res');
-    for (final pluginRes in pluginResDirs) {
-      final source = Directory(pluginRes);
-      if (await source.exists()) {
-        await copyDirectory(source, Directory(resDir));
+    final overlayZips = <String>[];
+    for (var i = 0; i < pluginResDirs.length; i++) {
+      final source = Directory(pluginResDirs[i]);
+      if (!await source.exists()) continue;
+      final zip = p.join(ctx.buildDir, 'compiled_res_$i.zip');
+      if (await File(zip).exists()) await File(zip).delete();
+      final compile = await processRunner(
+        aapt2,
+        buildAapt2CompileDirArgs(
+          resDir: pluginResDirs[i],
+          compiledResourcesZip: zip,
+        ),
+      );
+      if (compile.exitCode != 0) {
+        return ResourceCompilationOutcome(
+          ok: false,
+          error:
+              'aapt2 compile failed for res dir ${pluginResDirs[i]}: '
+              '${compile.stderr}',
+        );
       }
+      overlayZips.add(zip);
     }
 
     final compiledResources = p.join(ctx.buildDir, 'compiled_resources.zip');
@@ -89,6 +112,7 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
             manifestPath: manifest,
             outputAp: output,
             compiledResourcesZip: compiledResources,
+            overlayZips: overlayZips,
             javaOutDir: generated,
             resourceConfigs: resourceConfigs,
             versionCode: versionCode,
@@ -99,6 +123,7 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
             manifestPath: manifest,
             outputAp: output,
             compiledResourcesZip: compiledResources,
+            overlayZips: overlayZips,
             javaOutDir: generated,
             resourceConfigs: resourceConfigs,
             versionCode: versionCode,
@@ -160,6 +185,9 @@ Future<String> resolveAndroidJar(String androidSdk, String compileSdk) async {
   return fallback;
 }
 
+/// Copies a res tree into [destination] (used by host codegen to stage user
+/// `resDirs` into the primary build res dir; later copies override earlier
+/// files, which is the intended user-over-generated precedence).
 Future<void> copyDirectory(Directory source, Directory destination) async {
   await destination.create(recursive: true);
   await for (final entry in source.list(recursive: true, followLinks: false)) {

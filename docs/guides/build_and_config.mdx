@@ -228,6 +228,8 @@ Future<void> main(List<String> args) => okaRun(
           versionCode: 51, versionName: '3.22.0',
           abis: ['arm64-v8a'],
           javaVersion: 17,
+          // Passed to kotlinc separately from kotlin source paths.
+          kotlinCompilerArgs: ['-opt-in=kotlin.ExperimentalStdlibApi'],
         ),
         flutterConfig: FlutterBuild(   // was flutter:
           entrypoint: 'lib/main_prod.dart',
@@ -247,6 +249,10 @@ Future<void> main(List<String> args) => okaRun(
 - Field mapping: `android:` → `AndroidBuild`, `flutter:` → `FlutterBuild`,
   `pipeline:` + `android.icon/manifest/res_dirs` → `PipelineOverrides`,
   top-level `name:` → `AndroidBuild.name`.
+- Kotlin compiler requirements are declarative: use
+  `android.kotlin_compiler_args` in YAML or
+  `AndroidBuild.kotlinCompilerArgs` in Dart. `kotlinSources` remains a list of
+  source paths and is never used to smuggle compiler flags.
 - Precedence: defaults < `oka.yaml` (if kept) < typed Dart config < CLI args.
 - **Migrating an existing project** (e.g. last_answer):
   ```bash
@@ -479,8 +485,13 @@ pipeline:
     - "com.squareup.okhttp3:okhttp:4.12.0"
 ```
 It resolves from Google Maven / Maven Central into the shared store's `maven/`
-directory (with a legacy fallback; see [cache locations](cache_storage)) and is
-dexed into the APK.
+directory (with a legacy fallback; see [cache locations](cache_storage)),
+follows the same limited-depth POM transitive closure as plugin dependencies
+(ADR-0008), and is dexed into the APK. AAR dependencies also package their
+`jni/` natives — filtered to the build's ABIs — and `res/` trees, so host
+Kotlin/Java compiled against an extra dep both links and runs (e.g.
+MediaPipe `tasks-vision` pulls `tasks-core` classes and native libs without
+editing oka).
 
 **Q: A build fails with `NoClassDefFoundError: Lfoo/Bar;` — what now?**
 Oka auto-suggests the Maven artifact on build failure. To resolve manually:

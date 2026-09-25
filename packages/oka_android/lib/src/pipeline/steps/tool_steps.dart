@@ -48,7 +48,12 @@ class CompileAndDexStep extends BuildStep {
   ) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
-    if ((packaged?.allKotlinSources ?? const []).isNotEmpty) {
+    final hostKotlinSources = filesUnder(
+      state.hostDir ?? '/nonexistent',
+      extension: '.kt',
+    );
+    if (hostKotlinSources.isNotEmpty ||
+        (packaged?.allKotlinSources ?? const []).isNotEmpty) {
       final kotlincOk = await ensureKotlinc(verbose: ctx.verbose);
       if (!kotlincOk) {
         return StepResult.failure(
@@ -95,6 +100,8 @@ class CompileAndDexStep extends BuildStep {
         'abis:${state.abis.join(',')}',
         'compileSdk:${ctx.config.android.compileSdk}',
         'kotlin:${ctx.config.android.kotlinVersion}',
+        'kotlinCompilerArgs:${ctx.config.android.kotlinCompilerArgs.join('\u001f')}',
+        'hostKotlinSources:v1',
         'java:${ctx.config.android.javaVersion}',
         'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
         'versionCode:${version.versionCode}',
@@ -132,6 +139,7 @@ class CompileAndDexStep extends BuildStep {
       ],
       pluginJavaSources: packaged?.allJavaSources ?? const [],
       pluginKotlinSources: packaged?.allKotlinSources ?? const [],
+      kotlinCompilerArgs: ctx.config.android.kotlinCompilerArgs,
       pluginJarDeps: packaged?.allJarDeps ?? const [],
       pluginResDirs: [...state.aarResDirs, ...?packaged?.resDirs],
       resourceConfigs: _effectiveResourceConfigs(state),
@@ -183,11 +191,15 @@ class PackageAndSignStep extends BuildStep {
   ) async {
     print('📱 Packaging APK...');
     // Merge AAR natives (Maven-resolved + local) into the plugin natives map.
+    // Maven AARs ship every ABI; package only the target set (Gradle
+    // abiFilters-equivalent) so an arm64 build doesn't carry x86 natives.
+    final targetAbis = {for (final abi in state.abis) normalizeAbi(abi)};
     final extraNatives = <String, List<String>>{
       ...state.packagedPlugins?.nativeLibsByAbi ?? const {},
     };
     state.aarNativeLibsByAbi.forEach((final abi, final paths) {
       final norm = normalizeAbi(abi);
+      if (targetAbis.isNotEmpty && !targetAbis.contains(norm)) return;
       extraNatives.putIfAbsent(norm, () => []).addAll(paths);
     });
 
@@ -241,7 +253,12 @@ class CompileProtoAndDexStep extends BuildStep {
   ) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
-    if ((packaged?.allKotlinSources ?? const []).isNotEmpty) {
+    final hostKotlinSources = filesUnder(
+      state.hostDir ?? '/nonexistent',
+      extension: '.kt',
+    );
+    if (hostKotlinSources.isNotEmpty ||
+        (packaged?.allKotlinSources ?? const []).isNotEmpty) {
       final kotlincOk = await ensureKotlinc(verbose: ctx.verbose);
       if (!kotlincOk) {
         return StepResult.failure(
@@ -289,6 +306,8 @@ class CompileProtoAndDexStep extends BuildStep {
         'abis:${state.abis.join(',')}',
         'compileSdk:${ctx.config.android.compileSdk}',
         'kotlin:${ctx.config.android.kotlinVersion}',
+        'kotlinCompilerArgs:${ctx.config.android.kotlinCompilerArgs.join('\u001f')}',
+        'hostKotlinSources:v1',
         'java:${ctx.config.android.javaVersion}',
         'resourceConfigs:${_effectiveResourceConfigs(state).join(',')}',
         'versionCode:${ctx.config.android.versionCode}',
@@ -308,9 +327,6 @@ class CompileProtoAndDexStep extends BuildStep {
     if (cached != null) {
       print('🔨 compile-proto-and-dex: unchanged inputs — reusing dex');
       state.dexFiles = (cached['dex_files'] as List).cast<String>().toList();
-      state.dexFiles =
-          (cached['dex_files'] as List).cast<String>().toList();
-      state.dexFiles = (cached['dex_files'] as List).cast<String>().toList();
       state.shrinkerArtifacts =
           (cached['shrinker_artifacts'] as Map?)?.cast<String, String>() ??
           const {};
@@ -328,6 +344,7 @@ class CompileProtoAndDexStep extends BuildStep {
       ],
       pluginJavaSources: packaged?.allJavaSources ?? const [],
       pluginKotlinSources: packaged?.allKotlinSources ?? const [],
+      kotlinCompilerArgs: ctx.config.android.kotlinCompilerArgs,
       pluginJarDeps: packaged?.allJarDeps ?? const [],
       pluginResDirs: [...state.aarResDirs, ...?packaged?.resDirs],
       resourceConfigs: _effectiveResourceConfigs(state),

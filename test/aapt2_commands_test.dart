@@ -62,6 +62,24 @@ void main() {
       expect(args, contains('-A'));
       expect(args, contains('assets'));
     });
+
+    test('overlay zips precede the primary -R so app res wins', () {
+      final args = buildAapt2LinkArgs(
+        androidJar: 'android.jar',
+        manifestPath: 'AndroidManifest.xml',
+        outputAp: 'out.ap_',
+        compiledResourcesZip: 'primary.zip',
+        overlayZips: ['aar1.zip', 'aar2.zip'],
+      );
+
+      final rTargets = <String>[];
+      for (var i = 0; i < args.length; i++) {
+        if (args[i] == '-R') rTargets.add(args[i + 1]);
+      }
+      // Later -R zips override same-named resources: overlays first, the
+      // primary (project) res last.
+      expect(rTargets, ['aar1.zip', 'aar2.zip', 'primary.zip']);
+    });
   });
 
   group('isCompiledResourcesZipPath', () {

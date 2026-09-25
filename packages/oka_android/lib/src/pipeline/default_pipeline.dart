@@ -10,6 +10,7 @@ import '../build/dependency_cache.dart';
 import '../build/flutter_assemble.dart';
 import '../build/plugin_discovery.dart';
 import '../build/toolchain.dart';
+import '../compilation/bytecode_compilation.dart' show compareMavenVersions;
 import '../dev/run_session.dart';
 import '../pipeline_overrides.dart';
 import '../post_build_lint.dart';
@@ -20,11 +21,16 @@ import 'steps/tool_steps.dart';
 
 export '../pipeline_overrides.dart';
 
-
-/// Resolves user-declared extra Maven coordinates into
-/// [PipelineState.extraRuntimeJars] before compile/dex.
+/// Resolves user-declared extra Maven coordinates — including their POM
+/// transitive closure and AAR payloads — into [PipelineState.extraRuntimeJars],
+/// `aarNativeLibsByAbi`, and `aarResDirs` before compile/package.
+///
+/// Transitive resolution matches plugin packaging (ADR-0008): host code
+/// compiled against an extra dep needs its dependencies on the classpath
+/// (e.g. `tasks-vision` without `tasks-core` fails with "cannot access …
+/// supertype"), and AAR natives must reach the APK or the app crashes at
+/// runtime with `UnsatisfiedLinkError`.
 class ExtraDepsStep extends BuildStep {
-
   ExtraDepsStep(this.coordinates, this.cache, {this.verbose = false});
   @override
   Set<Artifact<Object>> get provides => {extraRuntimeJars};
@@ -37,14 +43,17 @@ class ExtraDepsStep extends BuildStep {
   String get name => 'extra-deps';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     // ADR-0010: constructor coordinates win; pipeline-level overrides fill in.
     final effective = coordinates.isNotEmpty
         ? coordinates
         : (state.pipelineOverrides?.extraDeps ?? const <String>[]);
     if (effective.isEmpty) return StepResult.success();
-    print('📚 Resolving ${coordinates.length} extra dependencies...');
-    final jars = <String>[];
+    print('📚 Resolving ${effective.length} extra dependencies...');
+    final roots = <MavenCoordinate>[];
     for (final coord in effective) {
       final parsed = MavenCoordinate.parse(coord);
       if (parsed == null) {
@@ -53,20 +62,82 @@ class ExtraDepsStep extends BuildStep {
           '"group:artifact:version".',
         );
       }
-      try {
-        final jar = await cache.resolve(parsed);
-        jars.add(jar.jarPath);
-        if (verbose) print('   $coord → ${jar.jarPath}');
-      } on Exception catch (e) {
-        return StepResult.failure(
-          'Failed to resolve extra dependency "$coord": $e\n'
-          'Check group/artifact/version and network access.',
-        );
+      roots.add(parsed);
+    }
+    // Root artifacts fail hard: a typo'd extra_dep must stop the build, not
+    // surface later as missing classes on the compile classpath.
+    final byJarPath = <String, ResolvedJar>{};
+    try {
+      for (final root in roots) {
+        final jar = await cache.resolve(root);
+        byJarPath[jar.jarPath] = jar;
+        if (verbose) print('   ${root.coordinate} → ${jar.jarPath}');
+      }
+    } on Exception catch (e) {
+      return StepResult.failure(
+        'Failed to resolve extra dependency: $e\n'
+        'Check group/artifact/version and network access.',
+      );
+    }
+    // POM transitive closure — the same policy plugin packaging uses, so
+    // extra deps and plugin deps cannot disagree on classpath depth. Root
+    // payloads come from the direct resolves above: the BFS drops a resolved
+    // artifact when only its POM fetch fails (offline warm-cache builds).
+    final transitives = await cache.resolveWithTransitives(roots);
+    for (final jar in transitives) {
+      byJarPath.putIfAbsent(jar.jarPath, () => jar);
+    }
+    // Gradle-style highest-version-wins across the whole graph: the AndroidX
+    // embedding set (dependency-resolve) participates in selection so a
+    // POM-pinned old androidx.core (e.g. 1.1.0 under camera-core) never
+    // contributes res/natives when a newer version is already resolved —
+    // payloads come from the same version whose classes are on the classpath.
+    final embedding = <ResolvedJar>[...state.androidxJars];
+    final embeddingPaths = embedding.map((final jar) => jar.jarPath).toSet();
+    final selected = _selectLatestByArtifact([
+      ...embedding,
+      ...byJarPath.values,
+    ]);
+    final natives = <String, List<String>>{...state.aarNativeLibsByAbi};
+    final resDirs = <String>[...state.aarResDirs];
+    for (final jar in selected) {
+      jar.nativeLibsByAbi.forEach((final abi, final paths) {
+        natives.putIfAbsent(normalizeAbi(abi), () => []).addAll(paths);
+      });
+      for (final dir in jar.resDirs) {
+        if (!resDirs.contains(dir)) resDirs.add(dir);
       }
     }
-    state.extraRuntimeJars = jars;
+    // Embedding-set winners are already on the classpath via androidxJars;
+    // only genuinely extra artifacts become extra runtime jars.
+    state.extraRuntimeJars = selected
+        .where((final jar) => !embeddingPaths.contains(jar.jarPath))
+        .map((final jar) => jar.jarPath)
+        .toList();
+    state.aarNativeLibsByAbi = natives;
+    state.aarResDirs = resDirs;
     return StepResult.success();
   }
+}
+
+/// Picks the highest resolved version per `groupId:artifactId`, keeping the
+/// result order deterministic (sorted by jar path).
+List<ResolvedJar> _selectLatestByArtifact(final Iterable<ResolvedJar> jars) {
+  final best = <String, ResolvedJar>{};
+  for (final jar in jars) {
+    final key = '${jar.coordinate.groupId}:${jar.coordinate.artifactId}';
+    final current = best[key];
+    if (current == null ||
+        compareMavenVersions(
+              jar.coordinate.version,
+              current.coordinate.version,
+            ) >
+            0) {
+      best[key] = jar;
+    }
+  }
+  return best.values.toList()
+    ..sort((final a, final b) => a.jarPath.compareTo(b.jarPath));
 }
 
 /// Processes local AAR files declared in `pipeline.local_aars`.
@@ -75,7 +146,6 @@ class ExtraDepsStep extends BuildStep {
 /// results land in [PipelineState.extraRuntimeJars], `aarNativeLibsByAbi`, and
 /// `aarResDirs` for downstream compile/package steps.
 class LocalAarsStep extends BuildStep {
-
   LocalAarsStep(this.aarPaths, {this.verbose = false});
   @override
   Set<Artifact<Object>> get provides => {aarNativeLibsByAbi, aarResDirs};
@@ -87,16 +157,20 @@ class LocalAarsStep extends BuildStep {
   String get name => 'local-aars';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     // ADR-0010: constructor paths win; pipeline-level overrides fill in.
     final effective = aarPaths.isNotEmpty
         ? aarPaths
         : (state.pipelineOverrides?.localAars ?? const <String>[]);
     if (effective.isEmpty) return StepResult.success();
-    print('📦 Processing ${aarPaths.length} local AAR file(s)...');
+    print('📦 Processing ${effective.length} local AAR file(s)...');
+    // Merge on top of Maven-AAR payloads from ExtraDepsStep — never clobber.
     final jars = <String>[...state.extraRuntimeJars];
-    final natives = <String, List<String>>{};
-    final resDirs = <String>[];
+    final natives = <String, List<String>>{...state.aarNativeLibsByAbi};
+    final resDirs = <String>[...state.aarResDirs];
 
     for (final rel in effective) {
       final aarFile = File(p.join(ctx.projectPath, rel));
@@ -142,7 +216,6 @@ class LocalAarsStep extends BuildStep {
 
 /// Layout-only staging used by unit tests (no external tools invoked).
 class _LayoutOnlyStep extends BuildStep {
-
   _LayoutOnlyStep(this.toolchain);
   @override
   Set<Artifact<Object>> get provides => {abis, apkPath};
@@ -153,7 +226,10 @@ class _LayoutOnlyStep extends BuildStep {
   String get name => 'layout-only';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(
+    final BuildContext ctx,
+    final PipelineState state,
+  ) async {
     final abis = resolveAbis(
       configAbis: ctx.config.android.abis,
       targetAbi: ctx.targetAbi,
@@ -231,7 +307,10 @@ Future<Pipeline> defaultApkPipeline(
     DependencyResolveStep(cache: cache),
     ExtraDepsStep(overrides.extraDeps, cache, verbose: verbose),
     LocalAarsStep(overrides.localAars, verbose: verbose),
-    CompileAndDexStep(toolchain: toolchain, resourceConfigs: overrides.resourceConfigs),
+    CompileAndDexStep(
+      toolchain: toolchain,
+      resourceConfigs: overrides.resourceConfigs,
+    ),
     ExtraAssetsStep(overrides.extraAssets),
     PackageAndSignStep(toolchain: toolchain, signing: overrides.signing),
     ValidateLayoutStep(),
@@ -281,7 +360,10 @@ Future<Pipeline> defaultAabPipeline(
     DependencyResolveStep(cache: cache),
     ExtraDepsStep(overrides.extraDeps, cache, verbose: verbose),
     LocalAarsStep(overrides.localAars, verbose: verbose),
-    CompileProtoAndDexStep(toolchain: toolchain, resourceConfigs: overrides.resourceConfigs),
+    CompileProtoAndDexStep(
+      toolchain: toolchain,
+      resourceConfigs: overrides.resourceConfigs,
+    ),
     ExtraAssetsStep(overrides.extraAssets),
     PackageAndSignAabStep(toolchain: toolchain, signing: overrides.signing),
     ValidateAabLayoutStep(),

@@ -48,6 +48,35 @@ void main() {
     );
 
     test(
+      'compile classpath keeps only the newest version per Maven artifact',
+      () {
+        // Plugin POMs routinely resolve several versions of the same
+        // artifact; lexical path order must not decide which classes win.
+        const policy = BytecodeCommandPolicy(pathSeparator: ':');
+        final classpath = policy.compileClasspath(
+          androidJar: 'android.jar',
+          embeddingJar: 'embedding.jar',
+          dependencyJars: [
+            '/cache/maven/androidx/core/core/1.0.0/core-1.0.0-classes.jar',
+            '/cache/maven/androidx/core/core/1.13.1/core-1.13.1-classes.jar',
+            '/cache/maven/androidx/core/core/1.6.0/core-1.6.0-classes.jar',
+            // compile-only markers stay on the compile classpath.
+            '/cache/maven/org/jetbrains/kotlin/kotlin-stdlib-common/1.8.20/kotlin-stdlib-common-1.8.20.jar',
+          ],
+        );
+        expect(classpath, contains('android.jar'));
+        expect(
+          classpath.where((entry) => entry.contains('androidx/core/core/')),
+          ['/cache/maven/androidx/core/core/1.13.1/core-1.13.1-classes.jar'],
+        );
+        expect(
+          classpath.any((entry) => entry.contains('kotlin-stdlib-common')),
+          isTrue,
+        );
+      },
+    );
+
+    test(
       'argument construction accepts immutable inputs without host files',
       () {
         const policy = BytecodeCommandPolicy(pathSeparator: ':');
@@ -62,6 +91,17 @@ void main() {
             javaSources: java,
           ),
           containsAllInOrder(['A.kt', 'Z.kt', 'A.java', 'Z.java']),
+        );
+        expect(
+          policy.kotlinArgs(
+            classpath: const ['api.jar'],
+            classesDir: 'classes',
+            javaVersion: 17,
+            kotlinSources: kotlin,
+            javaSources: java,
+            compilerArgs: const ['-opt-in=api.ExperimentalApi'],
+          ),
+          contains('-opt-in=api.ExperimentalApi'),
         );
         expect(
           policy.javacArgs(
@@ -179,6 +219,9 @@ void main() {
       host = await Directory(p.join(temp.path, 'host')).create();
       generated = await Directory(p.join(temp.path, 'gen')).create();
       await File(p.join(host.path, 'Host.java')).writeAsString('class Host {}');
+      await File(
+        p.join(host.path, 'Host.kt'),
+      ).writeAsString('class KotlinHost');
       annotationJar = File(p.join(temp.path, 'annotations.jar'));
       await annotationJar.writeAsBytes(List<int>.filled(201, 1));
       await Directory(p.join(temp.path, 'dex')).create();
@@ -251,6 +294,7 @@ void main() {
           (call) => call.executable == 'kotlinc',
         );
         expect(kotlinCall.arguments, contains(p.join(host.path, 'Host.java')));
+        expect(kotlinCall.arguments, contains(p.join(host.path, 'Host.kt')));
         final javacCall = calls.singleWhere(
           (call) => call.executable == 'javac',
         );
@@ -275,7 +319,11 @@ void main() {
     test('reports successful D8 that produces no outputs', () async {
       final outcome = await compileAndroidBytecode(
         ctx: context,
-        tools: const BytecodeTools(javac: 'javac', d8: 'd8'),
+        tools: const BytecodeTools(
+          javac: 'javac',
+          d8: 'd8',
+          kotlinc: 'kotlinc',
+        ),
         hostDir: host.path,
         generatedSourcesDir: generated.path,
         androidJar: 'android.jar',

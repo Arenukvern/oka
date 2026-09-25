@@ -62,14 +62,15 @@ extractAarPayload(
     final native = RegExp(r'^jni/([^/]+)/(lib[^/]+[.]so)$').firstMatch(name);
     if (native != null) {
       final output = p.join(destination, name);
-      await File(output).parent.create(recursive: true);
-      await File(output).writeAsBytes(file.content as List<int>, flush: true);
+      await _writeIfChanged(File(output), file.content as List<int>);
       natives.putIfAbsent(native.group(1)!, () => []).add(output);
-    } else if (name.startsWith('res/') && name.endsWith('.xml')) {
+    } else if (name.startsWith('res/')) {
+      // Full res tree (values XML, drawables incl. binaries, layouts…):
+      // values XML may reference drawables that only exist as PNG/WebP —
+      // dropping them breaks aapt2 link with "resource not found".
       hasResources = true;
       final output = p.join(destination, name);
-      await File(output).parent.create(recursive: true);
-      await File(output).writeAsBytes(file.content as List<int>, flush: true);
+      await _writeIfChanged(File(output), file.content as List<int>);
     }
   }
   for (final paths in natives.values) {
@@ -86,6 +87,17 @@ extractAarPayload(
     print('   AAR payload: $count natives, ${resources.length} res dir(s)');
   }
   return (nativeLibsByAbi: natives, resDirs: resources);
+}
+
+/// Idempotent write: re-extracting a cached AAR payload (warm builds) skips
+/// files whose on-disk size already matches instead of rewriting the same
+/// native blobs every build.
+Future<void> _writeIfChanged(final File output, final List<int> content) async {
+  await output.parent.create(recursive: true);
+  if (await output.exists() && await output.length() == content.length) {
+    return;
+  }
+  await output.writeAsBytes(content, flush: true);
 }
 
 List<int> minimalJarBytes({String entryName = 'META-INF/MANIFEST.MF'}) {

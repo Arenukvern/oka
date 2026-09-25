@@ -12,11 +12,13 @@ void main() {
         packageName: 'com.example.app',
         minSdk: '23',
         abis: ['arm64-v8a'],
+        kotlinCompilerArgs: ['-opt-in=api.ExperimentalApi'],
       ).toConfigMap();
       expect(map, {
         'package_name': 'com.example.app',
         'min_sdk': '23',
         'abis': ['arm64-v8a'],
+        'kotlin_compiler_args': ['-opt-in=api.ExperimentalApi'],
       });
       // Unset fields are absent, never empty-string defaults.
       expect(map.containsKey('compile_sdk'), isFalse);

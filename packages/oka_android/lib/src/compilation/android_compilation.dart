@@ -1,6 +1,7 @@
 import 'package:oka_core/oka_core.dart';
 
 import '../build/toolchain.dart';
+import '../build_cache.dart';
 import 'bytecode_compilation.dart';
 import 'process_runner.dart';
 import 'resource_compilation.dart';
@@ -13,6 +14,7 @@ Future<CompileDexOutcome> compileAndDex({
   required List<String> androidxJarPaths,
   List<String> pluginJavaSources = const [],
   List<String> pluginKotlinSources = const [],
+  List<String> kotlinCompilerArgs = const [],
   List<String> pluginJarDeps = const [],
   List<String> pluginResDirs = const [],
   List<String> resourceConfigs = const [],
@@ -29,6 +31,7 @@ Future<CompileDexOutcome> compileAndDex({
   androidxJarPaths: androidxJarPaths,
   pluginJavaSources: pluginJavaSources,
   pluginKotlinSources: pluginKotlinSources,
+  kotlinCompilerArgs: kotlinCompilerArgs,
   pluginJarDeps: pluginJarDeps,
   pluginResDirs: pluginResDirs,
   resourceConfigs: resourceConfigs,
@@ -46,6 +49,7 @@ Future<CompileDexOutcome> compileAndDexProto({
   required List<String> androidxJarPaths,
   List<String> pluginJavaSources = const [],
   List<String> pluginKotlinSources = const [],
+  List<String> kotlinCompilerArgs = const [],
   List<String> pluginJarDeps = const [],
   List<String> pluginResDirs = const [],
   List<String> resourceConfigs = const [],
@@ -62,6 +66,7 @@ Future<CompileDexOutcome> compileAndDexProto({
   androidxJarPaths: androidxJarPaths,
   pluginJavaSources: pluginJavaSources,
   pluginKotlinSources: pluginKotlinSources,
+  kotlinCompilerArgs: kotlinCompilerArgs,
   pluginJarDeps: pluginJarDeps,
   pluginResDirs: pluginResDirs,
   resourceConfigs: resourceConfigs,
@@ -80,6 +85,7 @@ Future<CompileDexOutcome> _compile({
   required List<String> androidxJarPaths,
   required List<String> pluginJavaSources,
   required List<String> pluginKotlinSources,
+  required List<String> kotlinCompilerArgs,
   required List<String> pluginJarDeps,
   required List<String> pluginResDirs,
   required List<String> resourceConfigs,
@@ -104,7 +110,9 @@ Future<CompileDexOutcome> _compile({
   try {
     final tools = await resolveBytecodeTools(
       toolchain,
-      needsKotlin: pluginKotlinSources.isNotEmpty,
+      needsKotlin:
+          pluginKotlinSources.isNotEmpty ||
+          filesUnder(hostDir, extension: '.kt').isNotEmpty,
       needsR8: ctx.mode.isRelease,
     );
     return await compileAndroidBytecode(
@@ -117,6 +125,7 @@ Future<CompileDexOutcome> _compile({
       dependencyJars: [...androidxJarPaths, ...pluginJarDeps],
       pluginJavaSources: pluginJavaSources,
       pluginKotlinSources: pluginKotlinSources,
+      kotlinCompilerArgs: kotlinCompilerArgs,
       javaVersionOverride: javaVersionOverride,
       processRunner: processRunner,
     );

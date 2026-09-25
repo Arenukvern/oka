@@ -72,6 +72,10 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
     return version.isEmpty ? null : version;
   }
 
+  /// Additional compiler options passed to every Kotlin source.
+  List<String> get kotlinCompilerArgs =>
+      jsonDecodeListAs<String>(value['kotlin_compiler_args']);
+
   /// Required Java runtime version for Kotlin compilation (optional)
   /// This specifies the Java version to use for running kotlinc, not bytecode target
   /// If not specified, will use system default Java

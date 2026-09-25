@@ -51,7 +51,16 @@ class BytecodeCommandPolicy {
     required String androidJar,
     required String embeddingJar,
     required List<String> dependencyJars,
-  }) => <String>{androidJar, embeddingJar, ...dependencyJars}.toList()..sort();
+  }) {
+    // One jar per Maven artifact, highest version wins — but no compile-only
+    // filtering (annotations and kotlin-stdlib-common must stay for
+    // javac/kotlinc symbol resolution). Without this, a classpath holding
+    // androidx.core 1.0.0 next to 1.13.1 resolves ContextCompat from the
+    // lexically-first jar and kotlinc rejects methods that only exist in the
+    // newer one (e.g. ContextCompat.getMainExecutor).
+    final deduped = _dedupeLatestPerArtifact(dependencyJars);
+    return <String>{androidJar, embeddingJar, ...deduped}.toList()..sort();
+  }
 
   List<String> programJars({
     required String classesJar,
@@ -68,6 +77,7 @@ class BytecodeCommandPolicy {
     required int javaVersion,
     required List<String> kotlinSources,
     required List<String> javaSources,
+    List<String> compilerArgs = const [],
   }) => [
     '-classpath',
     classpath.join(pathSeparator),
@@ -75,6 +85,7 @@ class BytecodeCommandPolicy {
     classesDir,
     '-jvm-target',
     '$javaVersion',
+    ...compilerArgs,
     ...([...kotlinSources]..sort()),
     ...([...javaSources]..sort()),
   ];
@@ -158,6 +169,7 @@ Future<CompileDexOutcome> compileAndroidBytecode({
   required List<String> dependencyJars,
   List<String> pluginJavaSources = const [],
   List<String> pluginKotlinSources = const [],
+  List<String> kotlinCompilerArgs = const [],
   int? javaVersionOverride,
   AndroidProcessRunner processRunner = runAndroidProcess,
   BytecodeCommandPolicy? commandPolicy,
@@ -176,7 +188,9 @@ Future<CompileDexOutcome> compileAndroidBytecode({
     await classes.create(recursive: true);
 
     final javaSources = <String>[...pluginJavaSources];
+    final kotlinSources = <String>[...pluginKotlinSources];
     await _collectSources(hostDir, '.java', javaSources);
+    await _collectSources(hostDir, '.kt', kotlinSources);
     await _collectSources(generatedSourcesDir, '.java', javaSources);
     final classpath = policy.compileClasspath(
       androidJar: androidJar,
@@ -185,12 +199,12 @@ Future<CompileDexOutcome> compileAndroidBytecode({
     );
     final javaVersion = javaVersionOverride ?? ctx.config.android.javaVersion;
 
-    if (pluginKotlinSources.isNotEmpty) {
+    if (kotlinSources.isNotEmpty) {
       if (tools.kotlinc == null) {
         return CompileDexOutcome(
           ok: false,
           error:
-              'Kotlin sources present (${pluginKotlinSources.length}) but '
+              'Kotlin sources present (${kotlinSources.length}) but '
               'kotlinc not found. Run: oka get kotlin',
         );
       }
@@ -200,8 +214,9 @@ Future<CompileDexOutcome> compileAndroidBytecode({
           classpath: classpath,
           classesDir: classesDir,
           javaVersion: javaVersion,
-          kotlinSources: [...pluginKotlinSources],
+          kotlinSources: kotlinSources,
           javaSources: javaSources,
+          compilerArgs: kotlinCompilerArgs,
         ),
         environment: await environmentLoader(verbose: ctx.verbose),
       );
@@ -406,7 +421,7 @@ Future<void> _collectSources(
 }
 
 List<String> filterRuntimeJars(List<String> jars) {
-  final best = <String, ({String path, String version})>{};
+  final eligible = <String>[];
   for (final jar in jars) {
     final base = p.basename(jar).toLowerCase();
     if (_isCompileOnlyJarName(base)) continue;
@@ -415,12 +430,23 @@ List<String> filterRuntimeJars(List<String> jars) {
     } catch (_) {
       continue;
     }
+    eligible.add(jar);
+  }
+  return _dedupeLatestPerArtifact(eligible);
+}
+
+/// Highest-version jar per Maven artifact key; ties prefer `-android`/`-jvm`
+/// platform variants, then lexical order. Non-Maven paths pass through keyed
+/// by basename.
+List<String> _dedupeLatestPerArtifact(List<String> jars) {
+  final best = <String, ({String path, String version})>{};
+  for (final jar in jars) {
     final key = _artifactKey(jar);
     final version = _artifactVersion(jar);
     final previous = best[key];
     final comparison = previous == null
         ? 1
-        : _compareVersions(version, previous.version);
+        : compareMavenVersions(version, previous.version);
     final preferCandidate =
         previous != null &&
         comparison == 0 &&
@@ -486,7 +512,9 @@ String _artifactVersion(String jarPath) {
   return parts.length >= 2 ? parts[parts.length - 2] : '0';
 }
 
-int _compareVersions(String left, String right) {
+/// Compares dotted Maven version strings numerically segment by segment
+/// (`1.15.0` > `1.9.0`), ignoring non-digit separators (rc/beta suffixes).
+int compareMavenVersions(final String left, final String right) {
   List<int> parse(String value) => value
       .split(RegExp('[^0-9]+'))
       .where((part) => part.isNotEmpty)
