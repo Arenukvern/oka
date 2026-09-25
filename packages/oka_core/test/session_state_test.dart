@@ -57,7 +57,7 @@ final class _Planner implements SessionStatePlanner<_Handle> {
   SessionStatePlan<_Handle> plan(final SessionStateRequest request) {
     final relativePath = relativePathPrefix.isEmpty
         ? request.sessionName
-        : p.join(relativePathPrefix, request.sessionName);
+        : p.posix.join(relativePathPrefix, request.sessionName);
     return SessionStatePlan(
       logicalResourceKey: 'test:${request.sessionName}',
       namespace: SessionStateNamespace.project,
