@@ -57,6 +57,9 @@ plus a naming convention, nothing more.
      `dart:io` HttpClient — this is a readiness probe, **not** a CDP
      client; CDP protocol logic stays out of oka). Idempotent: a CDP-
      answering port is reused, matching `EmulatorTarget` reuse semantics.
+     This port-only reuse may record a borrowed **process** lease, but it
+     has no profile identity and must not create or borrow a profile-state
+     lease.
   2. **`flutterDelegated` (migration path, explicitly temporary)** — oka
      computes flags and hands them to `flutter run -d chrome
      --web-browser-flag=...`. Exists because day-one cost; it cannot
@@ -111,6 +114,11 @@ Every session target carries the emulator's already-proven semantics plus
 one axis: **long-lived** (dev loop; profile persists; session survives the
 command) vs **ephemeral** (test session; temp profile dir; unconditional
 teardown). A parameter, not a type hierarchy.
+
+Profile launch and cleanup use different evidence thresholds. A valid local
+`SingletonLock` whose owner is stopped may permit launching Chrome again, but
+the still-present lock is inconclusive for profile deletion; only an absent
+lock is affirmative unused evidence.
 
 ### Out of scope (explicit)
 

@@ -23,9 +23,27 @@ final class BrowserCacheDiagnosticProvider implements CacheDiagnosticProvider {
     final profilePaths = <String, _ProfileInfo>{};
     final excludedPaths = <String>{};
 
-    for (final measurement in context.storage.locations.where(
-      (final value) => value.location.category == 'browser-profiles',
-    )) {
+    for (final measurement in context.storage.locations.where((final value) {
+      final location = value.location;
+      return location.category == 'browser-profiles' ||
+          (location.category == 'managed-session-state' &&
+              location.platform == 'chromium');
+    })) {
+      if (measurement.location.category == 'managed-session-state') {
+        final path = p.normalize(p.absolute(measurement.location.path));
+        final profile = profilePaths.putIfAbsent(
+          path,
+          () => _ProfileInfo(path: path),
+        );
+        profile.persistence ??= measurement.location.scope ?? 'unknown';
+        profile.sessionNames.add(p.basename(path));
+        profile.stateLeaseIds.add(
+          measurement.location.id.replaceFirst('session-state-', ''),
+        );
+        final project = _projectFor(path, context.projects);
+        if (project != null) profile.projects.add(project);
+        continue;
+      }
       if (await _hasSymlinkAncestor(measurement.location.path)) {
         excludedPaths.add(measurement.location.path);
         issues.add(
@@ -231,6 +249,7 @@ final class BrowserCacheDiagnosticProvider implements CacheDiagnosticProvider {
       'measurement_excluded': excluded,
       'cdp_ports': profile.cdpPorts.toList()..sort(),
       'session_names': profile.sessionNames.toList()..sort(),
+      'state_lease_ids': profile.stateLeaseIds.toList()..sort(),
       if (lease != null) ...{
         'session_name': lease.identity['session_name'],
         'cdp_port': lease.identity['cdp_port'],
@@ -299,5 +318,6 @@ final class _ProfileInfo {
   final Set<String> projects;
   final Set<String> cdpPorts = <String>{};
   final Set<String> sessionNames = <String>{};
+  final Set<String> stateLeaseIds = <String>{};
   String? persistence;
 }

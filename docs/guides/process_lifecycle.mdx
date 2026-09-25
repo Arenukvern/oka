@@ -112,6 +112,74 @@ oka stop --stale                          # drop provably-stale records only
 oka doctor                                # includes a [Process Leases] audit block
 ```
 
+### Inspect and reconcile managed session state
+
+Session-state leases track managed browser-profile or emulator state separately
+from process leases. Listing and inspection are read-only; reconciliation and
+explicit close are dry runs (previews) by default:
+
+```bash
+oka session-state list
+oka session-state inspect <id> --verbose
+oka session-state resume <id>                 # explicit provisioning retry
+oka session-state reconcile                 # preview eligible ephemeral cleanup
+oka session-state reconcile --apply         # apply that cleanup
+oka session-state close <id>                # preview explicit close
+oka session-state close <id> --apply        # close after fresh safety checks
+oka session-state forget <id>               # preview record-only recovery
+oka session-state forget <id> --apply       # remove the record only
+```
+
+`reconcile --apply` removes only Oka-owned ephemeral project resources that
+providers positively identify as unused. Persistent or session-retained state,
+borrowed resources, active resources, and inconclusive findings stay retained.
+`close <id>` is the explicit path for retained state, but still refuses cleanup
+unless ownership and inactivity checks pass. Neither command stops the
+associated process. Review the preview before applying; use
+`inspect <id> --verbose` to see inspector findings. `list` reports lease IDs
+and workflow versions, which you can copy into `inspect` or `close`.
+Applied cleanup reports repeat the safety boundary: process identity and
+provider markers do not prove every detached child or concurrent opener is
+absent, and path checks cannot prevent same-user filesystem races.
+
+On Windows, Chrome managed profile acquisition and launch setup are supported
+using the profile directory's inherited ACL. `dart:io` cannot verify those
+ACLs, so all destructive session-state directory cleanup remains report-only
+on Windows. Linux/macOS managed directories retain POSIX `0700` enforcement.
+
+If provisioning failed, its `partial` lease remains durable. `resume <id>` is
+an explicit, non-preview action: it reruns the exact composed workflow from the
+beginning, so provision steps must be idempotent. Resume accepts only
+`reserved`, `provisioning`, or `partial` Oka-owned directory leases with the
+exact workflow version available. The previous Oka owner and any associated
+process must be verifiably stopped (or the owner must be this process), the
+reservation and ownership evidence must match, and every workflow inspector
+must affirm unused. A missing inner ownership marker is repairable only when
+the verified reservation exists and the existing directory is empty. Any
+failed provisioning attempt remains `partial`; unknown, busy, or unverifiable
+state is refused without retrying.
+
+The CLI composes the current Chrome-profile and Android AVD workflows, but
+resume is intentionally limited to Oka-owned directories. Android AVD leases
+are caller-owned opaque inventory records, so they cannot be resumed by this
+operation. For a refusal, use `inspect <id> --verbose`, stop the owning process
+cleanly if it is active, and restore the exact workflow composition; do not
+delete markers or profile contents to force a retry.
+
+`close` can reclaim same-host state left across a reboot only when ownership and
+current provider checks still affirm that the resource is unused. If the
+resource is positively absent, `forget` removes only its registry record; it
+does not delete a resource or reservation marker. Both operations preview by
+default.
+
+If a lease is retained, check its reason and findings before retrying; close the
+owning browser cleanly and inspect again rather than deleting its profile or
+registry record by hand. For registry issues, keep the reported path/message,
+check `oka cache --details --kind session --kind browser-profile`, and use
+`oka doctor` / `oka processes list` for the separate process-lease view.
+Unknown or malformed ownership is intentionally a stop-and-investigate case,
+not permission to delete.
+
 Reading `oka processes list` output:
 
 ```text
@@ -127,6 +195,12 @@ chrome-main            pid 0    chrome-session    borrowed/ephemeral  identity u
 - `identity unknown` — oka could not verify; reported, kept, never
   signaled by PID. PID zero also means unknown. Explicit semantic stop hints
   may be used; borrowed leases require `--force`, including PID-zero leases.
+
+On Linux, Oka's process identity token now includes the kernel boot UUID as
+well as `/proc/<pid>/stat` start ticks. Older process leases contain only the
+start ticks and therefore cannot authorize a signal after this change. If an
+older lease refers to a process that is still running, stop it through its
+owning application or process manager; Oka will not guess from the PID.
 
 ### The JSON contract (stable, for tooling)
 

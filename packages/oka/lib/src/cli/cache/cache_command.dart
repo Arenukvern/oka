@@ -576,11 +576,21 @@ class CacheCommand {
           'schema_version': 'oka.cache.prune.v1',
           ...result.toJson(),
           'discovery': workspace.toJson(),
+          if (workspace.inventory.protectedPaths.isNotEmpty)
+            'safety_notes': [
+              'Session-state deletion is protected against known paths, but not against same-user filesystem races.',
+            ],
           'next_actions': nextActions,
         }),
       );
     } else {
       _coverage(workspace);
+      if (workspace.inventory.protectedPaths.isNotEmpty) {
+        _out(
+          'Session-state deletion is protected against known paths, but not '
+          'against same-user filesystem races.',
+        );
+      }
       _out(
         '${result.apply ? 'Selected' : 'Would prune'} ${result.selected.length} locations, '
         '${_formatBytes(result.selectedBytes)} logical bytes',

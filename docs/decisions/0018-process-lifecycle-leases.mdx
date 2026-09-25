@@ -120,11 +120,13 @@ Two axes, declared on the spawn target — parameters, not a type hierarchy
   signal; CI/agent default) · `session` (die when the owning session ends,
   survives rebuilds within `oka dev`) · `persistent` (survive; must be
   discoverable and stoppable via the CLI; explicit opt-in).
-- **ownership:** `owned` (this run spawned it — recorded by the spawn step)
-  vs `borrowed` (idempotent reuse found it running). **Teardown stops only
-  `owned` leases.** Killing a borrowed session would break the reuse
-  contract and whatever other terminal owns it. Adopting a lease flips its
-  ownership to `borrowed` in the registry; nothing else.
+- **process-lease ownership:** `owned` (this run spawned it — recorded by
+  the spawn step) vs `borrowed` (idempotent reuse found it running).
+  **Teardown stops only `owned` process leases.** Killing a borrowed session
+  would break the reuse contract and whatever other terminal owns it.
+  Adopting a process lease flips that process lease's ownership to `borrowed`
+  in the process registry; this does not create or change a profile-state
+  lease.
 
 ### 4. CLI surface (ADR-0015 verb/target split)
 

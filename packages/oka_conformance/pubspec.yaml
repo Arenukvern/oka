@@ -24,6 +24,7 @@ dependencies:
   http: ^1.2.1
   meta: ^1.14.0
   oka_core: ^0.2.0 # x-release-please-version
+  path: ^1.9.0
 
 dev_dependencies:
   lints: ^6.1.0

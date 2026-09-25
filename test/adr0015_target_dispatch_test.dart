@@ -98,12 +98,13 @@ void main() {
       }
     });
 
-    test('rejects shadowing a reserved core verb — including cache', () {
+    test('rejects shadowing a reserved core verb — including session-state', () {
       final error = validateTargetName('build');
       expect(error, isNotNull);
       expect(error, contains('reserved'));
       // The message names the reserved verbs so the author can pick another.
       expect(error, contains('cache'));
+      expect(validateTargetName('session-state'), contains('reserved'));
       for (final verb in const ['build', 'run', 'launch', 'init']) {
         expect(validateTargetName(verb), isNotNull, reason: verb);
       }
@@ -136,6 +137,21 @@ void main() {
               const Oka(pipelines: [], targets: [_VerbShadower()]),
             ),
         throwsA(isA<TargetResolutionException>()),
+      );
+    });
+
+    test('rejects a target named session-state', () {
+      expect(
+        () => validateTargets(
+          const Oka(pipelines: [], targets: [_SessionStateShadower()]),
+        ),
+        throwsA(
+          isA<TargetResolutionException>().having(
+            (final error) => error.message,
+            'message',
+            contains('"session-state"'),
+          ),
+        ),
       );
     });
   });
@@ -328,6 +344,19 @@ class _VerbShadower extends Target {
 
   @override
   String get description => 'illegal: shadows the build verb';
+
+  @override
+  List<BuildStep> compile(final BuildContext ctx) => const [];
+}
+
+class _SessionStateShadower extends Target {
+  const _SessionStateShadower();
+
+  @override
+  String get name => 'session-state';
+
+  @override
+  String get description => 'illegal: shadows the session-state verb';
 
   @override
   List<BuildStep> compile(final BuildContext ctx) => const [];

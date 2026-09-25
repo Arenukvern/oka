@@ -22,7 +22,7 @@ follow links.
 | Understand what oka owns / boundaries | `docs/start_here/why_this_repo_matters.mdx` |
 | Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
 | Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
-| Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |
+| Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`, `oka session-state`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |
 | Migrate an existing Gradle app | `docs/guides/gradle_migration.mdx` (works / needs config / unsupported + verification loop) |
 | Check phase status & evidence | `docs/PHASE_CHECKLIST.mdx` |
 | Browse the docs site | `docs/` (published via docs.page) |
@@ -35,7 +35,7 @@ follow links.
 | Icons, deeplinks, extra assets config | Build guide → Assets & Icon Station |
 | Enable hot reload / dev loop (`oka dev`) | `docs/decisions/0011-hot-reload-run-loop.mdx`, `docs/guides/hot_reload_plan.mdx` |
 | Launch/declare browser sessions (Chrome, WebMCP flags) for testing | `docs/decisions/0017-browser-session-targets.mdx`, `packages/oka_web/lib/src/session/` |
-| Understand/extend spawned-process lifecycle (leaks, teardown, leases) | `docs/guides/process_lifecycle.mdx` (working manual); ADR: `docs/decisions/0018-process-lifecycle-leases.mdx` |
+| Understand/extend spawned-process and managed session-state lifecycle (leases, teardown, cleanup) | `docs/guides/process_lifecycle.mdx` (working manual); ADRs: `docs/decisions/0018-process-lifecycle-leases.mdx`, `docs/decisions/0025-managed-session-state-providers.mdx` |
 | Cut a release / version sync | `docs/contributing/contribution_guide.mdx` → Releases; bundled skill `oka-maintenance` |
 | Install agent skills | `npx skills add Arenukvern/oka --skill oka-maintenance` |
 

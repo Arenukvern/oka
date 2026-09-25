@@ -33,6 +33,7 @@ import 'package:oka_core/oka_core.dart';
 import '../android_state.dart';
 import '../build/toolchain.dart';
 import 'adb_tool.dart';
+import 'avd_session_state.dart';
 
 // -- Pure command construction (scripted-fake testable) ----------------------
 
@@ -81,17 +82,6 @@ List<String> parseAvdManagerNames(final String output) => output
     .where((final l) => l.isNotEmpty)
     .toList();
 
-/// Extracts the AVD name from `adb -s <serial> emu avd name` output
-/// (`<name>\nOK`).
-String? parseEmuAvdName(final String output) {
-  final lines = output
-      .split('\n')
-      .map((final l) => l.trim())
-      .where((final l) => l.isNotEmpty && l != 'OK')
-      .toList();
-  return lines.isEmpty ? null : lines.first;
-}
-
 /// True when [output] (from `adb shell getprop sys.boot_completed`) means
 /// "booted".
 bool parseBootCompleted(final String output) => output.trim() == '1';
@@ -104,7 +94,7 @@ const emulatorSerial = Artifact<String>('emulator-serial');
 /// Boots an Android emulator, idempotently (ADR-0013 T2 scope: provisioning
 /// + lifecycle wiring; the dev loop composes this — it does not duplicate
 /// it).
-class EmulatorTarget extends Target {
+class EmulatorTarget extends Target implements SessionStateWorkflowContributor {
   const EmulatorTarget({
     this.avdName = 'oka-emulator',
     this.apiLevel = 34,
@@ -118,6 +108,9 @@ class EmulatorTarget extends Target {
     this.adbPath,
     this.emulatorPath,
     this.avdManagerPath,
+    this.avdHome,
+    this.sessionStateRegistry,
+    this.sessionStateLiveness,
     this.toolchain,
     this.stopOnExit = false,
   });
@@ -156,6 +149,16 @@ class EmulatorTarget extends Target {
   final String? emulatorPath;
   final String? avdManagerPath;
 
+  /// Optional explicit Android AVD inventory directory. When omitted, the
+  /// standard Android environment variables and platform home are inspected.
+  final String? avdHome;
+
+  /// Session-state registry overrides (primarily for embedding/tests).
+  final SessionStateRegistry? sessionStateRegistry;
+
+  /// Session-state host identity/liveness override.
+  final ProcessLiveness? sessionStateLiveness;
+
   /// Injectable toolchain (ADR-0013 T2); null → `state.resolvedToolchain`
   /// → default policy.
   final ResolvedToolchain? toolchain;
@@ -166,6 +169,11 @@ class EmulatorTarget extends Target {
   /// it up for reuse; the lease records it as owned/borrowed either way).
   /// CI/agent one-shot flows opt in.
   final bool stopOnExit;
+
+  @override
+  List<SessionStateWorkflow<dynamic>> get sessionStateWorkflows => [
+    androidAvdStateWorkflow,
+  ];
 
   String get _systemImage =>
       'system-images;android-$apiLevel;$imageVariant;${abi ?? defaultAbi()}';
@@ -205,6 +213,9 @@ class EmulatorTarget extends Target {
       adbPath: adbPath,
       emulatorPath: emulatorPath,
       avdManagerPath: avdManagerPath,
+      avdHome: avdHome,
+      sessionStateRegistry: sessionStateRegistry,
+      sessionStateLiveness: sessionStateLiveness,
       toolchain: toolchain,
       stopOnExit: stopOnExit,
     );
@@ -228,6 +239,12 @@ class EmulatorTarget extends Target {
       adbPath: adbPath,
       emulatorPath: emulatorPath,
       toolchain: toolchain,
+    ),
+    RecordAndroidAvdInventoryStep(
+      avdName: avdName,
+      avdHome: avdHome,
+      registry: sessionStateRegistry,
+      liveness: sessionStateLiveness,
     ),
   ];
 
@@ -777,7 +794,8 @@ class StopEmulatorStep extends BuildStep {
       tool: 'adb',
     );
     final registry =
-        leaseRegistry ?? ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: liveness);
+        leaseRegistry ??
+        ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: liveness);
     ProcessLease? lease;
     for (final candidate in await registry.list()) {
       if (candidate.kind == 'android-emulator' &&

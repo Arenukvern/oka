@@ -42,8 +42,12 @@ List<String> adbSerialArgs(final String? serial) =>
 List<String> adbDevicesArgs() => ['devices', '-l'];
 
 /// `adb [-s <serial>] install -r <apk>` (reinstall, keep data).
-List<String> adbInstallArgs(final String apk, {final String? serial}) =>
-    [...adbSerialArgs(serial), 'install', '-r', apk];
+List<String> adbInstallArgs(final String apk, {final String? serial}) => [
+  ...adbSerialArgs(serial),
+  'install',
+  '-r',
+  apk,
+];
 
 /// `adb [-s <serial>] install-multiple -r <apk>...` for split APK sets.
 List<String> adbInstallMultipleArgs(
@@ -57,13 +61,13 @@ List<String> adbLaunchArgs(
   final String activity, {
   final String? serial,
 }) => [
-      ...adbSerialArgs(serial),
-      'shell',
-      'am',
-      'start',
-      '-n',
-      '$packageName/$activity',
-    ];
+  ...adbSerialArgs(serial),
+  'shell',
+  'am',
+  'start',
+  '-n',
+  '$packageName/$activity',
+];
 
 /// `adb [-s <serial>] forward tcp:<hostPort> tcp:<devicePort>`; [hostPort]
 /// 0 = adb picks a free local port (printed on stdout).
@@ -71,18 +75,23 @@ List<String> adbForwardArgs({
   required final int devicePort,
   final int hostPort = 0,
   final String? serial,
-}) =>
-    [...adbSerialArgs(serial), 'forward', 'tcp:$hostPort', 'tcp:$devicePort'];
+}) => [...adbSerialArgs(serial), 'forward', 'tcp:$hostPort', 'tcp:$devicePort'];
 
 /// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
 /// no stream).
-List<String> adbLogcatDumpArgs({final String? serial}) =>
-    [...adbSerialArgs(serial), 'logcat', '-d'];
+List<String> adbLogcatDumpArgs({final String? serial}) => [
+  ...adbSerialArgs(serial),
+  'logcat',
+  '-d',
+];
 
 /// `adb [-s <serial>] logcat -c` (clear buffer before launch, per
 /// [LaunchAppStep]).
-List<String> adbLogcatClearArgs({final String? serial}) =>
-    [...adbSerialArgs(serial), 'logcat', '-c'];
+List<String> adbLogcatClearArgs({final String? serial}) => [
+  ...adbSerialArgs(serial),
+  'logcat',
+  '-c',
+];
 
 // -- Pure parsers -----------------------------------------------------------
 
@@ -102,8 +111,7 @@ class AdbDevice {
   bool get ready => state == 'device';
 
   @override
-  String toString() =>
-      model.isEmpty ? '$id ($state)' : '$id ($state, $model)';
+  String toString() => model.isEmpty ? '$id ($state)' : '$id ($state, $model)';
 }
 
 /// Parses `adb devices -l` output into [AdbDevice]s. Tolerates the header
@@ -131,6 +139,17 @@ List<AdbDevice> parseAdbDevices(final String output) {
   return devices;
 }
 
+/// Extracts an AVD name from `adb -s <serial> emu avd name` output
+/// (`<name>\nOK`).
+String? parseEmuAvdName(final String output) {
+  final lines = output
+      .split('\n')
+      .map((final line) => line.trim())
+      .where((final line) => line.isNotEmpty && line != 'OK')
+      .toList();
+  return lines.isEmpty ? null : lines.first;
+}
+
 /// Parsed VM service announcement.
 class VmServiceInfo {
   const VmServiceInfo({
@@ -155,7 +174,9 @@ class VmServiceInfo {
   /// `/ws` (Dart VM service convention); older versions announce `ws://`
   /// directly.
   String get wsUri {
-    final ws = uri.replaceFirst('http://', 'ws://').replaceFirst('https://', 'wss://');
+    final ws = uri
+        .replaceFirst('http://', 'ws://')
+        .replaceFirst('https://', 'wss://');
     return ws.endsWith('/ws') ? ws : '$ws/ws';
   }
 }
@@ -226,9 +247,11 @@ AdbFailure classifyAdbFailure(final String rawOutput) {
       lower.contains('insufficient permissions for device')) {
     return const AdbFailure(
       kind: 'unauthorized',
-      message: 'Device unauthorized — USB debugging not accepted on this '
+      message:
+          'Device unauthorized — USB debugging not accepted on this '
           'device (or adb lacks permission).',
-      fix: 'Accept the "Allow USB debugging?" prompt on the device, or '
+      fix:
+          'Accept the "Allow USB debugging?" prompt on the device, or '
           '`adb kill-server && adb devices` to re-trigger it. On Linux, '
           'check the udev rules / plugdev group.',
     );
@@ -240,7 +263,8 @@ AdbFailure classifyAdbFailure(final String rawOutput) {
     return const AdbFailure(
       kind: 'no-device',
       message: 'No device connected.',
-      fix: 'Connect a device (USB debugging on) or start an emulator '
+      fix:
+          'Connect a device (USB debugging on) or start an emulator '
           '(`emulator -avd <name>`), then re-run.',
     );
   }
@@ -248,7 +272,8 @@ AdbFailure classifyAdbFailure(final String rawOutput) {
     return const AdbFailure(
       kind: 'device-offline',
       message: 'Device is offline.',
-      fix: 'Reconnect the device / wait for the emulator to finish booting, '
+      fix:
+          'Reconnect the device / wait for the emulator to finish booting, '
           'then `adb devices` to confirm it reports `device`.',
     );
   }
@@ -256,18 +281,22 @@ AdbFailure classifyAdbFailure(final String rawOutput) {
       lower.contains('incompatible')) {
     return const AdbFailure(
       kind: 'signing-mismatch',
-      message: 'Signing-key mismatch: the device already has this app with a '
+      message:
+          'Signing-key mismatch: the device already has this app with a '
           'different key.',
-      fix: 'Never uninstall an app with user data — build with the same key '
+      fix:
+          'Never uninstall an app with user data — build with the same key '
           'instead (android/key.properties / signing config).',
     );
   }
   if (lower.contains('install_failed_version_downgrade')) {
     return const AdbFailure(
       kind: 'install-failed',
-      message: 'INSTALL_FAILED_VERSION_DOWNGRADE — the installed build has a '
+      message:
+          'INSTALL_FAILED_VERSION_DOWNGRADE — the installed build has a '
           'higher versionCode.',
-      fix: 'Bump the version (`oka.yaml`/config version or versionCode), or '
+      fix:
+          'Bump the version (`oka.yaml`/config version or versionCode), or '
           'uninstall once (`adb uninstall <package>`) accepting the data '
           'loss.',
     );
@@ -276,7 +305,8 @@ AdbFailure classifyAdbFailure(final String rawOutput) {
     return AdbFailure(
       kind: 'install-failed',
       message: 'Install failed: $out',
-      fix: 'See the INSTALL_FAILED_* code above — '
+      fix:
+          'See the INSTALL_FAILED_* code above — '
           'https://developer.android.com/tools/adb#installationerrors',
     );
   }
@@ -286,7 +316,8 @@ AdbFailure classifyAdbFailure(final String rawOutput) {
     return const AdbFailure(
       kind: 'adb-missing',
       message: 'adb binary not found.',
-      fix: 'Install platform-tools (`oka get android-sdk` or '
+      fix:
+          'Install platform-tools (`oka get android-sdk` or '
           '`sdkmanager "platform-tools"`).',
     );
   }
@@ -312,8 +343,7 @@ class AdbTool {
   static Future<ProcessResult> _defaultRun(
     final String exe,
     final List<String> args,
-  ) =>
-      Process.run(exe, args);
+  ) => Process.run(exe, args);
 
   final String adbPath;
 
@@ -386,7 +416,11 @@ class AdbTool {
   }) async {
     final r = await _runProcess(
       adbPath,
-      adbForwardArgs(devicePort: devicePort, hostPort: hostPort, serial: serial),
+      adbForwardArgs(
+        devicePort: devicePort,
+        hostPort: hostPort,
+        serial: serial,
+      ),
     );
     if (r.exitCode != 0) _fail('forward', r);
     if (hostPort != 0) return hostPort;
@@ -486,7 +520,11 @@ class AwaitVmServiceStep extends BuildStep {
   ) async {
     final String adb;
     try {
-      adb = await resolveAdbForSteps(state, adbPath: adbPath, toolchain: toolchain);
+      adb = await resolveAdbForSteps(
+        state,
+        adbPath: adbPath,
+        toolchain: toolchain,
+      );
     } on ToolchainException {
       return StepResult.failure(
         'adb not found — install platform-tools (oka get android-sdk)',
@@ -542,7 +580,11 @@ class ForwardVmServiceStep extends BuildStep {
   ) async {
     final String adb;
     try {
-      adb = await resolveAdbForSteps(state, adbPath: adbPath, toolchain: toolchain);
+      adb = await resolveAdbForSteps(
+        state,
+        adbPath: adbPath,
+        toolchain: toolchain,
+      );
     } on ToolchainException {
       return StepResult.failure(
         'adb not found — install platform-tools (oka get android-sdk)',
@@ -566,15 +608,10 @@ class ForwardVmServiceStep extends BuildStep {
 /// Rebuilds the host-reachable VM service endpoint after
 /// [ForwardVmServiceStep]: same scheme/auth path, host loopback, forwarded
 /// local port. Pure, exported for tests.
-String forwardedVmServiceUri(
-  final VmServiceInfo info,
-  final int localPort,
-) {
+String forwardedVmServiceUri(final VmServiceInfo info, final int localPort) {
   final scheme = info.scheme == 'https' ? 'wss' : 'ws';
   // The plain HTTP announcement carries no `/ws` path — the Dart VM
   // service websocket endpoint is the same token path plus `/ws`.
-  final authPath = info.auth.endsWith('/ws')
-      ? info.auth
-      : '${info.auth}/ws';
+  final authPath = info.auth.endsWith('/ws') ? info.auth : '${info.auth}/ws';
   return '$scheme://127.0.0.1:$localPort/$authPath';
 }

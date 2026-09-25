@@ -9,6 +9,9 @@ import 'config/build_context.dart';
 import 'config/oka_config.dart';
 import 'pipeline/pipeline.dart';
 import 'publish/publish_target.dart';
+import 'session_state_manager.dart';
+import 'session_state_reconciler.dart';
+import 'session_state_registry.dart';
 import 'store/cache_projects.dart';
 import 'target_execution_scope.dart';
 import 'targets/describe.dart';
@@ -53,7 +56,8 @@ final _okaRunParser = ArgParser()
   // convenience alias forwarded as the `device` key (e.g. DeviceTarget),
   // keeping `oka launch -d` and `oka run device -d` working.
   ..addMultiOption('oka-target-arg', hide: true)
-  ..addOption('device', abbr: 'd', hide: true);
+  ..addOption('device', abbr: 'd', hide: true)
+  ..addOption('oka-session-state', hide: true);
 
 /// Runs a declarative [Oka] composition from a project hook entrypoint
 /// (ADR-0006: `oka build` delegates to `dart run <entrypoint>` which calls
@@ -101,6 +105,12 @@ Future<void> okaRun(
 }) async {
   final parser = _okaRunParser;
   final results = parser.parse(args);
+
+  final sessionStateRequest = results['oka-session-state'] as String?;
+  if (sessionStateRequest != null) {
+    await _runSessionStateProtocol(sessionStateRequest, oka);
+    return;
+  }
 
   final verbose = results['verbose'] as bool;
   final platform = results['platform'] as String;
@@ -488,4 +498,120 @@ Map<String, String> _parseSingleDefine(final String define) {
   final i = define.indexOf('=');
   if (i < 0) return {define: 'true'};
   return {define.substring(0, i): define.substring(i + 1)};
+}
+
+const _sessionStateProtocolVersion = 1;
+const _sessionStateProtocolSchema = 'oka.session-state.protocol.v1';
+const _sessionStateProtocolFramePrefix = '\x1eOKA_SESSION_STATE_V1:';
+
+Future<void> _runSessionStateProtocol(
+  final String encodedRequest,
+  final Oka oka,
+) async {
+  Map<String, Object?> response() => {
+    'schema_version': _sessionStateProtocolSchema,
+    'protocol_version': _sessionStateProtocolVersion,
+  };
+
+  try {
+    final decoded = jsonDecode(encodedRequest);
+    if (decoded is! Map) {
+      throw const FormatException('Request must be a JSON object.');
+    }
+    final request = decoded.cast<String, Object?>();
+    const knownFields = {'protocol_version', 'operation', 'lease_id', 'apply'};
+    final unknownFields = request.keys.where(
+      (final key) => !knownFields.contains(key),
+    );
+    if (unknownFields.isNotEmpty) {
+      throw FormatException(
+        'Request has unknown field(s): ${unknownFields.join(', ')}.',
+      );
+    }
+    if (request['protocol_version'] is! int ||
+        request['protocol_version'] != _sessionStateProtocolVersion) {
+      throw FormatException(
+        'Unsupported session-state protocol version '
+        '"${request['protocol_version']}".',
+      );
+    }
+    final operation = request['operation'];
+    if (operation is! String ||
+        !const {
+          'inspect',
+          'resume',
+          'reconcile',
+          'close',
+          'forget',
+        }.contains(operation)) {
+      throw const FormatException('Unknown session-state operation.');
+    }
+    final apply = request['apply'] == true;
+    if (request['apply'] != null && request['apply'] is! bool) {
+      throw const FormatException('"apply" must be a boolean.');
+    }
+    final leaseId = request['lease_id'] as String?;
+    if (operation != 'reconcile' && (leaseId is! String || leaseId.isEmpty)) {
+      throw const FormatException('This operation requires a lease_id.');
+    }
+    if (apply &&
+        operation != 'reconcile' &&
+        operation != 'close' &&
+        operation != 'forget') {
+      throw FormatException('$operation does not accept apply.');
+    }
+    if (operation == 'reconcile' && request['lease_id'] != null) {
+      throw const FormatException('reconcile does not accept a lease_id.');
+    }
+
+    final registry = SessionStateRegistry.forCurrentUser();
+    final workflows = oka.effectiveSessionStateWorkflows;
+    final Object result;
+    if (operation == 'resume') {
+      final lease = await registry.read(leaseId!);
+      if (lease == null) {
+        throw FormatException(
+          'No session-state lease found with id "$leaseId".',
+        );
+      }
+      final matching = workflows.where(
+        (final workflow) =>
+            workflow.id == lease.workflowId &&
+            workflow.version == lease.workflowVersion,
+      );
+      if (matching.length != 1) {
+        throw FormatException(
+          'No unique composed workflow matches '
+          '${lease.workflowId}@${lease.workflowVersion}; resume is unavailable.',
+        );
+      }
+      final resumed = await SessionStateManager(
+        registry: registry,
+      ).resume(matching.single, leaseId);
+      result = {'lease': resumed.toJson(), 'status': 'ready'};
+    } else {
+      final reconciler = SessionStateReconciler(
+        registry: registry,
+        workflows: workflows,
+      );
+      final report = switch (operation) {
+        'inspect' => await reconciler.inspectLease(leaseId: leaseId!),
+        'close' => await reconciler.close(leaseId: leaseId!, apply: apply),
+        'forget' => await reconciler.forget(leaseId: leaseId!, apply: apply),
+        _ => await reconciler.reconcile(apply: apply),
+      };
+      result = report.toJson();
+    }
+    stdout.writeln(
+      '$_sessionStateProtocolFramePrefix'
+      '${jsonEncode({...response(), 'status': 'ok', 'result': result})}',
+    );
+  } on Object catch (error) {
+    stderr.writeln('Oka session-state protocol: $error');
+    stdout.writeln(
+      '$_sessionStateProtocolFramePrefix'
+      '${jsonEncode({...response(), 'status': 'error', 'error': error.toString()})}',
+    );
+    exitCode = 1;
+  }
 }

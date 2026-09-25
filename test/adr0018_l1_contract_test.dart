@@ -19,43 +19,47 @@ class _BareTarget extends Target {
 }
 
 BuildContext _ctx() => const BuildContext(
-      projectPath: '/tmp/x',
-      buildDir: '/tmp/x/.oka_cache',
-      mode: BuildMode.debug,
-      config: OkaConfig.empty,
-      cacheDir: '/tmp/x/.oka_cache',
-    );
+  projectPath: '/tmp/x',
+  buildDir: '/tmp/x/.oka_cache',
+  mode: BuildMode.debug,
+  config: OkaConfig.empty,
+  cacheDir: '/tmp/x/.oka_cache',
+);
 
 void main() {
   test('lifecycle verbs are reserved (no target can shadow them)', () {
     expect(validateTargetName('processes'), isNotNull);
     expect(validateTargetName('stop'), isNotNull);
-    // The reserved set itself carries both.
-    expect(reservedCliVerbs, containsAll(['processes', 'stop']));
+    expect(validateTargetName('session-state'), isNotNull);
+    // The reserved set itself carries all three.
+    expect(
+      reservedCliVerbs,
+      containsAll(['processes', 'stop', 'session-state']),
+    );
   });
 
   test('Target.compileTeardown defaults to no teardown', () {
     expect(const _BareTarget().compileTeardown(_ctx()), isEmpty);
   });
 
-  test('EmulatorTarget default keeps the long-lived posture (no teardown)',
-      () {
+  test('EmulatorTarget default keeps the long-lived posture (no teardown)', () {
     expect(const EmulatorTarget().compileTeardown(_ctx()), isEmpty);
   });
 
   test('EmulatorTarget stopOnExit composes StopEmulatorStep', () {
-    final steps = const EmulatorTarget(stopOnExit: true).compileTeardown(
-      _ctx(),
-    );
+    final steps = const EmulatorTarget(
+      stopOnExit: true,
+    ).compileTeardown(_ctx());
     expect(steps, hasLength(1));
     expect(steps.single.name, 'stop-emulator');
   });
 
-  test('EmulatorTarget.compile still carries exactly the boot chain', () {
+  test('EmulatorTarget.compile records AVD inventory after the boot chain', () {
     final steps = const EmulatorTarget().compile(_ctx());
     expect(steps.map((final s) => s.name), [
       'ensure-avd',
       'boot-emulator',
+      'record-android-avd-inventory',
     ]);
   });
 }

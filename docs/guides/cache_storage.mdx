@@ -161,6 +161,103 @@ still remembers projects. Malformed registry entries become diagnostic issues
 while valid entries remain visible; cleanup still rejects invalid registry
 metadata. Diagnostics never reconciles leases, stops processes or deletes data.
 
+## Clean cache without removing managed session state
+
+Use `oka session-state` for managed browser-profile state; cache pruning is not
+session cleanup:
+
+```bash
+oka session-state list
+oka session-state inspect <id> --verbose
+oka session-state resume <id>                 # explicit failed-provision retry
+oka session-state reconcile                 # preview only
+oka session-state reconcile --apply         # remove eligible ephemeral state
+oka session-state close <id>                # preview explicit close
+oka session-state close <id> --apply
+oka session-state forget <id>               # preview record-only recovery
+oka session-state forget <id> --apply       # remove the record only
+```
+
+Reconciliation applies only to Oka-owned ephemeral resources with positive
+unused findings. Persistent state, active or uncertain profiles, and registry
+issues are retained. `oka cache clean` preserves browser profiles and session
+records. The legacy `oka clean` cleans unrelated cache contents while preserving
+registered managed resources and their reservation markers. If the registry
+cannot be inspected safely, contains issues, or a registered resource or marker
+path cannot be resolved safely, `oka clean` refuses before deleting cache
+contents rather than guessing. It does not substitute for `session-state close`.
+When session-state paths are present, cleanup output notes that this protection
+is path-based: it prevents ordinary cleanup from selecting known active or
+disposing state, but it is not a security boundary against another process
+running as the same user and racing filesystem checks with deletion.
+
+Managed Chrome profile creation works on Windows and uses the parent directory's
+inherited ACL. `dart:io` does not inspect or verify those ACLs. POSIX managed
+directories continue to be restricted to mode `0700` on Linux/macOS. All
+destructive session-state directory cleanup remains report-only on Windows;
+Windows profile creation does not enable Windows cleanup.
+
+When cleanup is retained or refused, inspect the lease with `--verbose`, close
+the browser normally, then preview again. Use `oka cache --details --kind
+session --kind browser-profile` for related inventory records and `oka doctor`
+or `oka processes list` to investigate process leases. Do not manually remove
+profiles or registry entries to bypass an unknown-use or ownership finding.
+Use `forget` only when the recorded directory is confirmed absent; it removes
+the registry pointer, not any profile data or marker.
+
+### Workflow composition and CLI code loading
+
+Project entrypoints can compose their actual provider workflows with `Oka`:
+
+```dart
+import 'package:oka_android/oka_android.dart';
+import 'package:oka_core/oka_core.dart';
+import 'package:oka_web/oka_web.dart';
+
+Future<void> main(List<String> args) => okaRun(
+  args,
+  oka: const Oka(
+    pipelines: [
+      AndroidPipeline(
+        config: AndroidBuild(packageName: 'dev.example.app'),
+      ),
+    ],
+    sessionStateWorkflows: [
+      chromeProfileStateWorkflow,
+      androidAvdStateWorkflow,
+    ],
+  ),
+);
+```
+
+When a `ChromeSessionTarget` or `EmulatorTarget` appears in `Oka.targets`, it
+contributes its configured session-state workflow automatically. Use the
+explicit `sessionStateWorkflows` list for project workflows that are not owned
+by a target; the same workflow instance is deduplicated if listed both ways.
+
+When an entrypoint is discoverable, `oka session-state inspect`, `resume`,
+`reconcile`, `close`, `forget`, and `oka doctor` run their operation inside
+that entrypoint process, using its composed workflow objects. The hidden
+`--oka-session-state` protocol accepts a JSON request with `protocol_version: 1`,
+an operation, and (where needed) `lease_id` and `apply`; it replies with a
+versioned `oka.session-state.protocol.v1` JSON response in a single stdout
+frame prefixed by `\x1eOKA_SESSION_STATE_V1:`. Other entrypoint stdout is ignored;
+missing, duplicate, or malformed frames fail closed. Only request data and
+report JSON cross the process boundary: workflow closures and provider
+instances are not serialized, and registry workflow IDs never trigger package
+loading.
+An unsupported protocol version or a required workflow missing from the
+composition is an error; Oka does not guess or load code based on registry
+contents. `oka session-state list` is registry-only and does not need workflow
+code.
+
+Entrypoint discovery is the normal `oka.yaml` `pipeline.dart_entrypoint`, then
+`tool/oka_pipeline.dart`, then `bin/oka_pipeline.dart`. Without an entrypoint,
+the CLI retains its first-party Chrome-profile and Android-AVD workflow
+fallback. Custom workflows absent from that fallback remain unknown/retained.
+Core contracts remain provider-independent; project entrypoints import the
+provider packages they choose to compose.
+
 ## Compose inspection in Dart
 
 Platform and package authors implement `CacheDiagnosticProvider` and compose it
@@ -220,15 +317,23 @@ fallback when the store's Maven directory is absent.
 **creation** age, and requires an explicit age or budget. Prefer `cache clean` for
 cross-location cleanup.
 
-`oka clean` (without `cache`) is the legacy whole-project `.oka_cache` reset,
-including session state. `oka clean --full` is not an all-storage cleanup
-command. Prefer `oka cache clean` to preserve browser profiles and process records.
+`oka clean` (without `cache`) cleans unrelated contents of the project's
+`.oka_cache`; registered managed session-state resources and their reservation
+markers are preserved, not a reason to refuse the entire cleanup. If registry
+inspection or protection is incomplete, it refuses before deleting cache
+contents. `--full` also cleans unrelated dependency-cache contents; it is not an
+all-storage cleanup command. Prefer `oka cache clean` to preserve browser
+profiles and process records.
 
 Contracts: [ADR-0021](../decisions/0021-composable-cache-diagnostics),
 [ADR-0020](../decisions/0020-global-cache-workflow),
 [ADR-0019](../decisions/0019-cache-storage-inventory-and-pruning),
+[ADR-0025](../decisions/0025-managed-session-state-providers),
 the exported `StorageInventory` and `CacheProjectRegistry` APIs in `oka_core`, and the
-`storage_inventory`, `storage_discovery`, and `cache_storage_command` tests.
+`storage_inventory`, `storage_discovery`, `cache_storage_command`, and
+`test/clean_command_test.dart` tests. The latter covers refusal on registry
+issues and preservation of registered resources/reservation markers while
+removing unrelated cache contents.
 See [diagnostics validation](../evidence/cache-diagnostics-2026-09-22),
 [global workflow validation](../evidence/global-cache-workflow-2026-09-22)
 and [initial storage validation](../evidence/cache-storage-2026-09-21) for checks and limits.

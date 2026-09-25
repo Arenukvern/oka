@@ -13,6 +13,10 @@ pubspec.lock
 rust_wrapper/flutter_assets/
 # Build cache
 .oka_cache/
+# Legacy persistent Chrome profile location; it may still contain cookies and
+# login state from older configurations. Current/custom build dirs need their
+# own ignore rule if they are outside .oka_cache/.
+.oka/build/chrome-profiles/
 
 # OS
 .DS_Store

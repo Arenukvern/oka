@@ -35,6 +35,27 @@ jobs:
             fi
           done
 
+  windows-session-observation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get --no-example
+      - name: Verify Windows process identity probes
+        run: dart test packages/oka_core/test/process_liveness_windows_test.dart
+      - name: Verify Windows AVD inventory workflow
+        run: dart test packages/oka_android/test/avd_session_state_test.dart
+      - name: Verify Windows managed directory provisioning
+        run: dart test packages/oka_core/test/session_state_test.dart --plain-name "creates a managed directory on Windows without chmod"
+      - name: Verify Windows Chrome managed profile launch setup
+        run: dart test packages/oka_web/test/chrome_session_target_test.dart --plain-name "Windows Chrome managed profile acquisition and launch setup"
+      - name: Verify Windows host boot identity
+        run: dart test packages/oka_core/test/session_state_test.dart --plain-name "records a Windows boot identity when running on Windows"
+      - name: Verify Windows state cleanup remains fail-closed
+        run: dart test packages/oka_core/test/session_state_test.dart --plain-name "keeps directory cleanup report-only on Windows"
+
   android-real-smoke:
     # This is the acceptance path for the Phase 0 no-Gradle invariant. It
     # deliberately invokes the repository's Dart pipeline test, never

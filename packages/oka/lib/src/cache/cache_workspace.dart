@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
+import 'session_state_paths.dart';
 import 'storage_discovery.dart';
 
 /// Resolved project coverage and one deduplicated storage inventory.
@@ -56,6 +57,9 @@ final class RegistryCacheProjectSource implements CacheProjectSource {
   Future<void> register(String project) => registry.register(project);
 }
 
+typedef CacheSessionStateReader =
+    Future<SessionStateRegistrySnapshot> Function();
+
 typedef CacheLocationSource =
     Future<List<StorageLocation>> Function({
       required String projectPath,
@@ -105,6 +109,7 @@ final class CacheWorkspaceRepository {
     Map<String, String>? environment,
     String? currentDirectory,
     CacheProjectSource? projects,
+    CacheSessionStateReader? sessionStates,
     this.locations = defaultCacheLocationSource,
     this.toolGuidance = const [],
     this.liveness = const HostProcessLiveness(),
@@ -116,11 +121,20 @@ final class CacheWorkspaceRepository {
              CacheProjectRegistry(
                environment: environment ?? Platform.environment,
              ),
-           );
+           ),
+       sessionStates =
+           sessionStates ??
+           (() => SessionStateRegistry.forCurrentUser(
+             homeDirectory:
+                 (environment ?? Platform.environment)['HOME'] ??
+                 (environment ?? Platform.environment)['USERPROFILE'] ??
+                 (environment ?? Platform.environment)['APPDATA'],
+           ).inspect());
 
   final Map<String, String> environment;
   final String currentDirectory;
   final CacheProjectSource projects;
+  final CacheSessionStateReader sessionStates;
   final CacheLocationSource locations;
 
   /// Per-tool guidance forwarded to [locations]; supplied by the CLI
@@ -153,6 +167,7 @@ final class CacheWorkspaceRepository {
     inspection: inspection,
     remember: remember,
     projectSource: projects,
+    sessionStateSource: sessionStates,
     locationSource: locations,
     toolGuidance: toolGuidance,
     liveness: liveness,
@@ -167,10 +182,12 @@ Future<CacheWorkspace> loadCacheWorkspace({
   String? currentDirectory,
   bool inspection = false,
   List<({String match, String guidance})> toolGuidance = const [],
+  CacheSessionStateReader? sessionStates,
 }) {
   final repository = CacheWorkspaceRepository(
     environment: environment,
     currentDirectory: currentDirectory,
+    sessionStates: sessionStates,
     toolGuidance: toolGuidance,
   );
   final request = CacheWorkspaceRequest(
@@ -192,6 +209,7 @@ Future<CacheWorkspace> _loadCacheWorkspace({
   required bool inspection,
   required bool remember,
   required CacheProjectSource projectSource,
+  required CacheSessionStateReader sessionStateSource,
   required CacheLocationSource locationSource,
   required ProcessLiveness liveness,
   required List<({String match, String guidance})> toolGuidance,
@@ -202,6 +220,110 @@ Future<CacheWorkspace> _loadCacheWorkspace({
   final env = environment;
   final warnings = <String>[];
   var complete = true;
+  String? sessionStateGuard;
+  final protectedStatePaths = <String>[];
+  final stateLocations = <StorageLocation>[];
+  try {
+    final states = await sessionStateSource();
+    if (states.issues.isNotEmpty) {
+      complete = false;
+      sessionStateGuard =
+          'Session-state registry is incomplete; inspect registry issues '
+          'before pruning.';
+      warnings.addAll(
+        states.issues.map(
+          (issue) =>
+              'Session-state registry issue at ${issue.path}: ${issue.message}',
+        ),
+      );
+    }
+    for (final lease in states.leases) {
+      if (lease.phase == SessionStatePhase.disposed) continue;
+      if (lease.resourceKind == SessionStateResourceKind.directory) {
+        final path = sessionStateDirectoryPath(lease);
+        if (path == null) {
+          complete = false;
+          sessionStateGuard =
+              'Session-state registry contains an unresolved resource; '
+              'inspect registry state before pruning.';
+          warnings.add(
+            'Could not safely resolve registered session-state resource '
+            '"${lease.id}"; cleanup eligibility is incomplete.',
+          );
+        } else {
+          protectedStatePaths.add(path);
+          if (lease.quarantineRelativePath != null) {
+            final quarantinePath = await sessionStateQuarantinePath(lease);
+            if (quarantinePath == null) {
+              complete = false;
+              sessionStateGuard =
+                  'Session-state registry contains an unresolved quarantine; '
+                  'inspect registry state before pruning.';
+              warnings.add(
+                'Could not safely resolve quarantine path for state lease '
+                '"${lease.id}"; cleanup eligibility is incomplete.',
+              );
+            } else {
+              protectedStatePaths.add(quarantinePath);
+            }
+          }
+          final reservationPath = sessionStateReservationMarkerPath(lease);
+          if (reservationPath == null) {
+            complete = false;
+            sessionStateGuard =
+                'Session-state registry contains an unresolved reservation; '
+                'inspect registry state before pruning.';
+            warnings.add(
+              'Could not safely resolve reservation marker for state lease '
+              '"${lease.id}".',
+            );
+          } else {
+            protectedStatePaths.add(reservationPath);
+          }
+          stateLocations.add(
+            StorageLocation(
+              id: 'session-state-${lease.id}',
+              path: path,
+              category: 'managed-session-state',
+              platform:
+                  lease.metadata['browser_family']?.toString() ??
+                  lease.resourceKind.label,
+              ownership: lease.ownership.label,
+              prunable: false,
+              scope: lease.retention.label,
+              note:
+                  '${lease.workflowId}@${lease.workflowVersion}; '
+                  'phase=${lease.phase.label}',
+            ),
+          );
+        }
+        continue;
+      }
+      final opaquePath = _androidAvdInventoryPath(lease);
+      if (opaquePath != null) {
+        stateLocations.add(
+          StorageLocation(
+            id: 'session-state-${lease.id}',
+            path: opaquePath,
+            category: 'managed-session-state',
+            platform: 'android',
+            ownership: lease.ownership.label,
+            prunable: false,
+            inventoryOnly: true,
+            scope: lease.retention.label,
+            note:
+                'Android AVD inventory identity "${lease.relativePath}"; '
+                'phase=${lease.phase.label}',
+          ),
+        );
+      }
+    }
+  } on Object catch (error) {
+    complete = false;
+    sessionStateGuard =
+        'Session-state registry could not be inspected; pruning is disabled.';
+    warnings.add('Could not inspect session-state registry: $error');
+  }
   final projects = <String>{};
   final cwd = currentDirectory;
 
@@ -265,8 +387,13 @@ Future<CacheWorkspace> _loadCacheWorkspace({
 
   final sorted = projects.toList()..sort();
   final locations = <String, StorageLocation>{};
+  final inventoryOnlyLocations = <StorageLocation>[];
   void addLocations(List<StorageLocation> additions) {
     for (final location in additions) {
+      if (location.inventoryOnly) {
+        inventoryOnlyLocations.add(location);
+        continue;
+      }
       final key = p.normalize(p.absolute(location.path));
       final prior = locations[key];
       if (prior == null || (prior.prunable && !location.prunable)) {
@@ -286,6 +413,7 @@ Future<CacheWorkspace> _loadCacheWorkspace({
       toolGuidance: toolGuidance,
     ),
   );
+  addLocations(stateLocations);
   for (final project in sorted.skip(1)) {
     addLocations(
       await locationSource(
@@ -298,10 +426,31 @@ Future<CacheWorkspace> _loadCacheWorkspace({
       ),
     );
   }
+  final discoveredLocations = [...locations.values, ...inventoryOnlyLocations];
+  final cleanupLocations = sessionStateGuard == null
+      ? discoveredLocations
+      : discoveredLocations
+            .map(
+              (location) => StorageLocation(
+                id: location.id,
+                path: location.path,
+                category: location.category,
+                platform: location.platform,
+                ownership: location.ownership,
+                prunable: false,
+                inventoryOnly: location.inventoryOnly,
+                scope: location.scope,
+                note: location.prunable
+                    ? sessionStateGuard
+                    : location.note ?? sessionStateGuard,
+              ),
+            )
+            .toList();
   return CacheWorkspace(
     inventory: StorageInventory(
-      locations: locations.values.toList(),
+      locations: cleanupLocations,
       protectedRoots: [env['HOME'], env['USERPROFILE']].whereType<String>(),
+      protectedPaths: protectedStatePaths,
     ),
     projects: sorted,
     global: projectPath == null,
@@ -309,4 +458,31 @@ Future<CacheWorkspace> _loadCacheWorkspace({
     warnings: warnings,
     complete: complete,
   );
+}
+
+/// Resolves only the explicit Android AVD inventory identity. Opaque lease
+/// paths are descriptive and never enter cleanup protection or traversal.
+String? _androidAvdInventoryPath(SessionStateLease lease) {
+  final root = lease.rootPath;
+  final name = lease.relativePath;
+  final metadataRoot = lease.metadata['avd_home'];
+  final metadataName = lease.metadata['avd_name'];
+  if (lease.resourceKind != SessionStateResourceKind.opaque ||
+      lease.namespace != SessionStateNamespace.host ||
+      lease.metadata['provider'] != 'android-avd' ||
+      metadataRoot != root ||
+      metadataName != name ||
+      !p.isAbsolute(root) ||
+      p.normalize(root) != root ||
+      name.trim().isEmpty ||
+      name != name.trim() ||
+      name == '.' ||
+      name == '..' ||
+      name.contains('/') ||
+      name.contains(r'\')) {
+    return null;
+  }
+  final path = p.normalize(p.join(root, name));
+  if (p.dirname(path) != root || p.basename(path) != name) return null;
+  return path;
 }

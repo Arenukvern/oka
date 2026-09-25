@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
+import 'package:oka_web/oka_web.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../version.dart';
+import 'session_state_entrypoint.dart';
 
 /// Recursively converts YamlMap/YamlList to Map/List
 dynamic _yamlToJson(final Object? value) {
@@ -79,6 +81,76 @@ class DoctorCommand {
 
     final locator = SdkLocator();
     var allGood = true;
+
+    print('[Managed Session State]');
+    try {
+      final delegated = await runProjectSessionState(
+        projectPath: Directory.current.path,
+        request: const {'operation': 'reconcile', 'apply': false},
+      );
+      if (delegated == null) {
+        final stateReport = await SessionStateReconciler(
+          registry: SessionStateRegistry.forCurrentUser(),
+          workflows: const [
+            chromeProfileStateWorkflow,
+            androidAvdStateWorkflow,
+          ],
+        ).reconcile();
+        if (stateReport.entries.isEmpty && stateReport.issues.isEmpty) {
+          print('  No managed session-state records.');
+        }
+        for (final entry in stateReport.entries) {
+          print('  ${entry.toLine()}');
+        }
+        for (final issue in stateReport.issues) {
+          print('  ⚠️ Registry issue at ${issue.path}: ${issue.message}');
+          allGood = false;
+        }
+      } else {
+        final entries = (delegated['entries'] as List? ?? const [])
+            .whereType<Map<Object?, Object?>>()
+            .toList();
+        final issues = (delegated['issues'] as List? ?? const [])
+            .whereType<Map<Object?, Object?>>()
+            .toList();
+        if (entries.isEmpty && issues.isEmpty) {
+          print('  No managed session-state records.');
+        }
+        for (final value in entries) {
+          final entry = value.cast<String, Object?>();
+          final lease = (entry['lease']! as Map<Object?, Object?>)
+              .cast<String, Object?>();
+          print(
+            '  ${lease['id']}  ${lease['workflow_id']}@'
+            '${lease['workflow_version']}  ${lease['retention']}/'
+            '${lease['ownership']}  ${entry['disposition']}: ${entry['reason']}',
+          );
+          final findings = (entry['findings'] as List? ?? const [])
+              .whereType<Map<Object?, Object?>>()
+              .map((final finding) => finding.cast<String, Object?>())
+              .where((final finding) => finding['use'] != 'unused');
+          for (final finding in findings) {
+            print(
+              '    ${finding['use']}: ${finding['reason']} '
+              '[${finding['inspector_id']}]',
+            );
+          }
+        }
+        for (final value in issues) {
+          final issue = value.cast<String, Object?>();
+          print('  ⚠️ Registry issue at ${issue['path']}: ${issue['message']}');
+          allGood = false;
+        }
+      }
+      print(
+        '  Inspection only; use `oka session-state reconcile` to preview '
+        'cleanup, then add `--apply` to opt in.',
+      );
+    } on Object catch (error) {
+      print('  ⚠️ Could not inspect managed session state: $error');
+      allGood = false;
+    }
+    print('');
 
     // Load oka.yaml if it exists for version requirements
     OkaConfig? config;

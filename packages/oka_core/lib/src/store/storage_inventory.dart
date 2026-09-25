@@ -16,6 +16,7 @@ class StorageLocation {
     required this.platform,
     required this.ownership,
     required this.prunable,
+    this.inventoryOnly = false,
     this.scope,
     this.note,
   });
@@ -25,6 +26,10 @@ class StorageLocation {
   final String platform;
   final String ownership;
   final bool prunable;
+
+  /// Reports an opaque resource identity without inspecting its filesystem
+  /// path or using that path to protect cleanup candidates.
+  final bool inventoryOnly;
   final String? scope;
   final String? note;
   Map<String, Object?> toJson() => {
@@ -34,6 +39,7 @@ class StorageLocation {
     'platform': platform,
     'ownership': ownership,
     'prunable': prunable,
+    'inventory_only': inventoryOnly,
     'scope': scope,
     'note': note,
   };
@@ -54,7 +60,8 @@ class StorageMeasurement {
   final DateTime? modifiedAt;
   final bool complete;
   final List<String> warnings;
-  bool get pruneEligible => location.prunable && complete;
+  bool get pruneEligible =>
+      location.prunable && !location.inventoryOnly && complete;
   Map<String, Object?> toJson() => {
     ...location.toJson(),
     'size_bytes': sizeBytes,
@@ -168,15 +175,26 @@ class StorageInventory {
   StorageInventory({
     required List<StorageLocation> locations,
     Iterable<String> protectedRoots = const [],
+    Iterable<String> protectedPaths = const [],
   }) : locations = List.unmodifiable(locations),
        protectedRoots = List.unmodifiable({
          ..._hostProtectedRoots(),
-         ...protectedRoots.where((root) => root.trim().isNotEmpty).map(_absolute),
+         ...protectedRoots
+             .where((root) => root.trim().isNotEmpty)
+             .map(_absolute),
+       }),
+       protectedPaths = List.unmodifiable({
+         ...protectedPaths
+             .where((path) => path.trim().isNotEmpty)
+             .map(_absolute),
        });
   final List<StorageLocation> locations;
 
   /// Host and injected home roots that a cleanup location must never contain.
   final List<String> protectedRoots;
+
+  /// Registered resources that cleanup locations must not overlap.
+  final List<String> protectedPaths;
 
   /// Scan without traversing symbolic links, including links in ancestors.
   Future<StorageReport> scan() async {
@@ -200,6 +218,7 @@ class StorageInventory {
     final candidates = <StorageMeasurement>[];
     for (final location in locations) {
       if (!location.prunable ||
+          location.inventoryOnly ||
           !scopes.contains(location.scope) ||
           !_safe(location)) {
         continue;
@@ -245,6 +264,16 @@ class StorageInventory {
     StorageLocation location,
     Map<String, int> files,
   ) async {
+    if (location.inventoryOnly) {
+      return StorageMeasurement(
+        location: location,
+        sizeBytes: 0,
+        fileCount: 0,
+        modifiedAt: null,
+        complete: false,
+        warnings: const ['Opaque resource size was not measured.'],
+      );
+    }
     var bytes = 0;
     var count = 0;
     DateTime? modified;
@@ -304,14 +333,20 @@ class StorageInventory {
 
   bool _safe(StorageLocation location) {
     final path = _absolute(location.path);
-    if (location.path.trim().isEmpty ||
+    if (location.inventoryOnly ||
+        location.path.trim().isEmpty ||
         p.dirname(path) == path ||
-        protectedRoots.any((root) => _contains(path, root))) {
+        protectedRoots.any((root) => _contains(path, root)) ||
+        protectedPaths.any(
+          (protected) =>
+              _contains(path, protected) || _contains(protected, path),
+        )) {
       return false;
     }
     return !locations.any(
       (other) =>
           !other.prunable &&
+          !other.inventoryOnly &&
           (_contains(path, _absolute(other.path)) ||
               _contains(_absolute(other.path), path)),
     );
@@ -341,6 +376,7 @@ class StorageInventory {
           .toList();
       if (matches.length != 1 ||
           !matches.single.prunable ||
+          matches.single.inventoryOnly ||
           !_safe(matches.single)) {
         errors.add('Unknown or protected plan entry; skipped: $path');
         continue;
@@ -402,6 +438,7 @@ class StorageInventory {
           continue;
         }
         if (!item.location.prunable ||
+            item.location.inventoryOnly ||
             !_safe(item.location) ||
             !fresh.complete ||
             fresh.sizeBytes != item.sizeBytes ||

@@ -143,3 +143,32 @@ strings. What is forbidden is secret *values* and secret-ish *keys*.
 See the [docs](https://docs.page/arenukvern/oka) and the
 [design decisions](https://github.com/Arenukvern/oka/tree/main/docs/decisions)
 (ADR-0014 publishing laws and the three-tier secrets model).
+
+## Managed session-state workflows
+
+Provider packages can reuse the managed session-state assertions from their
+own tests:
+
+```dart
+final lease = await expectSessionStateProvisionConformance(
+  workflow: providerWorkflow,
+  request: fixtureRequest,
+  registry: isolatedTestRegistry,
+  liveness: fakeLiveness,
+);
+```
+
+This validates the workflow, wraps its public provision steps, and checks that
+each starts with a persisted `provisioning` lease (and, for Oka-managed
+directories, a matching durable reservation marker). It executes the workflow,
+so use an isolated registry and a disposable fixture request. Workflows without
+provision stages are rejected rather than counted as having covered the
+reserve-before-provision contract.
+
+`expectSessionStateFailClosed` first performs a read-only lease inspection and
+requires a busy/unknown finding before applying explicit cleanup; use a
+separate isolated registry and a fixture that makes the provider inspector
+busy, unknown, or fail. `expectSessionStateBorrowedRetention` checks a
+caller-owned/borrowed scenario stays retained even with ephemeral retention, and
+`expectSessionStateRegistryIssues` checks corrupt/future records are visible
+instead of silently ignored.

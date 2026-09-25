@@ -11,16 +11,18 @@ import 'package:test/test.dart';
 
 /// Scripted-fake process: records argv + kill (EmulatorTarget test style).
 class FakeSessionProcess implements SessionProcess {
-  FakeSessionProcess(this.pid);
+  FakeSessionProcess(this.pid, {this.onKill});
 
   @override
   final int pid;
 
   bool killed = false;
+  final void Function()? onKill;
 
   @override
   bool kill() {
     killed = true;
+    onKill?.call();
     return true;
   }
 }
@@ -28,10 +30,17 @@ class FakeSessionProcess implements SessionProcess {
 /// Scripted-fake liveness seam (ADR-0018 §1): records kills, answers
 /// identity from a fixed token — deterministic identity-gate tests.
 class FakeLiveness implements ProcessLiveness {
-  FakeLiveness({this.alive = true, this.token = 'tok-1'});
+  FakeLiveness({
+    this.alive = true,
+    this.token = 'tok-1',
+    this.unidentifiablePids = const {},
+    this.realIdentityPid,
+  });
 
   bool alive;
   String? token;
+  final Set<int> unidentifiablePids;
+  final int? realIdentityPid;
 
   final List<int> killed = [];
 
@@ -39,7 +48,13 @@ class FakeLiveness implements ProcessLiveness {
   Future<bool> isAlive(final int pid) async => alive;
 
   @override
-  Future<String?> identityToken(final int pid) async => token;
+  Future<String?> identityToken(final int pid) async {
+    if (unidentifiablePids.contains(pid)) return null;
+    if (pid == realIdentityPid) {
+      return const HostProcessLiveness().identityToken(pid);
+    }
+    return token;
+  }
 
   @override
   Future<bool> kill(
@@ -52,17 +67,28 @@ class FakeLiveness implements ProcessLiveness {
   }
 }
 
-BuildContext ctx(final Directory temp) => BuildContext(
-  projectPath: temp.path,
-  buildDir: p.join(temp.path, '.oka', 'build'),
-  mode: BuildMode.debug,
-  config: OkaConfig.empty,
-);
+BuildContext ctx(final Directory temp, {final String? buildDir}) =>
+    BuildContext(
+      projectPath: temp.path,
+      buildDir: buildDir ?? p.join(temp.path, '.oka_cache', 'build', 'debug'),
+      mode: BuildMode.debug,
+      config: OkaConfig.empty,
+    );
 
 void main() {
   late Directory temp;
+  late SessionStateRegistry stateRegistry;
 
-  setUp(() => temp = Directory.systemTemp.createTempSync('oka_chrome_target_'));
+  setUp(() {
+    temp = Directory.systemTemp.createTempSync('oka_chrome_target_');
+    Directory(ctx(temp).buildDir).createSync(recursive: true);
+    stateRegistry = SessionStateRegistry(
+      Directory(
+        p.join(temp.resolveSymbolicLinksSync(), '.session-state-registry'),
+      ),
+      bootId: 'test-boot',
+    );
+  });
 
   tearDown(() => temp.deleteSync(recursive: true));
 
@@ -176,6 +202,71 @@ void main() {
       expect(const ChromeSessionTarget(spec: spec).name, 'chrome-session');
     });
 
+    test('contributes its configured custom session-state workflow', () {
+      const customWorkflow = SessionStateWorkflow<ChromeProfileHandle>(
+        id: 'test.custom-chrome',
+        version: 1,
+        plan: ChromeProfilePlanner(),
+        source: ChromeProfileSource(),
+      );
+      const target = ChromeSessionTarget(
+        spec: spec,
+        stateWorkflow: customWorkflow,
+      );
+
+      final workflows = const Oka(
+        pipelines: [],
+        targets: [target],
+      ).effectiveSessionStateWorkflows;
+      expect(workflows, hasLength(1));
+      expect(workflows.single, same(customWorkflow));
+    });
+
+    test('explain details include workflow posture and validation issues', () {
+      const target = ChromeSessionTarget(
+        spec: BrowserSessionSpec(
+          binaryPath: '/usr/bin/google-chrome',
+          profilePersistence: ProfilePersistence.persistent,
+        ),
+      );
+      final details = describeTarget(target, ctx(temp)).details;
+      expect(details, contains('session-state workflow: oka.chrome-profile@1'));
+      expect(details, contains('session-state retention: persistent'));
+      expect(
+        details,
+        contains('session-state inspectors: chrome-profile-singleton'),
+      );
+      expect(
+        details,
+        contains(
+          'session-state reuse inspectors: chrome-profile-launch-singleton',
+        ),
+      );
+      expect(details, contains('session-state validation: valid'));
+
+      const invalidTarget = ChromeSessionTarget(
+        spec: BrowserSessionSpec(
+          binaryPath: '',
+          debugProtocol: DebugProtocol.none,
+        ),
+        stateWorkflow: SessionStateWorkflow<ChromeProfileHandle>(
+          id: 'test.workflow',
+          version: 0,
+          plan: ChromeProfilePlanner(),
+          source: ChromeProfileSource(),
+          inspectors: [ChromeProfileUseInspector()],
+        ),
+      );
+      final invalidDetails = describeTarget(invalidTarget, ctx(temp)).details;
+      expect(
+        invalidDetails,
+        contains('session-state workflow: test.workflow@0'),
+      );
+      expect(invalidDetails.join('\n'), contains('binaryPath is empty'));
+      expect(invalidDetails.join('\n'), contains('Chrome speaks CDP only'));
+      expect(invalidDetails.join('\n'), contains('version must be positive'));
+    });
+
     test('compile produces ensure-chrome-session; chain validates; '
         'artifacts follow the ADR-0017 §2 convention', () {
       const target = ChromeSessionTarget(spec: spec);
@@ -218,12 +309,50 @@ void main() {
     const readyBody =
         '{"Browser":"Chrome/126.0.6478.126","Protocol-Version":"1.3"}';
 
+    test(
+      'Windows Chrome managed profile acquisition and launch setup',
+      () async {
+        if (!Platform.isWindows) return;
+        var probes = 0;
+        List<String>? launchArgs;
+        final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          liveness: FakeLiveness(alive: false),
+          spec: const BrowserSessionSpec(
+            binaryPath: binaryPath,
+            debugPort: 9337,
+            profilePersistence: ProfilePersistence.persistent,
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          probe: (final url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (final executable, final args) async {
+            launchArgs = args;
+            return FakeSessionProcess(37);
+          },
+        );
+
+        final result = await step.run(ctx(temp), PipelineState());
+
+        expect(result.ok, isTrue, reason: result.error);
+        expect(launchArgs, isNotNull);
+        expect(launchArgs![1], startsWith('--user-data-dir='));
+        final profilePath = launchArgs![1].substring('--user-data-dir='.length);
+        expect(
+          await File(sessionStateOwnershipMarkerPath(profilePath)).exists(),
+          isTrue,
+        );
+        // The managed directory uses inherited Windows ACLs; dart:io cannot
+        // verify those ACLs.
+      },
+    );
+
     test('reuse path: a port already answering CDP is reused, never '
         'spawned against (idempotent, ADR-0017 §1)', () async {
       var probes = 0;
       Uri? probedUrl;
       var spawns = 0;
       final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(binaryPath: binaryPath, debugPort: 9222),
         probe: (final url) async {
           probes++;
@@ -248,6 +377,11 @@ void main() {
       expect(state[step.pidArtifact.id], isNull);
       expect(state[step.profileDirArtifact.id], isNull);
       expect(result.data['reused'], 'true');
+      expect(
+        (await stateRegistry.inspect()).leases,
+        isEmpty,
+        reason: 'port-only reuse has no known profile to lease',
+      );
     });
 
     test('spawn path: probe answers after N attempts → artifacts + '
@@ -256,6 +390,8 @@ void main() {
       final spawned = <List<String>>[];
       final processes = <FakeSessionProcess>[];
       final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
+        liveness: FakeLiveness(),
         spec: const BrowserSessionSpec(
           binaryPath: binaryPath,
           launchFlags: ['--enable-features=WebModelContext'],
@@ -299,40 +435,242 @@ void main() {
       Directory(profileDir).deleteSync(recursive: true);
     });
 
-    test('spawn path: persistent profile lives under the build dir, not '
-        'system temp (ADR-0017 §5)', () async {
-      var probes = 0;
-      String? profileDir;
-      var spawns = 0;
-      final step = EnsureChromeSessionStep(
-        spec: const BrowserSessionSpec(
-          binaryPath: binaryPath,
-          debugPort: 9333,
-          profilePersistence: ProfilePersistence.persistent,
-        ),
-        pollInterval: const Duration(milliseconds: 1),
-        probe: (final url) async {
-          probes++;
-          // The first probe is the reuse check — it must miss so the
-          // spawn path is exercised.
-          return probes == 1 ? null : readyBody;
-        },
-        startProcess: (final exe, final args) async {
-          spawns++;
-          profileDir = args[1].split('=').last;
-          return FakeSessionProcess(7);
-        },
-      );
-      final state = PipelineState();
-      final result = await step.run(ctx(temp), state);
+    test(
+      'persistent profile honors the configured build dir (ADR-0017 §5)',
+      () async {
+        var probes = 0;
+        String? profileDir;
+        var spawns = 0;
+        final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          liveness: FakeLiveness(alive: false),
+          spec: const BrowserSessionSpec(
+            binaryPath: binaryPath,
+            debugPort: 9333,
+            profilePersistence: ProfilePersistence.persistent,
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          probe: (final url) async {
+            probes++;
+            // The first probe is the reuse check — it must miss so the
+            // spawn path is exercised.
+            return probes == 1 ? null : readyBody;
+          },
+          startProcess: (final exe, final args) async {
+            spawns++;
+            profileDir = args[1].split('=').last;
+            return FakeSessionProcess(7);
+          },
+        );
+        final state = PipelineState();
+        final buildDir = p.join(temp.path, 'custom-build-output');
+        Directory(buildDir).createSync(recursive: true);
+        final result = await step.run(ctx(temp, buildDir: buildDir), state);
 
-      expect(result.ok, isTrue, reason: result.error);
-      expect(spawns, 1, reason: 'reuse probe missed → exactly one spawn');
-      expect(probes, 2);
-      expect(profileDir, startsWith(p.join(temp.path, '.oka', 'build')));
-      // Persistent dirs are never recorded for teardown.
-      expect(state[step.profileDirArtifact.id], isNull);
-    });
+        expect(result.ok, isTrue, reason: result.error);
+        expect(spawns, 1, reason: 'reuse probe missed → exactly one spawn');
+        expect(probes, 2);
+        expect(
+          profileDir,
+          p.join(
+            Directory(buildDir).resolveSymbolicLinksSync(),
+            'chrome-profiles',
+            'main',
+          ),
+        );
+        // Persistent dirs are never recorded for teardown.
+        expect(state[step.profileDirArtifact.id], isNull);
+
+        var repeatProbes = 0;
+        final repeatedStep = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          liveness: FakeLiveness(alive: false),
+          spec: const BrowserSessionSpec(
+            binaryPath: binaryPath,
+            debugPort: 9335,
+            profilePersistence: ProfilePersistence.persistent,
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          probe: (final url) async => ++repeatProbes == 1 ? null : readyBody,
+          startProcess: (final exe, final args) async {
+            expect(args[1], '--user-data-dir=$profileDir');
+            return FakeSessionProcess(9);
+          },
+        );
+        final repeatedResult = await repeatedStep.run(
+          ctx(temp, buildDir: buildDir),
+          PipelineState(),
+        );
+        expect(repeatedResult.ok, isTrue, reason: repeatedResult.error);
+      },
+    );
+
+    test(
+      'persistent relaunch accepts a dead lock without granting cleanup authority',
+      () async {
+        if (!Platform.isLinux && !Platform.isMacOS) return;
+        final liveness = FakeLiveness(alive: false);
+        final profileRoot = ctx(temp).buildDir;
+        final manager = SessionStateManager(
+          registry: stateRegistry,
+          liveness: liveness,
+        );
+        final existingLease = await manager.acquire(
+          chromeProfileStateWorkflow,
+          SessionStateRequest(
+            projectPath: temp.path,
+            sessionName: 'main',
+            metadata: {
+              'state_root': profileRoot,
+              'relative_path': p.posix.join('chrome-profiles', 'main'),
+              'state_retention': SessionStateRetention.persistent.label,
+              'process_scope': LeaseScope.persistent.label,
+            },
+          ),
+        );
+        await manager.expectProcess(existingLease.id);
+        await manager.attachProcess(
+          leaseId: existingLease.id,
+          processLeaseId: 'chrome-main',
+          processPid: 4242,
+          processPidToken: 'token-4242',
+        );
+        final profileDir = p.join(
+          existingLease.rootPath,
+          existingLease.relativePath,
+        );
+        final cookies = File(p.join(profileDir, 'Cookies'));
+        await cookies.writeAsString('saved profile data');
+        await Link(
+          p.join(profileDir, 'SingletonLock'),
+        ).create('${Platform.localHostname}-4242');
+        var probes = 0;
+        final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          liveness: liveness,
+          spec: const BrowserSessionSpec(
+            binaryPath: binaryPath,
+            debugPort: 9337,
+            profilePersistence: ProfilePersistence.persistent,
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          probe: (final url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (final exe, final args) async {
+            expect(args[1], '--user-data-dir=$profileDir');
+            return FakeSessionProcess(11);
+          },
+        );
+
+        final result = await step.run(ctx(temp), PipelineState());
+
+        expect(result.ok, isTrue, reason: result.error);
+        expect(
+          cookies.readAsStringSync(),
+          'saved profile data',
+          reason: 'launch reuse must not rewrite profile contents',
+        );
+        expect((await stateRegistry.inspect()).leases, hasLength(1));
+      },
+    );
+
+    test(
+      'existing persistent profile is borrowed in place, not replaced',
+      () async {
+        final buildDir = ctx(temp).buildDir;
+        final canonicalBuildDir = Directory(
+          buildDir,
+        ).resolveSymbolicLinksSync();
+        final profileDir = p.join(canonicalBuildDir, 'chrome-profiles', 'main');
+        Directory(profileDir).createSync(recursive: true);
+        File(p.join(profileDir, 'Cookies')).writeAsStringSync('existing state');
+        var probes = 0;
+        final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          liveness: FakeLiveness(),
+          spec: const BrowserSessionSpec(
+            binaryPath: binaryPath,
+            debugPort: 9334,
+            profilePersistence: ProfilePersistence.persistent,
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          probe: (final url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (final exe, final args) async {
+            expect(args[1], '--user-data-dir=$profileDir');
+            return FakeSessionProcess(8);
+          },
+        );
+
+        final result = await step.run(ctx(temp), PipelineState());
+
+        expect(result.ok, isTrue, reason: result.error);
+        expect(
+          File(p.join(profileDir, 'Cookies')).readAsStringSync(),
+          'existing state',
+        );
+        final states = await stateRegistry.inspect();
+        expect(states.leases, hasLength(1));
+        expect(states.leases.single.ownership, SessionStateOwnership.caller);
+        expect(
+          states.leases.single.acquisitionMode,
+          SessionStateAcquisitionMode.borrowed,
+        );
+      },
+    );
+
+    test(
+      'existing persistent lease keeps its path after buildDir changes',
+      () async {
+        final previousBuildDir = p.join(temp.path, 'previous-build');
+        await Directory(previousBuildDir).create(recursive: true);
+        const previousRelativePath = 'chrome-profiles/main';
+        final previousLease = await SessionStateManager(registry: stateRegistry)
+            .acquire(
+              chromeProfileStateWorkflow,
+              SessionStateRequest(
+                projectPath: temp.path,
+                sessionName: 'main',
+                metadata: {
+                  'state_root': previousBuildDir,
+                  'relative_path': previousRelativePath,
+                  'state_retention': SessionStateRetention.persistent.label,
+                  'process_scope': LeaseScope.persistent.label,
+                },
+              ),
+            );
+        final profileDir = p.join(
+          previousLease.rootPath,
+          previousLease.relativePath,
+        );
+        File(p.join(profileDir, 'Cookies')).writeAsStringSync('existing state');
+        var probes = 0;
+        final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          liveness: FakeLiveness(realIdentityPid: pid),
+          spec: const BrowserSessionSpec(
+            binaryPath: binaryPath,
+            debugPort: 9336,
+            profilePersistence: ProfilePersistence.persistent,
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          probe: (final url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (final exe, final args) async {
+            expect(args[1], '--user-data-dir=$profileDir');
+            return FakeSessionProcess(10);
+          },
+        );
+
+        final result = await step.run(ctx(temp), PipelineState());
+
+        expect(result.ok, isTrue, reason: result.error);
+        expect(
+          File(p.join(profileDir, 'Cookies')).readAsStringSync(),
+          'existing state',
+        );
+        final states = await stateRegistry.inspect();
+        expect(states.leases, hasLength(1));
+        expect(states.leases.single.id, previousLease.id);
+      },
+    );
 
     test('probe never answers → timeout failure names the exact remedy, '
         'spawned process stopped identity-verified (ADR-0018)', () async {
@@ -344,6 +682,7 @@ void main() {
       });
       final registry = ProcessLeaseRegistry(leaseDir, liveness: liveness);
       final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(
           binaryPath: '/opt/chrome-wrong',
           debugPort: 9444,
@@ -392,8 +731,112 @@ void main() {
       expect(state[step.handleArtifact.id], isNull);
     });
 
+    test(
+      'missing spawn PID token uses the process handle and clears intent only after stop',
+      () async {
+        final liveness = FakeLiveness(unidentifiablePids: const {1818});
+        final registry = ProcessLeaseRegistry(
+          Directory(p.join(temp.path, '.process-leases')),
+          liveness: liveness,
+        );
+        final process = FakeSessionProcess(
+          1818,
+          onKill: () => liveness.alive = false,
+        );
+        var probes = 0;
+        final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          spec: const BrowserSessionSpec(
+            binaryPath: '/opt/chrome',
+            debugPort: 9445,
+            bootTimeout: Duration(milliseconds: 10),
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          killGrace: const Duration(milliseconds: 5),
+          probe: (final url) async {
+            probes++;
+            return null;
+          },
+          startProcess: (final exe, final args) async => process,
+          liveness: liveness,
+          leaseRegistry: registry,
+        );
+
+        final result = await step.run(ctx(temp), PipelineState());
+
+        expect(result.ok, isFalse);
+        expect(
+          result.error,
+          contains('process identity token could not be verified'),
+        );
+        expect(result.error, contains('The process was stopped'));
+        expect(probes, 1, reason: 'identity failure aborts before readiness');
+        expect(process.killed, isTrue);
+        expect(
+          liveness.killed,
+          isEmpty,
+          reason: 'a missing identity token forbids signaling by pid',
+        );
+        expect(
+          await registry.list(),
+          isEmpty,
+          reason: 'an unverifiable process is never written as a process lease',
+        );
+        final leases = (await stateRegistry.inspect()).leases;
+        expect(leases, hasLength(1));
+        expect(leases.single.metadata['process_snapshot_required'], isFalse);
+        expect(leases.single.processPid, isNull);
+      },
+    );
+
+    test(
+      'unverified handle compensation leaves the durable process expectation',
+      () async {
+        final liveness = FakeLiveness(unidentifiablePids: const {1819});
+        final registry = ProcessLeaseRegistry(
+          Directory(p.join(temp.path, '.process-leases')),
+          liveness: liveness,
+        );
+        final process = FakeSessionProcess(1819);
+        final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
+          spec: const BrowserSessionSpec(
+            binaryPath: '/opt/chrome',
+            debugPort: 9446,
+            bootTimeout: Duration(milliseconds: 10),
+          ),
+          pollInterval: const Duration(milliseconds: 1),
+          killGrace: const Duration(milliseconds: 5),
+          probe: (final url) async => null,
+          startProcess: (final exe, final args) async => process,
+          liveness: liveness,
+          leaseRegistry: registry,
+        );
+
+        final result = await step.run(ctx(temp), PipelineState());
+
+        expect(result.ok, isFalse);
+        expect(
+          result.error,
+          contains('process identity token could not be verified'),
+        );
+        expect(result.error, contains('not verified stopped'));
+        expect(process.killed, isTrue);
+        expect(await registry.list(), isEmpty);
+        expect(
+          (await stateRegistry.inspect())
+              .leases
+              .single
+              .metadata['process_snapshot_required'],
+          isTrue,
+          reason: 'unverified compensation must remain recoverable',
+        );
+      },
+    );
+
     test('starter throws → actionable failure naming binaryPath', () async {
       final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(binaryPath: '/does/not/exist'),
         probe: (final url) async => null,
         startProcess: (final exe, final args) async =>
@@ -403,6 +846,33 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.error, contains('Failed to start "/does/not/exist"'));
       expect(result.error, contains('provisioning is deferred'));
+      final states = await stateRegistry.inspect();
+      expect(states.leases, hasLength(1));
+      expect(
+        states.leases.single.metadata['process_snapshot_required'],
+        isFalse,
+      );
+    });
+
+    test('starter Error clears its pre-spawn marker too', () async {
+      final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
+        spec: const BrowserSessionSpec(binaryPath: '/does/not/exist'),
+        probe: (final url) async => null,
+        startProcess: (final exe, final args) async =>
+            throw StateError('starter failed'),
+      );
+
+      final result = await step.run(ctx(temp), PipelineState());
+
+      expect(result.ok, isFalse);
+      expect(result.error, contains('Failed to start "/does/not/exist"'));
+      final states = await stateRegistry.inspect();
+      expect(states.leases, hasLength(1));
+      expect(
+        states.leases.single.metadata['process_snapshot_required'],
+        isFalse,
+      );
     });
 
     test('fail-closed: invalid spec fails before any process is touched '
@@ -435,8 +905,8 @@ void main() {
   });
 
   group('StopChromeSessionStep', () {
-    test('kills only the recorded pid and deletes only the recorded '
-        'ephemeral profile dir', () async {
+    test('kills only the recorded pid and retains the profile for '
+        'verified state reconciliation', () async {
       final killed = <int>[];
       final profileDir = Directory.systemTemp.createTempSync(
         'oka_chrome_teardown_',
@@ -482,8 +952,8 @@ void main() {
       expect(killed, [4242]);
       expect(
         profileDir.existsSync(),
-        isFalse,
-        reason: 'ephemeral profile dir is deleted',
+        isTrue,
+        reason: 'teardown does not bypass state ownership and use checks',
       );
     });
 
@@ -610,6 +1080,7 @@ void main() {
     late Directory temp;
     late FakeLiveness liveness;
     late ProcessLeaseRegistry registry;
+    late SessionStateRegistry stateRegistry;
 
     setUp(() {
       temp = Directory.systemTemp.createTempSync('oka_chrome_lease_');
@@ -617,6 +1088,12 @@ void main() {
       registry = ProcessLeaseRegistry(
         Directory('${temp.path}/.oka_cache/processes'),
         liveness: liveness,
+      );
+      stateRegistry = SessionStateRegistry(
+        Directory(
+          p.join(temp.resolveSymbolicLinksSync(), '.session-state-registry'),
+        ),
+        bootId: 'test-boot',
       );
     });
     tearDown(() {
@@ -628,6 +1105,7 @@ void main() {
       final processes = <FakeSessionProcess>[];
       var probes = 0;
       final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(
           binaryPath: '/opt/chrome',
           debugPort: 9223,
@@ -660,7 +1138,9 @@ void main() {
       expect(lease.identity['session_name'], 'main');
       expect(
         lease.identity['profile_dir'],
-        startsWith(Directory.systemTemp.resolveSymbolicLinksSync()),
+        startsWith(
+          p.join(Directory(temp.path).resolveSymbolicLinksSync(), '.oka_cache'),
+        ),
       );
       expect(lease.identity[processLeasePidTokenKey], 'tok-1');
       expect(lease.stopHint.tool, 'kill');
@@ -670,6 +1150,7 @@ void main() {
 
     test('persistent profile → persistent scope', () async {
       final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(
           binaryPath: '/opt/chrome',
           debugPort: 9223,
@@ -689,6 +1170,7 @@ void main() {
       'reuse path flips an owned lease to borrowed, kills nothing',
       () async {
         final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
           spec: const BrowserSessionSpec(
             binaryPath: '/opt/chrome',
             debugPort: 9223,
@@ -724,6 +1206,7 @@ void main() {
     test('reused session with no prior lease records one as borrowed '
         '(pid 0)', () async {
       final step = EnsureChromeSessionStep(
+        stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(
           binaryPath: '/opt/chrome',
           debugPort: 9223,
@@ -750,6 +1233,7 @@ void main() {
         // write, so the token flip happens there.
         var probes = 0;
         final step = EnsureChromeSessionStep(
+          stateRegistry: stateRegistry,
           spec: const BrowserSessionSpec(
             binaryPath: '/opt/chrome-wrong',
             debugPort: 9444,

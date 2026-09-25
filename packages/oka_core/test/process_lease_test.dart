@@ -24,7 +24,10 @@ class FakeLiveness implements ProcessLiveness {
   Future<String?> identityToken(final int pid) async => token;
 
   @override
-  Future<bool> kill(final int pid, {final Duration grace = const Duration(seconds: 3)}) async {
+  Future<bool> kill(
+    final int pid, {
+    final Duration grace = const Duration(seconds: 3),
+  }) async {
     killed.add(pid);
     return true;
   }
@@ -37,21 +40,20 @@ ProcessLease lease({
     processLeasePidTokenKey: 'tok-1',
   },
   final LeaseOwnership ownership = LeaseOwnership.owned,
-}) =>
-    ProcessLease(
-      id: 'emulator-oka-emulator',
-      pid: pid,
-      kind: 'android-emulator',
-      identity: identity,
-      scope: LeaseScope.ephemeral,
-      ownership: ownership,
-      ownerCmd: 'oka run emulator',
-      startedAt: DateTime.utc(2026, 9, 10, 12),
-      stopHint: const LeaseStopHint(
-        tool: 'adb',
-        args: ['-s', 'emulator-5554', 'emu', 'kill'],
-      ),
-    );
+}) => ProcessLease(
+  id: 'emulator-oka-emulator',
+  pid: pid,
+  kind: 'android-emulator',
+  identity: identity,
+  scope: LeaseScope.ephemeral,
+  ownership: ownership,
+  ownerCmd: 'oka run emulator',
+  startedAt: DateTime.utc(2026, 9, 10, 12),
+  stopHint: const LeaseStopHint(
+    tool: 'adb',
+    args: ['-s', 'emulator-5554', 'emu', 'kill'],
+  ),
+);
 
 void main() {
   group('ProcessLease record', () {
@@ -81,10 +83,12 @@ void main() {
         ]),
       );
       expect(json['owner_cmd'], 'oka run emulator');
-      expect(
-        (json['stop_hint']! as Map)['args'],
-        ['-s', 'emulator-5554', 'emu', 'kill'],
-      );
+      expect((json['stop_hint']! as Map)['args'], [
+        '-s',
+        'emulator-5554',
+        'emu',
+        'kill',
+      ]);
     });
 
     test('copyWith flips ownership to borrowed and nothing else', () {
@@ -101,14 +105,8 @@ void main() {
     });
 
     test('unknown scope/ownership labels fail closed', () {
-      expect(
-        () => LeaseScope.fromLabel('forever'),
-        throwsFormatException,
-      );
-      expect(
-        () => LeaseOwnership.fromLabel('mine'),
-        throwsFormatException,
-      );
+      expect(() => LeaseScope.fromLabel('forever'), throwsFormatException);
+      expect(() => LeaseOwnership.fromLabel('mine'), throwsFormatException);
     });
   });
 
@@ -153,7 +151,10 @@ void main() {
       await registry.upsert(lease(pid: 99));
       final after = await registry.list();
       expect(after.length, 2);
-      expect(after.singleWhere((final l) => l.id == 'emulator-oka-emulator').pid, 99);
+      expect(
+        after.singleWhere((final l) => l.id == 'emulator-oka-emulator').pid,
+        99,
+      );
 
       expect(await registry.delete('a-first'), isTrue);
       expect(await registry.delete('a-first'), isFalse);
@@ -170,19 +171,23 @@ void main() {
       expect(listed.single.pid, 4242);
     });
 
-    test('corrupt records are skipped, never fatal (advisory registry)',
-        () async {
-      await registry.upsert(lease());
-      File('${dir.path}/broken.json').writeAsStringSync('{not json');
-      final listed = await registry.list();
-      expect(listed.length, 1);
-    });
+    test(
+      'corrupt records are skipped, never fatal (advisory registry)',
+      () async {
+        await registry.upsert(lease());
+        File('${dir.path}/broken.json').writeAsStringSync('{not json');
+        final listed = await registry.list();
+        expect(listed.length, 1);
+      },
+    );
 
     test('forProject roots at .oka_cache/processes', () {
       final r = ProcessLeaseRegistry.forProject('/tmp/some-project');
       expect(
         r.directory.path,
-        endsWith('${Platform.pathSeparator}.oka_cache${Platform.pathSeparator}processes'),
+        endsWith(
+          '${Platform.pathSeparator}.oka_cache${Platform.pathSeparator}processes',
+        ),
       );
     });
   });
@@ -203,36 +208,31 @@ void main() {
 
     test('live: pid alive + start-time token matches', () async {
       liveness.token = 'tok-1';
-      expect(
-        await registry.checkLiveness(lease()),
-        LeaseLiveness.live,
-      );
+      expect(await registry.checkLiveness(lease()), LeaseLiveness.live);
     });
 
     test('deadPid: process gone — stale, safe to delete', () async {
       liveness.alive = false;
-      expect(
-        await registry.checkLiveness(lease()),
-        LeaseLiveness.deadPid,
-      );
+      expect(await registry.checkLiveness(lease()), LeaseLiveness.deadPid);
     });
 
-    test('unknown: pid 0 (borrowed-by-discovery) remains unverifiable',
-        () async {
-      expect(
-        await registry.checkLiveness(lease(pid: 0)),
-        LeaseLiveness.unknown,
-      );
-    });
+    test(
+      'unknown: pid 0 (borrowed-by-discovery) remains unverifiable',
+      () async {
+        expect(
+          await registry.checkLiveness(lease(pid: 0)),
+          LeaseLiveness.unknown,
+        );
+      },
+    );
 
-    test('reusedPid: pid alive but start-time token differs — never killed',
-        () async {
-      liveness.token = 'tok-RECYCLED';
-      expect(
-        await registry.checkLiveness(lease()),
-        LeaseLiveness.reusedPid,
-      );
-    });
+    test(
+      'reusedPid: pid alive but start-time token differs — never killed',
+      () async {
+        liveness.token = 'tok-RECYCLED';
+        expect(await registry.checkLiveness(lease()), LeaseLiveness.reusedPid);
+      },
+    );
 
     test('unknown: no recorded token — report, never guess', () async {
       liveness.token = 'tok-1';
@@ -247,10 +247,7 @@ void main() {
     test('unknown: platform seam throws — report, never guess', () async {
       final throwing = _ThrowingLiveness();
       final r = ProcessLeaseRegistry(dir, liveness: throwing);
-      expect(
-        await r.checkLiveness(lease()),
-        LeaseLiveness.unknown,
-      );
+      expect(await r.checkLiveness(lease()), LeaseLiveness.unknown);
     });
   });
 
@@ -269,8 +266,11 @@ void main() {
         await verifyKillIdentity(liveness, 4242, 'tok-1'),
         KillIdentity.recycled,
       );
-      expect(liveness.killed, isEmpty,
-          reason: 'a recycled pid belongs to an innocent process');
+      expect(
+        liveness.killed,
+        isEmpty,
+        reason: 'a recycled pid belongs to an innocent process',
+      );
     });
 
     test('unknown: no recorded token, dead pid, or throwing seam', () async {
@@ -293,7 +293,8 @@ void main() {
     test('field 22 after a comm field containing spaces/parens', () {
       // state is field 3 → index 0 after ')'; starttime is field 22 →
       // index 19. comm deliberately contains spaces and parentheses.
-      const stat = '4242 (a browser (x)) R 1 4242 4242 0 -1 4194304 '
+      const stat =
+          '4242 (a browser (x)) R 1 4242 4242 0 -1 4194304 '
           '100 0 0 0 5 3 0 0 777 1 2 0 987654 100 0 0 0 0 0';
       expect(parseLinuxProcStatStarttime(stat), '987654');
     });
@@ -301,6 +302,21 @@ void main() {
     test('short record → null (never throws)', () {
       expect(parseLinuxProcStatStarttime('1 (x) R'), isNull);
       expect(parseLinuxProcStatStarttime(''), isNull);
+    });
+
+    test('identity token is anchored to the kernel boot UUID', () {
+      const stat =
+          '4242 (browser) R 1 4242 4242 0 -1 4194304 '
+          '100 0 0 0 5 3 0 0 777 1 2 0 987654 100 0 0 0 0 0';
+      expect(
+        linuxProcessIdentityToken(bootId: 'boot-a', stat: stat),
+        'boot-a:987654',
+      );
+      expect(
+        linuxProcessIdentityToken(bootId: 'boot-b', stat: stat),
+        'boot-b:987654',
+      );
+      expect(linuxProcessIdentityToken(bootId: '', stat: stat), isNull);
     });
   });
 }
@@ -314,6 +330,8 @@ final class _ThrowingLiveness implements ProcessLiveness {
       throw StateError('seam down');
 
   @override
-  Future<bool> kill(final int pid, {final Duration grace = const Duration(seconds: 3)}) async =>
-      throw StateError('seam down');
+  Future<bool> kill(
+    final int pid, {
+    final Duration grace = const Duration(seconds: 3),
+  }) async => throw StateError('seam down');
 }

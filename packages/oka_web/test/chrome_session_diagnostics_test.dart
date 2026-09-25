@@ -98,6 +98,51 @@ void main() {
     expect(record.metadata['session_names'], ['dev']);
   });
 
+  test('reports a managed profile after its process lease is gone', () async {
+    final project = p.join(temp.path, 'project');
+    final profile = p.join(
+      project,
+      '.oka_cache',
+      'session-state',
+      'chrome',
+      'main',
+    );
+    await Directory(p.join(profile, 'Default')).create(recursive: true);
+    final storage = StorageReport(
+      locations: [
+        StorageMeasurement(
+          location: StorageLocation(
+            id: 'session-state-0123456789abcdef0123456789abcdef',
+            path: profile,
+            category: 'managed-session-state',
+            platform: 'chromium',
+            ownership: 'oka',
+            prunable: false,
+            scope: 'ephemeral',
+          ),
+          sizeBytes: 64,
+          fileCount: 3,
+          modifiedAt: DateTime.utc(2026),
+          complete: true,
+          warnings: const [],
+        ),
+      ],
+      totalBytes: 64,
+    );
+
+    final report = await const BrowserCacheDiagnosticProvider().inspect(
+      context([project], storage: storage),
+    );
+
+    expect(report.records, hasLength(1));
+    expect(report.records.single.kind, 'browser-profile');
+    expect(report.records.single.path, profile);
+    expect(report.records.single.metadata['persistence'], 'ephemeral');
+    expect(report.records.single.metadata['state_lease_ids'], [
+      '0123456789abcdef0123456789abcdef',
+    ]);
+  });
+
   test('reports a recorded temporary profile outside the project', () async {
     final project = p.join(temp.path, 'project');
     final profile = p.join(temp.path, 'oka-chrome-main-temp');

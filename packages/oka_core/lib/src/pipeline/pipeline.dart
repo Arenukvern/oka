@@ -37,12 +37,16 @@ class Artifact<T> {
   /// Optional human-readable description for diagnostics.
   final String? description;
 
+  /// Whether [value] is a runtime value of this artifact's declared type.
+  bool accepts(final Object? value) => value is T;
+
   /// Debug string: artifact id with its type argument.
   @override
   String toString() => 'Artifact<$T>($id)';
 
   @override
-  bool operator ==(final Object other) => other is Artifact<T> && other.id == id;
+  bool operator ==(final Object other) =>
+      other is Artifact<T> && other.id == id;
 
   /// Hash of id + type (equality is id + type based).
   @override
@@ -69,7 +73,8 @@ class PipelineState {
   final Map<String, Object?> _values = {};
 
   Object? operator [](final String key) => _values[key];
-  void operator []=(final String key, final Object? value) => _values[key] = value;
+  void operator []=(final String key, final Object? value) =>
+      _values[key] = value;
 
   /// All values currently in the store (for diagnostics).
   Map<String, Object?> get snapshot => Map.unmodifiable(_values);
@@ -240,7 +245,9 @@ class Pipeline {
       // Let an in-flight step finish publishing its resource handles before
       // teardown, but never start another acquisition after cancellation.
       if (shouldCancel?.call() ?? false) {
-        return StepResult.failure('Pipeline cancelled before step "${step.name}".');
+        return StepResult.failure(
+          'Pipeline cancelled before step "${step.name}".',
+        );
       }
       if (verbose) print('▶ step: ${step.name}');
       emit(StepStarted(step.name));

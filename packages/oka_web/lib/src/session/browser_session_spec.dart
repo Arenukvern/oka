@@ -10,25 +10,29 @@
 /// boundary).
 library;
 
+import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 /// How the session's browser profile persists across runs (ADR-0017 §5:
 /// lifecycle is a parameter, not a type hierarchy).
 enum ProfilePersistence {
-  /// Fresh temporary profile dir per session (test / agent posture):
-  /// no cookie/login state leaks between runs, and the dir is deleted by
-  /// teardown.
+  /// Fresh isolated profile directory per session (test / agent posture):
+  /// no cookie/login state leaks between runs. The profile is removed only
+  /// after explicit reconciliation confirms it is unused.
   ephemeral,
 
-  /// Stable profile dir under the build directory (dev posture): logins
-  /// and browser state survive the command.
+  /// Stable profile dir at
+  /// `<ctx.buildDir>/chrome-profiles/<sessionName>` (dev posture): logins and
+  /// browser state survive the command. The build directory is configurable;
+  /// the default Oka cache location is gitignored, while custom build
+  /// directories should receive equivalent secret-data protection.
   persistent;
 
   /// Human-readable name used in step logs.
   String get label => switch (this) {
-        ephemeral => 'ephemeral',
-        persistent => 'persistent',
-      };
+    ephemeral => 'ephemeral',
+    persistent => 'persistent',
+  };
 }
 
 /// The debug protocol a browser engine speaks (ADR-0017: engines differ in
@@ -52,10 +56,10 @@ enum DebugProtocol {
 
   /// Human-readable name used in errors and logs.
   String get label => switch (this) {
-        none => 'none',
-        webdriver => 'webdriver',
-        cdp => 'cdp',
-      };
+    none => 'none',
+    webdriver => 'webdriver',
+    cdp => 'cdp',
+  };
 }
 
 /// Chrome flags oka owns: these are derived from typed spec fields by
@@ -101,6 +105,8 @@ class BrowserSessionSpec {
     this.debugPort,
     this.headless = true,
     this.profilePersistence = ProfilePersistence.ephemeral,
+    this.stateRetention,
+    this.processScope,
     this.bootTimeout = const Duration(seconds: 30),
     this.windowSize,
     this.debugProtocol = DebugProtocol.cdp,
@@ -134,9 +140,36 @@ class BrowserSessionSpec {
   final bool headless;
 
   /// Profile persistence (default [ProfilePersistence.ephemeral]): test
-  /// sessions get a throwaway temp profile; dev sessions a stable one
-  /// (ADR-0017 §5).
+  /// sessions get an isolated managed profile; dev sessions use the stable
+  /// build-directory path documented by [ProfilePersistence.persistent]
+  /// (ADR-0017 §5). Existing persistent profiles at that path are retained
+  /// in place and are never moved or deleted by process teardown. Ephemeral
+  /// data is reclaimed by session-state reconciliation, not process teardown.
   final ProfilePersistence profilePersistence;
+
+  /// Session-state lifetime, independent of the browser process lifetime.
+  ///
+  /// When omitted, [profilePersistence] preserves the previous mapping:
+  /// ephemeral profiles use ephemeral processes, persistent profiles use
+  /// persistent processes.
+  final SessionStateRetention? stateRetention;
+
+  /// Browser process lifetime, independent of profile-state retention.
+  final LeaseScope? processScope;
+
+  /// Effective state retention, including the compatibility mapping.
+  SessionStateRetention get effectiveStateRetention =>
+      stateRetention ??
+      (profilePersistence == ProfilePersistence.ephemeral
+          ? SessionStateRetention.ephemeral
+          : SessionStateRetention.persistent);
+
+  /// Effective process scope, including the compatibility mapping.
+  LeaseScope get effectiveProcessScope =>
+      processScope ??
+      (profilePersistence == ProfilePersistence.ephemeral
+          ? LeaseScope.ephemeral
+          : LeaseScope.persistent);
 
   /// How long the readiness probe (`GET /json/version`) may poll before
   /// the session fails, naming the exact remedy.
@@ -163,6 +196,12 @@ class BrowserSessionSpec {
   /// engine-agnostic.
   List<String> validate() {
     final issues = <String>[];
+    if (effectiveStateRetention.index < effectiveProcessScope.index) {
+      issues.add(
+        'stateRetention "${effectiveStateRetention.label}" cannot be shorter '
+        'than processScope "${effectiveProcessScope.label}".',
+      );
+    }
     if (binaryPath.trim().isEmpty) {
       issues.add(
         'binaryPath is empty — set an explicit browser binary path '
@@ -208,6 +247,7 @@ class BrowserSessionSpec {
   @override
   String toString() =>
       'BrowserSessionSpec(${p.basename(binaryPath)}, '
-      '${profilePersistence.label}, ${debugProtocol.label}'
+      '${effectiveStateRetention.label} state, '
+      '${effectiveProcessScope.label} process, ${debugProtocol.label}'
       '${headless ? ', headless' : ''})';
 }

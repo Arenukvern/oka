@@ -61,7 +61,8 @@ with evidence, not into a checked box.
 - **S0: Chrome session target (ADR-0017).** `BrowserSessionSpec` +
   `DebugProtocol` + `profilePersistence` typed values, okaOwned launcher
   (spawn with `--remote-debugging-port`, `/json/version` readiness probe,
-  idempotent reuse, ephemeral teardown), `chrome-session` target producing
+  idempotent reuse, process teardown separate from profile reconciliation),
+  `chrome-session` target producing
   `session-chrome-<name>-handle` / `session-chrome-<name>-cdp-port`
   artifacts, `chromeWebMcp` profile const, pure launch-args construction.
   No CDP client, no new deps, Chrome only (Servo/Ladybird and matrices
@@ -91,8 +92,9 @@ with evidence, not into a checked box.
   enforcement; `oka processes list [--json]` / `oka stop <id>
   [--force] [--stale] [--json]` (verbs reserved in `reservedCliVerbs`);
   `EmulatorTarget.stopOnExit` (default false — dev reuse posture
-  preserved) and `ChromeSessionTarget` ephemeral-profile unconditional
-  teardown (ADR-0017 §5). Evidence: `packages/oka_core/test/
+  preserved) and `ChromeSessionTarget` now separates process stop from
+  state-profile deletion (ADR-0025 reconciliation). Evidence:
+  `packages/oka_core/test/
   process_teardown_test.dart`, `process_surface_test.dart` (stop laws +
   sweep), `test/adr0018_l1_contract_test.dart`, oka_web teardown-
   composition group; `dart analyze` clean, full suite green.
@@ -107,6 +109,44 @@ with evidence, not into a checked box.
   Gate: L1. Evidence: sweep group in `process_surface_test.dart` (stale
   drop, recycled-pid never signaled, orphan report-only, hardened mode,
   borrowed/persistent kept), doctor block, `oka stop --stale` JSON event.
+- **Managed session-state workflows (ADR-0025 accepted; implemented, not
+  phase-complete).** `oka_core` now has typed state workflows,
+  durable host-bound leases, reservation-before-provisioning, conservative
+  dry-run reconciliation, resumable quarantine cleanup with bounded retries,
+  explicit close, record-only forget, timeout bounds, and safe ephemeral
+  re-acquisition after a proven-stale lease.
+  `oka_web` composes the default Chromium profile workflow; `oka doctor`,
+  `oka session-state list|inspect|resume|reconcile|close|forget`, cache
+  inventory, `oka clean`, and `oka explain` expose/protect recorded resources.
+  `oka_android` provides an inventory-only AVD workflow recorded by
+  `EmulatorTarget` after successful boot; it does not claim global inactivity
+  or authorize AVD cleanup. `oka_conformance` exports reusable provider
+  assertions.
+  Evidence so far:
+  `packages/oka_core/test/session_state_test.dart`,
+  `packages/oka_core/test/session_state_cleanup_retry_test.dart`,
+  `packages/oka_core/test/session_state_process_snapshot_test.dart`,
+  `packages/oka_core/test/process_liveness_host_test.dart`,
+  `packages/oka_core/test/process_liveness_windows_test.dart`,
+  `packages/oka_android/test/avd_session_state_test.dart`,
+  `packages/oka_android/test/emulator_target_inventory_test.dart`,
+  `packages/oka_conformance/test/session_state_conformance_test.dart`,
+  `packages/oka_web/test/chrome_profile_state_test.dart`,
+  `packages/oka_web/test/chrome_session_target_test.dart`,
+  `packages/oka_web/test/chrome_session_real_smoke_test.dart` (opt-in; passed
+  on macOS with installed Google Chrome),
+  `packages/oka_web/test/chrome_session_diagnostics_test.dart`,
+  `test/session_state_command_test.dart`, `test/clean_command_test.dart`,
+  `test/session_state_entrypoint_protocol_test.dart`,
+  `test/init_command_test.dart`, and `test/cache_transactions_test.dart`.
+  Remaining gates: positive AVD host-global inactivity proof; Windows CI
+  execution and filesystem junction/locked-path evidence; Linux and
+  network-filesystem lock evidence; and real-browser acceptance on remaining
+  supported hosts.
+  Managed profile acquisition and Chrome launch setup work on Windows using
+  inherited directory ACLs, which `dart:io` does not verify. POSIX `0700`
+  remains enforced on Linux/macOS; destructive session-state cleanup remains
+  report-only on Windows pending filesystem safety evidence.
 - **S1: browser doctor + provisioning.** `oka doctor` browser detection
   (engines, versions, flag support); chrome-for-testing into the ADR-0013
   artifact store. Gate: S0.

@@ -76,36 +76,73 @@ void main() {
     );
   });
 
+  test('prune reports the session-state same-user race limitation', () async {
+    final protectedInventory = StorageInventory(
+      locations: [
+        StorageLocation(
+          id: 'build',
+          path: build.path,
+          category: 'build',
+          platform: 'any',
+          ownership: 'oka',
+          prunable: true,
+          scope: 'build',
+        ),
+      ],
+      protectedPaths: [p.join(build.path, 'disposing-profile')],
+    );
+    final protectedCommand = CacheCommand(
+      out: output.writeln,
+      store: LocalArtifactStore(root: p.join(temp.path, 'missing-store')),
+      inventory: protectedInventory,
+    );
+
+    await protectedCommand.run(['prune']);
+
+    expect(output.toString(), contains('same-user filesystem races'));
+    output.clear();
+    await protectedCommand.run(['prune', '--json']);
+    final json = jsonDecode(output.toString()) as Map<String, dynamic>;
+    expect(
+      json['safety_notes'],
+      contains(contains('same-user filesystem races')),
+    );
+  });
+
   test('scope filters do not delete unrelated locations', () async {
     await command.run(['prune', '--scope=tools', '--apply']);
     expect(await build.exists(), isTrue);
     expect(output.toString(), contains('Deleted 0'));
   });
 
-  test('relative project paths in saved plans map to CLI usage errors',
-      () async {
-    final plan = File(p.join(temp.path, 'invalid-plan.json'));
-    await plan.writeAsString(jsonEncode({
-      'schema': StorageCleanupPlan.schema,
-      'selected': const <Object?>[],
-      'projects': ['relative/project'],
-    }));
-    final operation = CacheCommand(
-      environment: {'HOME': p.join(temp.path, 'home')},
-      currentDirectory: temp.path,
-      out: (_) {},
-    ).run(['clean', '--apply-plan', plan.path]);
-    await expectLater(
-      operation,
-      throwsA(
-        isA<CacheCommandError>().having(
-          (error) => error.exitCode,
-          'exitCode',
-          64,
+  test(
+    'relative project paths in saved plans map to CLI usage errors',
+    () async {
+      final plan = File(p.join(temp.path, 'invalid-plan.json'));
+      await plan.writeAsString(
+        jsonEncode({
+          'schema': StorageCleanupPlan.schema,
+          'selected': const <Object?>[],
+          'projects': ['relative/project'],
+        }),
+      );
+      final operation = CacheCommand(
+        environment: {'HOME': p.join(temp.path, 'home')},
+        currentDirectory: temp.path,
+        out: (_) {},
+      ).run(['clean', '--apply-plan', plan.path]);
+      await expectLater(
+        operation,
+        throwsA(
+          isA<CacheCommandError>().having(
+            (error) => error.exitCode,
+            'exitCode',
+            64,
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('help-advertised binary size spellings work for gc and prune', () async {
     for (final size in ['2G', '2GB', '2GiB', '500MB', '123B']) {

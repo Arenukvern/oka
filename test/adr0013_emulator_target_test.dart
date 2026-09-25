@@ -7,12 +7,12 @@ import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
 BuildContext _ctx() => const BuildContext(
-      projectPath: '/tmp/x',
-      buildDir: '/tmp/x/.oka_cache',
-      mode: BuildMode.debug,
-      config: OkaConfig.empty,
-      cacheDir: '/tmp/x/.oka_cache',
-    );
+  projectPath: '/tmp/x',
+  buildDir: '/tmp/x/.oka_cache',
+  mode: BuildMode.debug,
+  config: OkaConfig.empty,
+  cacheDir: '/tmp/x/.oka_cache',
+);
 
 /// Scripted adb/avdmanager/emulator runner: records argv, replies from a
 /// script keyed by a matcher on the args.
@@ -33,34 +33,53 @@ class FakeRunner {
 /// these tests need the real binaries present even though every process call
 /// is scripted.
 bool _adbAndEmulatorOnPath() {
-  final dirs = Platform.environment['PATH']?.split(Platform.isWindows ? ';' : ':') ?? const [];
+  final dirs =
+      Platform.environment['PATH']?.split(Platform.isWindows ? ';' : ':') ??
+      const [];
   bool has(final String cmd) => dirs.any(
-        (final d) =>
-            File('$d/$cmd').existsSync() || File('$d/$cmd.exe').existsSync(),
-      );
+    (final d) =>
+        File('$d/$cmd').existsSync() || File('$d/$cmd.exe').existsSync(),
+  );
   return has('adb') && has('emulator');
 }
 
 void main() {
   group('pure argv builders', () {
     test('emulator launch args: headless by default', () {
-      expect(
-        emulatorLaunchArgs(name: 'oka-emulator'),
-        ['-avd', 'oka-emulator', '-no-window', '-no-audio', '-no-boot-anim',
-         '-no-snapshot-save'],
-      );
+      expect(emulatorLaunchArgs(name: 'oka-emulator'), [
+        '-avd',
+        'oka-emulator',
+        '-no-window',
+        '-no-audio',
+        '-no-boot-anim',
+        '-no-snapshot-save',
+      ]);
     });
 
     test('avdmanager create args carry name + package + optional device', () {
       expect(
         avdManagerCreateArgs(name: 'a', image: 'sys', deviceProfile: 'pixel'),
-        ['create', 'avd', '--force', '--name', 'a', '--package', 'sys',
-         '--device', 'pixel'],
+        [
+          'create',
+          'avd',
+          '--force',
+          '--name',
+          'a',
+          '--package',
+          'sys',
+          '--device',
+          'pixel',
+        ],
       );
-      expect(
-        avdManagerCreateArgs(name: 'a', image: 'sys'),
-        ['create', 'avd', '--force', '--name', 'a', '--package', 'sys'],
-      );
+      expect(avdManagerCreateArgs(name: 'a', image: 'sys'), [
+        'create',
+        'avd',
+        '--force',
+        '--name',
+        'a',
+        '--package',
+        'sys',
+      ]);
     });
 
     test('parseAvdManagerNames reads Name: blocks', () {
@@ -105,8 +124,7 @@ void main() {
     });
 
     test('missing AVD + createIfMissing runs avdmanager create', () async {
-      final fake = FakeRunner()
-        ..reply = (_, _) => ProcessResult(0, 0, '', '');
+      final fake = FakeRunner()..reply = (_, _) => ProcessResult(0, 0, '', '');
       final step = EnsureAvdStep(
         avdName: 'oka-emulator',
         systemImage: 'system-images;android-34;google_apis;arm64-v8a',
@@ -118,29 +136,30 @@ void main() {
       expect(fake.sent.join(' '), contains('system-images;android-34'));
     });
 
-    test('missing system image fails closed naming the sdkmanager command',
-        () async {
-      final fake = FakeRunner()
-        ..reply = (_, _) => ProcessResult(
-              1,
-              0,
-              '',
-              "Error: Could not find or has not been downloaded 'sys'",
-            );
-      final step = EnsureAvdStep(
-        avdName: 'oka-emulator',
-        systemImage: 'system-images;android-34;google_apis;arm64-v8a',
-        runProcess: fake.call,
-      );
-      final r = await step.run(_ctx(), PipelineState());
-      expect(r.ok, isFalse);
-      expect(r.error, contains('sdkmanager'));
-      expect(r.error, contains('yes | sdkmanager --licenses'));
-    });
+    test(
+      'missing system image fails closed naming the sdkmanager command',
+      () async {
+        final fake = FakeRunner()
+          ..reply = (_, _) => ProcessResult(
+            1,
+            0,
+            '',
+            "Error: Could not find or has not been downloaded 'sys'",
+          );
+        final step = EnsureAvdStep(
+          avdName: 'oka-emulator',
+          systemImage: 'system-images;android-34;google_apis;arm64-v8a',
+          runProcess: fake.call,
+        );
+        final r = await step.run(_ctx(), PipelineState());
+        expect(r.ok, isFalse);
+        expect(r.error, contains('sdkmanager'));
+        expect(r.error, contains('yes | sdkmanager --licenses'));
+      },
+    );
 
     test('createIfMissing=false fails naming the manual command', () async {
-      final fake = FakeRunner()
-        ..reply = (_, _) => ProcessResult(0, 0, '', '');
+      final fake = FakeRunner()..reply = (_, _) => ProcessResult(0, 0, '', '');
       final step = EnsureAvdStep(
         avdName: 'gone',
         systemImage: 'sys',
@@ -172,13 +191,20 @@ void main() {
           }
           return ProcessResult(0, 0, '', '');
         };
-      final step = BootEmulatorStep(avdName: 'oka-emulator', runProcess: fake.call, startProcess: (_, _) async => throw StateError('never spawn'));
+      final step = BootEmulatorStep(
+        avdName: 'oka-emulator',
+        runProcess: fake.call,
+        startProcess: (_, _) async => throw StateError('never spawn'),
+      );
       final state = PipelineState();
       final r = await step.run(_ctx(), state);
       expect(r.ok, isTrue);
       expect(state[emulatorSerial.id], 'emulator-5554');
-      expect(fake.sent.where((s) => s.contains('-avd')), isEmpty,
-          reason: 'no second emulator spawned');
+      expect(
+        fake.sent.where((s) => s.contains('-avd')),
+        isEmpty,
+        reason: 'no second emulator spawned',
+      );
     });
 
     test('boots a new emulator and waits for sys.boot_completed', () async {
@@ -285,12 +311,14 @@ void main() {
   });
 
   group('EmulatorTarget (typed value)', () {
-    test('compiles to ensure-avd + boot-emulator and provides the serial',
-        () {
+    test('compiles to ensure-avd + boot-emulator + inventory recording', () {
       const t = EmulatorTarget(apiLevel: 35);
       final steps = t.compile(_ctx());
-      expect(steps.map((final s) => s.name),
-          ['ensure-avd', 'boot-emulator']);
+      expect(steps.map((final s) => s.name), [
+        'ensure-avd',
+        'boot-emulator',
+        'record-android-avd-inventory',
+      ]);
       final pipeline = Pipeline(steps);
       expect(pipeline.validate(), isNull);
       expect(
@@ -299,15 +327,17 @@ void main() {
       );
     });
 
-    test('invocation args: device=<serial> override, unknown keys rejected',
-        () {
-      const t = EmulatorTarget();
-      final applied = t.applyInvocationArgs({'device': 'emulator-5554'});
-      expect(applied.deviceId, 'emulator-5554');
-      expect(
-        () => t.applyInvocationArgs({'bogus': '1'}),
-        throwsArgumentError,
-      );
-    });
+    test(
+      'invocation args: device=<serial> override, unknown keys rejected',
+      () {
+        const t = EmulatorTarget();
+        final applied = t.applyInvocationArgs({'device': 'emulator-5554'});
+        expect(applied.deviceId, 'emulator-5554');
+        expect(
+          () => t.applyInvocationArgs({'bogus': '1'}),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 }

@@ -1,0 +1,616 @@
+# 0025 — Composable managed session-state workflows and conservative reconciliation
+
+- **Status:** accepted
+- **Date:** 2026-04-08
+- **Decision-makers:** Anton, oka agent
+- **Extends:** 0002 (composable pipeline), 0017 (browser sessions), 0018
+  (process leases), 0019 (cache pruning protections), 0021 (composable
+  diagnostics), 0022 (capability boundaries)
+
+## Decision checkpoint
+
+The user approved revising the API toward explicit composition, asked that browser
+products including custom/vendor engines be listed as references, and requested
+independent review for missing assumptions before implementation. The decision
+is accepted; the implementation status and remaining proof obligations are
+recorded below. ADR-0017 deferred a shared browser-session contract
+until a third implementation existed. This proposal intentionally advances that
+checkpoint early: browser state and AVD state share the recovery/ownership
+problem, not a state format. The extension is limited to lifecycle and recovery;
+it does not promise interchangeable browser profiles or protocols.
+
+## Context
+
+Browser profile state and emulator state have a shared lifecycle problem, not a
+shared storage format. A Chrome user-data directory, Moli profile directory,
+Obscura storage directory, remote Kitesurf task, Servo/Ladybird state, and
+Android AVD/userdata have different creation, launch, liveness, and cleanup
+semantics. Some engines have no persistent profile. A universal `profilePath`
+contract would make the easy case generic and the real cases leaky.
+
+There is also a concrete Chrome leak window: an ephemeral profile directory is
+created before browser spawn, while its process lease is written after spawn.
+A failed spawn can return without cleanup; a host crash can bypass target
+teardown. Process leases are about processes and do not, by themselves, prove
+that a separate state resource is safe to delete. A post-spawn I/O failure can
+also leave a running browser without a process lease, and readiness timeout
+cleanup currently stops the process without removing the temporary profile.
+These are independent regression cases for the new durable reservation.
+
+Oka already composes immutable steps with typed `requires` / `provides`
+contracts ([ADR-0002](0002-composable-build-pipeline.mdx)). Reusing that idea
+does not mean reusing `BuildStep` unchanged: build `PipelineState` is
+process-local, while orphan recovery needs durable operation identities,
+versioned plans, and idempotent recovery after a crash.
+
+## Considered options
+
+- **One all-in-one provider interface per engine.** Rejected as the extension
+  model: it forces every custom browser to reimplement planning, provisioning,
+  inspection, and cleanup as one opaque unit; Oka cannot compose or validate
+  those parts independently.
+- **Unstructured lifecycle callbacks.** Rejected: ordering, dependencies,
+  recovery after partial work, and cleanup authority would be invisible.
+- **One universal profile path / profile class.** Rejected: an AVD is not a
+  browser directory, and browsers differ in profile layout and active-use
+  signals.
+- **Put profile cleanup authority in `ProcessLease`.** Rejected: process
+  liveness and state-resource ownership have different lifetimes; persistent
+  state may outlive its process. A path in a process record is not deletion
+  authority.
+- **Treat cache diagnostics or process leases as cleanup authority.** Rejected:
+  ADR-0021 diagnostics are observations only, and process leases can be removed
+  independently. A fresh state-specific proof is required at cleanup time.
+- **Let a provider callback delete arbitrary paths.** Rejected: custom code and
+  serialized paths cannot safely establish core ownership. Core-managed paths
+  use core verification and deletion; opaque resources are never automatically
+  disposed.
+- **Keep all state leases only in a project cache.** Rejected: AVDs and
+  caller-selected state may be host-global and concurrently used by other
+  projects. A project-local registry cannot prove global inactivity.
+- **A daemon or global executable plugin discovery.** Rejected: unnecessary
+  supervision and discovery machinery conflicts with Oka's explicit-composition
+  model.
+- **Immutable, typed phase composition over a shared managed-resource
+  lifecycle.** Chosen: one plan/owner per resource, ordered provision and
+  cleanup stages, and multiple fail-closed inspectors. Handles and filesystem
+  or remote-resource operations remain engine-specific.
+
+## Decision
+
+Use **managed session state** as the core concept, not a universal browser
+profile. `oka_core` owns the durable lease and workflow contract. Platform
+packages publish immutable, typed workflow components: Chromium state in
+`oka_web`, and inventory-only AVD state in `oka_android`; third-party and
+custom workflows use normal Dart composition. Targets default to Oka's
+first-party workflow and
+accept a different workflow by composition. No `Session` base class, implicit
+workflow discovery, or runtime package discovery is added; the state registry
+itself is an explicit core service with a user-global location.
+
+### 1. Composition-based API
+
+The public unit is an immutable **`SessionStateWorkflow<H>`**, not an
+implement-everything provider. It composes four distinct phases:
+
+```dart
+const chromeProfileStateWorkflow = SessionStateWorkflow<ChromeProfileHandle>(
+  id: 'oka.chrome-profile',
+  version: 1,
+  plan: ChromeProfilePlanner(),
+  source: ChromeProfileSource(),
+  provision: [CreateChromeProfile()],
+  inspectors: [ChromeProfileUseInspector()],
+);
+```
+
+- **Plan:** exactly one pure `SessionStatePlan<H>` declares the handle kind,
+  stable logical resource key, namespace (`project` or `host`), retention
+  (`ephemeral`, `session`, or `persistent`), versioned provider metadata, and
+  state identity. It performs no I/O or mutation. The core
+  generates an opaque acquisition ID; caller strings such as `sessionName`
+  never become registry IDs. A provider that derives a path segment from caller
+  input must validate it, and core validates the final relative path.
+- **Source:** exactly one typed `SessionStateSource<H>` restores a typed handle
+  from a durable lease; it does not provision or dispose state. The plan records
+  resource ownership (`Oka-owned` or caller/foreign-owned) separately from
+  acquisition mode (`created`, `reused`, or `borrowed`). Reusing an Oka-owned persistent profile
+  does not transfer ownership; successful reuse updates acquisition provenance
+  from `created` to `reused`, independently of immutable ownership. Borrowing a
+  caller-owned resource remains `borrowed` and can never become
+  deletion-eligible. Semantic identifiers such as a CDP port or emulator
+  serial alone do not prove state ownership. When an endpoint answers CDP but
+  its profile path is unknown, Oka records only a borrowed process lease; it
+  creates no managed profile-state lease and gains no authority over that
+  profile.
+- **Provision:** an ordered list of typed, named steps. Steps declare
+  `requires` / `provides` artifacts and are validated before side effects, in
+  the same spirit as Oka pipelines. They must be idempotent or expose recovery
+  logic for an interrupted operation. A durable reservation is a prerequisite:
+  if it cannot be committed, provisioning aborts. This intentionally overrides
+  ADR-0018's advisory-write rule for process leases because unrecorded state
+  creation cannot be safely recovered.
+- **Inspect:** a list of read-only inspectors, each returning evidence scoped to
+  a resource (for example process identity, browser-specific activity, or
+  ownership-marker checks). Inspectors can veto cleanup but cannot grant
+  deletion authority. Every required inspector must affirm `unused`; `busy`,
+  `unknown`, timeout, or exception retains state.
+- **Cleanup:** ordered, versioned steps may prepare or quarantine only resources
+  declared by the plan. For Oka-managed filesystem state, `oka_core` alone
+  verifies ownership and performs deletion. Opaque resources (including AVDs
+  and remote browser tasks) are never automatically disposed; an explicit
+  user-authorized operation may invoke a separately verified provider action.
+  Cleanup step IDs and progress are stable so a partial attempt can resume;
+  filesystem quarantine/deletion remains a core operation, not an overridable
+  path callback.
+
+The default workflow is an ordinary immutable value that callers can compose
+with additional provisioning, inspection, or safe cleanup stages. Replacing the
+backend means composing a complete workflow for that target; it is not an
+override of a global registry. Target seams are typed on the handle
+(`SessionStateSource<BrowserProfileHandle>`), not accepted as an untyped
+provider and cast at runtime. A custom workflow may omit persistent state
+entirely; a browser without a profile is valid and does not acquire a fake
+`profilePath`.
+
+The required execution order is: pure plan → acquire resource lock →
+side-effect-free source resolution → durable reservation → provisioning →
+launch/use. Teardown is: identity-verified process stop → fresh inspectors →
+core verification/quarantine → confirmed deletion → lease removal. No resource
+creation may precede the durable reservation.
+
+`SessionStateHandle` is engine-specific: for example, a browser directory,
+Obscura storage directory, remote session reference, or Android AVD name.
+Launchers consume their own typed handles; Oka does not infer profile behavior
+from the browser name or debug protocol.
+
+Workflow composition validates every phase, including cleanup and recovery,
+before execution. Workflow, plan, source, step, and inspector IDs must be unique
+across the active composition; unknown, duplicate, or incompatible workflow
+IDs fail closed. Validation must be visible through `oka explain`, rather than
+applying only to provisioning while teardown is unchecked. Provider conformance
+belongs in the existing `oka_conformance` package.
+
+The core-owned lease records workflow ID/version, unique acquisition ID,
+logical resource key, namespace, retention, project/session owner,
+resource-ownership provenance, acquisition mode, lifecycle state, durable
+step progress, provider metadata, and inventory locations. It also snapshots
+the owner and associated process identities (PID plus start token) and a
+host/boot binding. These are liveness evidence only, never stop authority, and
+survive deletion of the process lease by `oka doctor` or `oka stop`. PID/start
+tokens without matching host/boot identity are insufficient. The lease contains
+no cookies, tokens, or profile contents.
+
+State leases live in a user-global Oka registry outside project `.oka_cache`
+(`~/.oka/session-states/`, under the detected user home);
+project-scoped resources are still keyed to their project, while host-scoped
+resources such as AVDs use one cross-project logical key. Host-scoped resources
+require a provider-supplied global in-use proof before any destructive action;
+without it the status is `unknown` and the state is retained. `oka clean` and
+cache pruning must consult the same registry and protect leased locations. This
+registry is not a second inventory: its paths feed the existing storage
+inventory as non-prunable locations, and `CacheDiagnosticProvider` continues to render observations
+through ADR-0021's existing contracts, using the existing process observation
+source where applicable. A diagnostic record never grants deletion authority.
+
+The implemented host binding is an Oka host UUID plus boot identity. Linux
+process start tokens also include the kernel boot UUID; Windows liveness tokens
+include machine and boot identity. Process-namespace and canonical-registry
+identity are not currently recorded and remain proof obligations for container
+and unusual mount scenarios. A copied lease with a mismatched host/boot binding
+is retained and reported. These identifiers protect against accidental
+cross-host replay, not a malicious same-user actor able to copy both the
+registry and ownership markers.
+
+Unknown workflow IDs, corrupt records, unknown enum values, or newer schema
+versions are retained and reported as registry issues. A writer older than a
+record's schema may not rewrite it or discard unknown fields. No stored ID
+dynamically loads executable code.
+
+The API is intentionally separate from `BuildStep` / `PipelineState`: those
+steps exchange in-memory run state and do not currently promise durable replay.
+Session-state steps need a durable journal and recovery contract across Oka
+invocations. The implementation may reuse Oka's typed artifact validation
+pattern, but not a process-local state store as the recovery record.
+
+### 2. Durable lifecycle and reconciliation
+
+Planning and lease reservation happen before provisioning. Normal lifecycle is
+`reserved → provisioning → ready → disposing → disposed`; each transition and
+step result is journaled with a generation. Every operation is crash-idempotent.
+An interrupted or failed provisioning/disposal moves to `partial`. Provisioning
+resume is an explicit non-preview action: under the resource lock, core requires
+the exact workflow ID/version, same host, verified owner/process liveness,
+reservation and ownership evidence, and affirmative unused findings from every
+workflow inspector. It reruns the idempotent provision list from the beginning;
+a missing inner marker is repairable only for an existing empty directory with
+verified reservation evidence. Refused checks do not authorize retry. A retry
+of disposal returns to `disposing`. After five failed cleanup attempts, the
+lease becomes terminal `quarantined`; automatic reconciliation retains it, while
+`oka session-state close <id> --apply` is the explicit retry path. The record is
+removed only after disposal is confirmed. Retries record attempt count and last
+error rather than emitting an endlessly repeated doctor warning. Non-idempotent
+steps without recovery support cannot participate in automatic reconciliation.
+
+An explicit `SessionStateReconciler` composes workflows supplied by the current
+Oka/project composition and returns a structured report. It may run at a later
+invocation; no daemon or code discovery by stored workflow ID is added.
+
+The project-entrypoint process is the code-loading boundary for CLI lifecycle
+operations. `oka session-state inspect|resume|reconcile|close|forget` and
+`oka doctor` discover the same entrypoint as `oka build`, then invoke
+`dart run <entrypoint> --oka-session-state <json-request>`. `okaRun` dispatches
+that hidden machine request against the actual session-state workflow objects
+composed by that entrypoint. Explicit `Oka.sessionStateWorkflows` are combined
+with workflows automatically contributed by targets implementing
+`SessionStateWorkflowContributor`; identical instances are included once, while
+distinct same-ID/version workflows remain a composition error. Thus
+`ChromeSessionTarget` and `EmulatorTarget` do not require developers to
+duplicate their provider workflows in a second list. The request carries only a protocol
+version, operation, optional lease ID and apply boolean; the response is one
+JSON object framed on stdout with the `\x1eOKA_SESSION_STATE_V1:` prefix,
+followed by `schema_version: "oka.session-state.protocol.v1"`,
+`protocol_version: 1`, and either `status: "ok"` plus a report/lease result or
+`status: "error"` plus a diagnostic. Entrypoint stdout outside that prefixed
+frame is ignored; missing, duplicate, or malformed frames fail closed.
+Entrypoints must not use that reserved frame prefix for ordinary output.
+Unsupported protocol versions fail closed.
+Inspection and reconciliation of a lease whose workflow is absent or has a
+different version produce an `unknown`/retained result; `resume` requires the
+exact composed ID/version. The stored workflow ID/version selects no code:
+closures, provider instances and workflow objects are never serialized or
+dynamically imported. `oka session-state list` remains a local registry
+inventory because it executes no provider workflow. Projects without a
+discoverable entrypoint keep the CLI's first-party Chrome and Android AVD
+workflow fallback. Projects without an entrypoint cannot execute custom
+workflow code: missing or unavailable workflows remain unknown and retained.
+
+Mutating acquisition, reconciliation, and cleanup serialize through an
+in-process per-key queue, an inter-process exclusive resource lock, and
+registry generation/CAS checks. The local queue is required because OS file
+locks may not serialize separate handles opened by the same process.
+Under the lock, the reconciler rereads the current record and rechecks
+ownership and liveness before transitioning to `disposing`; stale snapshots
+cannot authorize cleanup. Resume applies the same lock and generation reread
+before transitioning an eligible partial lease to `provisioning`. A persistent
+profile is single-writer by default;
+concurrent use reports busy rather than sharing a directory implicitly. Atomic
+JSON rename is not a lock. Abandoned atomic-write temp files are reaped while
+holding the registry lock. Per-resource lock files are intentionally stable:
+unlinking a lock after release can split waiters and new callers across
+different inodes. Network-filesystem lock reliability is not auto-detected in
+this version; use the registry only on a locally verified locking filesystem,
+and treat network-mounted state as unsupported pending platform evidence.
+
+Disposal of a core-managed directory first atomically renames it to a private
+quarantine directory in the same parent, then recursively deletes it. It never
+moves profile contents to a more permissive location. This avoids pretending
+that a `Future.timeout` cancels filesystem I/O and makes a locked Windows path
+a retryable partial result. A missing resource under an existing verified root
+is a converged outcome; an unavailable/unmounted root is `unknown`, not proof
+that the resource disappeared.
+
+The shared safety gate is:
+
+- Only Oka-owned `ephemeral` filesystem state is eligible for orphan
+  reconciliation. `session` state is removed only by its explicit session-close
+  lifecycle; persistent state is never automatically removed. Borrowed and
+  caller-owned state is never deleted by Oka.
+- For orphan reconciliation, the owner reservation must be provably stale,
+  every linked process identity snapshot must be verified stopped, and every
+  required inspector must affirm unused. Normal teardown uses the same resource
+  lock and fresh inspector checks after identity-verified process stop. A
+  missing process lease is not evidence of a stopped process: the snapshot is
+  checked independently, and a missing snapshot, provider-reported active
+  descendant, unsupported host, missing workflow, or inconclusive use check
+  means retain and report.
+- For a core-managed directory, Oka creates the resource directory itself
+  after its durable reservation and writes its ownership marker before any
+  provider provisioning step. Linux and macOS retain POSIX `0700` enforcement.
+  Windows creation is supported using the parent directory's inherited ACL;
+  `dart:io` does not inspect or verify those ACLs, so creation is not evidence
+  that the directory is private. This compatibility support does not enable
+  destructive session-state cleanup on Windows: directory cleanup remains
+  report-only there. The lease stores a canonical root plus a safe relative
+  path; core checks containment and symlink ancestors again at deletion. Custom
+  workflows choosing their own roots must keep those roots Oka-controlled and
+  private; a provider may veto, never authorize or perform recursive deletion.
+  Dart path checks cannot eliminate the documented check-then-act race.
+- Opaque provider resources such as AVDs and remote tasks are inventory-only
+  during automatic reconciliation. Reset/delete requires an explicit apply
+  operation and provider-specific ownership/inactive-state proof.
+- The threat model is accidental stale/corrupt records and concurrent Oka
+  invocations, not a hostile process running as the same user. Dart lacks
+  `openat`/`unlinkat`/`O_NOFOLLOW`, so canonical path checks cannot eliminate
+  check-then-act races. Automatic deletion is therefore bounded to Oka-created
+  restrictive roots; symlink and Windows junction/reparse-point escapes must
+  be tested on the real host filesystem.
+- Profile contents can contain cookies, logins, and other secrets. Inspectors
+  may inspect only the minimum metadata needed for ownership/liveness; they
+  must not read, log, copy, or upload profile contents.
+
+Normal ephemeral teardown uses the existing identity-verified process stop
+policy but does not directly delete the profile while the owning Oka process is
+still running. A later state reconciliation rechecks ownership, process
+identity, and browser-specific use before quarantine and deletion. There must be
+no load-bearing fallible discovery I/O after spawn: the planned state location
+is durable before process launch; failed post-spawn recording triggers
+immediate compensation through the live process handle while the state lease
+remains recoverable. Failure to stop or verify any runtime process retains
+state. Process leases remain the authority for stop policy; state leases are
+the authority for resource ownership and cleanup eligibility.
+
+`oka doctor` may continue its existing stale **process-record** reconciliation,
+but this ADR does not add profile deletion to doctor. `oka cache` diagnostics
+remain observational. The explicit session-state reconciliation command is
+dry-run by default; deletion requires an explicit `--apply`. Cache prune protects
+registered state paths and disables pruning when registry evidence is
+incomplete. `oka clean` removes unrelated cache contents while preserving
+registered resources and reservation markers; it refuses cleanup when the
+registry cannot be inspected safely. Opaque resources remain
+explicit-action-only even with `--apply`.
+
+State retention and process `LeaseScope` are independent dimensions; neither
+may be inferred from the other:
+
+| State retention | Process scope | Validity / cleanup |
+|---|---|---|
+| ephemeral | ephemeral | Valid; normal end and proven-stale orphan recovery may dispose Oka-owned state |
+| session | session or shorter | Valid; close the owning session explicitly; unknown orphan stays retained |
+| persistent | any shorter/equal scope | Valid; state survives process stop and is never auto-disposed |
+| shorter-lived state | longer-lived process | Invalid; reject at composition/plan validation |
+
+`BrowserSessionSpec.profilePersistence` remains source-compatible with the
+existing mapping: ephemeral maps to ephemeral state + ephemeral process;
+persistent maps to persistent state + persistent process. New APIs expose both
+values independently. Legacy persistent sessions continue to omit process
+teardown; introducing state workflows must not silently start killing them.
+
+`HostProcessLiveness` now has a PowerShell/CIM-backed Windows probe, and the
+state registry captures Windows boot identity. Oka can acquire and provision a
+managed directory on Windows using inherited ACLs, but `dart:io` cannot verify
+those ACLs. All destructive session-state directory cleanup remains
+report-only on Windows until junction/reparse-point containment and
+locked-directory quarantine pass real-host tests. No Windows automatic or
+explicit destructive-cleanup support is implied by directory creation. CI has
+Windows-only managed-directory and Chrome-launch assertions; this development
+host cannot execute them, so Windows runner evidence remains pending.
+
+### 3. Workflow composition and first-party defaults
+
+**Implementation status:** `oka_core` now provides the typed durable lease,
+workflow, manager, and dry-run-first reconciler. Core creates a managed
+directory and owner marker before provider provisioning; POSIX hosts enforce
+`0700`, while Windows uses inherited ACLs that `dart:io` cannot verify.
+`oka_web` wires the default Chromium profile workflow into
+`ChromeSessionTarget`; third-party integrations can inject a complete workflow
+or compose additional inspectors, provisioning, and cleanup steps. Session-state
+inspect/reconcile/close/forget, same-workflow ephemeral re-acquisition,
+exact-workflow idempotent resume, timeout-bounded inspection and cleanup,
+doctor preview through the project-entrypoint protocol, cache inventory
+protection, and bounded cleanup retries are implemented. `oka clean` preserves
+registered state while cleaning unrelated cache contents.
+
+- **Chromium/Chrome:** `oka_web` publishes a default workflow for an
+  Oka-owned user-data directory. `BrowserSessionSpec.profilePersistence`
+  remains source-compatible and maps to the common retention policy.
+- **Android AVD:** `oka_android` provides an inventory-only, host-scoped,
+  caller-owned workflow. `EmulatorTarget` records the selected AVD after a
+  successful boot, resolving an explicit AVD home or the standard home; failure
+  to resolve inventory metadata is non-fatal and leaves the AVD unrecorded.
+  Reports are busy only on positive adb evidence; missing or inconclusive
+  evidence remains unknown. The workflow does not provision, reset, or delete
+  AVD state. Existing `EmulatorTarget` process leases remain separate; stopping
+  an emulator process never implies deleting or resetting its AVD userdata.
+- **Moli:** candidate workflow, not assumed Chromium-compatible. The source
+  ledger below verifies a Moli-specific persistent profile option; deployed
+  version behavior, ownership, active-use detection, and cleanup still need
+  conformance evidence.
+- **Other browser references:** use their own composed workflow only after
+  launch, state, protocol, and disposal behavior have been validated
+  independently. A stateless engine may have no profile workflow; a remote
+  session provider is a separate explicit capability, not a local directory.
+
+First-party packages export default workflow values and reusable typed
+components. A project can compose additional steps with those values or compose
+a complete workflow for another engine. Core validates unique workflow, plan,
+source, step, and inspector IDs; `requires` / `provides` dependencies;
+mandatory inspectors; host/retention compatibility; and every cleanup/recovery
+phase before host mutations. Oka-owned state creation is rejected if a durable
+reservation or safe cleanup contract is incomplete. Caller-owned or opaque
+resources may still be used without automatic cleanup, but are reported as
+unmanaged/unknown.
+
+Custom workflow code must be present in the current project composition for
+reconciliation. The stored workflow ID selects no code and never triggers
+package download or dynamic execution. At the core reconciler boundary, a
+missing or incompatible custom workflow stays unknown and is retained. The
+project-entrypoint CLI protocol is stricter: it rejects an operation whose
+lease has no exact composed workflow with a non-zero, versioned error response
+before invoking reconciliation.
+
+### 4. Browser references and evidence ledger
+
+This is a **non-exhaustive reference list, not a support matrix**. “Verified”
+means the linked upstream source documents that fact; it does not mean Oka has
+an adapter. Profile/state behavior, launch method, protocol, and safe cleanup
+are separate capabilities. The sources were checked for this ADR date; moving
+upstream sources must be pinned to an exact product version/commit and
+verification date before advertising an Oka provider.
+
+| Reference | Verified from upstream source | Still unknown / Oka status |
+|---|---|---|
+| **Chromium / Chrome** | Separate user-data dirs are supported; profile data lives under the user-data dir. Chrome 136+ requires a non-default user-data dir when using remote-debugging flags. [Chromium user-data-dir](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/user_data_dir.md), [Chrome remote-debugging change](https://developer.chrome.com/blog/remote-debugging-port), [profile guide](https://www.chromium.org/developers/creating-and-using-profiles/) | Oka has the existing Chrome target; this does not establish compatibility for every Chromium-derived vendor build. Profile-lock behavior is platform-specific and not sufficient by itself to prove every process released a profile. |
+| **Yandex Browser** | Official help documents persistent profiles and platform-specific storage locations. [Yandex profile help](https://yandex.com/support/browser/en/personalization/profile), [cache/profile locations](https://yandex.com/support/browser/en/personal-data-protection/cache-memory) | No authoritative launch flag, automation protocol, custom profile-selection, or safe-cleanup behavior verified here. Reference only; do not infer Chrome compatibility. |
+| **Moli** | Upstream documents `--profile-dir`, profile-scoped web storage, `moli serve`, and CDP, WebDriver Classic, and BiDi endpoints. [Moli README](https://github.com/lexmount/moli/blob/main/README.md) | Oka adapter, omitted-profile behavior, cleanup-on-exit, active-use detection, and stale-profile recovery are unverified. A Moli profile is not a Chromium user-data dir. |
+| **Obscura** | Upstream CLI docs describe `--storage-dir` for persistent storage and a CDP server endpoint. [Obscura CLI reference](https://github.com/h4ckf0r0day/obscura/blob/95d1706e/docs/CLI-reference.md) | Storage-dir semantics are not proof of a full browser profile or safe cleanup. Oka adapter and ownership/liveness behavior unknown. |
+| **Kitesurf (Cloudflare Browser Run)** | Cloudflare documents a remote, stateless, task-scoped browser selector. [Kitesurf docs](https://developers.cloudflare.com/browser-run/kitesurf/) | No local profile path or persistent authenticated profile. Remote session ownership/expiry APIs are outside the local profile provider; Oka support is not implied. |
+| **Servo** | The Servo command-line docs expose `mach run --devtools=<port>`; its documented DevTools protocol is Firefox's actor protocol, not CDP. [Servo command-line args](https://github.com/servo/servo/blob/b79e2a0b6575364de01b1f89021aba0ec3fcf399/docs/COMMAND_LINE_ARGS.md), [DevTools docs](https://book.servo.org/contributing/devtools.html) | User-data/profile persistence and stale-state cleanup are unverified. Oka's current `DebugProtocol` also does not model Firefox's actor protocol. |
+| **Ladybird** | A merged upstream change documents `--profile`, `--profile-path`, and `--temporary-profile`; temporary cleanup is documented for clean shutdown. [DevTools docs](https://github.com/LadybirdBrowser/ladybird/blob/master/Documentation/DevTools.md), [profile-isolation change](https://github.com/LadybirdBrowser/ladybird/pull/10663) | Evidence is version-scoped; crash/stale-lock cleanup and released-binary availability must be verified. Its DevTools actor protocol is not CDP. |
+| **Custom / vendor browser (including future products)** | No shared behavior can be assumed. A package can contribute a typed, explicit workflow. | Record source + exact version/commit, launch mechanism, exact protocol, state selector/persistence, ownership proof, and safe cleanup. Missing evidence means `unknown`, not “Chromium-compatible.” |
+
+The evidence ledger uses `verified`, `unknown`, `not applicable`, or
+`version-scoped` per capability. Product names are references only: the API
+does not use a closed browser enum, identify engines by binary name, or infer
+profile compatibility from CDP/WebDriver.
+
+### 5. Review findings and remaining proof obligations
+
+Independent API, browser-capability, and lifecycle-safety reviews surfaced
+assumptions not visible from the happy-path Chrome flow. The chosen contract
+above incorporates their conservative outcomes; implementation must still prove
+these host-specific properties:
+
+- The process liveness seam verifies one PID, not necessarily every descendant
+  holding a browser profile. Providers need a positive global in-use proof;
+  missing process leases, a reused PID, or an unobservable child process means
+  `unknown`, not “unused”. Linux process start tokens include the kernel boot
+  UUID so a post-reboot PID/token collision cannot authorize a stop or
+  deletion. Pre-upgrade Linux process leases have unanchored tokens and are
+  deliberately unverifiable by the new identity comparison; Oka will not
+  signal them. Chromium's `SingletonLock` identifies its owner PID but does not
+  prove that detached children or a concurrent opener are absent. An existing
+  lock with a dead owner is therefore `unknown`; only an absent lock affirms
+  unused.
+- The host-global state registry, resource locks, generation compare-and-swap,
+  platform-specific directory permissions, and crash recovery must be tested
+  across concurrent Oka invocations and every supported filesystem. Windows
+  managed directory ACLs are inherited and are not verified by `dart:io`.
+  Existing atomic registry replacement alone does not serialize writers.
+  Network filesystems without reliable locking are retain-only.
+- Project deletion/move, an unmounted root, registry loss, or an unavailable
+  custom project entrypoint may make a resource undiscoverable. The global
+  registry reports and retains such records; it cannot promise cleanup of a
+  manually deleted project or resource outside the registry.
+- A stored workflow ID does not load its package. If the owning project
+  composition or exact provider version is unavailable, reconciliation reports
+  `unknown` and retains state. This intentionally trades automatic cleanup for
+  no implicit executable plugin discovery.
+- Persistent profiles need a non-automatic reclamation path. The implemented
+  `oka session-state close <id>` previews the target and findings; deletion
+  requires `--apply` and still passes ownership, host, process, and provider
+  checks. On the same host after reboot, explicit close may proceed only after
+  the old process identity is treated as stopped and current provider checks
+  still affirm unused. `oka session-state forget <id>` is a separate,
+  record-only recovery for a positively absent directory (or unavailable root);
+  it never deletes state or its reservation marker. `oka clean` and generic
+  prune are not substitutes. Opaque and host-global state remains retained
+  because this version has no provider disposal contract.
+- Chrome-family profile compatibility is not implied by CDP. Yandex's
+  documented profile storage does not verify its launch flags or lifecycle;
+  Moli and Obscura have different state directories; Kitesurf is remote and
+  stateless; Servo/Ladybird expose Firefox actor protocols; Ladybird profile
+  behavior is version-scoped. Oka's current `DebugProtocol` does not model the
+  Firefox actor protocol, which remains a separate launcher/API decision.
+- Windows liveness and boot identity use PowerShell/CIM and fail closed on
+  missing or malformed results. They need execution evidence on the Windows CI
+  runner. Managed directory creation uses inherited ACLs, which `dart:io` does
+  not verify. Path reparse-point containment and locked-path quarantine are
+  still unverified; destructive session-state cleanup remains report-only on
+  Windows.
+- Same-user malicious processes and full filesystem TOCTOU defense are outside
+  the contract. Dart does not expose the required no-follow directory-relative
+  deletion primitives; restrictive POSIX Oka-owned roots bound but do not
+  eliminate this risk. Windows inherited ACLs are not verified by `dart:io`,
+  and cleanup remains report-only there. This limitation must remain visible
+  in user-facing cleanup output.
+
+## Consequences
+
+Good:
+
+- Third parties compose typed lifecycle pieces without replacing one opaque
+  all-in-one provider; browser and emulator handles remain distinct.
+- Durable reservation-before-provisioning closes the known startup-failure
+  gap and enables recovery for Oka-owned ephemeral state where providers can
+  prove it safe.
+- The reference ledger makes real ecosystem differences explicit without
+  turning product names into closed enums or support promises.
+- Existing process identity/stop laws remain authoritative; browser profile
+  state remains protected from generic cache pruning.
+
+Bad / Neutral:
+
+- Durable journal, component recovery contracts, per-resource locks, and
+  workflow conformance add public API and testing cost.
+- A custom workflow that is not present at recovery time cannot be safely
+  executed; its resource stays reported rather than cleaned.
+- Several named products have undocumented or version-sensitive cleanup
+  behavior. Reference coverage must not be mistaken for adapter support.
+
+## Concise implementation plan
+
+1. **Core composition and durable recovery — implemented, evidence partial.**
+   Typed handles, plan/source/provision/inspect/cleanup phases, user-global
+   leases, host/boot binding, resource locks, generation CAS, partial state,
+   cleanup-step progress, marker verification, quarantine deletion,
+   dry-run reconciliation, and explicit guarded provisioning resume are in
+   `oka_core`.
+2. **Observe and protect — implemented, evidence partial.** `oka session-state
+   list|inspect|resume|reconcile|close|forget` emits human-readable or JSON
+   results; resume is limited to exact-workflow Oka-owned directory leases.
+   `oka doctor` previews; cache inventory shows registered state as
+   non-prunable; `oka clean` preserves registered resources while removing
+   unrelated contents, and cache prune disables unsafe candidates.
+3. **Chromium integration — implemented, evidence partial.** The legacy
+   persistence mapping is preserved; Oka reserves before profile creation and
+   spawn; cleanup inspectors and launch-reuse inspectors are composed
+   separately; an exact stopped SingletonLock owner snapshot can permit launch
+   reuse but never cleanup. Existing CDP endpoint reuse with unknown profile
+   path records only a borrowed process lease. Failed provisioning remains
+   recoverable. POSIX `0700` is enforced on Linux/macOS; managed profile
+   acquisition and creation also work on Windows using inherited ACLs that
+   `dart:io` cannot verify. Windows destructive cleanup remains report-only.
+4. **Android AVD and other providers — partial/pending.** The current AVD
+   workflow is caller-owned, opaque, and inventory-only; it cannot be resumed,
+   provisioned, reset, or deleted by Oka. Managed AVD operations require global
+   active-use and ownership proof. Moli, Yandex, Obscura,
+   Kitesurf, Servo, Ladybird, and vendor/custom providers remain reference-only
+   until their own lifecycle and protocol contracts are verified.
+5. **Host conformance and Windows — pending.** Test real symlink/junction
+   escapes, locked paths, quarantine, concurrent reservation/reconciliation,
+   host mismatch, root-missing versus root-unavailable behavior, and Windows
+   liveness/filesystem semantics before enabling destructive cleanup there.
+   Windows managed directory creation and Chrome launch setup are compatible
+   using inherited ACLs, but those ACLs are not verified by `dart:io`.
+
+## Acceptance evidence
+
+Current automated evidence includes
+`packages/oka_core/test/session_state_test.dart`,
+`packages/oka_core/test/session_state_cleanup_retry_test.dart`,
+`packages/oka_core/test/session_state_process_snapshot_test.dart`,
+`packages/oka_core/test/process_liveness_host_test.dart`,
+`packages/oka_web/test/chrome_profile_state_test.dart`, and
+`packages/oka_web/test/chrome_session_target_test.dart`. The opt-in
+`packages/oka_web/test/chrome_session_real_smoke_test.dart` passed on macOS
+with `OKA_REQUIRE_REAL_CHROME_SMOKE=1`, exercising real Chrome launch, stop,
+and ephemeral-profile reconciliation. The Windows-only managed-directory and
+launch-setup assertions are configured for Windows CI, but were not run on
+this development host.
+
+Remaining evidence required before calling the full ADR implementation complete:
+
+- Exercise acquisition, attachment, reconciliation, and disposal races between
+  separate Oka processes, including reservation during provisioning and
+  re-reservation while a lease is `disposing`. Current tests cover in-process
+  serialization and stale-generation rejection; they do not establish every
+  cross-process schedule.
+- Exercise live associated-process identity, a reused PID/token mismatch, and
+  real reboot transitions on Linux, macOS, and Windows. The reconciler records
+  one associated process snapshot; it does not enumerate arbitrary descendants.
+  Providers must therefore retain state whenever their own activity checks
+  cannot affirm inactivity. macOS `kern.boottime` and network-filesystem lock
+  behavior still need host evidence; network filesystems have no support claim
+  and lock reliability is not automatically detected.
+- Run the Windows CI job and real Windows filesystem tests for junction/reparse
+  containment and locked-directory quarantine. Directory creation uses
+  inherited ACLs that `dart:io` does not verify; destructive cleanup remains
+  report-only on Windows.
+- Run real Chrome acceptance on Linux and Windows in addition to the passing
+  macOS smoke. The Linux `/proc` liveness test is present but was skipped on
+  this macOS development host.
+- Keep Moli, Yandex, Obscura, Kitesurf, Servo, Ladybird, and vendor/custom
+  browsers at reference-only status until a provider records version-scoped
+  launch, exact protocol, profile/state persistence, ownership, and cleanup
+  evidence. CDP support alone is not a profile-compatibility claim.

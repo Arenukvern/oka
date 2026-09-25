@@ -1,5 +1,6 @@
 import 'config/build_context.dart';
 import 'pipeline/pipeline.dart';
+import 'session_state.dart';
 import 'targets/target.dart';
 
 /// The declarative composition root for an oka build (ADR-0006).
@@ -19,6 +20,10 @@ import 'targets/target.dart';
 ///             config: AndroidBuild(packageName: 'dev.example.app'),
 ///           ),
 ///         ],
+///         // Workflows not contributed by a target can be composed explicitly.
+///         // Targets implementing SessionStateWorkflowContributor contribute
+///         // their workflows automatically.
+///         sessionStateWorkflows: [],
 ///       ),
 ///     );
 /// ```
@@ -28,7 +33,11 @@ import 'targets/target.dart';
 /// * [okaRun], which performs the boilerplate around this composition.
 /// * `AndroidPipeline` (oka_android), the default Android [PlatformPipeline].
 class Oka {
-  const Oka({required this.pipelines, this.targets = const []});
+  const Oka({
+    required this.pipelines,
+    this.targets = const [],
+    this.sessionStateWorkflows = const [],
+  });
 
   /// Platform pipelines to compose. One is selected per build target by
   /// matching [PlatformPipeline.platform] against `--platform`.
@@ -41,6 +50,34 @@ class Oka {
   /// at dispatch: lowercase identifiers, unique, never shadowing a reserved
   /// core verb (`init`, `build`, `run`, ...).
   final List<Target> targets;
+
+  /// Explicit session-state workflows used by `oka session-state` and
+  /// `oka doctor` when dispatched through this entrypoint. Workflows exposed
+  /// by [SessionStateWorkflowContributor] targets are included automatically
+  /// by [effectiveSessionStateWorkflows]. Workflow code remains in this Dart
+  /// process; only operation requests and JSON results cross the CLI boundary.
+  final List<SessionStateWorkflow<dynamic>> sessionStateWorkflows;
+
+  /// Explicit workflows plus workflows contributed by [targets].
+  ///
+  /// The same workflow object is included only once when it appears both
+  /// explicitly and through one or more targets. Distinct workflow objects
+  /// are preserved even if their id and version match, so the normal
+  /// composition validation can report genuine conflicts.
+  List<SessionStateWorkflow<dynamic>> get effectiveSessionStateWorkflows {
+    final workflows = <SessionStateWorkflow<dynamic>>[...sessionStateWorkflows];
+    for (final target in targets) {
+      if (target is! SessionStateWorkflowContributor) continue;
+      final contributor = target as SessionStateWorkflowContributor;
+      for (final workflow in contributor.sessionStateWorkflows) {
+        if (workflows.any((final existing) => identical(existing, workflow))) {
+          continue;
+        }
+        workflows.add(workflow);
+      }
+    }
+    return List.unmodifiable(workflows);
+  }
 }
 
 /// A platform-specific pipeline (e.g. `AndroidPipeline` from oka_android).

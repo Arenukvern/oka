@@ -16,6 +16,7 @@ import 'package:oka/src/cli/init_command.dart';
 import 'package:oka/src/cli/launch_command.dart';
 import 'package:oka/src/cli/processes_command.dart';
 import 'package:oka/src/cli/run_command.dart';
+import 'package:oka/src/cli/session_state_command.dart';
 import 'package:oka/src/cli/stop_command.dart';
 import 'package:oka/src/version.dart';
 
@@ -70,6 +71,8 @@ void main(List<String> arguments) async {
         await CacheCommand().run(commandArgs);
       case 'processes':
         await ProcessesCommand().run(commandArgs);
+      case 'session-state':
+        await SessionStateCommand().run(commandArgs);
       case 'stop':
         await StopCommand().run(commandArgs);
       case 'run':
@@ -122,6 +125,8 @@ Commands:
              leases are the ADR-0018 records of processes oka spawned)
   stop      Stop a recorded process gracefully (`oka stop <lease-id>`;
              identity-verified, never signals a recycled pid)
+  session-state Inspect, resume, reconcile or close durable browser/emulator
+                state; resume is an explicit action, cleanup needs `--apply`
   get       Install missing Android SDK dependencies
   clean     Clean build cache
   cache     Storage stats and preview/apply pruning across platforms

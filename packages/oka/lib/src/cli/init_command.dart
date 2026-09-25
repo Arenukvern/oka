@@ -527,6 +527,11 @@ OkaInitResult entrypointFromYaml(Map<dynamic, dynamic> doc) {
   b.writeln('        steps: [...AndroidPipeline.defaultSteps],');
   b.writeln('      ),');
   b.writeln('    ],');
+  b.writeln('    // Lifecycle operations run against workflows composed here.');
+  b.writeln('    sessionStateWorkflows: [androidAvdStateWorkflow],');
+  b.writeln(
+    '    // Add chromeProfileStateWorkflow from package:oka_web when used.',
+  );
   b.writeln('  ),');
   b.writeln(');');
   for (final n in notices) {

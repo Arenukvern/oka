@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import '../config/build_context.dart';
 import '../pipeline/pipeline.dart';
+import '../session_state.dart';
 
 /// Core CLI verbs, reserved across all projects (ADR-0015).
 ///
@@ -25,6 +26,8 @@ const Set<String> reservedCliVerbs = {
   'launch',
   'run',
   'cache',
+  // ADR-0025: managed session-state inspection and cleanup surface.
+  'session-state',
   // ADR-0018 (L1): spawned-process lifecycle surface. Reserved ahead of
   // full rollout so no target can shadow the lease-inspection verbs.
   'processes',
@@ -195,6 +198,15 @@ abstract class Target {
   /// Debug string: the target name.
   @override
   String toString() => 'Target($name)';
+}
+
+/// Optional contract for targets that compose session-state workflows.
+///
+/// The workflows remain executable Dart values owned by the target package;
+/// the composition root gathers them without knowing their provider details.
+abstract interface class SessionStateWorkflowContributor {
+  /// Session-state workflows required by this target.
+  Iterable<SessionStateWorkflow<dynamic>> get sessionStateWorkflows;
 }
 
 /// Thrown when target resolution fails (unknown name, name shadowing a
