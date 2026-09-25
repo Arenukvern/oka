@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -14,11 +15,11 @@ void main() {
     setUp(() async {
       final scratch = await Directory.systemTemp.createTemp('oka-avd-state-');
       temp = Directory(await scratch.resolveSymbolicLinks());
-      project = Directory('${temp.path}/project');
+      project = Directory(p.join(temp.path, 'project'));
       await project.create();
-      avdHome = '${temp.path}/avds';
+      avdHome = p.join(temp.path, 'avds');
       await Directory(avdHome).create();
-      userdata = File('$avdHome/userdata-qemu.img');
+      userdata = File(p.join(avdHome, 'userdata-qemu.img'));
       await userdata.writeAsString('existing userdata');
       manager = SessionStateManager(
         registry: SessionStateRegistry(
