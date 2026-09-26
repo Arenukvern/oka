@@ -34,10 +34,10 @@ dependencies:
     sdk: flutter
 
   mcp_toolkit: ^5.0.4
-  oka: ^0.2.0 # x-release-please-version
-  oka_android: ^0.2.0 # x-release-please-version
-  oka_huawei: ^0.2.0 # x-release-please-version
-  oka_play: ^0.2.0 # x-release-please-version
+  oka: ^1.0.0 # x-release-please-version
+  oka_android: ^1.0.0 # x-release-please-version
+  oka_huawei: ^1.0.0 # x-release-please-version
+  oka_play: ^1.0.0 # x-release-please-version
 
 dependency_overrides:
   # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
