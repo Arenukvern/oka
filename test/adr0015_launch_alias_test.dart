@@ -20,11 +20,11 @@ void main() {
   late Directory sandbox;
   late String relBin;
 
-  Future<ProcessResult> okaCli(final List<String> args) => Process.run(
-        'dart',
-        ['run', relBin, ...args],
-        workingDirectory: sandbox.path,
-      );
+  Future<ProcessResult> okaCli(final List<String> args) => Process.run('dart', [
+    'run',
+    relBin,
+    ...args,
+  ], workingDirectory: sandbox.path);
 
   setUp(() async {
     sandbox = Directory(
@@ -36,7 +36,10 @@ void main() {
     );
     await Directory(p.join(sandbox.path, 'tool')).create(recursive: true);
     File(
-      p.join(Directory.current.path, 'test/fixtures/adr0015_device_entrypoint.dart'),
+      p.join(
+        Directory.current.path,
+        'test/fixtures/adr0015_device_entrypoint.dart',
+      ),
     ).copySync(p.join(sandbox.path, 'tool', 'oka_pipeline.dart'));
     relBin = p.relative(
       p.join(Directory.current.path, 'packages', 'oka', 'bin', 'oka.dart'),
@@ -49,8 +52,12 @@ void main() {
   });
 
   File marker() => File(
-        p.join(sandbox.path, '.oka_cache', 'build', 'debug', 'device-ran.txt'),
-      );
+    p.join(sandbox.path, '.oka_cache', 'build', 'debug', 'device-ran.txt'),
+  );
+
+  // Every case here shells out to `dart run` several times; cold CLI starts
+  // blow the 30s default whenever a real-pipeline test runs concurrently.
+  const cliTimeout = Timeout(Duration(minutes: 5));
 
   group('oka launch ≡ oka run device', () {
     test('identical output and exit code for the same dispatch', () async {
@@ -67,7 +74,7 @@ void main() {
       expect(result.exitCode, 0, reason: result.stderr as String);
       expect(await marker().readAsString(), contains('"verbose":false'));
     });
-  });
+  }, timeout: cliTimeout);
 
   group('launch flags', () {
     test('-d <serial> forwards as the device invocation arg', () async {
@@ -76,8 +83,7 @@ void main() {
         ['-d', 'FAKE123'],
       ]) {
         final result = await okaCli(['launch', ...flagValue]);
-        expect(result.exitCode, 0,
-            reason: '$flagValue: ${result.stderr}');
+        expect(result.exitCode, 0, reason: '$flagValue: ${result.stderr}');
         expect(await marker().readAsString(), contains('FAKE123'));
       }
     });
@@ -87,14 +93,13 @@ void main() {
       expect(result.exitCode, isNot(0));
     });
 
-    test('unknown invocation args are rejected by the target contract', () async {
-      final result = await okaCli([
-        'launch',
-        '--oka-target-arg',
-        'bogus=1',
-      ]);
-      expect(result.exitCode, isNot(0));
-    });
+    test(
+      'unknown invocation args are rejected by the target contract',
+      () async {
+        final result = await okaCli(['launch', '--oka-target-arg', 'bogus=1']);
+        expect(result.exitCode, isNot(0));
+      },
+    );
 
     test('--verbose is forwarded to the entrypoint', () async {
       final result = await okaCli(['launch', '--verbose']);
@@ -125,5 +130,5 @@ void main() {
         expect(await marker().exists(), isFalse);
       }
     });
-  });
+  }, timeout: cliTimeout);
 }

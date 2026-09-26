@@ -339,6 +339,9 @@ void main() {
     test(
       'release fails when R8 is unavailable instead of falling back to D8',
       () async {
+        // The shared fixture ships Host.kt; drop it so the kotlinc gate
+        // does not pre-empt the R8 gate under test here.
+        await File(p.join(host.path, 'Host.kt')).delete();
         final release = BuildContext(
           projectPath: temp.path,
           buildDir: temp.path,
