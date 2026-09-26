@@ -439,14 +439,21 @@ List<String> filterRuntimeJars(List<String> jars) {
 /// platform variants, then lexical order. Non-Maven paths pass through keyed
 /// by basename.
 List<String> _dedupeLatestPerArtifact(List<String> jars) {
-  final best = <String, ({String path, String version})>{};
+  final best = <String, ({String path, String version, bool placeholder})>{};
   for (final jar in jars) {
     final key = _artifactKey(jar);
     final version = _artifactVersion(jar);
+    final placeholder = _isPlaceholderJar(jar);
     final previous = best[key];
-    final comparison = previous == null
+    var comparison = previous == null
         ? 1
         : compareMavenVersions(version, previous.version);
+    // A metadata-shell placeholder carries no bytecode: any real jar of the
+    // same artifact — even an older version — beats it, otherwise the
+    // highest-version pick silently drops the classes from the runtime.
+    if (previous != null && previous.placeholder != placeholder) {
+      comparison = placeholder ? -1 : 1;
+    }
     final preferCandidate =
         previous != null &&
         comparison == 0 &&
@@ -454,10 +461,20 @@ List<String> _dedupeLatestPerArtifact(List<String> jars) {
             (!_prefersPlatformVariant(previous.path, jar) &&
                 jar.compareTo(previous.path) < 0));
     if (previous == null || comparison > 0 || preferCandidate) {
-      best[key] = (path: jar, version: version);
+      best[key] = (path: jar, version: version, placeholder: placeholder);
     }
   }
   return best.values.map((entry) => entry.path).toList();
+}
+
+/// Empty-stand-in jar substituted for AARs whose publication is a Gradle
+/// metadata shell (no classes.jar) — only ever useful as a compile marker.
+bool _isPlaceholderJar(String jarPath) {
+  try {
+    return File(jarPath).lengthSync() <= 200;
+  } catch (_) {
+    return false;
+  }
 }
 
 List<String> filterCompileOnlyJars(List<String> jars) {

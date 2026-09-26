@@ -48,6 +48,7 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
     // app resources win over AAR/plugin resources.
     final resDir = p.join(ctx.buildDir, 'res');
     final overlayZips = <String>[];
+    final compiledZipByDir = <String, String>{};
     for (var i = 0; i < pluginResDirs.length; i++) {
       final source = Directory(pluginResDirs[i]);
       if (!await source.exists()) continue;
@@ -69,6 +70,7 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
         );
       }
       overlayZips.add(zip);
+      compiledZipByDir[pluginResDirs[i]] = zip;
     }
 
     final compiledResources = p.join(ctx.buildDir, 'compiled_resources.zip');
@@ -139,6 +141,19 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
         error: '$label failed: ${link.stderr}',
       );
     }
+
+    // aapt2 link emits R.java only for the manifest package. AAR payloads
+    // ship no compiled R, so generate one per library package from its own
+    // AndroidManifest.xml — the same regeneration Gradle performs. Without
+    // this, bytecode compiled against e.g. androidx.core's `R$id` crashes
+    // with NoClassDefFoundError at runtime.
+    await _generateLibraryRClasses(
+      aapt2: aapt2,
+      androidJar: androidJar,
+      compiledZipByDir: compiledZipByDir,
+      generatedSourcesDir: generated,
+      processRunner: processRunner,
+    );
     return ResourceCompilationOutcome(
       ok: true,
       androidJar: androidJar,
@@ -146,6 +161,53 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
     );
   } on Exception catch (error) {
     return ResourceCompilationOutcome(ok: false, error: error.toString());
+  }
+}
+
+Future<void> _generateLibraryRClasses({
+  required final String aapt2,
+  required final String androidJar,
+  required final Map<String, String> compiledZipByDir,
+  required final String generatedSourcesDir,
+  required final AndroidProcessRunner processRunner,
+}) async {
+  if (compiledZipByDir.isEmpty) return;
+  stdout.writeln(
+    'oka: generating R for ${compiledZipByDir.length} library package(s)',
+  );
+  for (final entry in compiledZipByDir.entries) {
+    // res dir layout: <aar payload dir>/res → manifest sits beside it.
+    final manifest = p.join(p.dirname(entry.key), 'AndroidManifest.xml');
+    if (!File(manifest).existsSync()) continue;
+    final output = '${entry.value}.r.ap';
+    final link = await processRunner(
+      aapt2,
+      [
+        'link',
+        '-I',
+        androidJar,
+        '--manifest',
+        manifest,
+        '--java',
+        generatedSourcesDir,
+        '--auto-add-overlay',
+        '-o',
+        output,
+        '-R',
+        entry.value,
+      ],
+    );
+    if (link.exitCode != 0) {
+      // A package whose resources cannot stand alone contributes no R; the
+      // classes referencing it would already fail at javac time otherwise.
+      stderr.writeln(
+        'oka: per-library R generation skipped for ${entry.key}: '
+        '${link.stderr}',
+      );
+      continue;
+    }
+    final ap = File(output);
+    if (await ap.exists()) await ap.delete();
   }
 }
 

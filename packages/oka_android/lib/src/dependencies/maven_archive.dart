@@ -47,7 +47,13 @@ Future<String> extractClassesJarToFile(
   return destination;
 }
 
-Future<({Map<String, List<String>> nativeLibsByAbi, List<String> resDirs})>
+Future<
+  ({
+    Map<String, List<String>> nativeLibsByAbi,
+    List<String> resDirs,
+    String? manifestPath,
+  })
+>
 extractAarPayload(
   List<int> bytes,
   String destination, {
@@ -56,6 +62,7 @@ extractAarPayload(
   final archive = ZipDecoder().decodeBytes(bytes);
   final natives = <String, List<String>>{};
   var hasResources = false;
+  String? manifestPath;
   for (final file in archive) {
     if (!file.isFile) continue;
     final name = file.name.replaceAll(r'\', '/');
@@ -64,6 +71,13 @@ extractAarPayload(
       final output = p.join(destination, name);
       await _writeIfChanged(File(output), file.content as List<int>);
       natives.putIfAbsent(native.group(1)!, () => []).add(output);
+    } else if (name == 'AndroidManifest.xml') {
+      // Kept for per-package R generation: aapt2 link emits R.java only for
+      // the manifest package, so each AAR needs its own manifest to get its
+      // R class compiled (Gradle regenerates these the same way).
+      final output = p.join(destination, name);
+      await _writeIfChanged(File(output), file.content as List<int>);
+      manifestPath = output;
     } else if (name.startsWith('res/')) {
       // Full res tree (values XML, drawables incl. binaries, layouts…):
       // values XML may reference drawables that only exist as PNG/WebP —
@@ -86,7 +100,11 @@ extractAarPayload(
     );
     print('   AAR payload: $count natives, ${resources.length} res dir(s)');
   }
-  return (nativeLibsByAbi: natives, resDirs: resources);
+  return (
+    nativeLibsByAbi: natives,
+    resDirs: resources,
+    manifestPath: manifestPath,
+  );
 }
 
 /// Idempotent write: re-extracting a cached AAR payload (warm builds) skips

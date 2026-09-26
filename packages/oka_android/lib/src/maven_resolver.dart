@@ -72,10 +72,13 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() => const [
     version: '1.1.1',
     packaging: 'aar',
   ),
+  // The bare `tracing` AAR is an empty Gradle-metadata shell (no
+  // classes.jar) — the bytecode ships in the -android variant, mirroring
+  // lifecycle-runtime-android above.
   MavenCoordinate(
     groupId: 'androidx.tracing',
-    artifactId: 'tracing',
-    version: '1.2.0',
+    artifactId: 'tracing-android',
+    version: '1.3.0',
     packaging: 'aar',
   ),
   // Kotlin annotations referenced by Flutter embedding / AndroidX metadata
@@ -161,13 +164,21 @@ Future<String> extractClassesJarToFile(
 /// Result of resolving one coordinate to a local JAR path.
 typedef ResolvedJar = archive.ResolvedJar;
 
-/// Extracts AAR payload beyond classes.jar: `jni/<abi>/*.so` natives and res/.
+/// Extracts AAR payload beyond classes.jar: `jni/<abi>/*.so` natives,
+/// `res/`, and the AAR's own `AndroidManifest.xml` (for per-package R).
 ///
 /// Extraction target layout under [destDir]:
 /// - `jni/<abi>/<name>.so`
 /// - `res/<original res tree>`
+/// - `AndroidManifest.xml`
 /// Returns what was found; callers merge into staging/res compile inputs.
-Future<({Map<String, List<String>> nativeLibsByAbi, List<String> resDirs})>
+Future<
+  ({
+    Map<String, List<String>> nativeLibsByAbi,
+    List<String> resDirs,
+    String? manifestPath,
+  })
+>
 extractAarPayload(
   final List<int> aarBytes,
   final String destDir, {

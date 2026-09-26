@@ -60,6 +60,28 @@ class _MemoryRepository implements MavenArtifactRepository {
 }
 
 void main() {
+  test('embedding androidx set avoids empty-shell artifacts', () {
+    // androidx publishes bare `X` AARs that are Gradle-metadata shells with
+    // no classes.jar; the bytecode lives in `X-android`. Every AAR in the
+    // embedding set must use the -android variant where one exists.
+    const shellProne = {'lifecycle-runtime', 'arch-core-runtime', 'tracing'};
+    final aars = flutterEmbeddingAndroidXDeps().where(
+      (dep) => dep.packaging == 'aar',
+    );
+    for (final dep in aars) {
+      if (shellProne.contains(dep.artifactId)) {
+        fail(
+          '${dep.groupId}:${dep.artifactId} resolves to an empty-shell AAR; '
+          'use the -android variant',
+        );
+      }
+    }
+    expect(
+      flutterEmbeddingAndroidXDeps().map((dep) => dep.artifactId),
+      containsAll(<String>['tracing-android', 'lifecycle-runtime-android']),
+    );
+  });
+
   test(
     'resolver uses injected routing, transport and artifact repository',
     () async {
