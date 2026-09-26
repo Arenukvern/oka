@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import '../build/aapt2_commands.dart';
 import '../build/toolchain.dart';
+import 'manifest_merge.dart';
 import 'process_runner.dart';
 
 enum AndroidResourceFormat { apk, protoBundle }
@@ -102,6 +103,26 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
     final generated = p.join(ctx.buildDir, 'gen');
     await Directory(generated).create(recursive: true);
     final manifest = p.join(ctx.buildDir, 'AndroidManifest.xml');
+    // Merge AAR manifests into the app manifest before link: aapt2 will not
+    // do it, and libraries that declare runtime components break at runtime
+    // when the components are missing (e.g. CameraX's MetadataHolderService
+    // → NameNotFoundException → camera_start_failed).
+    final libraryManifests = [
+      for (final resDir in compiledZipByDir.keys)
+        p.join(p.dirname(resDir), 'AndroidManifest.xml'),
+    ]..removeWhere((final f) => !File(f).existsSync());
+    if (libraryManifests.isNotEmpty && File(manifest).existsSync()) {
+      final merged = mergeLibraryManifestsInto(
+        appManifestPath: manifest,
+        libraryManifestPaths: libraryManifests,
+      );
+      if (merged > 0) {
+        stdout.writeln(
+          'oka: merged $merged manifest element(s) from '
+          '${libraryManifests.length} library manifest(s)',
+        );
+      }
+    }
     final output = p.join(
       ctx.buildDir,
       format == AndroidResourceFormat.apk

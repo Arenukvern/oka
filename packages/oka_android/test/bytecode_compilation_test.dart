@@ -163,6 +163,43 @@ void main() {
       expect(filterRuntimeJars([root.path, jvm.path]), [jvm.path]);
       expect(filterRuntimeJars([jvm.path, root.path]), [jvm.path]);
     });
+    test('ktx artifacts do not shadow their base artifact', () async {
+      // -ktx is a distinct Maven artifact: stripping the suffix in the
+      // dedupe key made concurrent-futures-ktx win the tie-break against
+      // concurrent-futures and the base jar's classes silently vanished
+      // from the runtime dex (ClassNotFoundException at camera start).
+      final temp = await Directory.systemTemp.createTemp('oka_ktx_shadow');
+      addTearDown(() => temp.delete(recursive: true));
+      final base = File(
+        p.join(
+          temp.path,
+          'maven',
+          'androidx',
+          'concurrent',
+          'concurrent-futures',
+          '1.1.0',
+          'concurrent-futures-1.1.0.jar',
+        ),
+      );
+      final ktx = File(
+        p.join(
+          temp.path,
+          'maven',
+          'androidx',
+          'concurrent',
+          'concurrent-futures-ktx',
+          '1.1.0',
+          'concurrent-futures-ktx-1.1.0.jar',
+        ),
+      );
+      await base.parent.create(recursive: true);
+      await ktx.parent.create(recursive: true);
+      await base.writeAsBytes(List<int>.filled(300, 1));
+      await ktx.writeAsBytes(List<int>.filled(300, 2));
+
+      final kept = filterRuntimeJars([base.path, ktx.path]);
+      expect(kept, containsAll([base.path, ktx.path]));
+    });
     test(
       'R8 arguments keep program closure, use documented CLI flags only',
       () {

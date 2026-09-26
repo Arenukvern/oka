@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -265,10 +266,14 @@ Future<CompileDexOutcome> compileAndroidBytecode({
     final dexDirectory = Directory(dexOutput);
     if (await dexDirectory.exists()) await dexDirectory.delete(recursive: true);
     await dexDirectory.create(recursive: true);
+    final runtimeJars = await resolveClassConflicts(
+      jars: filterRuntimeJars(dependencyJars),
+      buildDir: ctx.buildDir,
+    );
     final programs = policy.programJars(
       classesJar: classesJar,
       embeddingJar: embeddingJar,
-      runtimeJars: filterRuntimeJars(dependencyJars),
+      runtimeJars: runtimeJars,
     );
     final compileOnly = policy.compileOnlyJars(dependencyJars);
     final minApi = ctx.config.android.minSdk.isEmpty
@@ -279,6 +284,9 @@ Future<CompileDexOutcome> compileAndroidBytecode({
         '   d8 program jars: ${programs.length}, '
         'lib jars: ${compileOnly.length + 1}',
       );
+      for (final jar in programs) {
+        print('   d8 program: $jar');
+      }
     }
     final shrinkerArtifacts = <String, String>{};
     ProcessResult result;
@@ -435,6 +443,88 @@ List<String> filterRuntimeJars(List<String> jars) {
   return _dedupeLatestPerArtifact(eligible);
 }
 
+/// Resolves cross-artifact duplicate classes before dexing.
+///
+/// Distinct Maven artifacts can ship the same class: androidx publishes
+/// Kotlin content twice across eras (`collection-ktx` 1.1.0 and
+/// `collection-jvm` 1.4.4 both define `ArraySetKt`). Gradle tolerates that
+/// through classpath ordering; d8 fails hard with "defined multiple times".
+/// The conflicted classes stay with the jar whose artifact version is
+/// newest, and losing jars are repacked (into [buildDir]) without them.
+/// Jars without conflicts pass through untouched.
+Future<List<String>> resolveClassConflicts({
+  required final List<String> jars,
+  required final String buildDir,
+}) async {
+  if (jars.length < 2) return jars;
+  final entriesByJar = <String, Set<String>>{};
+  final classOwners = <String, String>{};
+  for (final jar in jars) {
+    final List<String> names;
+    try {
+      names = ZipDecoder()
+          .decodeBytes(File(jar).readAsBytesSync())
+          .files
+          .where((final f) => f.isFile && f.name.endsWith('.class'))
+          .map((final f) => f.name)
+          .toList(growable: false);
+    } on FormatException {
+      continue; // Not a zip / unreadable — leave it to d8 to complain.
+    }
+    entriesByJar[jar] = names.toSet();
+    final version = _artifactVersion(jar);
+    for (final name in names) {
+      final owner = classOwners[name];
+      if (owner == null || compareMavenVersions(version, _artifactVersion(owner)) > 0) {
+        classOwners[name] = jar;
+      }
+    }
+  }
+  final conflicts = <String, String>{};
+  classOwners.forEach((final name, final owner) {
+    final claimants = entriesByJar.entries
+        .where((final e) => e.value.contains(name))
+        .map((final e) => e.key)
+        .toList();
+    if (claimants.length > 1) conflicts[name] = owner;
+  });
+  if (conflicts.isEmpty) return jars;
+
+  final losing = <String, Set<String>>{};
+  conflicts.forEach((final name, final owner) {
+    for (final claimant
+        in entriesByJar.entries.where((final e) => e.value.contains(name))) {
+      if (claimant.key != owner) {
+        losing.putIfAbsent(claimant.key, () => <String>{}).add(name);
+      }
+    }
+  });
+  stderr.writeln(
+    'oka: resolving ${conflicts.length} duplicate class(es) across '
+    '${losing.length} jar(s) — newest artifact version wins',
+  );
+  final dedupDir = p.join(buildDir, 'dedup-jars');
+  await Directory(dedupDir).create(recursive: true);
+  final resolved = <String>[];
+  for (final jar in jars) {
+    final dropped = losing[jar];
+    if (dropped == null || dropped.isEmpty) {
+      resolved.add(jar);
+      continue;
+    }
+    final archive = ZipDecoder().decodeBytes(File(jar).readAsBytesSync());
+    final repacked = Archive();
+    for (final file in archive.files) {
+      if (file.isFile && dropped.contains(file.name)) continue;
+      repacked.addFile(file);
+    }
+    final out = p.join(dedupDir, '${p.basename(jar)}.dedup.jar');
+    await File(out).writeAsBytes(ZipEncoder().encodeBytes(repacked));
+    resolved.add(out);
+  }
+  return resolved;
+}
+
 /// Highest-version jar per Maven artifact key; ties prefer `-android`/`-jvm`
 /// platform variants, then lexical order. Non-Maven paths pass through keyed
 /// by basename.
@@ -510,8 +600,12 @@ String _artifactKey(String jarPath) {
   final parts = p.split(jarPath);
   if (parts.length >= 4) {
     final version = parts[parts.length - 2];
+    // -android/-jvm suffixes denote platform variants of the SAME artifact;
+    // -ktx is a distinct Maven artifact and must not be folded into its base
+    // (concurrent-futures-ktx otherwise shadows concurrent-futures and the
+    // base jar's classes silently vanish from the runtime dex).
     var artifact = parts[parts.length - 3];
-    artifact = artifact.replaceAll(RegExp(r'-(android|jvm|ktx)$'), '');
+    artifact = artifact.replaceAll(RegExp(r'-(android|jvm)$'), '');
     final group = <String>[];
     for (var i = parts.length - 4; i >= 0; i--) {
       if (parts[i] == 'maven' || parts[i] == 'cache') break;

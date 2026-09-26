@@ -93,7 +93,6 @@ class ExtraDepsStep extends BuildStep {
     // contributes res/natives when a newer version is already resolved —
     // payloads come from the same version whose classes are on the classpath.
     final embedding = <ResolvedJar>[...state.androidxJars];
-    final embeddingPaths = embedding.map((final jar) => jar.jarPath).toSet();
     final selected = _selectLatestByArtifact([
       ...embedding,
       ...byJarPath.values,
@@ -110,8 +109,18 @@ class ExtraDepsStep extends BuildStep {
     }
     // Embedding-set winners are already on the classpath via androidxJars;
     // only genuinely extra artifacts become extra runtime jars.
+    final selectedPaths = selected.map((final jar) => jar.jarPath).toSet();
+    // One version per artifact everywhere: the embedding list is narrowed to
+    // the selected winners. A loser riding along on the classpath or in the
+    // dex splits versions across the APK — camera-core 1.4.2 beside the
+    // transitive 1.6.1 made CameraX's provider resolution fail at runtime
+    // while every compile-time symbol resolved cleanly.
+    state.androidxJars = state.androidxJars
+        .where((final jar) => selectedPaths.contains(jar.jarPath))
+        .toList();
+    final keptPaths = state.androidxJars.map((final j) => j.jarPath).toSet();
     state.extraRuntimeJars = selected
-        .where((final jar) => !embeddingPaths.contains(jar.jarPath))
+        .where((final jar) => !keptPaths.contains(jar.jarPath))
         .map((final jar) => jar.jarPath)
         .toList();
     state.aarNativeLibsByAbi = natives;
