@@ -1,0 +1,69 @@
+# 0026 — oka_harness: device E2E targets over the owning dev session
+
+- **Status:** accepted
+- **Date:** 2026-09-27
+- **Depends on:** 0011 (hot-reload run loop), 0015 (CLI verb/target split),
+  0022 (capability boundaries and lifecycle ownership), 0024 (declarative
+  test workflows and agent adapters)
+- **Companion decision:** mcp_flutter ADR-0015 (`flutter_mcp_harness`)
+
+## Context
+
+ADR-0024 fixed the shape of a test workflow — `provision/install →
+launch/connect → observe → assert → report → teardown` with typed
+artifacts — but the `launch/connect` segment had no reusable
+implementation. Every E2E loop bridged oka and the observation oracle with
+shell glue (`oka build` → `adb install` → `am start` → logcat grep), which
+is the exact "pile of shell" failure mode the declarative build was built
+to remove, repeated per project.
+
+Meanwhile the `flutter_mcp_harness` core (mcp_flutter ADR-0015) landed the
+generic drive/assert half (`LogTap`, `Scenario`, `VmClient`, `WidgetDriver`,
+`AppTarget`) — extracted from the vosges project's production E2E loop.
+It has no device bring-up: per mcp_flutter ADR-0014 the toolkit never owns
+compilation, and an app has one owning attach session.
+
+## Decision
+
+Add `oka_harness` (`packages/oka_harness`) as a small leaf package over
+`oka_android` implementing the launch/connect segment as an `AppTarget`:
+
+- `AndroidAppTarget.launch()` spawns `oka dev` — the owning session (build
+  → install → launch → VM forward → attach) — and consumes its published
+  `.flutter_mcp/runner-session.json` (spec v2) for the forwarded
+  host-reachable `vm_service_uri`. No second attach, no logcat URI
+  scraping; file absence is the liveness signal.
+- Device logs stream from `adb logcat` into the same harness `LogTap`
+  (prefixed `[logcat] `), so log assertions read the same as desktop.
+- `launch(build: false)` refuses by design: bring-up through a second owner
+  is the bug class ADR-0014 removed. Observing a live session is
+  `driverForLiveSession()` — read the file, connect, no ownership.
+- The package shells the `oka` CLI (verbs are the stable surface,
+  ADR-0015); it imports `oka_android`'s dev-session discovery API but no
+  CLI internals.
+
+Until `flutter_mcp_harness` is published, the workspace root carries a
+`dependency_overrides` path bridge to the local mcp_flutter checkout
+(the established pre-publish pattern); the bridge is removed on release.
+
+## Alternatives considered
+
+- **`oka test` execution engine** — rejected: ADR-0024 decided tests are
+  targets, not a second engine. This package adds no runner at all; the
+  scenario loop lives in `flutter_mcp_harness` and composition roots live
+  in consuming projects.
+- **Vendor the whole harness core into oka** — rejected: the driving layer
+  speaks the `ext.mcp.toolkit.*` protocol and belongs beside `mcp_toolkit`
+  where renames break CI. oka owns lifecycle, not the toolkit protocol.
+- **Keep shell glue per project** — rejected: it re-implements install/
+  launch oka already owns and drifts per project (it did, in vosges's
+  `device_test.sh`).
+
+## Consequences
+
+- The ADR-0024 `launch/connect` segment is one typed call; smoke tests,
+  CI gates, and agent-driven inspection compose over the same session.
+- Android E2E joins desktop E2E behind one interface (`AppTarget`);
+  emulator/CI matrices can layer on the same primitive later.
+- Pre-publish, oka's workspace resolution depends on a local mcp_flutter
+  checkout; the override bridge is release-blocking debt by construction.

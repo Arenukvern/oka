@@ -15,6 +15,7 @@ class ManifestSpec {
     this.permissions = const ['android.permission.INTERNET'],
     this.applicationAttributes = const {},
     this.applicationMetaData = const [],
+    this.applicationElements = const [],
     this.activityAttributes = const {},
     this.activityMetaData = const [],
     this.deeplinks = const [],
@@ -46,6 +47,7 @@ class ManifestSpec {
     final actMetaData = map['activity_meta_data'];
     final links = map['deeplinks'];
     final rawElements = map['manifest_elements'];
+    final rawAppElements = map['application_elements'];
     return ManifestSpec(
       permissions: perms is List
           ? perms.map((final e) => e.toString()).toList(growable: false)
@@ -69,6 +71,11 @@ class ManifestSpec {
       manifestElements: rawElements is List
           ? rawElements.map((final e) => e.toString()).toList(growable: false)
           : const [],
+      applicationElements: rawAppElements is List
+          ? rawAppElements
+                .map((final e) => e.toString())
+                .toList(growable: false)
+          : const [],
       deeplinks: links is List ? DeeplinkConfig.parse(links) : const [],
       cleartextTraffic:
           map['cleartext_traffic'] is bool
@@ -88,6 +95,11 @@ class ManifestSpec {
 
   /// `<meta-data>` entries under `<application>`.
   final List<MetaDataSpec> applicationMetaData;
+
+  /// Raw XML fragments injected verbatim under `<application>` (after the
+  /// activity and meta-data entries). Escape hatch for surface the typed
+  /// spec does not model yet — `<service>`, `<receiver>`, `<provider>`, etc.
+  final List<String> applicationElements;
 
   /// Extra `<activity>` XML attributes (passthrough), e.g.
   /// `{'android:launchMode': 'singleTask'}`.

@@ -164,6 +164,11 @@ String generateAndroidManifestFromSpec({
       )
       .join('\n');
 
+  // Raw application-level elements (services, receivers, providers, ...).
+  final appElements = spec.applicationElements
+      .map((final e) => '        $e')
+      .join('\n');
+
   final actAttrLines = spec.activityAttributes.entries
       .map((final e) => '            ${e.key}="${e.value}"')
       .join('\n');
@@ -231,6 +236,7 @@ $actMetaDataLines$normalThemeMetaData
 $filters
         </activity>
 $metaDataLines
+$appElements
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
