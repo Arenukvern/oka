@@ -1,0 +1,284 @@
+# 0026 — Declarative resource composition API and SDK
+
+- **Status:** accepted (design direction; implementation is gated by the plan)
+- **Date:** 2025-02-04
+- **Decision-makers:** Arenukvern, oka agent
+- **Related:** ADR-0002 (composable pipelines), ADR-0006 (typed Dart
+  composition), ADR-0011 (external daemon protocol adapter), ADR-0015
+  (project-declared targets), ADR-0017 (session handles), ADR-0018
+  (process leases and teardown), ADR-0024 (agent adapters)
+
+## Context
+
+Projects repeatedly need to compose and operate local processes, sessions,
+and supporting services. Examples include the `ecsai_harness` agent harness,
+Oka's emulator and browser sessions, and IntentCall's ACP/MCP-backed
+workflows. Today, each system can grow its own command construction,
+readiness probes, handles, recovery behavior, logs, and diagnostic scripts.
+
+“Daemon” is too narrow and overloaded for a shared API. A resource may be a
+short-lived child process, a long-running coding-agent CLI, an externally
+managed service, or a protocol session attached to a separate process. They
+share lifecycle concerns, but not necessarily a launcher, a session
+protocol, or a supervisor.
+
+Crash observation and reconciliation are general lifecycle concerns. Durable
+leases are one useful mechanism when a resource may outlive its creator and
+must later be adopted or stopped; they are not mandatory for every child
+process. Diagnostics are also part of normal operation: any process can
+fail, and its exit status, output, readiness history, and crash evidence
+should be available through a consistent, policy-controlled surface.
+
+Oka already has a safe process-lifecycle implementation: leases, verified
+stopping, reconciliation, teardown, and CLI/JSON inventory. ADR-0018 also
+intentionally rejects a resident Oka supervisor and a generic process
+manager inside `oka_core`. This proposal does not replace those mechanisms
+or change Oka's no-daemon posture. It establishes a possible cross-project
+composition surface with replaceable implementations and leaves its package
+boundary gated on real use.
+
+## Decision
+
+Design a **declarative resource composition API/SDK** around immutable
+component descriptions, validated before execution, with independently
+replaceable providers and runtime services.
+
+The API is about **what is composed and what lifecycle guarantees are
+requested**. Adapters decide how those guarantees are implemented.
+
+1. **Call the unit a component/resource, not a daemon.** A component may
+   represent a process, an external resource, or a protocol session. The
+   initial implementation focuses on process-backed services and sessions;
+   it does not require all component kinds to share one implementation.
+2. **Compose typed immutable values.** A composition is a dependency graph
+   of named components, requirements, readiness conditions, lifecycle
+   policies, output handles, and diagnostic policies. `copyWith`-style
+   replacement and constructor injection are the normal customization
+   mechanisms. Hidden global registries and mutable plan surgery are not.
+3. **Validate and explain before side effects.** The system checks
+   dependencies, cycles, provider capabilities, readiness definitions,
+   policies, and outputs while making a plan. It must be possible to inspect
+   the plan without starting resources.
+4. **Make lifecycle behavior explicit and replaceable.** Common operations
+   include `start`, `inspect`, `stop`, and `reconcile`; `attach` and
+   `awaitReady` are capabilities a provider may offer. Crash reconciliation
+   is part of the lifecycle contract: every resource reports observed state
+   and its recovery decision, including `unknown` when identity cannot be
+   proven. Automatic restart is a policy, not an implicit default.
+5. **Do not require leases.** A provider can use a live parent handle for a
+   command-scoped process, or a durable lease/store when a process can
+   outlive its owner and needs later adoption or cleanup. Lease persistence,
+   identity checks, and stop semantics are backend responsibilities exposed
+   through explicit capabilities. Oka's adapter must retain ADR-0018's
+   identity-before-signal and owned/borrowed safety rules.
+6. **Make evidence a composed capability.** A run can record a structured
+   lifecycle timeline, readiness and restart history, exit code/signal,
+   stdout/stderr, and stack traces or crash artifacts when available.
+   Evidence storage, export, retention, and redaction are replaceable
+   policies. Evidence is diagnostic, not authority to terminate a process.
+7. **Keep supervision optional.** The reference runtime may run in the
+   foreground and reconcile when invoked, with no resident manager.
+   Developers can compose a supervisor or build their own; integrations for
+   systemd/launchd supervisors, container runtimes, or remote managers are
+   optional adapters, not requirements of the core API.
+8. **Separate language APIs from interoperability.** Each language may
+   offer an idiomatic typed SDK. A versioned, language-neutral descriptor
+   and event contract may carry portable component data between tools.
+   Provider-specific configuration is namespaced and capability-declared;
+   the design does not pretend arbitrary user code or every runtime option
+   can be serialized into one universal DSL.
+9. **Keep session protocols in adapters.** MCP and ACP own their session
+   and request semantics. A provider can start or attach to a process and
+   expose a session handle, but the composition core does not implement
+   those protocols.
+10. **Treat execution and evidence as security boundaries.** Executable
+    argv, working directories, environment, endpoints, logs, and crash
+    artifacts can be sensitive or dangerous. Use argv rather than shell
+    concatenation, represent secrets by references, redact before evidence
+    leaves the runtime, and require explicit policy for privileged actions,
+    retention, and untrusted component declarations.
+
+### API design — long vision
+
+The conceptual model has five independently replaceable parts:
+
+| Part | Owns |
+|---|---|
+| `Composition` | Immutable component graph, dependencies, typed outputs |
+| `ComponentProvider` | Component-specific plan, start/attach, readiness, inspection, stop, and reconciliation behavior |
+| `Runtime` | Execution mechanics: local child process, container, remote runner, or a project-defined backend |
+| `Supervisor` | Optional desired-state loop, restart/backoff policy, and continuous reconciliation |
+| `EvidenceSink` / `StateStore` | Diagnostic evidence and optional durable identity/lease records |
+
+The execution shape is:
+
+```text
+typed component values
+       ↓
+validate + explain (no side effects)
+       ↓
+runtime/provider adapters
+       ↓
+handles + lifecycle events + diagnostic evidence
+```
+
+The following Dart-like examples are **illustrative only**. Names, signatures,
+serialization, and package boundaries are not frozen by this ADR.
+
+```dart
+final localDev = Composition(
+  components: [
+    ProcessComponent(
+      id: 'api',
+      command: Command('dart', ['run', 'bin/server.dart']),
+      readyWhen: HttpReady(Uri.parse('http://127.0.0.1:8080/health')),
+      lifecycle: const Lifecycle(
+        scope: Scope.session,
+        onCrash: CrashPolicy.reconcile,
+      ),
+      diagnostics: const Diagnostics(
+        captureStdout: true,
+        captureStderr: true,
+        captureCrashArtifacts: true,
+      ),
+    ),
+    HarnessComponent(
+      id: 'agent',
+      provider: const EcsaiHarnessProvider(/* typed options */),
+      dependsOn: const ['api'],
+      lifecycle: const Lifecycle(scope: Scope.session),
+    ),
+  ],
+  runtime: const LocalProcessRuntime(),
+  evidence: const JsonlEvidenceSink(),
+);
+```
+
+An alternate composition can replace one component provider, the runtime,
+the supervisor, or the evidence sink independently. The component graph
+remains the source of truth; validation rejects a replacement that does not
+support a component's declared capabilities.
+
+```dart
+final ci = localDev.copyWith(
+  components: localDev.components.replace(
+    'api',
+    localDev.component('api').copyWith(
+      provider: const ContainerProcessProvider(),
+    ),
+  ),
+  runtime: const MyContainerRuntime(),
+  supervisor: const RestartingSupervisor(
+    backoff: ExponentialBackoff(maxAttempts: 3),
+  ),
+  evidence: const RetainedFileEvidenceSink(maxRuns: 10),
+);
+```
+
+A developer can define a provider or supervisor using the same public
+contracts, without modifying the composition core:
+
+```dart
+final custom = localDev.copyWith(
+  runtime: const MyRuntime(),
+  evidence: const MyEvidenceSink(),
+);
+```
+
+The eventual core contract should return typed handles and structured
+observations rather than requiring downstream components to parse arbitrary
+stdout. A component should be able to declare optional capabilities such as
+`attach`, `durableIdentity`, or `readinessProbe`; composition-time validation
+reports when a selected provider cannot meet a requirement.
+
+### Oka boundary
+
+Oka remains a consumer/adapter, not the mandatory home of this SDK:
+
+- `oka_core` keeps the current `ProcessLeaseRegistry`, stop policy, and
+  teardown guarantees until a separately gated integration proves otherwise.
+- An Oka adapter may map the shared lifecycle concepts onto those existing
+  contracts; it must not weaken identity checks, borrowed-process handling,
+  or no-daemon behavior.
+- This ADR narrows ADR-0018's “generic framework” exclusion to Oka itself:
+  a separate optional SDK may be explored, but extracting it into
+  `oka_core` or adding a resident Oka service is **not** authorized here.
+- Oka's CLI/JSON remains a valid agent interface. MCP/ACP integrations
+  project the same declared compositions; they do not become a second
+  lifecycle source of truth.
+
+## Out of scope
+
+- A mandatory resident process, global registry, or central control plane.
+- A lease file for every process, global refcounting, or implicit adoption
+  of foreign processes.
+- One universal process/session superclass with `kind` switches.
+- Replacing MCP, ACP, systemd, launchd, OCI/container runtimes, or
+  Kubernetes.
+- A mandatory restart policy or silent restart-on-crash default.
+- Loading arbitrary plugins into a privileged supervisor process.
+- Capturing unredacted secrets or retaining diagnostics without an explicit
+  policy.
+- Publishing a package or freezing a public wire schema before the plan's
+  cross-project validation gates pass.
+
+## Alternatives considered
+
+- **Build one resident “daemon manager.”** Rejected as the foundation:
+  it creates a privileged long-lived authority, conflicts with Oka's
+  no-daemon posture, and duplicates existing supervisors. It remains a
+  possible optional implementation behind the contract.
+- **Put the generic manager in `oka_core`.** Rejected for now: Oka already
+  has a deliberate, project-local lease model, and a cross-language SDK
+  should not depend on Oka. An Oka adapter can be evaluated after the
+  contract is proven.
+- **Standardize only on process leases.** Rejected: leases solve durable
+  identity and adoption for some processes, not composition, readiness,
+  protocol-session handles, or diagnostics for all components.
+- **Use MCP/ACP as the lifecycle API.** Rejected: these are useful session
+  adapters, not OS-process supervision or a universal composition language.
+- **Use only shell commands or a YAML manifest.** Rejected as the sole
+  authoring model: it undercuts typed, replaceable composition. A portable
+  descriptor may still be useful for inter-language handoff.
+- **Freeze a large plugin/event framework up front.** Rejected: first prove
+  the smallest common contract with real adapters and scripted fakes.
+
+## Consequences
+
+Good:
+
+- Developers can declare a resource graph once and replace runtimes,
+  providers, supervisors, and evidence sinks independently.
+- Lifecycle behavior and debugging evidence are explicit and inspectable
+  before processes start.
+- Crash reconciliation is a shared expectation while lease persistence
+  remains an optional, capability-specific mechanism.
+- Oka can reuse the common vocabulary without abandoning ADR-0018's
+  conservative safety model.
+- Language-neutral interoperability can grow from concrete SDKs rather
+  than forcing every author into one language or protocol.
+
+Bad / Neutral:
+
+- A second public abstraction can duplicate Oka contracts unless the adapter
+  boundary is small and tested.
+- “Same lifecycle” can hide incompatible semantics; capability declarations
+  and explicit `unknown` results are required instead of lowest-common-
+  denominator behavior.
+- Diagnostic evidence introduces storage, redaction, and retention policy
+  work; it must not become an unbounded log sink.
+- Cross-language compatibility adds schema/versioning obligations.
+- Restart and reconciliation can be dangerous when identity or ownership is
+  uncertain; the safe default is report, do not guess or kill.
+
+## Phased plan
+
+See [the resource composition plan](../guides/resource_composition_plan):
+inventory real cases, prove the component model, prototype swappable
+providers and evidence, then decide the package boundary and optional
+supervisor integrations. No implementation phase is complete until its
+tests and evidence exist.
+
+**Authoritative source:** this ADR for design direction;
+`docs/guides/resource_composition_plan.mdx` for validation gates; follow-up
+code, contracts, and tests for shipped behavior.

@@ -1,0 +1,246 @@
+# Declarative resource composition — design and execution plan (ADR-0026)
+
+**Status:** design direction accepted; implementation has not started.
+
+This plan tests whether a reusable composition API can serve Oka,
+`ecsai_harness`, and IntentCall without flattening their different process,
+session, and supervisor semantics. It is not approval to add a resident
+service or extract Oka internals into a new package.
+
+## Goals and constraints
+
+- Let developers declare components, dependencies, readiness, lifecycle,
+  outputs, and diagnostics as typed, immutable values.
+- Make providers, runtimes, supervisors, state stores, and evidence sinks
+  independently replaceable or user-implemented.
+- Treat crash observation and reconciliation as general lifecycle behavior;
+  make durable leases optional for resources that outlive their creator or
+  need later adoption.
+- Keep MCP/ACP as protocol adapters; do not make them the process manager.
+- Preserve Oka's lease identity, owned/borrowed, teardown, and no-daemon laws.
+- Prove cross-language interoperability through shared contracts and
+  fixtures, not through a claim that one source-language API works
+  everywhere.
+
+## API shape to validate
+
+The intended developer experience is a declarative graph plus an explicit
+runtime selection. The following pseudocode illustrates the direction only;
+it is not a released API:
+
+```dart
+final composition = Composition(
+  components: [
+    ProcessComponent(
+      id: 'api',
+      command: Command('dart', ['run', 'bin/server.dart']),
+      readyWhen: HttpReady(Uri.parse('http://127.0.0.1:8080/health')),
+      lifecycle: const Lifecycle(
+        scope: Scope.session,
+        onCrash: CrashPolicy.reconcile,
+      ),
+      diagnostics: const Diagnostics(
+        captureStdout: true,
+        captureStderr: true,
+        captureCrashArtifacts: true,
+      ),
+    ),
+    HarnessComponent(
+      id: 'agent',
+      provider: const EcsaiHarnessProvider(/* typed options */),
+      dependsOn: const ['api'],
+      lifecycle: const Lifecycle(scope: Scope.session),
+    ),
+  ],
+  runtime: const LocalProcessRuntime(),
+  evidence: const JsonlEvidenceSink(),
+);
+```
+
+Components should expose typed handles to downstream work. A `validate` or
+`explain` operation must show dependencies, capabilities, lifecycle policy,
+and outputs without launching anything. An alternate runtime or custom
+supervisor should be replaceable at the composition boundary:
+
+```dart
+final ci = composition.copyWith(
+  components: composition.components.replace(
+    'api',
+    composition.component('api').copyWith(
+      provider: const ContainerProcessProvider(),
+    ),
+  ),
+  runtime: const MyContainerRuntime(),
+  supervisor: const MySupervisor(),
+  evidence: const RetainedFileEvidenceSink(maxRuns: 10),
+);
+```
+
+The API should distinguish at least:
+
+| Concern | Contract question |
+|---|---|
+| Composition | What components exist, what depends on what, and what typed handles are produced? |
+| Provider | How does this component start, attach, become ready, stop, and reconcile? |
+| Runtime | Where and through what mechanism does the provider execute? |
+| Supervisor | Is desired state continuously maintained, or only reconciled when invoked? |
+| Evidence | Which lifecycle events and diagnostics are captured, where, for how long, and with what redaction? |
+| Persistence | Does this component need a lease or other durable identity because it can outlive its creator? |
+
+These are seams to prove, not a requirement to create a class or package for
+every row on day one.
+
+## Phases and gates
+
+### R0 — Cross-project case inventory
+
+Write a behavior matrix for:
+
+- Oka emulator and browser resources, including ownership, readiness,
+  borrowed instances, teardown, and crash reconciliation.
+- `ecsai_harness` lifecycle: launch, readiness, attach, failure, diagnostics,
+  and whether any process outlives its launcher.
+- IntentCall ACP/MCP session lifecycle, separating protocol session state
+  from the process hosting a server.
+- At least one long-running coding-agent CLI that may outlive its original
+  client, to test where durable leases and later adoption matter.
+
+For each case, record the expected state transitions, recovery decision,
+handle, evidence, and platform-specific operations. Do not treat
+reconciliation as a special category: identify what each provider can
+observe and how it reports uncertainty.
+
+**Gate:** at least two independent systems can express the same core
+lifecycle guarantees without pretending their launch, protocol, or
+supervision mechanisms are identical. If not, narrow the common contract.
+
+### R1 — Contract and state-model RFC
+
+Specify and review:
+
+- Immutable composition/component values and dependency validation.
+- Lifecycle states and structured transitions, including failed, crashed,
+  stopped, and unknown.
+- Idempotency, timeouts, cancellation, readiness versus liveness, and
+  `start`/`attach`/`inspect`/`stop`/`reconcile` capabilities.
+- Crash policy and safe handling when identity, ownership, or liveness is
+  unknown.
+- Optional lease/state-store requirements for adoptable, long-lived
+  resources; no mandatory lease for every process.
+- Typed handles and provider capabilities.
+- Diagnostic event shape, stdout/stderr references, exit code/signal,
+  readiness/restart history, crash artifacts, retention, and redaction.
+- Execution trust boundaries, authorization for privileged actions,
+  command provenance, secret references, and evidence access controls.
+- Language-neutral descriptor/event compatibility and provider-specific
+  extension rules.
+
+**Gate:** agree on a minimal, versioned contract and failure semantics
+before committing to package names, a wire protocol, or a public schema.
+
+### R2 — Reference SDK and composition validation
+
+Prototype the authoring and validation path in the language with the
+clearest first consumer. Use immutable typed values and constructor
+injection; keep the runner and OS process operations behind replaceable
+interfaces.
+
+Build scripted-fake providers first. The planner must report missing
+dependencies, cycles, unsupported capabilities, invalid lifecycle policies,
+and conflicting output handles before execution. A fake run must verify
+event order and expose typed handles without launching real processes.
+
+Include diagnostic evidence in the prototype from the start. Test redaction
+before persistence and verify evidence remains readable after a simulated
+process failure.
+
+**Gate:** composition is inspectable without side effects, invalid graphs
+fail before start, and changing a provider/runtime/evidence sink does not
+require editing unrelated components.
+
+### R3 — Cross-project adapters
+
+Prototype adapters without changing the systems' ownership boundaries:
+
+1. An Oka adapter maps the common concepts onto existing
+   `ProcessLeaseRegistry`, `ProcessSurface`, and `TeardownRunner` behavior.
+   It must preserve identity verification, borrowed-resource protections,
+   and cleanup that never masks the primary result.
+2. An `ecsai_harness` adapter proves a non-Oka process/session provider can
+   use the same composition and evidence contracts.
+3. An IntentCall adapter exposes ACP/MCP handles and protocol lifecycle as
+   a component capability; protocol internals remain in IntentCall.
+4. Add a second-language consumer and contract fixtures if the first
+   prototype is language-specific. The consumer must be able to read/write
+   the shared portable descriptors/events without importing the first
+   SDK.
+
+**Gate:** at least two runtime/provider implementations pass the same
+contract tests, and cross-language fixtures round-trip without losing
+required semantics. Do not extract Oka's current process manager wholesale.
+
+### R4 — Failure, recovery, and evidence hardening
+
+Exercise the failure cases that determine whether the design is safe:
+
+- Child exits cleanly, exits nonzero, is signaled, crashes, or is killed
+  while the composing client is still running.
+- Composing client crashes or is forcibly terminated; a later invocation
+  reconciles observed state.
+- Identity is stale, PID is reused, a lease is missing/corrupt, or the
+  resource is borrowed or externally managed.
+- Two compositions race to start, attach, stop, or reconcile the same
+  resource.
+- Readiness times out, restart/backoff is exhausted, or a stop operation
+  hangs.
+- Output contains secrets; logs are large; crash artifacts are unavailable;
+  evidence retention removes older runs.
+
+Evidence should include a structured event timeline and references to
+stdout/stderr, exit status/signal, readiness/restart history, and available
+stack traces or crash artifacts. Unknown identity must remain unknown; it
+must never silently grant kill authority.
+
+**Gate:** tests prove safe behavior under each supported failure class;
+platform integration tests are labeled and accompanied by real evidence
+where the claim depends on host behavior.
+
+### R5 — Package boundary and optional supervisors
+
+Only after R0–R4, decide whether the result should be:
+
+- An independent package/project with language-specific SDKs and a shared
+  descriptor/event contract.
+- A small common contract plus adapters maintained by each consuming
+  project.
+- A narrower Oka-local API because the cross-project use cases did not
+  justify a shared SDK.
+
+If real users need continuous desired-state enforcement, evaluate
+supervisors as separate replaceable implementations or packages. Start with
+an explicit local/foreground runtime; consider systemd/launchd supervisors,
+container runtimes, or remote managers only for demonstrated needs. No
+supervisor becomes mandatory by virtue of this ADR.
+
+**Gate:** the package decision names ownership, versioning, compatibility,
+security, and support boundaries; optional supervisors pass the same
+provider contract without altering the declarative component graph.
+
+## Verification matrix
+
+| Claim | Evidence required |
+|---|---|
+| Declaration is compositional | Tests replace one provider/runtime/evidence sink while keeping unrelated component values unchanged |
+| Plan is safe to inspect | Plan/explain tests prove no process or network side effects |
+| Recovery is general | Crash/reconcile tests across short-lived, long-lived, adopted, and external resources |
+| Leases are optional | A command-scoped process works without durable state; a persistent process can be safely adopted from durable identity |
+| Diagnostics are useful and safe | Failure fixtures cover output, signal/exit status, readiness, restart, crash artifacts, redaction, and retention |
+| Language boundary is real | Independent-language implementation passes shared schema/event fixtures |
+| Oka remains compatible | Existing process lease, teardown, no-daemon, and identity-safety suites remain green |
+
+No phase is considered complete from design prose alone. When implementation
+begins, add only code-ready phases and their test/evidence gates to
+[`PHASE_CHECKLIST`](../PHASE_CHECKLIST).
+
+**Authoritative source:** [ADR-0026](../decisions/0026-declarative-resource-composition-sdk);
+consumer behavior remains authoritative in each adapter's code and tests.
