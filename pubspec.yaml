@@ -27,3 +27,9 @@ dev_dependencies:
   test: ^1.25.0
   xsoulspace_lints: ^0.1.2
   yaml: ^3.1.2
+
+dependency_overrides:
+  # Pre-publish bridge (ADR-0026): flutter_mcp_harness lives in the
+  # mcp_flutter monorepo. Remove once the package is published to pub.dev.
+  flutter_mcp_harness:
+    path: ../../mcp/cline/mcp_flutter/packages/harness
