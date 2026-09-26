@@ -4,7 +4,7 @@ description: >-
   HuaweiPublishTarget with a dry-run publish plan, AppGallery Connect REST
   upload tail over an injectable HTTP transport, and a GMS-excluding
   AndroidBuild variant validated at composition time.
-version: 0.2.0 # x-release-please-version
+version: 1.0.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_huawei
 issue_tracker: https://github.com/Arenukvern/oka/issues
@@ -25,12 +25,12 @@ dependencies:
   archive: ^4.0.9
   http: ^1.2.1
   meta: ^1.14.0
-  oka_android: ^0.2.0 # x-release-please-version
-  oka_core: ^0.2.0 # x-release-please-version
+  oka_android: ^1.0.0 # x-release-please-version
+  oka_core: ^1.0.0 # x-release-please-version
   path: ^1.9.0
 
 dev_dependencies:
   lints: ^6.1.0
-  oka_conformance: ^0.2.0 # x-release-please-version
+  oka_conformance: ^1.0.0 # x-release-please-version
   test: ^1.25.0
   xsoulspace_lints: ^0.1.2
