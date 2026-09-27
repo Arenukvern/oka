@@ -36,7 +36,7 @@ void main() {
       final out = await engine.extractLibflutter(
         abi: 'arm64-v8a',
         destSoPath: dest,
-        release: false,
+        variant: '',
       );
       expect(await File(out).exists(), isTrue);
       expect(await File(out).length(), greaterThan(1000));

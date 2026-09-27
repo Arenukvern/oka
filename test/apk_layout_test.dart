@@ -31,19 +31,31 @@ void main() {
     });
   });
 
-  group('engineArtifactDirForAbi', () {
-    test('maps abis to flutter engine dirs', () {
+  group('engineArtifactDirForVariant', () {
+    test('maps abis to mode-correct flutter engine dirs', () {
       expect(
-        engineArtifactDirForAbi('arm64-v8a', release: false),
+        engineArtifactDirForVariant('arm64-v8a', variant: ''),
         'android-arm64',
       );
       expect(
-        engineArtifactDirForAbi('arm64-v8a', release: true),
+        engineArtifactDirForVariant('arm64-v8a', variant: '-profile'),
+        'android-arm64-profile',
+      );
+      expect(
+        engineArtifactDirForVariant('arm64-v8a', variant: '-release'),
         'android-arm64-release',
       );
       expect(
-        engineArtifactDirForAbi('armeabi-v7a', release: false),
-        'android-arm',
+        engineArtifactDirForVariant('armeabi-v7a', variant: '-release'),
+        'android-arm-release',
+      );
+      expect(
+        engineArtifactDirForVariant('x86_64', variant: '-release'),
+        'android-x64-release',
+      );
+      expect(
+        () => engineArtifactDirForVariant('arm64-v8a', variant: '-debug'),
+        throwsArgumentError,
       );
     });
   });

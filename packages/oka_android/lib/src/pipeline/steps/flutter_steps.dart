@@ -7,6 +7,7 @@ import '../../android_artifacts.dart';
 import '../../android_state.dart';
 import '../../build/apk_layout.dart';
 import '../../build/dependency_cache.dart';
+import '../../build/engine_artifacts.dart';
 import '../../build/flutter_assemble.dart';
 import '../../build/toolchain.dart';
 import '../../build_cache.dart';
@@ -38,17 +39,20 @@ class FlutterAssembleStep extends BuildStep {
     }
   }
 
-  static List<File> _pathDependencyPubspecs(final String packageConfigJson) {
-    final out = <File>[];
-    final rootUriRe = RegExp(r'"rootUri":\s*"([^"]+)"');
-    for (final m in rootUriRe.allMatches(packageConfigJson)) {
-      final uri = m.group(1)!;
-      if (!uri.startsWith('file://')) continue;
-      final root = Uri.parse(uri).toFilePath();
-      final pubspec = File('$root/pubspec.yaml');
-      if (pubspec.existsSync()) out.add(pubspec);
-    }
-    return out;
+  /// Path-dependency pubspecs (workspace/sibling checkouts) — used to detect
+  /// a stale package_config that `flutter assemble` would compile against.
+  static List<File> _pathDependencyPubspecs(final String projectPath) {
+    final config = packageConfigFor(projectPath);
+    if (config == null) return const [];
+    final roots = pathDependencyRoots(
+      config.readAsStringSync(),
+      configDir: p.dirname(config.path),
+    );
+    return [
+      for (final root in roots)
+        if (File(p.join(root, 'pubspec.yaml')).existsSync())
+          File(p.join(root, 'pubspec.yaml')),
+    ];
   }
 
   @override
@@ -61,6 +65,9 @@ class FlutterAssembleStep extends BuildStep {
     final fp = await fingerprintInputs([
       ...filesUnder(p.join(ctx.projectPath, 'lib'), extension: '.dart'),
       ...filesUnder(p.join(ctx.projectPath, 'packages'), extension: '.dart'),
+      // Path deps are compiled into the kernel — a sibling-checkout edit
+      // must invalidate the cache (pub-workspace layout included).
+      ...pathDependencyInputs(ctx.projectPath),
       if (File('${ctx.projectPath}/pubspec.yaml').existsSync())
         '${ctx.projectPath}/pubspec.yaml',
       if (File('${ctx.projectPath}/pubspec.lock').existsSync())
@@ -85,20 +92,17 @@ class FlutterAssembleStep extends BuildStep {
     // Freshness check: `flutter assemble` (unlike `flutter build`) never runs
     // pub get implicitly; a stale package_config desynchronizes the kernel
     // compile from pubspec. Re-sync when pubspec is newer than the config.
-    final packageConfig = File(
-      p.join(ctx.projectPath, '.dart_tool', 'package_config.json'),
-    );
+    final packageConfig = packageConfigFor(ctx.projectPath);
     final pubspec = File(p.join(ctx.projectPath, 'pubspec.yaml'));
     // Staleness = own pubspec OR any path-dependency's pubspec newer than the
     // generated package_config (sibling checkouts change without touching
     // this project — bare `flutter assemble` never re-syncs on its own).
-    final pathDepPubspecs = _pathDependencyPubspecs(
-      packageConfig.existsSync() ? packageConfig.readAsStringSync() : '',
-    );
-    final configTime = packageConfig.existsSync()
+    final pathDepPubspecs = _pathDependencyPubspecs(ctx.projectPath);
+    final configTime = packageConfig != null && packageConfig.existsSync()
         ? packageConfig.lastModifiedSync()
         : DateTime.fromMillisecondsSinceEpoch(0);
-    final stale = !packageConfig.existsSync() ||
+    final stale = packageConfig == null ||
+        !packageConfig.existsSync() ||
         (pubspec.existsSync() &&
             pubspec.lastModifiedSync().isAfter(configTime)) ||
         pathDepPubspecs.any(
@@ -162,6 +166,13 @@ class FlutterAssembleStep extends BuildStep {
 }
 
 /// Extracts libflutter.so per ABI from the Flutter engine artifacts.
+///
+/// The engine variant always matches the build mode (debug → debug engine,
+/// profile → profile engine, release → release engine). A missing variant
+/// jar triggers `flutter precache --android` once; if it is still missing
+/// the build fails — substituting another variant's engine (e.g. the debug
+/// JIT engine under a release AOT snapshot) ships apps that hang on the
+/// splash screen and never run Dart `main()`.
 class EngineExtractionStep extends BuildStep {
 
   EngineExtractionStep({this.toolchain});
@@ -184,22 +195,41 @@ class EngineExtractionStep extends BuildStep {
       ctx,
       toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
     );
+    final variant = engineVariantForMode(ctx.mode);
+    final Map<String, String> jarsByAbi;
+    try {
+      jarsByAbi = await engine.ensureEngineJars(
+        abis: state.abis,
+        variant: variant,
+        workingDirectory: ctx.projectPath,
+        log: print,
+      );
+    } on Exception catch (e) {
+      return StepResult.failure('engine artifacts unavailable: $e');
+    }
     final libDir = p.join(ctx.buildDir, 'lib');
-    final libflutterByAbi = await engine.extractLibflutterForAbis(
-      abis: state.abis,
-      libDir: libDir,
-      release: ctx.mode.isRelease || ctx.mode.isProfile,
-    );
+    final libflutterByAbi = <String, String>{};
+    for (final entry in jarsByAbi.entries) {
+      final dest = p.join(libDir, entry.key, 'libflutter.so');
+      await engine.extractLibflutterFromJar(
+        flutterJar: entry.value,
+        abi: entry.key,
+        destSoPath: dest,
+      );
+      libflutterByAbi[entry.key] = dest;
+      if (ctx.verbose) {
+        print('   ${entry.key} engine: ${entry.value}');
+      }
+    }
     state.libflutterByAbi = libflutterByAbi;
 
-    // Flutter embedding jar (classes only for javac/d8).
-    final embeddingJarFull = await engine.findFlutterJar(
-      state.abis.first,
-      release: ctx.mode.isRelease,
-    );
+    // Flutter embedding jar (classes only for javac/d8) — same variant the
+    // natives came from.
+    final embeddingJarFull = jarsByAbi[normalizeAbi(state.abis.first)];
     if (embeddingJarFull == null) {
       return StepResult.failure(
-        'flutter.jar (embedding) not found; run flutter precache',
+        'flutter.jar (embedding) not resolved for ${state.abis.first}; '
+        'run flutter precache',
       );
     }
     state.embeddingJar = await engine.extractEmbeddingClassesJar(
@@ -248,6 +278,9 @@ class ReleaseAotStep extends BuildStep {
     final aotFp = await fingerprintInputs([
       ...filesUnder(p.join(ctx.projectPath, 'lib'), extension: '.dart'),
       ...filesUnder(p.join(ctx.projectPath, 'packages'), extension: '.dart'),
+      // Path deps are compiled into the AOT snapshot — a sibling-checkout
+      // edit must invalidate the cache (pub-workspace layout included).
+      ...pathDependencyInputs(ctx.projectPath),
       if (File('${ctx.projectPath}/pubspec.lock').existsSync())
         '${ctx.projectPath}/pubspec.lock',
       if (File('${ctx.projectPath}/.dart_tool/package_config.json')
@@ -257,6 +290,7 @@ class ReleaseAotStep extends BuildStep {
       'entrypoint:${ctx.entrypoint}',
       'abis:${state.abis.join(',')}',
       'defines:${(ctx.dartDefines.entries.toList()..sort((final a, final b) => a.key.compareTo(b.key))).map((final e) => '${e.key}=${e.value}').join(',')}',
+      'buildArgs:${ctx.config.flutter.buildArgs.join(',')}',
     ]);
     final cachedAot = cache.hit('release-aot', aotFp);
     if (cachedAot != null) {

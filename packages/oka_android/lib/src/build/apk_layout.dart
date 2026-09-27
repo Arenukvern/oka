@@ -56,22 +56,46 @@ List<String> resolveAbis({
   return result.isEmpty ? ['arm64-v8a'] : result;
 }
 
-/// Maps APK ABI to Flutter engine artifact directory name (debug).
-String engineArtifactDirForAbi(final String abi, {required final bool release}) {
-  final n = normalizeAbi(abi);
-  final suffix = release ? '-release' : '';
-  switch (n) {
-    case 'arm64-v8a':
-      return 'android-arm64$suffix';
+/// Flutter engine cache dir for a build-mode variant: debug →
+/// `android-<abi>`, profile → `android-<abi>-profile`, release →
+/// `android-<abi>-release` (produce [variant] via [engineVariantForMode]).
+///
+/// Each mode pairs only with its own engine: the debug engine is a JIT VM
+/// that runs from kernel, the release engine an AOT VM that runs from
+/// `libapp.so`. Cross-pairing (e.g. a debug engine inside a release APK)
+/// boots to the splash and never runs Dart `main()` — see
+/// `docs/evidence/android-release-engine-pairing-2026-09-27.mdx`.
+String engineArtifactDirForVariant(
+  final String abi, {
+  required final String variant,
+}) {
+  engineVariantOrThrow(variant);
+  final String platform;
+  switch (normalizeAbi(abi)) {
     case 'armeabi-v7a':
-      return 'android-arm$suffix';
+      platform = 'arm';
     case 'x86_64':
-      return 'android-x64$suffix';
+      platform = 'x64';
     case 'x86':
-      return 'android-x86$suffix';
+      platform = 'x86';
     default:
-      return 'android-arm64$suffix';
+      platform = 'arm64';
   }
+  return 'android-$platform$variant';
+}
+
+/// Canonical engine variant suffixes (debug, profile, release).
+const engineVariants = ['', '-profile', '-release'];
+
+String engineVariantOrThrow(final String variant) {
+  if (!engineVariants.contains(variant)) {
+    throw ArgumentError.value(
+      variant,
+      'variant',
+      'expected one of ${engineVariants.map((final v) => "'$v'").join(', ')}',
+    );
+  }
+  return variant;
 }
 
 /// Describes files that must appear in a complete Flutter APK layout.

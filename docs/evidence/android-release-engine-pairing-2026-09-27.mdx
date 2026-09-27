@@ -1,0 +1,65 @@
+# Evidence: Android release engine pairing (2026-09-27)
+
+**Symptom.** An app's oka-built Android **release** APK booted to the splash
+screen and never ran: 0 frames rendered, `FlutterRenderer: Width is zero`,
+`am start -W` returned `Status: timeout`, and Dart `main()` never executed.
+Debug builds of the same app rendered fine.
+
+**Root cause (proven, byte-level).** `EngineArtifacts.findFlutterJar` fell
+back **silently** to the **debug** `flutter.jar` when the mode-specific jar
+was missing from the Flutter SDK cache
+(`bin/cache/artifacts/engine/android-arm64-release/flutter.jar`). The release
+APK therefore packaged the **debug JIT engine** (`libflutter.so` byte-identical
+to the debug jar, SHA-256 `c0ca745d…`) together with a **release AOT**
+`libapp.so`. The debug engine starts its VM service and then waits for a
+kernel payload that a release APK never ships — so no isolate, no `main()`,
+splash forever. `flutter assemble` downloads `gen_snapshot` but never the
+engine jars, so a release build on a fresh SDK cache always hit the fallback.
+
+**Fix.**
+- Engine variants are resolved per build mode (debug / `-profile` /
+  `-release`); the cross-variant fallback is removed
+  (`engine_artifacts.dart`, `apk_layout.dart`).
+- `EngineArtifacts.ensureEngineJars` runs `flutter precache --android` once
+  when a jar is missing and **fails the build** if the jar is still missing
+  afterwards — a wrong-variant engine is never substituted.
+- `FlutterAssembleStep` / `ReleaseAotStep` fingerprints now include
+  **path-dependency sources** (monorepo / pub-workspace checkouts, resolved
+  from the workspace-root `package_config.json`) and `buildArgs`; previously
+  an edit in a sibling checkout was served stale from the step cache.
+- Regression tests: `packages/oka_android/test/engine_artifacts_test.dart`
+  (variant mapping, no-fallback, precache-on-miss, failure-is-fatal),
+  `test/apk_layout_test.dart` (variant dirs), path-dependency fingerprint
+  coverage in the same engine test file.
+
+**Verification.**
+- Rebuilt oka example release: pipeline detected the missing release jar, ran
+  `flutter precache --android`, and the packaged `libflutter.so` became
+  byte-identical to the SDK release jar (SHA-256 `843fb607…`).
+- Rebuilt the target app's release APK the same way: full UI renders
+  (controller home, hand-tracking card, pairing code generated), Dart
+  bootstrap completes, frames > 0 — on a healthy emulator. Debug builds of
+  the same apps were unaffected throughout.
+
+**Secondary findings (same investigation).**
+- A release startup crash with
+  `VM snapshot invalid and could not be inferred from settings` followed by
+  `SIGSEGV` in `flutter::AttachJNI` reproduces when an AOT snapshot compiled
+  against an **inconsistent pub resolution** (an in-flight path checkout whose
+  dependencies do not resolve) is loaded. Rebuilding the snapshot against a
+  consistent resolution removes the crash; the snapshot's embedded Dart
+  version string matching the engine is *not* sufficient evidence of a valid
+  pairing. Diagnosis chain: `logcat` flutter errors → tombstone frame #00
+  (`AttachJNI+1440`) → `objdump` shows `DartVMRef::Create` returning null.
+- The debug engine fallback is invisible in `oka explain`/logs — packaging
+  provenance is only printed with `--verbose`. The pipeline now names the
+  source jar per ABI at verbose level; a layout-validation rule for engine
+  provenance remains future work (R4 failure hardening).
+- The `oka-emulator` AVD used during bisection showed `systemui` ANRs at cold
+  boot and 0-frame states independent of the app under test; release-render
+  verification is only meaningful on a healthy device or a fresh AVD.
+
+**Lesson.** Never degrade a mode-critical artifact to another variant's file.
+Missing inputs must trigger a deterministic provisioning step (`flutter
+precache --android`) or fail loudly — silent substitution ships apps that hang
+on the splash screen with zero diagnostics on the device.

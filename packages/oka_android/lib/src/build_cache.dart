@@ -145,3 +145,70 @@ List<String> filesUnder(final String dir, {final String? extension}) {
   }
   return out;
 }
+
+/// Locates the active `package_config.json` for [projectPath].
+///
+/// Prefers the project's own `.dart_tool/package_config.json`; when absent
+/// (pub workspaces resolve at the workspace root), walks up parent dirs.
+/// Returns null when no config exists anywhere up the tree.
+File? packageConfigFor(final String projectPath) {
+  var dir = Directory(projectPath).absolute;
+  while (true) {
+    final candidate = File(p.join(dir.path, '.dart_tool', 'package_config.json'));
+    if (candidate.existsSync()) return candidate;
+    final parent = dir.parent;
+    if (parent.path == dir.path) return null;
+    dir = parent;
+  }
+}
+
+/// Root directories of path (sibling-checkout / workspace) dependencies from
+/// a `package_config.json`. Hosted (`.pub-cache`) and SDK-bundled
+/// (`bin/cache/pkg`) packages are excluded — their contents are pinned by
+/// the config itself.
+List<String> pathDependencyRoots(final String packageConfigJson,
+    {final String? configDir}) {
+  final base = Uri.directory(configDir ?? Directory.current.path);
+  final out = <String>[];
+  final rootUriRe = RegExp(r'"rootUri":\s*"([^"]+)"');
+  for (final m in rootUriRe.allMatches(packageConfigJson)) {
+    final raw = m.group(1)!;
+    final uri = Uri.parse(raw);
+    final String path;
+    if (uri.scheme.isEmpty) {
+      path = base.resolveUri(uri).toFilePath();
+    } else if (uri.scheme == 'file') {
+      path = uri.toFilePath();
+    } else {
+      continue;
+    }
+    if (path.contains('/.pub-cache/') ||
+        path.contains(r'\.pub-cache\') ||
+        path.contains('/bin/cache/pkg/')) {
+      continue;
+    }
+    final normalized = p.normalize(path);
+    if (!out.contains(normalized)) out.add(normalized);
+  }
+  return out;
+}
+
+/// Input files a kernel/AOT fingerprint must cover beyond the project's own
+/// sources: every path dependency's `pubspec.yaml` + `lib/**.dart`.
+///
+/// `flutter assemble` compiles path dependencies into the kernel, so an edit
+/// in a sibling checkout (monorepo layout) must invalidate assemble/AOT
+/// step caches — without this the step cache serves a stale snapshot.
+List<String> pathDependencyInputs(final String projectPath) {
+  final config = packageConfigFor(projectPath);
+  if (config == null) return const [];
+  final json = config.readAsStringSync();
+  final roots = pathDependencyRoots(json, configDir: p.dirname(config.path));
+  final inputs = <String>[];
+  for (final root in roots) {
+    final pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (pubspec.existsSync()) inputs.add(pubspec.path);
+    inputs.addAll(filesUnder(p.join(root, 'lib'), extension: '.dart'));
+  }
+  return inputs;
+}
