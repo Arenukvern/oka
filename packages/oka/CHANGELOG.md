@@ -4,6 +4,20 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## 0.4.0
+
+### Added
+
+- `r8_rules` (ADR-0010 `AndroidBuild.r8Rules`): inline, per-app R8/ProGuard
+  rules applied after `proguard_files`. oka's default R8 rules are now
+  vendor-neutral — dependency-vendor `-dontwarn` lines (Firebase encoders,
+  …) are declared per app instead of hardcoded into the platform package.
+
+### Fixed
+
+- `android.proguard_files` now reach R8 (repeated `--pg-conf`); they were
+  collected but never passed to the shrinker.
+
 ## [0.2.0]
 
 ### Added

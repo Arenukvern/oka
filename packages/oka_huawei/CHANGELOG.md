@@ -4,6 +4,10 @@ All notable changes to this package are documented here. The release train
 is repo-wide: versions move with the root `VERSION` (see
 `tool/release/check_version_sync.sh`).
 
+## 0.4.0
+
+- Version alignment with the 0.4.0 oka release train; no functional changes in this package.
+
 ## 0.2.0
 
 - Join the complete package release train with compatible `0.2.0` internal

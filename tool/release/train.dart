@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 const packages = <String>[
+  'resource_composition',
   'oka_core',
   'oka_conformance',
   'oka_android',
@@ -11,6 +12,7 @@ const packages = <String>[
   'oka_play',
   'oka_rustore',
   'oka_web',
+  'oka_harness',
   'oka',
 ];
 

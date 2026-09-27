@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Version alignment with the 0.4.0 oka release train; no functional changes in this package.
+
+
 ## 0.2.0
 
 - Add browser profile diagnostics and persist profile paths/session names in

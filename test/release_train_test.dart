@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 const packages = [
+  'resource_composition',
   'oka_core',
   'oka_conformance',
   'oka_android',
@@ -11,6 +12,7 @@ const packages = [
   'oka_play',
   'oka_rustore',
   'oka_web',
+  'oka_harness',
   'oka',
 ];
 
@@ -32,13 +34,15 @@ void main() {
       'name: example\ndependencies:\n  oka: ^0.1.6\n  oka_play: ^0.1.6\n',
     );
     final dependencies = <String, List<String>>{
-      'oka_core': [],
+      'resource_composition': [],
+      'oka_core': ['resource_composition'],
       'oka_conformance': ['oka_core'],
       'oka_android': ['oka_core'],
       'oka_huawei': ['oka_android', 'oka_core'],
       'oka_play': ['oka_core'],
       'oka_rustore': ['oka_core'],
       'oka_web': ['oka_core'],
+      'oka_harness': ['oka_android', 'resource_composition'],
       'oka': ['oka_android', 'oka_core'],
     };
     for (final package in packages) {
@@ -205,7 +209,10 @@ void main() {
       extra: {'OKA_FAKE_PUBLISHED': ':oka_core:'},
     );
     expect(result.exitCode, 0, reason: output(result));
-    expect(dartPackages(fake.log), packages.skip(1).toList());
+    expect(
+      dartPackages(fake.log),
+      packages.where((name) => name != 'oka_core').toList(),
+    );
     expect(output(result), contains('oka_core 0.2.0 already exists'));
   });
 
@@ -220,6 +227,7 @@ void main() {
     );
     expect(result.exitCode, isNot(0));
     expect(dartPackages(fake.log), [
+      'resource_composition',
       'oka_core',
       'oka_conformance',
       'oka_android',

@@ -3,7 +3,12 @@
 .packages
 
 pubspec.lock
-build/
+# Build outputs. Anchored so the rule can never match source directories
+# like packages/oka_android/lib/src/build/ — pub publish excludes
+# gitignored files, which would ship oka_android without its build
+# subsystem.
+/build/
+packages/*/build/
 # IDE
 .idea/
 .vscode/

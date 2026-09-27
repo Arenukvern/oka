@@ -1,3 +1,23 @@
+## 0.4.0
+
+### Added
+
+- `AndroidBuild.r8Rules` (`android.r8_rules`): inline, per-app R8/ProGuard
+  rules applied after `proguard_files`; vendor-neutral platform defaults.
+
+- Tree-aware process seam (ADR-0026 decision 8): `ProcessTreeProbe` /
+  `HostProcessTreeProbe` descendant enumeration, `stopProcessTree`
+  (enumerate before the first signal; graceful→force ladder; verified
+  death; recycled-root refusal), and `runBoundedProcess` — a bounded run
+  whose deadline kills the spawned tree instead of abandoning it, with
+  bounded output capture and a terminal cause.
+
+### Changed
+
+- `SystemProcessRunner` deadline enforcement now kills the child process
+  tree before raising `TimeoutException`; the exception contract is
+  unchanged, but no child is abandoned on timeout.
+
 ## 0.2.0
 
 - Add composable `CacheDiagnostics` providers, typed reports and partial,

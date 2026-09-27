@@ -117,6 +117,8 @@ dependency_overrides:
     path: $repoRoot/packages/oka_android
   oka_core:
     path: $repoRoot/packages/oka_core
+  resource_composition:
+    path: $repoRoot/packages/resource_composition
 ''');
         await Directory('${tmp.path}/tool').create();
         await File('${tmp.path}/tool/oka_pipeline.dart').writeAsString('''
