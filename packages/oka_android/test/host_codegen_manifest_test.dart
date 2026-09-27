@@ -10,6 +10,7 @@ void main() {
       targetSdk: '34',
       spec: const ManifestSpec(
         applicationElements: [
+          // ignore: no_adjacent_strings_in_list
           '<service android:name=".TrackingForegroundService"\n'
               'android:exported="false" android:foregroundServiceType="camera" />',
         ],
