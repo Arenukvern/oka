@@ -336,7 +336,9 @@ Future<CompileDexOutcome> compileAndroidBytecode({
       final reports = <String, String>{
         'mapping': p.join(reportsDir, 'mapping.txt'),
         'config': p.join(reportsDir, 'configuration.txt'),
-        'input_config': ruleFiles.join('\n'),
+        // Evidence path for the oka defaults; per-project rule files are
+        // passed as additional `--pg-conf` inputs in [ruleFiles].
+        'input_config': defaultRules,
       };
       shrinkerArtifacts.addAll(reports);
       final args = policy.r8Args(
