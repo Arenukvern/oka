@@ -45,6 +45,8 @@ Add `oka_harness` (`packages/oka_harness`) as a small leaf package over
 Until `flutter_mcp_harness` is published, the workspace root carries a
 `dependency_overrides` path bridge to the local mcp_flutter checkout
 (the established pre-publish pattern); the bridge is removed on release.
+**Retired 2026-09-27:** `flutter_mcp_harness 0.1.0` is published and
+oka's workspace resolves it hosted.
 
 ## Alternatives considered
 
@@ -66,4 +68,5 @@ Until `flutter_mcp_harness` is published, the workspace root carries a
 - Android E2E joins desktop E2E behind one interface (`AppTarget`);
   emulator/CI matrices can layer on the same primitive later.
 - Pre-publish, oka's workspace resolution depends on a local mcp_flutter
-  checkout; the override bridge is release-blocking debt by construction.
+  checkout; the override bridge is release-blocking debt by construction
+  (retired 2026-09-27 on `flutter_mcp_harness 0.1.0` publication).

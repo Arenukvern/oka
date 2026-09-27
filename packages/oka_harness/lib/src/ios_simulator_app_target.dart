@@ -89,15 +89,14 @@ final class IosSimulatorAppTarget implements AppTarget {
           vmServiceUriPattern,
           timeout: vmServiceTimeout,
         );
-      } on TimeoutException {
+      } on Object {
         // The owning session's own words are the diagnosis: a lock wait,
-        // a failed Xcode build, a pod error — whatever kept the VM
+        // a failed Xcode build, an early exit — whatever kept the VM
         // service from ever being announced.
-        throw TimeoutException(
+        throw StateError(
           'flutter run -d $udid announced no VM service within '
           '$vmServiceTimeout; session tail:\n'
           '${tap.tail(15).join('\n')}',
-          vmServiceTimeout,
         );
       }
       final uri = vmServiceUriFromLine(line)!;

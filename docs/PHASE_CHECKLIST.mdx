@@ -36,14 +36,17 @@ with evidence, not into a checked box.
   of abandoning it; `SystemProcessRunner` keeps its `TimeoutException`
   contract, the child is now verified dead). R0 evidence:
   `docs/evidence/process-lifecycle-r0-survey-2026-09-27.mdx` (five
-  systems; the collector monorepo anonymized). Remaining gates (R3–R5 of
-  `docs/guides/resource_composition_plan.mdx`): the oka adapter over
-  `ProcessLeaseRegistry`/`TeardownRunner`; an `ecsai_harness` adapter that
-  deletes more failure-prone code than it adds; an IntentCall adapter; the
-  Flutter toolkit consuming the contract types and retiring the
-  `dependency_overrides` bridge on publish; R4 failure hardening
+  systems; the collector monorepo anonymized). Delivered 2026-09-27: the
+  oka adapter (`LeasedProcessProvider` over `ProcessLeaseRegistry`/the
+  process seam), the IntentCall adapter (`acp_toolkit`'s
+  `AcpAgentProvider`, published on hosted `resource_composition`), the
+  ecsai adapter (bounded-run seam + `HarnessdProvider`; its stderr scrape
+  and `Process.run().timeout()` orphan vector deleted), and retirement of
+  the `dependency_overrides` bridge (`flutter_mcp_harness 0.1.0`
+  published; oka_harness resolves it hosted). Remaining gates (R4–R5 of
+  `docs/guides/resource_composition_plan.mdx`): failure hardening
   (cross-process races, reboot identity, Windows runner evidence for the
-  seam); R5 boundary review.
+  seam) and the boundary review.
 - **R8 release shrinking (ADR-0023/ADR-0024 release-readiness work) —
   implemented, live-device evidence pending.** Release builds invoke the real
   R8 shrinker over the full program closure with documented CLI flags only

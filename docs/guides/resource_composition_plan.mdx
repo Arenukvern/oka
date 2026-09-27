@@ -150,6 +150,8 @@ Prototype adapters without changing ownership boundaries:
 4. The Flutter toolkit consumes the contract package's runner-session types
    behind its existing `dependency_overrides` bridge; the bridge is removed
    on publish (release-blocking debt by construction, ADR-0027).
+   **Status 2026-09-27:** `flutter_mcp_harness 0.1.0` published; the bridge
+   is retired and oka_harness resolves it hosted.
 
 **Gate:** at least two provider implementations pass the same contract
 tests, and each adapter **deletes more failure-prone code than it adds**
