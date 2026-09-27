@@ -1,0 +1,183 @@
+# Process-lifecycle R0 survey — 2026-09-27
+
+Evidence for [ADR-0026](../decisions/0026-declarative-resource-composition-sdk)
+phase R0 (cross-project case inventory). Five systems were surveyed by code
+reading and session-artifact review on 2026-09-27: oka (this repo),
+`ecsai_harness`, the Flutter MCP toolkit harness (`mcp_flutter`), IntentCall,
+and one **anonymized** system — a private Dart/C#/Python data-collection
+monorepo ("the collector monorepo" below; named on request, not linked).
+
+Method: read-only exploration agents produced per-system reports with
+file:line evidence; a three-lens review panel (lifecycle safety, Dart API
+design, maintainer economics) then criticized ADR-0026 against the combined
+digest. The digest is reproducible; the anonymized system is reported
+structure-first with no paths or product names.
+
+## The convergent pattern
+
+All five systems independently re-derived the same small lifecycle pattern,
+each in its own dialect:
+
+> spawn → readiness dialect → ownership rule → stop ladder → crash
+> reconciliation → bounded evidence tail
+
+Each re-derivation is roughly 100–300 lines. The systems diverge exactly
+where their real complexity lives: launch mechanics, protocol semantics,
+ownership authority. Convergence at this size is evidence **for a shared
+vocabulary and one platform seam**, and **against a large shared SDK**.
+
+## System reports
+
+### oka (this repo)
+
+The most complete design, and the reference for the vocabulary:
+
+- Durable process-lease registry, identity-before-signal (pid + start-time
+  token; raw `kill <pid>` forbidden), scopes ephemeral/session/persistent,
+  owned vs borrowed (ADR-0018).
+- Managed session-state workflows: durable reservation **before** any
+  provisioning side effect, quarantine-then-delete, dry-run-first
+  reconciliation, fail-closed `unknown` (ADR-0025).
+- `oka_harness` consumes the runner-session contract; file absence is the
+  liveness signal; no log scraping for the device VM URI (ADR-0027).
+- Gaps found by this survey: `SystemProcessRunner.run` enforces deadlines
+  with `Process.run(...).timeout(...)` — on timeout the child is **abandoned,
+  not killed** (the same orphan vector found in every other system). Kill is
+  single-pid: a leaked grandchild survives every existing stop path.
+
+### Agent harness (`ecsai_harness`)
+
+Dart workspace with a keep-warm daemon (`harnessd`): stdio client exit does
+not stop it; an idle-exit timer owns shutdown.
+
+- **No signal handler on the daemon.** Graceful shutdown is reachable only
+  via the idle timer; SIGINT/SIGTERM leave a stale socket pointer, lock file,
+  and world manifest behind. Self-heal is inconsistent per artifact (the
+  stale socket file is pruned at next bind; the pointer and lock are not).
+  The repo already shipped one hotfix for exactly this class (a dead socket
+  pointer every client hit).
+- Readiness by scraping child stderr for magic strings (`socket listening`,
+  `worlds manifest published`) or by 30–120 s protocol handshakes; daemon JIT
+  startup measured at "30 s startup alone", so daemon tests carry 2–8 minute
+  timeout decorators.
+- `Process.run(...).timeout()` in **library code** returns a synthetic result
+  while the spawned `dart test`/`flutter test` child keeps running.
+- Model-provider failures degrade to in-world rows; the taxonomy itself
+  admits "a wall-clock deadline kill and a provider failure are NOT
+  first-class causes" — an operator cannot distinguish a dead daemon from a
+  dead turn.
+
+### Flutter MCP toolkit harness (`mcp_flutter`)
+
+The best-designed **contract** in the survey:
+
+- Frozen, vendor-neutral runner-session contract (spec v2):
+  `runner-session.json` written by the runner before the session is usable,
+  deleted at exit — **absence is the liveness signal** — with one typed
+  secondary probe (TCP connect to the control port, 500 ms) and a localhost
+  control protocol for reload/restart delegation.
+- One-owning-attach rule (a second attach reinstalls the app and kills the
+  first session), enforced by discovery suppression rather than locks.
+- The most complete stop ladder in the survey: close logs → SIGTERM → 5 s →
+  `pkill -P <pid>` ("SIGKILL escalation orphans the tool's own children —
+  take them along") → SIGKILL — all workarounds for Dart having no
+  process-group kill.
+- Honesty flags on delegated operations: `changed`/`fallback`; raw
+  `reloadSources` "reports success with zero changed sources; treat true as
+  'asked', not 'recompiled'".
+
+### IntentCall
+
+Transport-agnostic agent-intent platform; ACP client **and** server, MCP
+server; path-dependency provider of the session package the Flutter MCP
+toolkit consumes.
+
+- Readiness is per-site ad-hoc scraping: `flutter attach --machine` stdout
+  scraped with a JSON-then-regex fallback under a 2 s budget, exit never
+  awaited, stderr pipe never drained; discovery liveness is a 400 ms HTTP
+  probe where "a slow owner looks down".
+- **Stop is a single unwaited `kill()`** at three call sites; zero signal
+  handling in the repo; the `inheritStdio` toolkit handoff child gets no
+  signal forwarding (IDE kills the CLI parent → toolkit child orphaned).
+- Deadline-as-contract precedent done right: "cold start either returns that
+  result inside a 10 second bound or fails with `runtime_unavailable`."
+- Good primitives worth generalizing: the ACP `initialize` versioned
+  handshake, correlation-id echo (`decisionId`) making concurrent proposals
+  race-free by construction, and typed session error codes.
+- Failure taxonomy is uneven across layers (typed session codes vs
+  `StateError` strings vs `null`), and timeout is conflated with an empty
+  success response in the round-trip path.
+
+### Collector monorepo (anonymized)
+
+Private Dart CLI + C# collector + Python browser-sidecar workspace. Reported
+structurally; no names, paths, or internal ADR numbers.
+
+- Converged — **independently, in three languages** — on one pattern:
+  spawn → single stdout JSON handshake line (real port from `--port 0`) →
+  loopback HTTP with an env-var bearer token → kill-tree on bounded failure.
+  Replicated roughly six times across Dart, C#, and Python.
+- Documented catastrophe: cold interpreter startup (~3 s) blew a launch
+  budget; cancelled mid-start launches orphaned browser + driver pairs across
+  161 tests × retries — about 8 minutes of pipeline waste per run. The fix
+  was ahead-of-time prebinding (8 min → 53 s) **plus an entire orphan-reaper
+  subsystem** (process enumeration, cmdline heuristics, protect-list for the
+  user's real browser, lease-scoped kill authority, recount-after-kill).
+- Teardown ladders duplicated and inconsistent: one site escalates
+  SIGINT → 5 s → SIGTERM → 5 s → SIGKILL; another awaits SIGINT only with no
+  kill fallback (a wedged child hangs the await forever). Their C# code uses
+  tree-scoped termination; the Dart sites admit their "kills the whole
+  process tree" comment is aspirational — `kill()` is single-pid.
+- Daemon registries on disk (`{endpoint, token, pid, identity}`) with
+  staleness gates (build-mtime comparison, pid liveness, pid-recycling
+  defense via a process-identity string), a file lock to serialize starts,
+  dead-registry GC, and TTL lease sweeping — four overlapping recovery
+  mechanisms grown because nothing owned the child lifecycle.
+- Their lease law independently matches oka's: "unknown counts as alive: a
+  lease is never reclaimed on a guess."
+
+### Recorded working session (agent harness, same day)
+
+One workday session in the agent harness showed the failure classes live:
+a goal-runner daemon died on a provider billing error (HTTP 402) and the
+main session was cut off mid-edit, stranding an uncompilable tree of
+uncommitted work; live model-backed tests timed out at 3 minutes (latency
+dominated by daemon bring-up + model); the human manually cleared stale
+Flutter startup locks after killed runs; an "expired" API key still being
+valid forced env-var surgery before boot smokes. The session transcript file
+itself had evaporated by the time of this survey — session evidence is
+itself ephemeral — and only tool artifacts survived in client-internal
+directories.
+
+## Failure classes (cross-system)
+
+| # | Class | Seen in |
+|---|---|---|
+| F1 | Deadline enforcement abandons the child (`Future.timeout` over a live process) | agent harness (library code), oka (`SystemProcessRunner`), IntentCall (exit never awaited) |
+| F2 | Single-pid kill leaks grandchildren | oka, Flutter toolkit (`pkill -P` workaround), collector monorepo (aspirational comment) |
+| F3 | Readiness by scraping magic strings with ad-hoc budgets (1.5 s–180 s per site) | agent harness, IntentCall, collector monorepo, Flutter toolkit (VM URI regex) |
+| F4 | Keep-warm/surviving process with no signal-reachable stop path; stale artifacts self-heal inconsistently | agent harness, IntentCall (handoff child), collector monorepo (detached hosts) |
+| F5 | Death is ambiguous: provider fault vs deadline kill vs transport loss not first-class | agent harness (admitted), IntentCall (timeout ≡ empty success), collector monorepo (handshake failure buffered) |
+| F6 | Crash reconciliation grown ad hoc (registries, TTL sweeps, pid scans) or absent | collector monorepo (4 mechanisms), agent harness (manifest pid-scan only), IntentCall (TTL lock recovery only) |
+
+## Convergent primitives and the unify verdict
+
+| Pattern | Verdict |
+|---|---|
+| Tree-aware bounded stop + run-with-deadline (F1, F2) | **Unify now as code** — one platform seam, ~150 lines, per-language not per-project |
+| Durable handle: typed, schema-versioned, written before side effects, removed at exit = liveness, one typed secondary probe | **Core vocabulary** — three systems converged on it independently (oka reservation law, runner-session spec v2, daemon registries) |
+| Readiness as typed declaration (dialect + budget + parsed outputs), probe mechanics per provider | **Vocabulary now, mechanics never shared** |
+| Terminal-cause taxonomy (exit / signal / deadline-kill / provider fault / transport loss / unknown) | **Vocabulary now** — F5 everywhere |
+| Ownership models (owned/borrowed, one-owning-attach, lease authority) | **Vocabulary only** — enforcement is deliberate local policy; never impose one system's model |
+| Reconcile sweeps | **Invariants only** (report-never-guess, unknown ≠ alive ≠ dead); sweeps bind to local state layout |
+| Evidence ring buffers | **Small shared contract** (bounded tap + lifecycle events); retention/GC deferred |
+| Probe mechanics, protocol semantics, state/profile formats, supervision loops | **Never shared** |
+
+## R0 gate
+
+Amended gate (falsifiable): the common contract must express oka's
+identity-before-signal, the collector monorepo's never-reclaim-on-guess, and
+the Flutter toolkit's file-absence-liveness with **≤ 2 per-provider escape
+hatches**; more than 2 means the contract is narrowed before any package
+grows. The survey shows three-plus systems already express these guarantees,
+so the two-system floor was replaced.

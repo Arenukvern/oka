@@ -1,245 +1,216 @@
 # Declarative resource composition — design and execution plan (ADR-0026)
 
-**Status:** design direction accepted; implementation has not started.
+**Status:** design direction accepted (amended 2026-09-27); R0 done,
+implementation started.
 
-This plan tests whether a reusable composition API can serve Oka,
-`ecsai_harness`, and IntentCall without flattening their different process,
-session, and supervisor semantics. It is not approval to add a resident
-service or extract Oka internals into a new package.
+This plan tests whether a reusable composition contract can serve Oka,
+`ecsai_harness`, the Flutter MCP toolkit, IntentCall, and the collector
+monorepo without flattening their different process, session, and
+supervision semantics. It does not approve a resident service. The R0
+survey ([evidence](../evidence/process-lifecycle-r0-survey-2026-09-27))
+narrowed the ambition: a shared **vocabulary**, one **zero-dependency
+contract package**, and one **process platform seam** in `oka_core` — not a
+large shared SDK.
 
 ## Goals and constraints
 
 - Let developers declare components, dependencies, readiness, lifecycle,
   outputs, and diagnostics as typed, immutable values.
-- Make providers, runtimes, supervisors, state stores, and evidence sinks
-  independently replaceable or user-implemented.
+- Readiness is a typed declaration (dialect, budget, parsed outputs);
+  probe mechanics stay provider-internal.
+- Provider implementations are independently replaceable or
+  user-implemented; customization is constructor injection, never string-key
+  plan surgery.
 - Treat crash observation and reconciliation as general lifecycle behavior;
-  make durable leases optional for resources that outlive their creator or
-  need later adoption.
+  make durable leases optional for resources that outlive their creator —
+  but the pre-side-effect durable handle write is contract.
 - Keep MCP/ACP as protocol adapters; do not make them the process manager.
-- Preserve Oka's lease identity, owned/borrowed, teardown, and no-daemon laws.
-- Prove cross-language interoperability through shared contracts and
-  fixtures, not through a claim that one source-language API works
-  everywhere.
+- Preserve Oka's lease identity, owned/borrowed, teardown, and no-daemon
+  laws.
+- Supervision stays vocabulary-only: no phase may require a supervisor to
+  exist.
 
 ## API shape to validate
 
-The intended developer experience is a declarative graph plus an explicit
-runtime selection. The following pseudocode illustrates the direction only;
-it is not a released API:
+The developer experience is a declarative graph assembled from named const
+values plus an explicit provider selection. Illustrative only; names are
+not frozen:
 
 ```dart
+final port = OutputRef<int>('collector.port');
+
 final composition = Composition(
   components: [
-    ProcessComponent(
-      id: 'api',
-      command: Command('dart', ['run', 'bin/server.dart']),
-      readyWhen: HttpReady(Uri.parse('http://127.0.0.1:8080/health')),
-      lifecycle: const Lifecycle(
-        scope: Scope.session,
-        onCrash: CrashPolicy.reconcile,
+    Component(
+      id: 'collector',
+      provider: CollectorProvider(),
+      readiness: HandshakeLine(
+        pattern: 'ready ',
+        parse: (line) => {'collector.port': int.parse(line.split(' ')[1])},
       ),
-      diagnostics: const Diagnostics(
-        captureStdout: true,
-        captureStderr: true,
-        captureCrashArtifacts: true,
-      ),
+      lifecycle: const Lifecycle(scope: ResourceScope.session),
     ),
-    HarnessComponent(
+    Component(
       id: 'agent',
-      provider: const EcsaiHarnessProvider(/* typed options */),
-      dependsOn: const ['api'],
-      lifecycle: const Lifecycle(scope: Scope.session),
+      provider: HarnessProvider(),
+      dependsOn: const ['collector'],
+      requires: [port],
+      readiness: const FilePresent('.harness/session.json'),
     ),
   ],
-  runtime: const LocalProcessRuntime(),
   evidence: const JsonlEvidenceSink(),
 );
+
+final report = composition.validate(); // pure — no side effects
 ```
 
-Components should expose typed handles to downstream work. A `validate` or
-`explain` operation must show dependencies, capabilities, lifecycle policy,
-and outputs without launching anything. An alternate runtime or custom
-supervisor should be replaceable at the composition boundary:
-
-```dart
-final ci = composition.copyWith(
-  components: composition.components.replace(
-    'api',
-    composition.component('api').copyWith(
-      provider: const ContainerProcessProvider(),
-    ),
-  ),
-  runtime: const MyContainerRuntime(),
-  supervisor: const MySupervisor(),
-  evidence: const RetainedFileEvidenceSink(maxRuns: 10),
-);
-```
-
-The API should distinguish at least:
+Concerns the contract must distinguish:
 
 | Concern | Contract question |
 |---|---|
-| Composition | What components exist, what depends on what, and what typed handles are produced? |
-| Provider | How does this component start, attach, become ready, stop, and reconcile? |
-| Runtime | Where and through what mechanism does the provider execute? |
-| Supervisor | Is desired state continuously maintained, or only reconciled when invoked? |
-| Evidence | Which lifecycle events and diagnostics are captured, where, for how long, and with what redaction? |
-| Persistence | Does this component need a lease or other durable identity because it can outlive its creator? |
-
-These are seams to prove, not a requirement to create a class or package for
-every row on day one.
+| Composition | What components exist, what depends on what, and what typed output promises flow between them? |
+| Provider | How does this component start, attach, become ready, stop, and reconcile — and which capabilities does it declare? |
+| Process seam | How are bounded runs, tree-aware stops, and pid identity done on this OS? (`oka_core`) |
+| Evidence | Which lifecycle events and bounded output taps are captured, with which terminal causes? |
+| Persistence | Does this component write the durable pre-side-effect handle because it can outlive its creator? |
 
 ## Phases and gates
 
-### R0 — Cross-project case inventory
+### R0 — Cross-project case inventory — **done 2026-09-27**
 
-Write a behavior matrix for:
+Five systems surveyed (oka, `ecsai_harness`, the Flutter MCP toolkit,
+IntentCall, one anonymized collector monorepo) plus a recorded working
+session. Evidence:
+[process-lifecycle R0 survey](../evidence/process-lifecycle-r0-survey-2026-09-27).
 
-- Oka emulator and browser resources, including ownership, readiness,
-  borrowed instances, teardown, and crash reconciliation.
-- `ecsai_harness` lifecycle: launch, readiness, attach, failure, diagnostics,
-  and whether any process outlives its launcher.
-- IntentCall ACP/MCP session lifecycle, separating protocol session state
-  from the process hosting a server.
-- At least one long-running coding-agent CLI that may outlive its original
-  client, to test where durable leases and later adoption matter.
+**Gate (amended, falsifiable):** the common contract expresses oka's
+identity-before-signal, the collector monorepo's never-reclaim-on-guess,
+and the Flutter toolkit's file-absence-liveness with **≤ 2 per-provider
+escape hatches**; more than 2 ⇒ narrow the contract before any package
+grows. Outcome: passed with narrowing — vocabulary + one contract package +
+one platform seam; supervision and shared probe mechanics cut.
 
-For each case, record the expected state transitions, recovery decision,
-handle, evidence, and platform-specific operations. Do not treat
-reconciliation as a special category: identify what each provider can
-observe and how it reports uncertainty.
+### R1 — Contract and state model
 
-**Gate:** at least two independent systems can express the same core
-lifecycle guarantees without pretending their launch, protocol, or
-supervision mechanisms are identical. If not, narrow the common contract.
+Specify and review, as code and fixtures (not prose agreement):
 
-### R1 — Contract and state-model RFC
-
-Specify and review:
-
-- Immutable composition/component values and dependency validation.
+- Immutable component values; dependency, cycle, capability, scope, and
+  output-promise validation (`Composition.validate` / `explain`).
+- Readiness dialects as typed values with composition-declared budgets and
+  pure decoders into `OutputRef<T>`; unready blocks `dependsOn`.
 - Lifecycle states and structured transitions, including failed, crashed,
-  stopped, and unknown.
-- Idempotency, timeouts, cancellation, readiness versus liveness, and
-  `start`/`attach`/`inspect`/`stop`/`reconcile` capabilities.
-- Crash policy and safe handling when identity, ownership, or liveness is
-  unknown.
-- Optional lease/state-store requirements for adoptable, long-lived
-  resources; no mandatory lease for every process.
-- Typed handles and provider capabilities.
-- Diagnostic event shape, stdout/stderr references, exit code/signal,
-  readiness/restart history, crash artifacts, retention, and redaction.
-- Execution trust boundaries, authorization for privileged actions,
-  command provenance, secret references, and evidence access controls.
-- Language-neutral descriptor/event compatibility and provider-specific
-  extension rules.
+  stopped, and `unknown`; **terminal causes** (`exited`, `signaled`,
+  `killedOnDeadline`, `providerFault`, `transportLost`, `unknown`).
+- Bounded log taps + lifecycle-event JSONL as the day-one evidence surface;
+  retention/redaction policy frameworks deferred.
+- The durable pre-side-effect handle: typed, schema-versioned, removed at
+  exit = liveness, one typed secondary probe; registry/adoption machinery
+  optional behind capabilities.
+- No `Future.timeout` over a live child anywhere in the contract or
+  reference providers.
 
-**Gate:** agree on a minimal, versioned contract and failure semantics
-before committing to package names, a wire protocol, or a public schema.
+**Gate:** the contract package's own test suite pins the semantics above
+with scripted fakes; a fixtures file records the frozen invariants for
+copy-friendly adoption by non-oka consumers.
 
-### R2 — Reference SDK and composition validation
+### R2 — Platform seam and contract package — **in progress**
 
-Prototype the authoring and validation path in the language with the
-clearest first consumer. Use immutable typed values and constructor
-injection; keep the runner and OS process operations behind replaceable
-interfaces.
+Two artifacts:
 
-Build scripted-fake providers first. The planner must report missing
-dependencies, cycles, unsupported capabilities, invalid lifecycle policies,
-and conflicting output handles before execution. A fake run must verify
-event order and expose typed handles without launching real processes.
+1. **Process seam in `oka_core`** (`process_tree`, bounded runs):
+   descendant enumeration, tree-aware stop (enumerate **before** killing
+   the root; escalate SIGTERM→SIGKILL; verify death), bounded
+   run-with-deadline that kills instead of abandoning, pid+start-token
+   identity reuse. `SystemProcessRunner` stops abandoning children on
+   deadline.
+2. **`packages/resource_composition`** — zero-dependency, vendor-neutral
+   contract package: components, readiness dialects, `OutputRef`,
+   lifecycle values, terminal causes, events, bounded taps, the provider
+   interface, validation/explain, and scripted fakes.
 
-Include diagnostic evidence in the prototype from the start. Test redaction
-before persistence and verify evidence remains readable after a simulated
-process failure.
-
-**Gate:** composition is inspectable without side effects, invalid graphs
-fail before start, and changing a provider/runtime/evidence sink does not
-require editing unrelated components.
+**Gate:** parent→grandchild fixture asserts zero survivors after forced
+teardown on macOS and Linux (a surviving grandchild ⇒ the seam stays
+per-repo and the vocabulary-only verdict hardens); contract tests prove
+invalid graphs fail before start, event order under a fake run, and that
+swapping a provider or evidence sink does not edit unrelated components;
+`explain` provably performs no side effects.
 
 ### R3 — Cross-project adapters
 
-Prototype adapters without changing the systems' ownership boundaries:
+Prototype adapters without changing ownership boundaries:
 
-1. An Oka adapter maps the common concepts onto existing
-   `ProcessLeaseRegistry`, `ProcessSurface`, and `TeardownRunner` behavior.
-   It must preserve identity verification, borrowed-resource protections,
-   and cleanup that never masks the primary result.
-2. An `ecsai_harness` adapter proves a non-Oka process/session provider can
-   use the same composition and evidence contracts.
-3. An IntentCall adapter exposes ACP/MCP handles and protocol lifecycle as
-   a component capability; protocol internals remain in IntentCall.
-4. Add a second-language consumer and contract fixtures if the first
-   prototype is language-specific. The consumer must be able to read/write
-   the shared portable descriptors/events without importing the first
-   SDK.
+1. An Oka adapter maps the common concepts onto `ProcessLeaseRegistry`,
+   `ProcessSurface`, and `TeardownRunner`, preserving identity
+   verification, borrowed-resource protections, and cleanup that never
+   masks the primary result.
+2. An `ecsai_harness` adapter proves a non-Oka provider can use the same
+   contracts.
+3. An IntentCall adapter exposes ACP/MCP handles as a component capability;
+   protocol internals stay in IntentCall.
+4. The Flutter toolkit consumes the contract package's runner-session types
+   behind its existing `dependency_overrides` bridge; the bridge is removed
+   on publish (release-blocking debt by construction, ADR-0027).
 
-**Gate:** at least two runtime/provider implementations pass the same
-contract tests, and cross-language fixtures round-trip without losing
-required semantics. Do not extract Oka's current process manager wholesale.
+**Gate:** at least two provider implementations pass the same contract
+tests, and each adapter **deletes more failure-prone code than it adds**
+(concretely: retire a stderr magic-string scrape, a `Future.timeout`
+abandonment vector, or a per-site timeout constant — an adapter that only
+demos fails this gate). Copy-friendly fixtures round-trip without importing
+the package.
 
 ### R4 — Failure, recovery, and evidence hardening
 
-Exercise the failure cases that determine whether the design is safe:
+Exercise the failure classes from the survey (F1–F6):
 
 - Child exits cleanly, exits nonzero, is signaled, crashes, or is killed
   while the composing client is still running.
 - Composing client crashes or is forcibly terminated; a later invocation
   reconciles observed state.
-- Identity is stale, PID is reused, a lease is missing/corrupt, or the
+- Identity is stale, PID is reused, a handle is missing/corrupt, or the
   resource is borrowed or externally managed.
 - Two compositions race to start, attach, stop, or reconcile the same
   resource.
-- Readiness times out, restart/backoff is exhausted, or a stop operation
-  hangs.
-- Output contains secrets; logs are large; crash artifacts are unavailable;
-  evidence retention removes older runs.
+- Readiness times out, a stop hangs, a grandchild survives the first rung.
+- Output contains secrets; logs grow; evidence retention is bounded.
 
-Evidence should include a structured event timeline and references to
-stdout/stderr, exit status/signal, readiness/restart history, and available
-stack traces or crash artifacts. Unknown identity must remain unknown; it
-must never silently grant kill authority.
+Unknown identity must remain unknown; it must never silently grant kill
+authority.
 
 **Gate:** tests prove safe behavior under each supported failure class;
-platform integration tests are labeled and accompanied by real evidence
-where the claim depends on host behavior.
+platform-dependent claims carry real host evidence or are labeled pending
+(the repo's standing Windows-evidence rule applies to the seam's Windows
+path).
 
-### R5 — Package boundary and optional supervisors
+### R5 — Package boundary review
 
-Only after R0–R4, decide whether the result should be:
+Pre-declared default (checkpoint decision 2026-09-27): **a small common
+contract plus adapters** — `packages/resource_composition` stays
+zero-dependency and vendor-neutral so the Flutter toolkit can consume it
+without violating its no-oka-references law; the process seam stays in
+`oka_core` and is documented as copy-friendly. Re-open the boundary only if
+a real consumer demonstrates a pain copying cannot solve. Supervisors are
+evaluated only if continuous desired-state enforcement is demonstrated by a
+real user; none was found in R0.
 
-- An independent package/project with language-specific SDKs and a shared
-  descriptor/event contract.
-- A small common contract plus adapters maintained by each consuming
-  project.
-- A narrower Oka-local API because the cross-project use cases did not
-  justify a shared SDK.
-
-If real users need continuous desired-state enforcement, evaluate
-supervisors as separate replaceable implementations or packages. Start with
-an explicit local/foreground runtime; consider systemd/launchd supervisors,
-container runtimes, or remote managers only for demonstrated needs. No
-supervisor becomes mandatory by virtue of this ADR.
-
-**Gate:** the package decision names ownership, versioning, compatibility,
-security, and support boundaries; optional supervisors pass the same
-provider contract without altering the declarative component graph.
+**Gate:** the boundary decision names ownership, versioning, compatibility,
+security, and support boundaries; any future optional supervisor passes the
+same provider contract without altering the component graph.
 
 ## Verification matrix
 
 | Claim | Evidence required |
 |---|---|
-| Declaration is compositional | Tests replace one provider/runtime/evidence sink while keeping unrelated component values unchanged |
-| Plan is safe to inspect | Plan/explain tests prove no process or network side effects |
+| Declaration is compositional | Tests replace one provider/evidence sink while keeping unrelated component values unchanged |
+| Plan is safe to inspect | `explain`/`validate` tests prove no process or network side effects |
 | Recovery is general | Crash/reconcile tests across short-lived, long-lived, adopted, and external resources |
-| Leases are optional | A command-scoped process works without durable state; a persistent process can be safely adopted from durable identity |
-| Diagnostics are useful and safe | Failure fixtures cover output, signal/exit status, readiness, restart, crash artifacts, redaction, and retention |
-| Language boundary is real | Independent-language implementation passes shared schema/event fixtures |
+| Leases are optional, handles are not | A command-scoped process works without durable state; an outliving resource writes the pre-side-effect handle |
+| Deadline kills, never abandons | Bounded-run tests assert zero surviving descendants after timeout (macOS/Linux; Windows pending) |
+| Death has a meaning | Terminal-cause fixtures cover exit, signal, deadline-kill, provider fault, transport loss, unknown |
+| Diagnostics are useful and safe | Failure fixtures cover bounded output, readiness history, and redaction-before-persistence |
 | Oka remains compatible | Existing process lease, teardown, no-daemon, and identity-safety suites remain green |
 
-No phase is considered complete from design prose alone. When implementation
-begins, add only code-ready phases and their test/evidence gates to
+No phase is considered complete from design prose alone. Implementation
+phases and their gates are tracked in
 [`PHASE_CHECKLIST`](../PHASE_CHECKLIST).
 
 **Authoritative source:** [ADR-0026](../decisions/0026-declarative-resource-composition-sdk);

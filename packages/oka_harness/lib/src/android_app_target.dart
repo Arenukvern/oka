@@ -4,7 +4,8 @@ import 'dart:io';
 
 import 'package:flutter_mcp_harness/flutter_mcp_harness.dart';
 import 'package:oka_android/oka_android.dart';
-import 'package:path/path.dart' as p;
+
+import 'session_composition.dart';
 
 /// Brings an Android app up through oka's owning dev session.
 ///
@@ -75,7 +76,12 @@ final class AndroidAppTarget implements AppTarget {
       okaBin,
       args,
       workingDirectory: projectDir,
-      environment: environment,
+      // Layer on the parent environment; an empty map means "inherit
+      // unchanged" (dart:io wipes the child env for an explicit empty map,
+      // which would break oka's PATH lookups for adb/flutter).
+      environment: environment.isEmpty
+          ? null
+          : <String, String>{...Platform.environment, ...environment},
     );
     final tap = LogTap()..add('[$name] $okaBin ${args.join(' ')}');
     _pump(process.stdout, tap);
@@ -152,14 +158,11 @@ final class AndroidAppTarget implements AppTarget {
 /// Convenience: attach a [WidgetDriver] to the live session's VM service.
 ///
 /// Refuses to launch anything — the runner owns the session; this only
-/// reads its published endpoint.
+/// reads its published endpoint, through the contract-typed path
+/// ([resolveLiveSessionOutputs]).
 Future<WidgetDriver> driverForLiveSession(final String projectDir) async {
-  final session = readRunnerSessionFile(projectDir);
-  if (session == null) {
-    throw StateError(
-      'no live runner session at $projectDir '
-      '(missing ${p.join(projectDir, '.flutter_mcp', 'runner-session.json')})',
-    );
-  }
-  return WidgetDriver(await VmClient.connect(Uri.parse(session.vmServiceUri)));
+  final outputs = await resolveLiveSessionOutputs(projectDir);
+  return WidgetDriver(
+    await VmClient.connect(Uri.parse(outputs.require(runnerSessionVmUri))),
+  );
 }

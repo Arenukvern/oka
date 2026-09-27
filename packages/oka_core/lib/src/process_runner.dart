@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'process_bounded_run.dart';
 
 /// Result of an external process invocation.
 class ProcOutcome {
@@ -38,7 +41,12 @@ abstract class ProcessRunner {
   });
 }
 
-/// Default runner: dart:io [Process.run] with an optional timeout.
+/// Default runner: dart:io [Process.run] semantics with a hard deadline.
+///
+/// The deadline **kills the process tree** (graceful→force, verified death)
+/// instead of abandoning the child the way a bare `Future.timeout` does
+/// (ADR-0026 decision 8); the [TimeoutException] contract is preserved so
+/// callers keep their existing failure handling, but nothing survives it.
 class SystemProcessRunner implements ProcessRunner {
   /// Const constructor — stateless.
   const SystemProcessRunner();
@@ -51,17 +59,38 @@ class SystemProcessRunner implements ProcessRunner {
     final Map<String, String>? environment,
     final Duration? timeout,
   }) async {
-    final result = await Process.run(
+    final effectiveTimeout = timeout ?? const Duration(minutes: 30);
+    final result = await runBoundedProcess(
       executable,
       arguments,
       workingDirectory: workingDirectory,
       environment: environment,
       runInShell: Platform.isWindows,
-    ).timeout(timeout ?? const Duration(minutes: 30));
-    return ProcOutcome(
-      exitCode: result.exitCode,
-      stdout: result.stdout.toString(),
-      stderr: result.stderr.toString(),
+      timeout: effectiveTimeout,
     );
+    switch (result.cause) {
+      case BoundedRunCause.spawnFailed:
+        throw ProcessException(
+          executable,
+          arguments,
+          result.errorMessage ?? 'Failed to start.',
+        );
+      case BoundedRunCause.killedOnDeadline:
+        final survivors = result.survivors.isEmpty
+            ? 'no survivors'
+            : 'SURVIVORS: ${result.survivors}';
+        throw TimeoutException(
+          'Process killed after the ${effectiveTimeout.inMilliseconds}ms '
+          'deadline ($survivors).',
+          effectiveTimeout,
+        );
+      case BoundedRunCause.signaled:
+      case BoundedRunCause.exited:
+        return ProcOutcome(
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+        );
+    }
   }
 }

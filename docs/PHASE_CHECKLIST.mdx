@@ -19,6 +19,31 @@ with evidence, not into a checked box.
 
 ## Now (unblocked, code-ready)
 
+- **Resource composition R1–R2 (ADR-0026 as amended 2026-09-27) — contract
+  package + process seam landed; adapters pending.**
+  `packages/resource_composition` is the zero-dependency, vendor-neutral
+  contract: `Composition`/`Component` graphs with `validate`/`explain`
+  before side effects, readiness dialects (`HandshakeLine`, `FilePresent`,
+  `LogPattern`, `TcpConnect`, `ReadinessAll`) with composition-declared
+  budgets, typed `OutputRef`/`ResolvedOutputs` promises, lifecycle events
+  with terminal causes, bounded `LogTap`, the `ResourceProvider` seam with
+  declared capabilities, a scripted `FakeProvider`, and a runner with
+  stop-during-start on readiness budget and reverse-order teardown that
+  never masks the original failure. `oka_core` owns the process seam
+  (ADR-0026 decision 8): `process_tree` descendant enumeration +
+  `stopProcessTree` (enumerate before the first signal; graceful→force;
+  verified death) and `runBoundedProcess` (deadline kills the tree instead
+  of abandoning it; `SystemProcessRunner` keeps its `TimeoutException`
+  contract, the child is now verified dead). R0 evidence:
+  `docs/evidence/process-lifecycle-r0-survey-2026-09-27.mdx` (five
+  systems; the collector monorepo anonymized). Remaining gates (R3–R5 of
+  `docs/guides/resource_composition_plan.mdx`): the oka adapter over
+  `ProcessLeaseRegistry`/`TeardownRunner`; an `ecsai_harness` adapter that
+  deletes more failure-prone code than it adds; an IntentCall adapter; the
+  Flutter toolkit consuming the contract types and retiring the
+  `dependency_overrides` bridge on publish; R4 failure hardening
+  (cross-process races, reboot identity, Windows runner evidence for the
+  seam); R5 boundary review.
 - **R8 release shrinking (ADR-0023/ADR-0024 release-readiness work) —
   implemented, live-device evidence pending.** Release builds invoke the real
   R8 shrinker over the full program closure with documented CLI flags only
