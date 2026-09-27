@@ -1,4 +1,3 @@
-
 import 'pipeline/steps/asset_steps.dart' show DeeplinkConfig;
 
 /// Typed Android manifest specification rendered by host-codegen (ADR-0006).
@@ -10,7 +9,6 @@ import 'pipeline/steps/asset_steps.dart' show DeeplinkConfig;
 ///
 /// Rendering is deterministic (pure function in `host_codegen.dart`).
 class ManifestSpec {
-
   const ManifestSpec({
     this.permissions = const ['android.permission.INTERNET'],
     this.applicationAttributes = const {},
@@ -53,20 +51,26 @@ class ManifestSpec {
           ? perms.map((final e) => e.toString()).toList(growable: false)
           : const [],
       applicationAttributes: appAttrs is Map<dynamic, dynamic>
-          ? appAttrs.map((final k, final v) => MapEntry(k.toString(), v.toString()))
+          ? appAttrs.map(
+              (final k, final v) => MapEntry(k.toString(), v.toString()),
+            )
           : const {},
       activityAttributes: actAttrs is Map<dynamic, dynamic>
-          ? actAttrs.map((final k, final v) => MapEntry(k.toString(), v.toString()))
+          ? actAttrs.map(
+              (final k, final v) => MapEntry(k.toString(), v.toString()),
+            )
           : const {},
       applicationMetaData: metaData is List
-          ? metaData.whereType<Map<dynamic, dynamic>>().map(MetaDataSpec.fromMap).toList(
-              growable: false,
-            )
+          ? metaData
+                .whereType<Map<dynamic, dynamic>>()
+                .map(MetaDataSpec.fromMap)
+                .toList(growable: false)
           : const [],
       activityMetaData: actMetaData is List
-          ? actMetaData.whereType<Map<dynamic, dynamic>>().map(MetaDataSpec.fromMap).toList(
-              growable: false,
-            )
+          ? actMetaData
+                .whereType<Map<dynamic, dynamic>>()
+                .map(MetaDataSpec.fromMap)
+                .toList(growable: false)
           : const [],
       manifestElements: rawElements is List
           ? rawElements.map((final e) => e.toString()).toList(growable: false)
@@ -77,14 +81,16 @@ class ManifestSpec {
                 .toList(growable: false)
           : const [],
       deeplinks: links is List ? DeeplinkConfig.parse(links) : const [],
-      cleartextTraffic:
-          map['cleartext_traffic'] is bool
+      cleartextTraffic: map['cleartext_traffic'] is bool
           ? map['cleartext_traffic'] as bool
           : null,
       debuggable: map['debuggable'] is! bool || map['debuggable'] as bool,
-      extractNativeLibs: map['extract_native_libs'] is! bool || map['extract_native_libs'] as bool,
+      extractNativeLibs:
+          map['extract_native_libs'] is! bool ||
+          map['extract_native_libs'] as bool,
     );
   }
+
   /// `uses-permission` entries (full names, e.g.
   /// `android.permission.CAMERA`).
   final List<String> permissions;
@@ -160,7 +166,6 @@ class ManifestSpec {
 /// A `<meta-data android:name="…">` entry: either `android:value` or
 /// `android:resource`.
 class MetaDataSpec {
-
   const MetaDataSpec({required this.name, this.value, this.resource});
 
   factory MetaDataSpec.fromMap(final Map<dynamic, dynamic> map) => MetaDataSpec(

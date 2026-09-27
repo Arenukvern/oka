@@ -6,7 +6,8 @@ import 'package:path/path.dart' as p;
 
 import '../auto_resolve.dart' show ensureR8;
 import '../build/apk_layout.dart';
-import '../build/r8_tool.dart' show defaultR8KeepRules, r8Command;
+import '../build/r8_tool.dart'
+    show composeR8Rules, defaultR8KeepRules, r8Command;
 import '../build/toolchain.dart';
 import 'process_runner.dart';
 
@@ -128,13 +129,14 @@ class BytecodeCommandPolicy {
   /// Only documented R8 CLI flags are emitted: `--seeds`/`--usage` outputs
   /// and `--printconfiguration` do **not** exist in the R8 command line
   /// (the correct collective-config output flag is `--pg-conf-output`).
+  /// Rule inputs are passed as repeated `--pg-conf` in override order.
   List<String> r8Args({
     required String outputDir,
     required String minApi,
     required String androidJar,
     required List<String> programJars,
     required List<String> libraryJars,
-    required String configFile,
+    required List<String> configFiles,
     required String mappingFile,
     required String confOutputFile,
     bool noTreeShaking = false,
@@ -148,8 +150,7 @@ class BytecodeCommandPolicy {
     '--lib',
     androidJar,
     for (final jar in libraryJars) ...['--lib', jar],
-    '--pg-conf',
-    configFile,
+    for (final configFile in configFiles) ...['--pg-conf', configFile],
     '--pg-map-output',
     mappingFile,
     '--pg-conf-output',
@@ -309,9 +310,11 @@ Future<CompileDexOutcome> compileAndroidBytecode({
       await Directory(reportsDir).create(recursive: true);
       final defaultRules = p.join(reportsDir, 'oka-default-rules.pro');
       await File(defaultRules).writeAsString(defaultR8KeepRules);
-      // User rules (ADR-0010 `android.proguard_files`, project-relative):
-      // missing files fail the build instead of being silently skipped.
-      final userRules = <String>[];
+      // Rule inputs, in override order: oka defaults → project proguard
+      // files (ADR-0010 `android.proguard_files`, project-relative; missing
+      // files fail the build instead of being silently skipped) → inline
+      // `AndroidBuild.r8Rules`. Later rules override earlier ones in R8.
+      final ruleFiles = <String>[defaultRules];
       for (final rule in ctx.config.android.proguardFiles) {
         final path = p.isAbsolute(rule) ? rule : p.join(ctx.projectPath, rule);
         if (!await File(path).exists()) {
@@ -320,12 +323,20 @@ Future<CompileDexOutcome> compileAndroidBytecode({
             error: 'proguard rule file not found: $rule (resolved: $path)',
           );
         }
-        userRules.add(path);
+        ruleFiles.add(path);
+      }
+      final inlineRules = ctx.config.android.r8Rules;
+      if (inlineRules.isNotEmpty) {
+        final appRules = p.join(reportsDir, 'oka-app-rules.pro');
+        await File(appRules).writeAsString(
+          composeR8Rules(base: '', extraRules: inlineRules),
+        );
+        ruleFiles.add(appRules);
       }
       final reports = <String, String>{
         'mapping': p.join(reportsDir, 'mapping.txt'),
         'config': p.join(reportsDir, 'configuration.txt'),
-        'input_config': defaultRules,
+        'input_config': ruleFiles.join('\n'),
       };
       shrinkerArtifacts.addAll(reports);
       final args = policy.r8Args(
@@ -334,7 +345,7 @@ Future<CompileDexOutcome> compileAndroidBytecode({
         androidJar: androidJar,
         programJars: programs,
         libraryJars: compileOnly,
-        configFile: defaultRules,
+        configFiles: ruleFiles,
         mappingFile: reports['mapping']!,
         confOutputFile: reports['config']!,
         // Release shrinks by default; `enable_optimization: false` keeps

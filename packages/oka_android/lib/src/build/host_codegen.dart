@@ -38,8 +38,8 @@ public class MainActivity extends FlutterActivity {
 
 /// Plugin registration entry used by [generatePluginRegistrantJava].
 class PluginRegistration {
-
   const PluginRegistration({required this.className, required this.name});
+
   /// Fully-qualified Java/Kotlin plugin class, e.g. `io.flutter.plugins.pathprovider.PathProviderPlugin`
   final String className;
 
@@ -110,15 +110,15 @@ String generateAndroidManifestXml({
   final String extraIntentFilters = '',
   final String iconRef = '',
 }) => generateAndroidManifestFromSpec(
-    packageName: packageName,
-    label: label,
-    minSdk: minSdk,
-    targetSdk: targetSdk,
-    activityName: activityName,
-    spec: ManifestSpec(permissions: permissions, debuggable: debuggable),
-    extraIntentFilters: extraIntentFilters,
-    iconRef: iconRef,
-  );
+  packageName: packageName,
+  label: label,
+  minSdk: minSdk,
+  targetSdk: targetSdk,
+  activityName: activityName,
+  spec: ManifestSpec(permissions: permissions, debuggable: debuggable),
+  extraIntentFilters: extraIntentFilters,
+  iconRef: iconRef,
+);
 
 /// Renders the host AndroidManifest from a typed [ManifestSpec] (ADR-0006).
 String generateAndroidManifestFromSpec({
@@ -158,9 +158,9 @@ String generateAndroidManifestFromSpec({
       .map(
         (final m) => m.resource != null
             ? '        <meta-data android:name="${m.name}" '
-                'android:resource="${m.resource}" />'
+                  'android:resource="${m.resource}" />'
             : '        <meta-data android:name="${m.name}" '
-                'android:value="${m.value}" />',
+                  'android:value="${m.value}" />',
       )
       .join('\n');
 
@@ -182,9 +182,9 @@ String generateAndroidManifestFromSpec({
       .map(
         (final m) => m.resource != null
             ? '            <meta-data android:name="${m.name}" '
-                'android:resource="${m.resource}" />'
+                  'android:resource="${m.resource}" />'
             : '            <meta-data android:name="${m.name}" '
-                'android:value="${m.value}" />',
+                  'android:value="${m.value}" />',
       )
       .join('\n');
 

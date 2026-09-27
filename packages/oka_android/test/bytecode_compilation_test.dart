@@ -210,7 +210,7 @@ void main() {
           androidJar: 'android.jar',
           programJars: const ['a.jar', 'b.jar'],
           libraryJars: const ['annotations.jar'],
-          configFile: 'r8/config.pro',
+          configFiles: const ['r8/config.pro'],
           mappingFile: 'r8/mapping.txt',
           confOutputFile: 'r8/configuration.txt',
         );

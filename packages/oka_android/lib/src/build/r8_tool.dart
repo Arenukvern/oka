@@ -46,7 +46,34 @@ const defaultR8KeepRules = '''
   public static **[] values();
   public static ** valueOf(java.lang.String);
 }
+
+# Optional references that legitimately have no class in a no-Gradle program
+# jar set: the Flutter embedding's deferred-components hooks (Play Core, only
+# used with on-demand feature delivery). Dependency-vendor references (e.g.
+# datatransport's optional Firebase encoders) are NOT here on purpose —
+# declare them per app with `AndroidBuild.r8Rules` (ADR-0010) so oka
+# defaults stay vendor-neutral.
+-dontwarn com.google.android.play.**
+
+# AndroidX libraries ship consumer proguard rules oka does not plumb into R8
+# yet; their missing-class references are all optional/reflective paths
+# (window extensions, vectordrawable compat, sidecars). Real missing classes
+# surface at runtime regardless of R8's static view, so silence the family.
+-dontwarn androidx.**
 ''';
+
+/// Composes the app-level R8 rule text from the oka defaults and the
+/// project's inline [extraRules] (`AndroidBuild.r8Rules`) — pure, so the
+/// merge order is golden-testable: defaults first, app rules last (later
+/// rules override earlier ones in R8).
+String composeR8Rules({
+  final String base = defaultR8KeepRules,
+  final List<String> extraRules = const [],
+}) {
+  if (extraRules.isEmpty) return base;
+  return '$base\n# App-declared rules (AndroidBuild.r8Rules)\n'
+      '${extraRules.map((final rule) => '$rule\n').join()}';
+}
 
 /// R8 version provisioned by oka (stable Google Maven release).
 const kR8Version = '9.4.24';

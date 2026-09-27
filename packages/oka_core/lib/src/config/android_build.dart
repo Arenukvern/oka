@@ -26,6 +26,7 @@ class AndroidBuild {
     this.requiredJavaVersion = '',
     this.enableOptimization = false,
     this.proguardFiles = const [],
+    this.r8Rules = const [],
   });
 
   /// Project display name — feeds the `app_name` string resource and the
@@ -81,6 +82,16 @@ class AndroidBuild {
   /// ProGuard rule files (project-relative). Empty → consumer defaults.
   final List<String> proguardFiles;
 
+  /// Inline R8/ProGuard rules applied to every release build, after
+  /// [proguardFiles] (later rules override earlier ones in R8).
+  ///
+  /// Declare vendor-specific `-dontwarn` / keep rules here instead of
+  /// relying on oka defaults: defaults cover only Flutter-embedding and
+  /// Android-framework reflection surfaces, never a dependency vendor
+  /// (declare e.g. `-dontwarn com.google.firebase.encoders.**` when your
+  /// dependency closure ships datatransport).
+  final List<String> r8Rules;
+
   AndroidBuild copyWith({
     final String? name,
     final String? packageName,
@@ -98,6 +109,7 @@ class AndroidBuild {
     final String? requiredJavaVersion,
     final bool? enableOptimization,
     final List<String>? proguardFiles,
+    final List<String>? r8Rules,
   }) => AndroidBuild(
     name: name ?? this.name,
     packageName: packageName ?? this.packageName,
@@ -115,6 +127,7 @@ class AndroidBuild {
     requiredJavaVersion: requiredJavaVersion ?? this.requiredJavaVersion,
     enableOptimization: enableOptimization ?? this.enableOptimization,
     proguardFiles: proguardFiles ?? this.proguardFiles,
+    r8Rules: r8Rules ?? this.r8Rules,
   );
 
   /// Emits the `android:` map — only explicitly set fields — shaped exactly
@@ -138,6 +151,7 @@ class AndroidBuild {
       'required_java_version': requiredJavaVersion,
     if (enableOptimization) 'enable_optimization': enableOptimization,
     if (proguardFiles.isNotEmpty) 'proguard_files': proguardFiles,
+    if (r8Rules.isNotEmpty) 'r8_rules': r8Rules,
   };
 
   /// A project declaration is meaningless without an identity.

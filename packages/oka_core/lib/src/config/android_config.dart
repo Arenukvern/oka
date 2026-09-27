@@ -56,6 +56,10 @@ extension type const AndroidConfig(Map<String, dynamic> value) {
   List<String> get proguardFiles =>
       jsonDecodeListAs<String>(value['proguard_files']);
 
+  /// Inline R8/ProGuard rules applied after [proguardFiles] (later rules
+  /// override earlier ones in R8).
+  List<String> get r8Rules => jsonDecodeListAs<String>(value['r8_rules']);
+
   /// Supported ABIs (arm64-v8a, armeabi-v7a, x86_64, etc.)
   List<String> get abis => jsonDecodeListAs<String>(value['abis']);
 
