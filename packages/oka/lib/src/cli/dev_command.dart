@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:oka_android/oka_android.dart';
 
+import 'delegation_dart.dart';
+
 /// `oka dev` — build + install + launch + attach session (ADR-0011).
 ///
 /// One of the three device-flow surfaces:
@@ -288,7 +290,7 @@ class DevCommand {
       ],
     ];
     final proc = await Process.start(
-      'dart',
+      await resolveDelegationDart(),
       argv,
       workingDirectory: projectPath,
       mode: ProcessStartMode.inheritStdio,

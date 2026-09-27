@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 
+import 'delegation_dart.dart';
 import 'explain_command.dart';
 
 /// Build command to compile APK or AAB
@@ -138,7 +139,7 @@ class BuildCommand {
       ];
       await registerCacheProjectBestEffort(projectPath);
       final proc = await Process.run(
-        'dart',
+        await resolveDelegationDart(),
         ['run', dartEntrypoint, ...args],
         workingDirectory: projectPath,
         environment: {

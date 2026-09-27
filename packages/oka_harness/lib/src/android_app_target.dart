@@ -55,22 +55,45 @@ final class AndroidAppTarget implements AppTarget {
 
   @override
   Future<LaunchedApp> launch({final bool build = true}) async {
-    if (!build) {
-      throw ArgumentError(
-        'AndroidAppTarget always builds through `oka dev`; to observe an '
-        'already-running session use readRunnerSessionFile(projectDir) + '
-        'VmClient.connect() instead of launching a second owner.',
-      );
-    }
     // A stale file would look like a live session; the runner deletes it on
     // exit, so anything left is debris (crash, SIGKILL).
     await clearRunnerSessionFile(projectDir);
 
+    final defineArgs = [
+      for (final entry in dartDefines.entries) ...[
+        '--dart-define',
+        '${entry.key}=${entry.value}',
+      ],
+    ];
+    final tap = LogTap();
+    if (build) {
+      // The dev session validates its flags against the manifest recorded
+      // by `oka build apk --debug` (ADR-0011 H1) — dart-defines included.
+      // A define the build never recorded is a refusal at attach time, so
+      // the target owns the build, cache-aware (unchanged steps reuse
+      // artifacts; typically seconds after the first cold build).
+      tap.add('[$name] $okaBin build apk --debug ${defineArgs.join(' ')}');
+      final buildProcess = await Process.run(
+        okaBin,
+        ['build', 'apk', '--debug', ...defineArgs],
+        workingDirectory: projectDir,
+        environment: environment.isEmpty
+            ? null
+            : <String, String>{...Platform.environment, ...environment},
+        runInShell: true,
+      );
+      if (buildProcess.exitCode != 0) {
+        throw StateError(
+          'oka build apk --debug failed (${buildProcess.exitCode}):\n'
+          '${buildProcess.stdout}\n${buildProcess.stderr}',
+        );
+      }
+    }
+
     final args = <String>[
       'dev',
       if (deviceId != null) ...['--device', deviceId!],
-      for (final entry in dartDefines.entries)
-        ...['--dart-define', '${entry.key}=${entry.value}'],
+      ...defineArgs,
     ];
     final process = await Process.start(
       okaBin,
@@ -83,7 +106,7 @@ final class AndroidAppTarget implements AppTarget {
           ? null
           : <String, String>{...Platform.environment, ...environment},
     );
-    final tap = LogTap()..add('[$name] $okaBin ${args.join(' ')}');
+    tap.add('[$name] $okaBin ${args.join(' ')}');
     _pump(process.stdout, tap);
     _pump(process.stderr, tap);
 
@@ -127,10 +150,13 @@ final class AndroidAppTarget implements AppTarget {
 
   Future<Process?> _startLogcat(final String deviceId, final LogTap tap) async {
     try {
-      final process = await Process.start(
-        'adb',
-        ['-s', deviceId, 'logcat', '-T', '1'],
-      );
+      final process = await Process.start('adb', [
+        '-s',
+        deviceId,
+        'logcat',
+        '-T',
+        '1',
+      ]);
       _pump(process.stdout, tap, prefix: '[logcat] ');
       _pump(process.stderr, tap, prefix: '[logcat] ');
       return process;

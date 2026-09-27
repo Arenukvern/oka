@@ -1,15 +1,22 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_mcp_harness/flutter_mcp_harness.dart' show LaunchedApp;
 import 'package:oka_harness/oka_harness.dart';
 import 'package:test/test.dart';
 
-/// A fake `oka` CLI: publishes a valid runner-session file (mcp_flutter
-/// ADR-0014 spec v2 shape), prints its args, and stays alive like the real
-/// owning session.
+/// A fake `oka` CLI: the `build` phase exits fast (records nothing — a real
+/// build writes run_session.json next to the APK); the `dev` phase
+/// publishes a valid runner-session file (mcp_flutter ADR-0014 spec v2
+/// shape), prints its args, and stays alive like the real owning session.
 const String _fakeOkaScript = r'''
 #!/bin/sh
 echo "fake-oka args: $*"
+if [ "$1" = "build" ]; then
+  echo "fake build complete"
+  exit 0
+fi
+echo "fake-oka dev session args"
 mkdir -p .flutter_mcp
 cat > .flutter_mcp/runner-session.json <<'JSON'
 {
@@ -26,11 +33,15 @@ echo "fake session published"
 sleep 300
 ''';
 
-/// A fake `oka` that never publishes a session (for the timeout path).
-const String _stallingOkaScript = '''
+/// A fake `oka` whose build succeeds but whose dev session never publishes
+/// (for the timeout path).
+const String _stallingOkaScript = r'''
 #!/bin/sh
-echo "fake-oka stalling"
-sleep 300
+if [ "$1" = "dev" ]; then
+  echo "fake-oka stalling"
+  sleep 300
+fi
+echo "fake-oka build ok"
 ''';
 
 Future<Directory> _withFakeOka(final String script) async {
@@ -38,6 +49,25 @@ Future<Directory> _withFakeOka(final String script) async {
   final scriptFile = File('${dir.path}/fake_oka')..writeAsStringSync(script);
   await Process.run('chmod', ['+x', scriptFile.path]);
   return dir;
+}
+
+/// Polls the session tap for [needle] — stdout lines arrive as stream
+/// events, so a just-launched session's echo may lag the returned
+/// [LaunchedApp] by a few hundred milliseconds.
+Future<bool> tapContains(final LaunchedApp app, final String needle) async {
+  for (var i = 0; i < 30; i++) {
+    if (app.stdout.firstMatch(needle) != null) return true;
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  }
+  if (app.stdout.firstMatch(needle) == null) {
+    // ignore: avoid_print
+    print('--- tap at failure ---');
+    for (final line in app.stdout.tail(20)) {
+      // ignore: avoid_print
+      print('| $line');
+    }
+  }
+  return app.stdout.firstMatch(needle) != null;
 }
 
 void main() {
@@ -51,26 +81,34 @@ void main() {
     await workspace.delete(recursive: true);
   });
 
-  test('launch reads the runner-session contract and returns the VM URI',
-      () async {
-    final target = AndroidAppTarget(
-      projectDir: workspace.path,
-      okaBin: '${workspace.path}/fake_oka',
-      deviceId: 'emulator-9999',
-      logcat: false,
-    );
-    final app = await target.launch();
+  test(
+    'launch owns the build phase, then reads the runner-session contract',
+    () async {
+      final target = AndroidAppTarget(
+        projectDir: workspace.path,
+        okaBin: '${workspace.path}/fake_oka',
+        deviceId: 'emulator-9999',
+        dartDefines: const {'INSPECTOR_EVIDENCE': 'fixture'},
+        logcat: false,
+      );
+      final app = await target.launch();
 
-    addTearDown(app.stop);
-    expect(app.vmUri.host, '127.0.0.1');
-    expect(app.vmUri.port, 45671);
-    // Args threaded to the owning session.
-    expect(
-      app.stdout.firstMatch('--device emulator-9999'),
-      isNotNull,
-    );
-    expect(app.stdout.firstMatch('fake session published'), isNotNull);
-  });
+      addTearDown(app.stop);
+      expect(app.vmUri.host, '127.0.0.1');
+      expect(app.vmUri.port, 45671);
+      // The build phase ran with the defines threaded through.
+      expect(await tapContains(app, 'build apk --debug'), isTrue);
+      expect(
+        await tapContains(app, '--dart-define INSPECTOR_EVIDENCE=fixture'),
+        isTrue,
+      );
+      // Args threaded to the owning session.
+      expect(await tapContains(app, '--device emulator-9999'), isTrue);
+      expect(await tapContains(app, 'fake-oka dev session args'), isTrue);
+      // The build ran with the SAME defines the dev session requests
+      // (the parity check the real oka enforces).
+    },
+  );
 
   test('stop terminates the owning session', () async {
     final target = AndroidAppTarget(
@@ -83,19 +121,26 @@ void main() {
     expect(code, isNonZero, reason: 'SIGTERM should end the fake session');
   });
 
-  test('launch(build: false) refuses to double-own the session', () async {
-    final target = AndroidAppTarget(
-      projectDir: workspace.path,
-      okaBin: '${workspace.path}/fake_oka',
-    );
-    await expectLater(
-      target.launch(build: false),
-      throwsA(isA<ArgumentError>()),
-    );
-  });
+  test(
+    'launch(build: false) skips the build phase and attaches directly',
+    () async {
+      final target = AndroidAppTarget(
+        projectDir: workspace.path,
+        okaBin: '${workspace.path}/fake_oka',
+        logcat: false,
+      );
+      final app = await target.launch(build: false);
+      addTearDown(app.stop);
+      expect(
+        app.stdout.firstMatch('build apk'),
+        isNull,
+        reason: 'build:false must not run the build phase',
+      );
+      expect(app.stdout.firstMatch('fake-oka dev session args'), isNotNull);
+    },
+  );
 
-  test('a session that never publishes times out and is torn down',
-      () async {
+  test('a session that never publishes times out and is torn down', () async {
     final stalling = await _withFakeOka(_stallingOkaScript);
     addTearDown(() => stalling.delete(recursive: true));
     final target = AndroidAppTarget(

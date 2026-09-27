@@ -61,4 +61,5 @@ export 'src/cache/cache_transactions.dart';
 export 'src/cache/cache_workspace.dart';
 export 'src/cache/host_adapters/apple_cache_diagnostics.dart';
 export 'src/cache/storage_discovery.dart';
+export 'src/cli/delegation_dart.dart';
 export 'src/version.dart';
