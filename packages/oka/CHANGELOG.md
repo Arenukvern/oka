@@ -4,6 +4,32 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## 0.5.0
+
+### Fixed
+
+- **Android release engine pairing (splash-hang regression):** release APKs
+  could package the **debug JIT engine** when the mode-specific
+  `flutter.jar` was missing from the Flutter SDK cache — the app booted to
+  the splash screen and never ran Dart `main()`. Engine variants are now
+  resolved per build mode, `flutter precache --android` runs automatically on
+  a cache miss, and a still-missing jar fails the build instead of being
+  silently substituted. See
+  `docs/evidence/android-release-engine-pairing-2026-09-27.mdx`.
+
+### Changed
+
+- `EngineArtifacts.findFlutterJar` / `extractLibflutter` /
+  `extractLibflutterForAbis` take a variant string (`''`, `'-profile'`,
+  `'-release'`, via `engineVariantForMode`) instead of a `release` boolean;
+  `engineArtifactDirForAbi` is now `engineArtifactDirForVariant`. Profile
+  builds use the profile engine directory (previously conflated with
+  release).
+- `flutter-assemble` / `release-aot` step fingerprints include
+  path-dependency Dart sources (pub-workspace layouts resolved from the
+  workspace-root `package_config.json`) and `buildArgs` — edits in sibling
+  checkouts and R8/assemble argument changes no longer serve stale artifacts.
+
 ## 0.4.0
 
 ### Added

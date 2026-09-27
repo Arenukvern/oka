@@ -1,3 +1,25 @@
+## 0.5.0
+
+### Fixed
+
+- Release builds no longer fall back to the debug `flutter.jar` when the
+  release jar is missing: the fallback shipped a debug JIT engine with a
+  release AOT snapshot, producing apps that hang on the splash screen and
+  never run Dart `main()`. Missing jars trigger `flutter precache --android`
+  once; a still-missing jar fails the build.
+
+### Changed
+
+- Engine artifact resolution is mode-correct: debug → `android-<abi>`,
+  profile → `android-<abi>-profile`, release → `android-<abi>-release`
+  (`engineVariantForMode`, `engineArtifactDirForVariant`). The `release`
+  boolean parameters on `findFlutterJar` / `extractLibflutter` /
+  `extractLibflutterForAbis` were replaced by the variant string, and
+  `engineArtifactDirForAbi` was renamed to `engineArtifactDirForVariant`.
+- `fingerprintInputs` consumers: `flutter-assemble` and `release-aot`
+  fingerprints now include path-dependency sources (`pathDependencyInputs`)
+  and `buildArgs`.
+
 ## 0.2.0
 
 - Add a composable AVD diagnostics provider with stored configuration,

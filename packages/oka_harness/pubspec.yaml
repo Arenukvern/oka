@@ -4,7 +4,7 @@ description: >-
   Android app via `oka dev`, pick the forwarded VM service URI up from the
   runner-session contract, and drive/assert it with the
   flutter_mcp_harness scenario core.
-version: 0.4.0 # x-release-please-version
+version: 0.5.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_harness
 issue_tracker: https://github.com/Arenukvern/oka/issues
@@ -22,9 +22,9 @@ environment:
 
 dependencies:
   flutter_mcp_harness: ^0.1.0
-  oka_android: ^0.4.0 # x-release-please-version
+  oka_android: ^0.5.0 # x-release-please-version
   path: ^1.9.0
-  resource_composition: ^0.4.0 # x-release-please-version
+  resource_composition: ^0.5.0 # x-release-please-version
 
 dev_dependencies:
   lints: ^6.1.0
