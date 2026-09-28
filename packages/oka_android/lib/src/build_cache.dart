@@ -67,9 +67,16 @@ class StepCache {
   Future<void> store(
     final String step,
     final String fingerprint,
-    final Map<String, dynamic> outputs,
-  ) async {
-    _data[step] = {'fingerprint': fingerprint, ...outputs};
+    final Map<String, dynamic> outputs, {
+    final Map<String, String>? inputDigests,
+  }) async {
+    _data[step] = {
+      'fingerprint': fingerprint,
+      // ADR-0029 D4: per-input digests so `oka why <step>` can name exactly
+      // which input changed instead of only "inputs changed".
+      'input_digests': ?inputDigests,
+      ...outputs,
+    };
     final f = _file;
     await f.parent.create(recursive: true);
     await f.writeAsString(jsonEncode(_data), flush: true);
@@ -92,16 +99,26 @@ class StepCache {
 Future<String> fingerprintInputs(
   final Iterable<String> paths, {
   final Iterable<String> extras = const [],
+}) async =>
+    (await fingerprintInputsDetailed(paths, extras: extras)).digest;
+
+/// [fingerprintInputs] plus the per-file digest map, for `oka why` (D4).
+Future<({String digest, Map<String, String> fileDigests})>
+fingerprintInputsDetailed(
+  final Iterable<String> paths, {
+  final Iterable<String> extras = const [],
 }) async {
   final sink = _HashSink();
   for (final extra in extras) {
     sink.add('extra:$extra\n');
   }
+  final digests = <String, String>{};
   final sorted = paths.toList()..sort();
   for (final path in sorted) {
     final f = File(path);
     if (!f.existsSync()) {
       sink.add('missing:$path\n');
+      digests[path] = '<missing>';
       continue;
     }
     final stat = f.statSync();
@@ -110,12 +127,16 @@ Future<String> fingerprintInputs(
       // files keep stable fingerprints when their bytes are unchanged.
       final digest = sha256.convert(await f.readAsBytes()).toString();
       sink.add('content:$path:$digest\n');
+      digests[path] = digest;
     } else {
       // Large artifacts (jars, AARs): size + mtime is stable and cheap.
-      sink.add('file:$path:${stat.size}:${stat.modified.millisecondsSinceEpoch}\n');
+      final stamp =
+          '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+      sink.add('file:$path:$stamp\n');
+      digests[path] = stamp;
     }
   }
-  return sink.digest;
+  return (digest: sink.digest, fileDigests: digests);
 }
 
 class _HashSink {

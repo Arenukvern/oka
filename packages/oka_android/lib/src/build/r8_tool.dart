@@ -83,7 +83,36 @@ String r8MavenDownloadUrl({final String version = kR8Version}) =>
     'https://dl.google.com/android/maven2/'
     'com/android/tools/r8/$version/r8-$version.jar';
 
+/// Store key for the standalone R8 jar (ADR-0013/0028): identity is the
+/// download URL, so re-published artifacts change keys. The jar lives only
+/// in the store — no second copy under `~/.oka/tools` (ADR-0028 §1).
+ContentKey r8StoreKey({final String version = kR8Version}) =>
+    ContentKey.compute(
+      category: 'r8',
+      name: 'r8',
+      version: version,
+      inputs: [r8MavenDownloadUrl(version: version)],
+      fileName: 'r8-$version.jar',
+    );
+
+/// Absolute path of [version]'s R8 jar inside the shared artifact store.
+String storeR8JarPath({
+  final String version = kR8Version,
+  final Map<String, String>? environment,
+}) {
+  final key = r8StoreKey(version: version);
+  return p.join(
+    LocalArtifactStore.defaultRoot(environment: environment),
+    key.relativePath,
+    key.fileNameOrDefault,
+  );
+}
+
 /// oka-managed R8 install directory: `~/.oka/tools/r8`.
+///
+/// Legacy lookup location only — installs since ADR-0028 keep the jar in the
+/// artifact store; existing tools-dir copies stay valid and are found by
+/// [findR8Jar].
 String okaR8ToolsDir() {
   final home =
       Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
@@ -105,8 +134,8 @@ List<String> r8Command(final String r8Path, final List<String> args) =>
     ? ['java', '-cp', r8Path, 'com.android.tools.r8.R8', ...args]
     : [r8Path, ...args];
 
-/// Locate an R8 jar: explicit path → `OKA_R8_JAR` → the oka tools directory
-/// (`r8-<version>.jar`, then `r8.jar`). Returns the path or null.
+/// Locate an R8 jar: explicit path → `OKA_R8_JAR` → the shared artifact
+/// store → the legacy `~/.oka/tools` copies. Returns the path or null.
 ///
 /// [environment]/[home] are injectable so the toolchain policy can resolve
 /// against a test environment instead of the host's real state.
@@ -120,6 +149,7 @@ Future<String?> findR8Jar({
   final candidates = [
     if (explicitPath != null && explicitPath.isNotEmpty) explicitPath,
     env['OKA_R8_JAR'],
+    storeR8JarPath(environment: env),
     if (homeDir.isNotEmpty)
       p.join(homeDir, '.oka', 'tools', 'r8', 'r8-$kR8Version.jar'),
     if (homeDir.isNotEmpty) p.join(homeDir, '.oka', 'tools', 'r8', 'r8.jar'),
@@ -130,47 +160,33 @@ Future<String?> findR8Jar({
   return null;
 }
 
-/// Download R8 [version] into the oka tools directory through the shared
-/// artifact store (ADR-0013: `oka cache list/gc` sees it; OKA_CACHE shares
-/// it). Returns the installed jar path.
+/// Download R8 [version] into the shared artifact store (ADR-0013: `oka
+/// cache list/gc` sees it; OKA_CACHE shares it). Returns the stored jar
+/// path — no tools-dir copy is made (ADR-0028 §1).
 Future<String> installR8({
   final String version = kR8Version,
   final bool verbose = false,
 }) async {
   final url = r8MavenDownloadUrl(version: version);
   final store = LocalArtifactStore();
-  final jar = await store.fetch(
-    ContentKey.compute(
-      category: 'r8',
-      name: 'r8',
-      version: version,
-      inputs: [url],
-    ),
-    () async {
-      final tmp = await Directory.systemTemp.createTemp('oka_r8_');
-      final tempFile = p.join(tmp.path, 'r8-$version.jar');
-      final download = await Process.run('curl', [
-        '-L',
-        '-f',
-        '-o',
-        tempFile,
-        url,
-      ], runInShell: true);
-      if (download.exitCode != 0) {
-        throw Exception(
-          'Failed to download R8 $version from $url: ${download.stderr}',
-        );
-      }
-      return File(tempFile);
-    },
-  );
+  final jar = await store.fetch(r8StoreKey(version: version), () async {
+    final tmp = await Directory.systemTemp.createTemp('oka_r8_');
+    final tempFile = p.join(tmp.path, 'r8-$version.jar');
+    final download = await Process.run('curl', [
+      '-L',
+      '-f',
+      '-o',
+      tempFile,
+      url,
+    ], runInShell: true);
+    if (download.exitCode != 0) {
+      throw Exception(
+        'Failed to download R8 $version from $url: ${download.stderr}',
+      );
+    }
+    return File(tempFile);
+  });
 
-  final toolsDir = okaR8ToolsDir();
-  await Directory(toolsDir).create(recursive: true);
-  final dest = p.join(toolsDir, 'r8-$version.jar');
-  if (p.normalize(jar.path) != p.normalize(dest)) {
-    await File(jar.path).copy(dest);
-  }
-  if (verbose) print('📥 R8 $version installed → $dest');
-  return dest;
+  if (verbose) print('📥 R8 $version provisioned → ${jar.path}');
+  return jar.path;
 }

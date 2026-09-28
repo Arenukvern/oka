@@ -118,32 +118,46 @@ class CleanCommand {
       _output('  ℹ️  .oka_cache/ not found');
     }
 
-    // Clean full cache (including dependencies)
+    // Clean full cache (including dependencies). ADR-0028: clean the real
+    // roots — the shared artifact store's maven tree and the legacy
+    // `~/.oka/cache` root — plus the grandfathered `~/.oka_cache` location
+    // older oka versions wrote to.
     if (results['full'] as bool) {
       _output('\n🧹 Cleaning dependency cache...');
       final home = _environment['HOME'] ?? '';
-      final depCache = Directory(p.join(home, '.oka_cache', 'maven'));
-
-      final type = await FileSystemEntity.type(
-        depCache.path,
-        followLinks: false,
-      );
-      if (type == FileSystemEntityType.directory) {
-        final removed = await _cleanCacheDirectory(depCache, protection.paths);
-        _output(
-          removed
-              ? '  ✅ Cleaned unrelated ~/.oka_cache/maven/ contents'
-              : '  ℹ️  No unrelated ~/.oka_cache/maven/ contents to clean',
+      final depCaches = [
+        Directory(
+          p.join(
+            LocalArtifactStore.defaultRoot(environment: _environment),
+            'maven',
+          ),
+        ),
+        Directory(p.join(home, '.oka', 'cache', 'maven')),
+        Directory(p.join(home, '.oka_cache', 'maven')),
+      ];
+      for (final depCache in depCaches) {
+        final type = await FileSystemEntity.type(
+          depCache.path,
+          followLinks: false,
         );
-        if (_hasProtectedOverlap(depCache.path, protection.paths)) {
-          _output(
-            '  ℹ️  Preserved protected session-state in dependency cache',
+        if (type == FileSystemEntityType.directory) {
+          final removed = await _cleanCacheDirectory(
+            depCache,
+            protection.paths,
           );
+          _output(
+            removed
+                ? '  ✅ Cleaned ${depCache.path}/'
+                : '  ℹ️  Nothing to clean in ${depCache.path}/',
+          );
+          if (_hasProtectedOverlap(depCache.path, protection.paths)) {
+            _output(
+              '  ℹ️  Preserved protected session-state in dependency cache',
+            );
+          }
+        } else if (type == FileSystemEntityType.link) {
+          _output('  ℹ️  Preserved linked ${depCache.path}/ for safety');
         }
-      } else if (type == FileSystemEntityType.link) {
-        _output('  ℹ️  Preserved linked ~/.oka_cache/maven/ for safety');
-      } else {
-        _output('  ℹ️  ~/.oka_cache/maven/ not found');
       }
     }
 

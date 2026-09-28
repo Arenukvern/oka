@@ -5,6 +5,7 @@ import 'build/engine_artifacts.dart';
 import 'build/host_codegen.dart';
 import 'build/plugin_discovery.dart';
 import 'build/plugin_packager.dart';
+import 'build/provenance.dart';
 import 'build/toolchain.dart';
 import 'pipeline_overrides.dart';
 
@@ -57,6 +58,35 @@ extension AndroidPipelineState on PipelineState {
   List<String> get abis => _asList('abis');
 
   set abis(final List<String> v) => this['abis'] = v;
+
+  /// Provenance facts contributed by steps so far (ADR-0029 D1). Any step
+  /// appends via [addProvenanceFact]; `provenance-stamp` aggregates them
+  /// into the artifact's `oka-provenance.json`.
+  List<ProvenanceFact> get provenanceFacts {
+    final raw = this['provenance_facts'] as List<Object?>?;
+    return raw?.cast<ProvenanceFact>() ?? <ProvenanceFact>[];
+  }
+
+  void addProvenanceFact(final ProvenanceFact fact) {
+    final facts = provenanceFacts;
+    this['provenance_facts'] = [...facts, fact];
+  }
+
+  /// Staged provenance record path (provided by `provenance-stamp`).
+  String? get provenancePath => this['provenance_path'] as String?;
+
+  set provenancePath(final String? v) => this['provenance_path'] = v;
+
+  /// Verification rung verdicts, JSON lines (ADR-0029 D3).
+  List<String> get verificationVerdicts =>
+      _asList('verification_verdicts');
+
+  void addVerificationVerdict(final String verdictJson) {
+    this['verification_verdicts'] = [
+      ...verificationVerdicts,
+      verdictJson,
+    ];
+  }
 
   /// Plugin discovery result.
   PluginDiscoveryResult? get pluginDiscovery =>

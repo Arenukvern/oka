@@ -32,6 +32,7 @@ import '../android_artifacts.dart';
 import '../android_state.dart';
 import '../build/toolchain.dart';
 import 'adb_tool.dart';
+import 'launch_failure_signatures.dart';
 
 /// Device-log failure signatures scanned after launch (name → needle).
 ///
@@ -380,7 +381,13 @@ class LogcatScanStep extends BuildStep {
     final pid = await _pidOf(adb, packageName);
     final r = await Process.run(adb, adbLogcatDumpArgs(serial: deviceId));
     final scan = scanLogForFailureSignatures('${r.stdout}${r.stderr}');
-    _report(packageName: packageName, pid: pid, scan: scan);
+    final matches = scanFailureSignatures('${r.stdout}${r.stderr}');
+    _report(
+      packageName: packageName,
+      pid: pid,
+      scan: scan,
+      matches: matches,
+    );
 
     final alive = pid != null && pid.isNotEmpty;
     final failed = scan.isNotEmpty ||
@@ -407,6 +414,7 @@ class LogcatScanStep extends BuildStep {
     required final String packageName,
     required final String? pid,
     required final Map<String, String> scan,
+    required final List<SignatureMatch> matches,
   }) {
     print('');
     if (pid != null && pid.isNotEmpty) {
@@ -417,16 +425,17 @@ class LogcatScanStep extends BuildStep {
     if (scan.isEmpty) {
       print('✅ No failure signatures in device log');
     } else {
+      // ADR-0029 D5: signatures carry cause/fix/evidence — the log scan
+      // answers "why" instead of listing needles.
       print('⚠️  Failure signatures found in device log:');
-      for (final entry in scan.entries) {
-        print('   - ${entry.key}: "${entry.value}"');
+      for (final m in matches) {
+        print('   - ${m.signature.id}: "${m.line}"');
+        print('     cause: ${m.signature.cause}');
+        print('     fix:   ${m.signature.fix}');
+        if (m.signature.evidence.isNotEmpty) {
+          print('     docs:  ${m.signature.evidence}');
+        }
       }
-      print('');
-      print('   Follow up with:');
-      print(
-        '     adb logcat -d | grep -iE "FATAL|NoClassDefFound|registering"',
-      );
-      print('   Docs: docs/guides/gradle_migration.mdx (diagnosis section)');
     }
   }
 }

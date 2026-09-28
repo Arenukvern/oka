@@ -185,6 +185,7 @@ class FlutterBuild {
     this.deferredComponents = false,
     this.enginePath = '',
     this.engineVersion = '',
+    this.startupProbe = false,
   });
 
   /// Dart entrypoint (e.g. `lib/main.dart`).
@@ -217,6 +218,11 @@ class FlutterBuild {
   /// Custom Flutter engine version pin (advanced; empty → tool default).
   final String engineVersion;
 
+  /// Compile the generated startup-beacon wrapper instead of the raw
+  /// entrypoint (ADR-0029 D7) so `oka run verify` can prove Dart `main()`
+  /// ran. Off by default — normal artifacts carry no probe.
+  final bool startupProbe;
+
   FlutterBuild copyWith({
     final String? entrypoint,
     final List<String>? assets,
@@ -228,6 +234,7 @@ class FlutterBuild {
     final bool? deferredComponents,
     final String? enginePath,
     final String? engineVersion,
+    final bool? startupProbe,
   }) => FlutterBuild(
     entrypoint: entrypoint ?? this.entrypoint,
     assets: assets ?? this.assets,
@@ -239,6 +246,7 @@ class FlutterBuild {
     deferredComponents: deferredComponents ?? this.deferredComponents,
     enginePath: enginePath ?? this.enginePath,
     engineVersion: engineVersion ?? this.engineVersion,
+    startupProbe: startupProbe ?? this.startupProbe,
   );
 
   /// Emits the `flutter:` map — only explicitly set fields — shaped exactly
@@ -254,5 +262,6 @@ class FlutterBuild {
     if (deferredComponents) 'deferred_components': deferredComponents,
     if (enginePath.isNotEmpty) 'engine_path': enginePath,
     if (engineVersion.isNotEmpty) 'engine_version': engineVersion,
+    if (startupProbe) 'startup_probe': startupProbe,
   };
 }

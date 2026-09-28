@@ -1,0 +1,219 @@
+# 0028 — Byte-verified inputs, link-based output materialization, and foreign-store federation
+
+- **Status:** accepted
+- **Date:** 2026-09-28
+- **Decision-makers:** Anton, oka agent
+- **Extends:** 0007 (self-resolving builds), 0013 (artifact store),
+  0017 (browser sessions, S1), 0019 (inventory + pruning), 0020 (global
+  cache workflow), 0021 (composable diagnostics), 0025 (managed session
+  state)
+
+## Decision checkpoint
+
+The 2026-09-28 cache audit (user-approved) measured the machine-level state:
+oka's shared store already unifies **inputs** (ADR-0013), but the disk is
+dominated by foreign stores oka only observes (Android SDK 9.5 GB, one AVD
+7.4 GB, Flutter engine cache 2.6 GB, Gradle 3.3 GB, pub 4.6 GB), by per-project
+**output** copies that re-materialize shared bytes every build, and by
+transition-state duplication inside oka's own tooling (legacy maven root,
+double-stored R8, store-bypassing bundletool). Compression was measured and
+rejected: zstd -19 over the maven cache yields 1.38× in 250 s (jars are already
+DEFLATE) and 1.00× over AVD qcow2; APFS `clonefile` materialized the same
+libflutter.so 33× faster than a copy (24 ms vs 803 ms) with zero new blocks.
+The user approved the four-phase plan this ADR records. Gradle-cache vs
+oka-maven overlap was measured at ~5 MB — cross-tool byte dedup is explicitly
+out of scope.
+
+## Context
+
+ADR-0013's rule — share inputs globally, keep outputs per-project — is
+correct but incomplete. Three gaps remain:
+
+1. **Inputs are coordinate-keyed and trusted on sight.** A warm Maven hit is
+   any file longer than 200 bytes; a truncated or poisoned cached artifact is
+   served without question even though the sha256 was recorded at download
+   time. Legacy roots (`~/.oka/cache/maven`, `~/.oka_cache/maven`) and the
+   store root (`~/.oka/store/maven`) all resolve, so `oka clean --full` cleans
+   a path nothing writes and class-suggestion scans miss the real cache.
+   bundletool bypasses the store entirely; R8 is stored twice (store zip +
+   `~/.oka/tools` copy that is what actually runs).
+2. **Outputs are re-materialized, never shared.** `engine-extraction` is the
+   only heavy pipeline step without a StepCache fingerprint: libflutter.so
+   (~10–25 MB per ABI) and the embedding jar are re-extracted from the global
+   flutter.jar into every project × mode × build. The bytes are identical
+   across all of them; only the paths differ.
+3. **Foreign stores are invisible to the cache workflow.** `oka cache`
+   (ADR-0020) can only plan over locations discovery knows. Gradle, pub, the
+   Flutter SDK engine cache, fvm versions, and AVD userdata are the majority
+   of the bytes and appear nowhere; AVD userdata in particular grows
+   monotonically (qcow2 never shrinks) and nothing reports it.
+
+## Considered options
+
+- **Full content-addressed store for all outputs (Nix/Bazel-style byte
+  CAS).** Rejected for now: measured cross-cache duplication is ~5 MB on a
+  real machine; the complexity is only justified by team/CI scale, which
+  `OKA_CACHE` + `ArtifactStore.fetch` already make reachable later without a
+  new ADR.
+- **Compression tier (zstd archives) for cached artifacts.** Rejected on
+  measurement: cached Android artifacts are already-compressed containers
+  (jar/aar/apk) and dense binaries (so, qcow2). Compression cannot beat
+  deduplication here, and inputs are reproducible by design — evict-and-refetch
+  beats compress-and-keep.
+- **Deduplicating Gradle's cache against oka's maven store.** Rejected:
+  measured overlap ≈ 5 MB. Two coordinate-keyed stores for one ecosystem are
+  wasteful in principle but not on real machines today.
+- **Symlinking build outputs into the store.** Rejected: symlinks leak path
+  semantics into javac/d8/aapt2 and break tools that resolve parents; links
+  that materialize as regular files (clone/reflink/hardlink) keep every
+  consumer unchanged.
+- **Pruning foreign caches (Gradle, pub, Flutter engine, AVD) directly from
+  `oka cache`.** Rejected as silent behavior: those caches belong to other
+  tools and an AVD is an opaque resource under ADR-0025. Chosen instead:
+  federated *inventory* with advisory, copy-pasteable actions.
+- **Sharing browser profile cache subdirectories across sessions.** Rejected:
+  Chromium corrupts shared profile state; the win is lifecycle (reconcile),
+  not dedup. Chrome-for-testing *binaries*, however, are perfect store
+  content — that is ADR-0017 S1.
+- **Byte-hash verification of warm hits + link-based materialization +
+  pointer-style federation.** Chosen.
+
+## Decision
+
+### 1. Inputs become byte-verified; the maven root becomes single
+
+- The Maven resolver verifies a warm hit against the `sha256` recorded in its
+  `oka_store.json` index when one exists. A mismatch deletes the cached copy
+  and re-downloads. Entries without an index (pre-index caches) keep the
+  size-floor heuristic — never worse than today.
+- `MavenResolver.defaultCacheRoot` resolves to `<storeRoot>/maven` only. On
+  first use it migrates an existing legacy root by same-volume rename
+  (`~/.oka/cache/maven` → `<storeRoot>/maven`); if the rename fails, the
+  legacy root is used read-only and reported. `oka clean --full` cleans the
+  real roots (store maven + legacy remainders), and dependency suggestion
+  scans the resolver's root, not a hard-coded legacy path.
+- R8's jar is used directly from the store — no `~/.oka/tools` copy; the
+  tools path stays a lookup fallback for pre-existing installs. Kotlin keeps
+  its extracted tree (a compiler is a directory, not a file — extraction is
+  materialization, not duplication). bundletool downloads through the store
+  and is discovered from it.
+
+### 2. Link-based materialization (`oka_core`)
+
+`oka_core` gains one primitive:
+
+```dart
+Future<FileMaterialization> materializeFile({
+  required String source, required String destination,
+  bool keepSourcePermissions = false,
+});
+```
+
+Strategy chain, first supported wins: **APFS clonefile** (macOS, `dart:ffi`,
+CoW — unshareable blocks become private on first write) → **reflink**
+(`FICLONE` ioctl, Linux) → **hardlink** → **byte copy**. Laws:
+
+- Materialized files are **never mutated in place**. Writers replace via
+  unlink + re-materialize (the primitive does this); a hardlinked file's
+  inode is shared with the store, so in-place writes are forbidden by
+  contract, not by accident.
+- Content blobs are stored read-only (`0444`); materialized copies get
+  default permissions (`0644`) unless `keepSourcePermissions`. A build step
+  cannot corrupt the store by writing a copy it believes it owns.
+- Cross-volume destinations fall back to copy. All failures degrade to copy —
+  materialization is an optimization, never a correctness dependency.
+
+ADR-0013's scope rule is unchanged: outputs remain per-project *paths*;
+linking shares the *blocks*.
+
+### 3. Store entries for derived, step-owned outputs
+
+Derived artifacts that steps opt into become ordinary store entries, keyed by
+their producing inputs (the ADR-0013 `ContentKey.compute` scheme — e.g.
+category `engine`, inputs = flutter.jar sha256 + variant + ABI + extractor
+version), and are materialized into project buildDirs via the link chain.
+Input-keyed identity is what makes lookup possible *before* extraction (byte
+identity is only known after); cross-project dedup comes from the inputs
+being identical, which the audit showed is the common case. Entries are
+regenerable, so age/budget eviction is always safe, and they stay visible to
+inventory/gc as regular store entries. First consumer: `engine-extraction`,
+which also fingerprints (flutter.jar identity, variant, ABIs) for StepCache
+skip. Wiring further steps (dedup-jars, plugin native outputs) is a follow-up
+that needs no new ADR.
+
+### 4. Foreign-store federation (inventory + advisory actions)
+
+Host adapters (the ADR-0021 provider pattern, currently only Apple caches)
+extend to the foreign stores this audit found dominant: Gradle
+(`~/.gradle/wrapper`, `~/.gradle/caches`), pub (`~/.pub-cache`), Flutter SDK
+engine cache, fvm versions, and Android AVD userdata. They contribute
+**read-only diagnostic records** with byte sizes and `CacheDiagnosticAction`
+suggestions (the user runs them; oka never deletes another tool's cache
+uninvoked). AVD userdata is strictly report-only with a regenerability note —
+reset/delete remains an explicit ADR-0025 operation. This makes `oka cache`
+honest about where the bytes are without growing deletion authority.
+
+### 5. Chrome-for-testing through the store (ADR-0017 S1)
+
+`oka_web` provisions Chrome-for-testing via `ArtifactStore` (category
+`chrome-for-testing`, platform-scoped), extracted once under the store's
+tools area. Binary resolution order: explicit path → `OKA_CHROME_BIN` →
+provisioned CFT → system Chrome. First provisioning prints loudly and honors
+`OKA_NO_AUTO_INSTALL=1` (ADR-0007 law). No browser *profiles* change
+behavior; ADR-0025 lifecycle is untouched.
+
+## Consequences
+
+Good:
+
+- Corrupt cached inputs self-heal instead of shipping bad jars; the
+  200-byte trust heuristic stops being load-bearing where indexes exist.
+- Per-project engine bytes stop scaling with project × mode count; warm
+  builds skip a per-file extraction measured at ~0.8 s per .so copy.
+- `oka cache` finally reports the majority of a machine's build bytes and
+  proposes exact, user-executed reclamation commands.
+- Browser binaries become shared, gc-able store content ahead of ADR-0017 S1
+  adoption.
+
+Bad / Neutral:
+
+- `oka_core` gains a small `dart:ffi` surface (clonefile/FICLONE) with strict
+  platform guards; every failure path must degrade to copy (tested).
+- Hardlink semantics forbid in-place mutation of materialized files — an
+  invariant future steps must know (documented law, enforced by the 0444 blob
+  + replace-on-write pattern).
+- Warm-hit sha256 verification costs a hash pass over resolved artifacts
+  (~0.5 s for a 400 MB cache); acceptable for the corruption class it
+  eliminates.
+- Foreign-store records make `oka cache` output larger; sizes are advisory
+  metadata and never enter storage totals (ADR-0021 rule preserved).
+- Oka still cannot reclaim the big foreign bytes automatically — deliberate;
+  the AVD in particular stays explicit-action-only.
+
+## Implementation plan
+
+1. **P0 — input hygiene (no design fork):** maven single-root + migration,
+   warm-hit hash verification, `clean --full` real roots, suggestion scan
+   root, bundletool via store, R8 single-copy, engine-extraction fingerprint.
+2. **P1 — materialization + content blobs:** `materializeFile` with
+   clonefile/reflink/hardlink/copy chain, `content/` blob area with store
+   indexes, engine-extraction wired as first consumer.
+3. **P2 — federation:** host adapters for gradle/pub/flutter-engine/fvm/AVD,
+   surfaced through the existing diagnostics + cache workflow, report-only.
+4. **P3 — CFT provisioning:** store-mediated Chrome-for-testing with loud
+   auto-install and resolution order above.
+
+## Acceptance evidence
+
+- `packages/oka_core/test`: materialization chain (clone on APFS host,
+  fallback-to-copy by injection, unlink-replace, read-only blobs), content
+  blob store round-trip, inventory visibility of `content` entries.
+- `packages/oka_android/test`: maven root migration + warm-hit verification
+  (corrupt cached bytes → re-fetch), R8 store-path resolution, bundletool
+  store fetch, engine-extraction StepCache hit/miss with content-blob
+  materialization.
+- `packages/oka/test`: foreign host adapters render records with sizes and
+  non-destructive actions; `clean --full` targets real roots.
+- `packages/oka_web/test`: CFT provisioner honors explicit path, env, store
+  hit, and `OKA_NO_AUTO_INSTALL`; extraction layout matches the launcher's
+  binaryPath contract.

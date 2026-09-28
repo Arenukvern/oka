@@ -52,6 +52,11 @@ extension type const FlutterConfig(Map<String, dynamic> value) {
   /// Whether to enable Flutter's tree shaking for smaller APKs
   bool get treeShakeIcons => jsonDecodeBool(value['tree_shake_icons']);
 
+  /// Compile the generated startup-beacon wrapper instead of the raw
+  /// entrypoint, so the verify ladder can prove Dart `main()` ran
+  /// (ADR-0029 D7). Off by default — normal artifacts carry no probe.
+  bool get startupProbe => jsonDecodeBool(value['startup_probe']);
+
   /// Encodes back to the `flutter:` payload map (identity).
   Map<String, dynamic> toJson() => value;
 }

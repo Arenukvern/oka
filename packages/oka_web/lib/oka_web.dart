@@ -47,6 +47,7 @@ export 'src/publish/gh_pages_deploy_target.dart';
 export 'src/publish/itch_deploy_target.dart';
 export 'src/publish/stage_web_dir_step.dart';
 export 'src/session/browser_session_spec.dart';
+export 'src/session/chrome_for_testing.dart';
 export 'src/session/chrome_profile_state.dart';
 export 'src/session/chrome_session_diagnostics.dart';
 export 'src/session/chrome_session_target.dart';

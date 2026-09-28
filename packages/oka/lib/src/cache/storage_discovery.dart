@@ -334,6 +334,34 @@ Future<List<StorageLocation>> discoverStorageLocations({
       }
     }
     await sdk(p.join(home, '.oka', 'android-sdk'), 'oka');
+    // Foreign build-tool stores (ADR-0028 §4): inventoried so `oka cache`
+    // reports the majority of a machine's build bytes, never pruned by oka —
+    // other tools own these; actions are advisory and user-executed.
+    final gradleRoot = p.join(home, '.gradle');
+    for (final child in await children(gradleRoot)) {
+      final base = p.basename(child.path);
+      if (base != 'caches' && base != 'wrapper') continue;
+      await add(
+        child.path,
+        'gradle-cache',
+        'all',
+        'external',
+        note: 'Gradle-managed; regenerated on demand. Stop daemons first '
+            '(`gradle --stop`); oka never deletes another tool cache.',
+      );
+    }
+    final fvmVersions = p.join(home, 'fvm', 'versions');
+    if ((await children(fvmVersions)).isNotEmpty) {
+      await add(
+        fvmVersions,
+        'fvm-versions',
+        'all',
+        'external',
+        note:
+            'fvm-managed Flutter SDK versions; manage with `fvm` '
+            '(e.g. `fvm remove <version>`).',
+      );
+    }
   }
   for (final key in ['OKA_ANDROID_SDK', 'ANDROID_HOME', 'ANDROID_SDK_ROOT']) {
     if (env[key]?.isNotEmpty ?? false) await sdk(expand(env[key]!), 'external');

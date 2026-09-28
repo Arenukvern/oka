@@ -18,6 +18,7 @@ import 'package:oka/src/cli/processes_command.dart';
 import 'package:oka/src/cli/run_command.dart';
 import 'package:oka/src/cli/session_state_command.dart';
 import 'package:oka/src/cli/stop_command.dart';
+import 'package:oka/src/cli/why_command.dart';
 import 'package:oka/src/version.dart';
 
 void main(List<String> arguments) async {
@@ -49,6 +50,8 @@ void main(List<String> arguments) async {
     switch (command) {
       case 'init':
         await InitCommand().run(commandArgs);
+      case 'why':
+        await WhyCommand().run(commandArgs);
       case 'build':
         await BuildCommand().run(commandArgs);
       case 'dev':
@@ -110,6 +113,9 @@ Commands:
   explain   Show the validated build plan (no tools invoked);
             `oka explain --targets` lists project-declared targets with
             their step chains (also no tools invoked)
+  why       Explain a step-cache entry: which inputs it fingerprinted,
+            which changed, which build-affecting inputs are uncovered
+            (`oka why release-aot`)
   build     Build APK or AAB
   compare   Diff two APK/AAB artifacts (metadata + zip entries;
             byte-equivalence gate)

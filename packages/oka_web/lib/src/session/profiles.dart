@@ -37,11 +37,12 @@ const List<String> chromeWebMcpFlags = <String>[
 /// `chrome://flags/#enable-webmcp-testing`). WebMCP protocol logic lives in
 /// the toolkit, not oka (ADR-0017 §3).
 ///
-/// [binaryPath] is required (no provisioning default — ADR-0017 S1);
-/// everything else keeps [BrowserSessionSpec] defaults (headless, ephemeral
-/// profile, auto-assigned CDP port) unless overridden.
+/// [binaryPath] is optional: null resolves a browser at launch
+/// (chrome-for-testing via the artifact store — ADR-0017 S1, ADR-0028
+/// section 5); everything else keeps [BrowserSessionSpec] defaults
+/// (headless, ephemeral profile, auto-assigned CDP port) unless overridden.
 BrowserSessionSpec chromeWebMcp({
-  required final String binaryPath,
+  final String? binaryPath,
   final int? debugPort,
   final bool headless = true,
   final ProfilePersistence profilePersistence = ProfilePersistence.ephemeral,

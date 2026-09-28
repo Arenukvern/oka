@@ -309,8 +309,9 @@ to explicitly keep a single-project selection.
 `oka cache list [--json]` and `oka cache why <category[/name[/version]]>` inspect
 **indexed shared-store entries only**. Their totals exclude index metadata;
 stats measures all files in discovered directories, including unindexed files.
-Maven resolution uses `<store>/maven`, with `~/.oka/cache/maven` as a compatibility
-fallback when the store's Maven directory is absent.
+Maven resolution uses `<store>/maven` only; an existing `~/.oka/cache/maven`
+is migrated there by rename on first use (ADR-0028), and cross-volume rename
+failures keep the legacy root resolving read-only.
 
 `oka cache gc --older-than 30d --dry-run` previews indexed-store GC. Unlike
 `prune`, existing `gc` executes unless `--dry-run` is supplied, uses entry

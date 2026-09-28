@@ -4,6 +4,30 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## 0.6.0
+
+### Added
+
+- **Build provenance + verification ladder (ADR-0029).** Every release
+  artifact now carries `oka-provenance.json` (engine variant + jar hash,
+  AOT snapshot hash + build id, pub-resolution hashes, fingerprints) and is
+  validated before packaging: snapshot↔engine pairing, engine variant vs
+  build mode, provenance completeness — a wrong pairing is a red build, not
+  a device hanging on the splash screen.
+- `oka run verify`: the verification ladder as a project-declared target —
+  provenance, pairing, install, device health, launch, Dart main (startup
+  beacon), first frame, failure signatures — with typed verdicts including
+  **inconclusive-device** so unhealthy hosts/devices never produce silent
+  evidence. Composable: `VerifyTarget(rungs: [...], extraFailureSignatures:
+  [...])`.
+- `oka why <step>`: explains a step-cache entry — per-input digests
+  recorded at cache time, which inputs changed, and which build-affecting
+  sources are not covered by the fingerprint.
+- `FlutterBuild.startupProbe`: compiles a generated beacon wrapper so the
+  `dart-main` rung can prove `main()` ran without app surgery.
+- Failure signatures are data (`launch_failure_signatures.dart`): cause,
+  fix, and evidence per needle, shared by `oka run device` and the ladder.
+
 ## 0.5.0
 
 ### Fixed

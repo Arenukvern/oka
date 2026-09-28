@@ -6,9 +6,11 @@ import 'package:path/path.dart' as p;
 import '../android_artifacts.dart';
 import '../android_state.dart';
 import '../build/apk_layout.dart';
+import '../build/artifact_checks.dart';
 import '../build/dependency_cache.dart';
 import '../build/flutter_assemble.dart';
 import '../build/plugin_discovery.dart';
+import '../build/provenance.dart';
 import '../build/toolchain.dart';
 import '../compilation/bytecode_compilation.dart' show compareMavenVersions;
 import '../dev/run_session.dart';
@@ -321,6 +323,10 @@ Future<Pipeline> defaultApkPipeline(
       resourceConfigs: overrides.resourceConfigs,
     ),
     ExtraAssetsStep(overrides.extraAssets),
+    // ADR-0029 D1: attest what was built, then D2: validate before side
+    // effects — a failing check is a red build, not a shipped APK.
+    ProvenanceStampStep(),
+    ValidateArtifactStep(),
     PackageAndSignStep(toolchain: toolchain, signing: overrides.signing),
     ValidateLayoutStep(),
     RecordRunSessionStep(toolchain: toolchain),
@@ -374,6 +380,8 @@ Future<Pipeline> defaultAabPipeline(
       resourceConfigs: overrides.resourceConfigs,
     ),
     ExtraAssetsStep(overrides.extraAssets),
+    ProvenanceStampStep(),
+    ValidateArtifactStep(),
     PackageAndSignAabStep(toolchain: toolchain, signing: overrides.signing),
     ValidateAabLayoutStep(),
     RecordRunSessionStep(toolchain: toolchain),

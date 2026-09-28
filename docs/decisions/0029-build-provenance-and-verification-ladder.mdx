@@ -1,6 +1,6 @@
 # 0029 — Build provenance artifact and the release verification ladder
 
-- **Status:** proposed (design checkpoint — implement after review)
+- **Status:** accepted (implemented in the 0.6.0 train)
 - **Date:** 2026-09-29
 - **Depends on:** 0006 (incremental builds, typed steps), 0007 (artifact
   evidence), 0010 (typed Dart config), 0015 (verb/target split), 0023
@@ -21,12 +21,12 @@ pipeline's hands** at build time:
    `libflutter.so` came from, so nothing could *check* it.
 2. The second layer ("VM snapshot invalid" → SIGSEGV at `AttachJNI`) cost the
    longest stretch: manifest stripping, R8 toggles, hybrid APK swaps,
-   disassembling `libflutter.so`, and engine-source archaeology, all to learn
-   what the engine logs in one line — the AOT snapshot was compiled against
-   an **inconsistent pub resolution**. The build that produced the bad
-   snapshot had succeeded, so its success was trusted; nothing validated
-   snapshot↔engine pairing, and nothing recorded the resolution the snapshot
-   was compiled against.
+   disassembling `libflutter.so`, and engine-source archaeology. The engine
+   prints the failing layer in one logcat line, but nothing in the tooling
+   surfaced it, nothing recorded what the snapshot was compiled against, and
+   the device-side evidence was polluted by an unhealthy AVD (see the
+   evidence doc's retracted-attribution note — the tooling below exists so
+   the next occurrence is decided by recorded facts, not by a bisect).
 3. Verification itself was noise: host load >50, a sick AVD (systemui ANR at
    boot), contested emulator lanes. Frames-0 evidence from an unhealthy
    device sent the investigation into the app twice.
@@ -156,6 +156,38 @@ session hand-rolled exactly this; it is pipeline-composable.
 - **Content-address everything (ADR-0028 extension).** Unrelated axis:
   0028 verifies inputs at rest; this ADR attests the composed artifact and
   its startup. Provenance hashes complement byte-verified inputs.
+
+## Composing above it (for developers stacking pipelines)
+
+Every surface is a value in the composition root — nothing requires oka
+changes:
+
+1. **Provenance facts from custom steps.** Any `BuildStep` — yours, or one
+   from another package stacked into the pipeline — appends facts while it
+   runs: `state.addProvenanceFact(const ProvenanceFact('my_plugin.variant',
+   'fast'))`. They land in the artifact's `oka-provenance.json` next to the
+   builtin facts. Prefer a namespaced key (`<package>.<fact>`) so parallel
+   pipelines sharing a build never collide. Declarative alternative:
+   `ProvenanceStampStep(contributors: [MyFacts()])`.
+2. **Custom artifact checks.** Implement `ArtifactCheck` (pure, offline) and
+   compose `ValidateArtifactStep(checks: [...builtinArtifactChecks,
+   MyCheck()])` in an explicit step list. A stacked pipeline (e.g. a
+   company pipeline adding license or signing-policy checks) validates at
+   the same packaging gate as the builtin pairing check.
+3. **Custom rungs.** `VerifyTarget(rungs: [MyBackendReadyRung()])` — extend
+   `RungStep`, record a `RungVerdict`, and the report renders your rung
+   alongside the builtin ladder. Rungs are steps, so they reuse the install/
+   launch/adb machinery and the composition-time validation.
+4. **Project failure signatures.** `VerifyTarget(extraFailureSignatures:
+   [...])` teaches the logcat scan your app's own failure modes — a
+   data-only extension, no code in oka.
+5. **Stacked pipelines.** Each `AndroidPipeline` stamps and validates its
+   own build dir's artifact; the provenance record is per-artifact, and the
+   delivery targets (oka_play / oka_huawei / oka_rustore) can contribute
+   delivery facts through the same mechanism in later work.
+6. **Machine readers.** `oka-provenance.json` and the verification report
+   are plain JSON inside/on the artifact — CI and agents read them without
+   invoking oka.
 
 ## Falsifiable gates
 

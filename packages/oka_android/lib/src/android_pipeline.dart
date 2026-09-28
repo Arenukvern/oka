@@ -4,9 +4,11 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 import 'android_state.dart';
+import 'build/artifact_checks.dart';
 import 'build/bundletool.dart';
 import 'build/dependency_cache.dart';
 import 'build/launcher_icon.dart';
+import 'build/provenance.dart';
 import 'build/toolchain.dart';
 import 'manifest_spec.dart';
 import 'pipeline/default_pipeline.dart';
@@ -137,6 +139,8 @@ class AndroidPipeline implements PlatformPipeline {
       LocalAarsStep(const []),
       CompileAndDexStep(toolchain: toolchain),
       ExtraAssetsStep(const []),
+      ProvenanceStampStep(),
+      ValidateArtifactStep(),
       PackageAndSignStep(toolchain: toolchain),
       ValidateLayoutStep(),
       PostBuildLintStep(),

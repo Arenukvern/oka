@@ -108,6 +108,7 @@ export 'src/store/artifact_store.dart';
 export 'src/store/cache_diagnostics.dart';
 export 'src/store/cache_projects.dart';
 export 'src/store/core_cache_diagnostics.dart';
+export 'src/store/materialization.dart';
 export 'src/store/storage_inventory.dart';
 export 'src/target_execution_scope.dart';
 export 'src/targets/describe.dart';

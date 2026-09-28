@@ -43,6 +43,11 @@ List<BuildStep> _commonSteps() => [
   EngineExtractionStep(),
   ReleaseAotStep(),
   DependencyResolveStep(),
+  // ADR-0029 D1/D2: attest what was built (oka-provenance.json inside the
+  // APK) and validate before packaging — a wrong engine/snapshot pairing
+  // fails the build here instead of hanging a device on the splash screen.
+  ProvenanceStampStep(),
+  ValidateArtifactStep(),
   // ↓ Custom step A: generate a build-info asset before packaging.
   BuildInfoStampStep(),
 ];

@@ -209,9 +209,11 @@ class MavenResolver {
   final String cacheRoot;
 
   /// Default cache root routes through the shared artifact store (ADR-0013):
-  /// `<storeRoot>/maven` where `<storeRoot>` honors `OKA_CACHE`. The legacy
-  /// root (`~/.oka/cache/maven`) keeps resolving when it exists and the
-  /// store copy does not — existing caches stay valid, nothing re-downloads.
+  /// `<storeRoot>/maven` where `<storeRoot>` honors `OKA_CACHE`. A legacy
+  /// root (`~/.oka/cache/maven`) is migrated by same-volume rename on first
+  /// use (ADR-0028); when the rename is impossible (cross-volume target,
+  /// concurrent migration), the legacy root keeps resolving read-only —
+  /// existing caches stay valid, nothing re-downloads.
   static String defaultCacheRoot({final Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
     final storeMaven = p.join(
@@ -221,8 +223,24 @@ class MavenResolver {
     if (Directory(storeMaven).existsSync()) return storeMaven;
     final home = env['HOME'] ?? env['USERPROFILE'] ?? '.';
     final legacy = p.join(home, '.oka', 'cache', 'maven');
-    if (Directory(legacy).existsSync()) return legacy;
+    if (Directory(legacy).existsSync()) {
+      if (_migrateLegacyRoot(legacy, storeMaven)) return storeMaven;
+      return legacy;
+    }
     return storeMaven;
+  }
+
+  /// Same-volume rename of the legacy maven root into the store. Atomic: a
+  /// concurrent migrator renames first and this call observes the missing
+  /// source at the caller's `existsSync`.
+  static bool _migrateLegacyRoot(final String legacy, final String target) {
+    try {
+      Directory(p.dirname(target)).createSync(recursive: true);
+      Directory(legacy).renameSync(target);
+      return true;
+    } on FileSystemException {
+      return false;
+    }
   }
 
   final bool verbose;
@@ -295,6 +313,41 @@ class MavenResolver {
         });
   }
 
+  /// Warm-hit integrity (ADR-0028): when a store index recorded the
+  /// artifact's sha256 at download time, a mismatched cache file is
+  /// corruption — report it and let the caller re-download. Entries without
+  /// an index (pre-index legacy caches) keep the size-floor heuristic.
+  Future<bool> _warmHitIntact(final String artifactPath) async {
+    final indexFile = File(
+      p.join(p.dirname(artifactPath), LocalArtifactStore.indexFileName),
+    );
+    if (!await indexFile.exists()) return true;
+    String? expected;
+    try {
+      final decoded = jsonDecode(await indexFile.readAsString());
+      expected = decoded is Map<String, dynamic>
+          ? decoded['hash'] as String?
+          : null;
+    } on FormatException {
+      return true;
+    }
+    if (expected == null || expected.isEmpty) return true;
+    final actual = sha256
+        .convert(await artifactRepository.readBytes(artifactPath))
+        .toString();
+    if (actual == expected) return true;
+    if (verbose) {
+      print(
+        '⚠️  cached artifact failed sha256 verification — re-downloading\n'
+        '   $artifactPath',
+      );
+    }
+    try {
+      await indexFile.delete();
+    } catch (_) {}
+    return false;
+  }
+
   /// Registers a downloaded artifact into the shared artifact store (ADR-0013)
   /// by writing a per-entry `oka_store.json` index next to it. The on-disk
   /// Maven layout is unchanged (human-decodable, group/artifact/version);
@@ -338,8 +391,10 @@ class MavenResolver {
     final jarPath = jarPathFor(working);
     if (await artifactRepository.exists(jarPath)) {
       final existingLen = await artifactRepository.length(jarPath);
-      // Do not treat metadata-only empty shells as a successful cache hit.
-      if (existingLen > 200) {
+      // Do not treat metadata-only empty shells as a successful cache hit,
+      // and do not trust size alone when an index recorded the artifact's
+      // sha256 (ADR-0028: corrupt cache files re-download instead of ship).
+      if (existingLen > 200 && await _warmHitIntact(jarPath)) {
         return _resolvedWithAarPayload(working, jarPath);
       }
       try {

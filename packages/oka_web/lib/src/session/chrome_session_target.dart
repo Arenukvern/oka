@@ -44,6 +44,7 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 import 'browser_session_spec.dart';
+import 'chrome_for_testing.dart';
 import 'chrome_profile_state.dart';
 
 // -- Artifact id convention (ADR-0017 §2) ------------------------------------
@@ -242,12 +243,15 @@ Future<SessionProcess> startSessionProcess(
 /// artifacts (ADR-0017 §2 convention).
 class ChromeSessionTarget extends Target
     implements SessionStateWorkflowContributor {
-  /// Creates the target. [spec] is required (binaryPath has no safe
-  /// default — provisioning is deferred, ADR-0017 S1).
+  /// Creates the target. When [BrowserSessionSpec.binaryPath] is null the
+  /// browser is resolved at launch (chrome-for-testing via the artifact
+  /// store, ADR-0017 S1 / ADR-0028 section 5); [provisioner] overrides that
+  /// resolver for tests.
   const ChromeSessionTarget({
     required this.spec,
     this.sessionName = 'main',
     this.stateWorkflow = chromeProfileStateWorkflow,
+    this.provisioner,
   });
 
   /// The session description (the "what" seam, ADR-0017 §1).
@@ -263,6 +267,10 @@ class ChromeSessionTarget extends Target
 
   /// Composable state lifecycle; defaults to Oka's Chromium implementation.
   final SessionStateWorkflow<ChromeProfileHandle> stateWorkflow;
+
+  /// Launch-time browser resolver (ADR-0028 section 5). Null → a default
+  /// chrome-for-testing provisioner.
+  final ChromeForTestingProvisioner? provisioner;
 
   @override
   List<SessionStateWorkflow<dynamic>> get sessionStateWorkflows => [
@@ -316,6 +324,7 @@ class ChromeSessionTarget extends Target
       spec: spec,
       sessionName: sessionName,
       stateWorkflow: stateWorkflow,
+      provisioner: provisioner,
     ),
   ];
 
@@ -330,7 +339,9 @@ class ChromeSessionTarget extends Target
   /// Debug string: session name plus browser binary basename.
   @override
   String toString() =>
-      'ChromeSessionTarget($sessionName, ${p.basename(spec.binaryPath)})';
+      'ChromeSessionTarget('
+      '$sessionName, '
+      '${spec.binaryPath == null ? 'auto' : p.basename(spec.binaryPath!)})';
 }
 
 // -- Steps -------------------------------------------------------------------
@@ -361,12 +372,17 @@ class EnsureChromeSessionStep extends BuildStep {
     this.leaseRegistry,
     this.stateRegistry,
     this.stateWorkflow = chromeProfileStateWorkflow,
+    this.provisioner,
   }) : _probe = probe ?? httpCdpProbe,
        _startProcess = startProcess ?? startSessionProcess,
        _assignPort = assignPort ?? assignEphemeralPort;
 
   /// The session spec (validated fail-closed at run start, ADR-0017 §3).
   final BrowserSessionSpec spec;
+
+  /// Launch-time browser resolver (ADR-0028 §5); null → default
+  /// chrome-for-testing provisioner. Injectable for tests.
+  final ChromeForTestingProvisioner? provisioner;
 
   /// Session instance name — namespaces the artifact ids.
   final String sessionName;
@@ -610,9 +626,36 @@ class EnsureChromeSessionStep extends BuildStep {
       windowSize: spec.windowSize,
     );
 
+    // Resolve the browser binary (ADR-0028 section 5) before the durable
+    // pre-spawn marker: provisioning is a network operation and must not
+    // sit inside the crash-recovery window.
+    final String binary;
+    try {
+      binary =
+          await (provisioner ?? ChromeForTestingProvisioner()).resolveBinary(
+                explicitPath: spec.binaryPath,
+              ) ??
+              '';
+    } on Object catch (e) {
+      return StepResult.failure(
+        'Browser binary provisioning failed: $e\n'
+        'Remedies: set BrowserSessionSpec.binaryPath or OKA_CHROME_BIN to a '
+        'Chromium binary, or retry with network access '
+        '(OKA_NO_AUTO_INSTALL=1 disables chrome-for-testing provisioning).',
+      );
+    }
+    if (binary.isEmpty) {
+      return StepResult.failure(
+        'No browser binary available for session "$sessionName".\n'
+        'Remedies: set BrowserSessionSpec.binaryPath or OKA_CHROME_BIN to a '
+        'Chromium binary; clear OKA_NO_AUTO_INSTALL to allow '
+        'chrome-for-testing provisioning (ADR-0028 section 5).',
+      );
+    }
+
     print(
       '🌐 Starting Chrome session "$sessionName" '
-      '(${p.basename(spec.binaryPath)}, CDP port $port, '
+      '(${p.basename(binary)}, CDP port $port, '
       '${spec.effectiveStateRetention.label} profile)…',
     );
 
@@ -625,7 +668,7 @@ class EnsureChromeSessionStep extends BuildStep {
     try {
       await stateManager.expectProcess(stateLease.id);
       processSnapshotRequired = true;
-      process = await _startProcess(spec.binaryPath, args);
+      process = await _startProcess(binary, args);
     } on Object catch (e) {
       if (processSnapshotRequired) {
         try {
@@ -638,11 +681,10 @@ class EnsureChromeSessionStep extends BuildStep {
         }
       }
       return StepResult.failure(
-        'Failed to start "${spec.binaryPath}": $e\n'
-        'Remedies: confirm binaryPath points at a Chromium binary (browser '
-        'provisioning is deferred, ADR-0017 out-of-scope/S1); run '
-        '"${spec.binaryPath} ${args.take(2).join(' ')}" manually to see '
-        'startup errors.',
+        'Failed to start "$binary": $e\n'
+        'Remedies: confirm the resolved binary points at a Chromium binary; '
+        'run "$binary ${args.take(2).join(' ')}" manually to see startup '
+        'errors.',
       );
     }
     // The browser process runs for the session's lifetime — never awaited
@@ -731,8 +773,8 @@ class EnsureChromeSessionStep extends BuildStep {
     return StepResult.failure(
       'Chrome session "$sessionName" did not answer CDP at '
       '$baseUrl/json/version within ${spec.bootTimeout.inSeconds}s.\n'
-      'Remedies: (1) confirm binaryPath "${spec.binaryPath}" is a Chromium '
-      'binary that starts (try it manually with the same '
+      'Remedies: (1) confirm the resolved browser binary "$binary" is a '
+      'Chromium binary that starts (try it manually with the same '
       '--remote-debugging-port); (2) if another process holds port $port, '
       'stop it or set debugPort explicitly; (3) try headless: false to '
       'surface startup dialogs or crashes.'

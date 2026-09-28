@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../maven_resolver.dart' show MavenResolver;
+
 /// A suggested Maven coordinate for a missing class.
 class DependencySuggestion {
   const DependencySuggestion({
@@ -257,9 +259,7 @@ String _descriptorToClassName(final String raw) {
 class MissingDependencyResolver {
 
   MissingDependencyResolver({final String? cacheRoot})
-    : cacheRoot =
-          cacheRoot ??
-          p.join(Platform.environment['HOME'] ?? '.', '.oka', 'cache', 'maven');
+    : cacheRoot = cacheRoot ?? MavenResolver.defaultCacheRoot();
   final String cacheRoot;
 
   /// Suggest dependencies for [missingClass] (e.g. `androidx.collection.SimpleArrayMap`).

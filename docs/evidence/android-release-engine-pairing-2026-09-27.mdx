@@ -44,13 +44,17 @@ engine jars, so a release build on a fresh SDK cache always hit the fallback.
 **Secondary findings (same investigation).**
 - A release startup crash with
   `VM snapshot invalid and could not be inferred from settings` followed by
-  `SIGSEGV` in `flutter::AttachJNI` reproduces when an AOT snapshot compiled
-  against an **inconsistent pub resolution** (an in-flight path checkout whose
-  dependencies do not resolve) is loaded. Rebuilding the snapshot against a
-  consistent resolution removes the crash; the snapshot's embedded Dart
-  version string matching the engine is *not* sufficient evidence of a valid
-  pairing. Diagnosis chain: `logcat` flutter errors → tombstone frame #00
-  (`AttachJNI+1440`) → `objdump` shows `DartVMRef::Create` returning null.
+  `SIGSEGV` in `flutter::AttachJNI` was observed in the target app's
+  container while the same snapshot booted in a different app's container —
+  i.e. the crash was container- and device-state-sensitive, not a pure
+  snapshot defect. An initial attribution to "inconsistent pub resolution"
+  was **retracted**: the comparison artifact behind it turned out to be a
+  hand-built hybrid, not the original build. The crash cleared after a clean
+  rebuild + reinstall on a healthy AVD; with the ADR-0029 tooling (pairing
+  rung, device-health rung, provenance record) the next occurrence comes
+  with evidence instead of a bisect. Diagnosis chain that did hold:
+  `logcat` flutter errors → tombstone frame #00 (`AttachJNI+1440`) →
+  `objdump` shows `DartVMRef::Create` returning null.
 - The debug engine fallback is invisible in `oka explain`/logs — packaging
   provenance is only printed with `--verbose`. The pipeline now names the
   source jar per ABI at verbose level; a layout-validation rule for engine

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
 import '../pipeline/toolchain.dart' show debugKeystore;
@@ -37,7 +38,11 @@ class BundletoolCommandResult {
 /// universal APK. bundletool is a *verification* dependency only — oka's
 /// build path never requires it.
 
-/// Default install location for bundletool.jar under the oka cache.
+/// Default install location for bundletool.jar under the oka tools directory.
+///
+/// Legacy lookup location only — downloads since ADR-0028 land in the shared
+/// artifact store ([storeBundletoolJarPath]); existing tools-dir copies stay
+/// valid and are found by [findBundletool].
 String defaultBundletoolJarPath() {
   final home =
       Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
@@ -48,12 +53,39 @@ String defaultBundletoolJarPath() {
 const kBundletoolDownloadUrl =
     'https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar';
 
-/// Locate a usable bundletool jar: explicit path, OKA env var, oka tools dir,
-/// then PATH lookup for a `bundletool` wrapper.
+/// bundletool version served by [kBundletoolDownloadUrl].
+const kBundletoolVersion = '1.17.0';
+
+/// Store key for the bundletool jar (ADR-0013/0028) so `oka cache list/gc`
+/// sees it and OKA_CACHE can share it.
+ContentKey bundletoolStoreKey({
+  final String version = kBundletoolVersion,
+  final String downloadUrl = kBundletoolDownloadUrl,
+}) => ContentKey.compute(
+  category: 'bundletool',
+  name: 'bundletool',
+  version: version,
+  inputs: [downloadUrl],
+  fileName: 'bundletool-all-$version.jar',
+);
+
+/// Absolute path of the bundletool jar inside the shared artifact store.
+String storeBundletoolJarPath({final Map<String, String>? environment}) {
+  final key = bundletoolStoreKey();
+  return p.join(
+    LocalArtifactStore.defaultRoot(environment: environment),
+    key.relativePath,
+    key.fileNameOrDefault,
+  );
+}
+
+/// Locate a usable bundletool jar: explicit path, OKA env var, artifact
+/// store, oka tools dir, then PATH lookup for a `bundletool` wrapper.
 Future<String?> findBundletool({final String? explicitPath}) async {
   final candidates = [
     if (explicitPath != null && explicitPath.isNotEmpty) explicitPath,
     Platform.environment['OKA_BUNDLETOOL_JAR'],
+    storeBundletoolJarPath(),
     defaultBundletoolJarPath(),
   ].whereType<String>().toList();
   for (final c in candidates) {
@@ -69,30 +101,54 @@ Future<String?> findBundletool({final String? explicitPath}) async {
   return null;
 }
 
-/// Download bundletool into the oka tools directory.
+/// Download bundletool into the shared artifact store (ADR-0028 §1).
 ///
-/// Requires `curl` on PATH (same bootstrap pattern as cmdline-tools).
+/// An explicit [destPath] bypasses the store (used by tests and callers that
+/// own their destination). Requires `curl` on PATH (same bootstrap pattern
+/// as cmdline-tools).
 Future<String> downloadBundletool({
   final String? destPath,
   final bool verbose = false,
 }) async {
-  final dest = destPath ?? defaultBundletoolJarPath();
-  await File(dest).parent.create(recursive: true);
-  final r = await Process.run('curl', [
-    '-L',
-    '-f',
-    '-o',
-    dest,
-    kBundletoolDownloadUrl,
-  ]);
-  if (r.exitCode != 0 || !await File(dest).exists()) {
-    throw Exception(
-      'Failed to download bundletool from $kBundletoolDownloadUrl: '
-      '${r.stderr}',
-    );
+  if (destPath != null) {
+    await File(destPath).parent.create(recursive: true);
+    final r = await Process.run('curl', [
+      '-L',
+      '-f',
+      '-o',
+      destPath,
+      kBundletoolDownloadUrl,
+    ]);
+    if (r.exitCode != 0 || !await File(destPath).exists()) {
+      throw Exception(
+        'Failed to download bundletool from $kBundletoolDownloadUrl: '
+        '${r.stderr}',
+      );
+    }
+    if (verbose) print('📥 bundletool downloaded → $destPath');
+    return destPath;
   }
-  if (verbose) print('📥 bundletool downloaded → $dest');
-  return dest;
+  final store = LocalArtifactStore();
+  final jar = await store.fetch(bundletoolStoreKey(), () async {
+    final tmp = await Directory.systemTemp.createTemp('oka_bundletool_');
+    final tempFile = p.join(tmp.path, 'bundletool-all-$kBundletoolVersion.jar');
+    final r = await Process.run('curl', [
+      '-L',
+      '-f',
+      '-o',
+      tempFile,
+      kBundletoolDownloadUrl,
+    ]);
+    if (r.exitCode != 0) {
+      throw Exception(
+        'Failed to download bundletool from $kBundletoolDownloadUrl: '
+        '${r.stderr}',
+      );
+    }
+    return File(tempFile);
+  });
+  if (verbose) print('📥 bundletool provisioned → ${jar.path}');
+  return jar.path;
 }
 
 /// Result of a bundletool verification run.

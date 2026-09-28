@@ -95,12 +95,12 @@ const List<String> okaOwnedChromeFlags = <String>[
 /// );
 /// ```
 class BrowserSessionSpec {
-  /// Creates a session spec. All fields have safe defaults except
-  /// [binaryPath] — browser binary provisioning is a deferred concern
-  /// (ADR-0017 out of scope, S1), so day one consumes an explicit path or
-  /// well-known install.
+  /// Creates a session spec. All fields have safe defaults; when
+  /// [binaryPath] is null the session target resolves a browser at launch
+  /// (chrome-for-testing via the artifact store, ADR-0017 S1 / ADR-0028 §5)
+  /// — an explicit path stays the hermetic choice.
   const BrowserSessionSpec({
-    required this.binaryPath,
+    this.binaryPath,
     this.launchFlags = const [],
     this.debugPort,
     this.headless = true,
@@ -112,13 +112,12 @@ class BrowserSessionSpec {
     this.debugProtocol = DebugProtocol.cdp,
   });
 
-  /// Absolute path (or resolvable command name) of the browser binary.
-  ///
-  /// Explicit by design: provisioning (chrome-for-testing into the store)
-  /// is deferred (ADR-0017 out of scope, S1), and a silent "whatever
-  /// Chrome I find" default would make sessions non-hermetic and
-  /// un-reproducible.
-  final String binaryPath;
+  /// Explicit browser binary path, or null → resolved at launch
+  /// (`OKA_CHROME_BIN`, a provisioned chrome-for-testing build, or the
+  /// system Chrome — ADR-0028 §5). Explicit by design for hermetic,
+  /// reproducible sessions; auto-resolution is loud and honors
+  /// `OKA_NO_AUTO_INSTALL=1`.
+  final String? binaryPath;
 
   /// Extra Chromium launch flags, appended after the oka-owned args (last
   /// flag wins in Chromium, so user flags intentionally override nothing
@@ -202,10 +201,10 @@ class BrowserSessionSpec {
         'than processScope "${effectiveProcessScope.label}".',
       );
     }
-    if (binaryPath.trim().isEmpty) {
+    if (binaryPath != null && binaryPath!.trim().isEmpty) {
       issues.add(
-        'binaryPath is empty — set an explicit browser binary path '
-        '(browser provisioning is deferred, ADR-0017 out-of-scope/S1).',
+        'binaryPath is empty — pass a real path, or leave binaryPath null '
+        'for launch-time resolution (ADR-0028 section 5).',
       );
     }
     final port = debugPort;
@@ -246,7 +245,8 @@ class BrowserSessionSpec {
   /// and headless marker.
   @override
   String toString() =>
-      'BrowserSessionSpec(${p.basename(binaryPath)}, '
+      'BrowserSessionSpec('
+      '${binaryPath == null ? 'auto' : p.basename(binaryPath!)}, '
       '${effectiveStateRetention.label} state, '
       '${effectiveProcessScope.label} process, ${debugProtocol.label}'
       '${headless ? ', headless' : ''})';

@@ -845,7 +845,7 @@ void main() {
       final result = await step.run(ctx(temp), PipelineState());
       expect(result.ok, isFalse);
       expect(result.error, contains('Failed to start "/does/not/exist"'));
-      expect(result.error, contains('provisioning is deferred'));
+      expect(result.error, contains('resolved binary'));
       final states = await stateRegistry.inspect();
       expect(states.leases, hasLength(1));
       expect(

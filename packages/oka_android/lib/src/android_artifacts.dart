@@ -58,6 +58,14 @@ const aarResDirs = Artifact<List<String>>('aar_res_dirs');
 /// `compile-proto-and-dex`).
 const dexFiles = Artifact<List<String>>('dex_files');
 
+/// Provenance record stamped into the artifact (provided by
+/// `provenance-stamp`, ADR-0029 D1).
+const provenancePath = Artifact<String>('provenance_path');
+
+/// Verification rung verdicts, JSON lines (ADR-0029 D3). Appended by each
+/// `*-rung` step; rendered by `verification-report`.
+const verificationVerdicts = Artifact<List<String>>('verification_verdicts');
+
 /// Final APK path (provided by `package-and-sign` / `package-and-sign-aab`).
 const apkPath = Artifact<String>('apk_path');
 

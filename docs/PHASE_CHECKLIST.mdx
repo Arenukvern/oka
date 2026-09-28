@@ -176,9 +176,11 @@ with evidence, not into a checked box.
   reuse remains unknown until Windows `SingletonLock` semantics are verified.
   POSIX `0700` remains enforced on Linux/macOS; destructive session-state
   cleanup remains report-only on Windows pending filesystem safety evidence.
-- **S1: browser doctor + provisioning.** `oka doctor` browser detection
-  (engines, versions, flag support); chrome-for-testing into the ADR-0013
-  artifact store. Gate: S0.
+- **S1: browser doctor + provisioning.** chrome-for-testing into the
+  ADR-0013 artifact store is implemented (ADR-0028 §5: store-keyed download,
+  loud auto-install, `OKA_NO_AUTO_INSTALL` escape; evidence:
+  `packages/oka_web/test/chrome_for_testing_test.dart`). `oka doctor` browser
+  detection (engines, versions, flag support) remains open. Gate: S0.
 - **S2: dev-loop session + delegated retirement.** `oka dev` composes a
   long-lived chrome session; `flutterDelegated` shrinks to the documented
   migration path; `EmulatorTarget` gains the `session-<name>-handle`
