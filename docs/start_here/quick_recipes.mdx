@@ -75,6 +75,24 @@ oka build apk --release
 oka build aab --verify-aab      # bundle + bundletool universal-APK verification
 ```
 
+## Verify a release actually starts (ADR-0029)
+
+Every release artifact carries `oka-provenance.json` (engine variant + hashes,
+AOT snapshot build id, pub-resolution hashes) and is validated at packaging
+time — a wrong engine/snapshot pairing fails the build. The runtime half:
+
+```bash
+oka run verify                  # provenance → pairing → device health →
+                                # launch → dart-main → first frame → signatures
+```
+
+Each rung prints a typed verdict; an unhealthy device/host reports
+**inconclusive** instead of silent evidence. To prove Dart `main()` ran
+directly, set `FlutterBuild(startupProbe: true)` in the composition root and
+`VerifyTarget(startupProbe: true)`. Custom rungs and project failure
+signatures compose the same way. Cache staleness questions:
+`oka why release-aot`. Docs: [ADR-0029](../decisions/0029-build-provenance-and-verification-ladder).
+
 ## Tests & lint
 
 ```bash

@@ -99,6 +99,9 @@ aapt2 dump xmltree --file AndroidManifest.xml <apk>
 oka debug dex .oka_cache/build/debug/app-debug.apk --find <dotted.Class>
 # 4. Device smoke test: install + launch + logcat failure scan:
 oka launch
+# 4b. Full startup verification (provenance, engine/snapshot pairing,
+#     device health, Dart main, first frame — ADR-0029):
+oka run verify
 # 5. Visual: name, launcher icon, splash (LaunchTheme) on the device.
 ```
 

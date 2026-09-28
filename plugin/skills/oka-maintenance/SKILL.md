@@ -7,7 +7,7 @@ description: >-
   reviewing capability boundaries or preventing mixed-responsibility files.
 license: MIT
 metadata:
-  version: 1.4.0
+  version: 1.5.0
   author: Arenukvern
 compatibility:
   - dart
@@ -35,7 +35,9 @@ application UI work is outside this skill's scope.
 5. Validate affected behavior first; package tests run from their package directory.
    Broaden to `just test`, `just lint` and `just check-contracts` for integration.
    Packaging changes require real no-Gradle APK/AAB acceptance; device claims
-   require device evidence.
+   require device evidence — `oka run verify` is the canonical ladder (provenance,
+   pairing, device health, launch, dart-main beacon, first frame), and
+   `oka why <step>` answers step-cache staleness questions.
 6. Update usage docs/ADRs and dated evidence. Keep plans forward-only: extract
    completed work into evidence/history and remove completed plan items.
 
@@ -51,6 +53,9 @@ application UI work is outside this skill's scope.
   ownership and lease retention; platform adapters own ADB/CDP specifics.
 - APK `resources.arsc` stays uncompressed and correctly aligned. APK and AAB
   signing differ; never assume apksigner signs bundles or remove user app data.
+- Release artifacts carry provenance and pass the packaging validation rungs
+  (ADR-0029: snapshot↔engine pairing, engine variant vs mode, completeness).
+  A failing `validate-artifact` step is fixed at the source — never bypassed.
 - Use Dart for repository automation; shell may be a thin entry point. Do not
   add Python runtime dependencies or a storage framework for simple JSON files.
 
@@ -65,6 +70,7 @@ Paths are workspace-relative; follow public exports when modules move.
 | Cache application workflows and default composition | `packages/oka/lib/src/cache/`; compatibility exports may remain in `src/cli/` |
 | CLI parsing, terminal interaction and presentation | `packages/oka/lib/src/cli/` |
 | Android compilation, dependencies, tools and packaging | `packages/oka_android/lib/src/` |
+| Provenance, artifact validation and verification ladder | `packages/oka_android/lib/src/build/provenance.dart`, `build/artifact_checks.dart`, `dev/verify_ladder.dart` |
 | Browser targets and profiles | `packages/oka_web/lib/src/session/` |
 | Store publishing | `packages/oka_play/`, `packages/oka_huawei/` |
 | Release inventory and synchronization | `tool/release/train.dart` and thin shell wrappers |

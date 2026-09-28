@@ -382,6 +382,10 @@ oka doctor                     # [Dev Loop (ADR-0011)] readiness checks:
 
 ## ⚡ Incremental build cache
 
+Each step stores its input fingerprint *and per-input digests*; `oka why
+<step>` (e.g. `oka why release-aot`) names which input changed and which
+build-affecting sources the fingerprint does not cover.
+
 For disk usage, emulator/simulator storage and scoped cleanup, see
 [cache storage and cleanup](cache_storage): `oka cache stats`, then
 `oka cache prune --apply` (omit `--apply` to preview).
@@ -593,6 +597,41 @@ Developer options → Revoke USB debugging authorizations → replug.
 **Q: kotlinc fails with JDK version errors?**
 Kotlin 2.1 rejects JDK 25+; `kotlinJavaEnvironment()` in
 `lib/src/pipeline/toolchain.dart` probes for JDK 17–21 automatically.
+
+## 🪜 Verification Station (ADR-0029)
+
+**Q: How do I prove a release build actually starts?**
+```bash
+oka run verify
+```
+Walks the ladder: artifact provenance → snapshot↔engine pairing → install →
+device health → launch → process alive → Dart `main()` (startup beacon) →
+first rendered frame → failure signatures. Each rung prints a typed verdict;
+the run fails at the first broken rung with the cause and fix. Compose it in
+`tool/oka_pipeline.dart` (`VerifyTarget(...)`); add rungs and project
+failure signatures as values — see the extension contract in
+[ADR-0029](../decisions/0029-build-provenance-and-verification-ladder).
+
+**Q: What is `oka-provenance.json` inside my APK?**
+The build's birth certificate (ADR-0029 D1): engine variant and jar/
+`libflutter.so` hashes, AOT snapshot hash + build id, pub-resolution hashes,
+assemble fingerprint, mode and ABIs. Read it without oka:
+`unzip -p app.apk assets/flutter_assets/oka-provenance.json`. Steps and
+stacked pipelines contribute facts via `state.addProvenanceFact(...)` or
+`ProvenanceContributor`s (`ProvenanceStampStep`).
+
+**Q: Why did my build fail with `snapshot-engine-pairing` or
+`engine-variant-matches-mode`?**
+Packaging validates the pairing the engine enforces at startup
+(ADR-0029 D2) — a debug JIT engine paired with a release AOT snapshot, or a
+snapshot the engine will reject ("VM snapshot invalid"), is a red build
+instead of an app hanging on the splash screen. The fix is to rebuild the
+offending side from the same Flutter SDK, never to bypass the check.
+
+**Q: The device is fine but the ladder says INCONCLUSIVE?**
+The device-health rung treats a wedged system UI (ANR dialog in focus), an
+unbooted device, or an overloaded host as untrustworthy evidence — fix the
+device or use a fresh one. Results from that state are not evidence.
 
 ## 🚢 Release Station
 

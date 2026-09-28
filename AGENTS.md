@@ -25,6 +25,7 @@ follow links.
 | Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`, `oka session-state`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |
 | Migrate an existing Gradle app | `docs/guides/gradle_migration.mdx` (works / needs config / unsupported + verification loop) |
 | Check phase status & evidence | `docs/PHASE_CHECKLIST.mdx` |
+| Verify a release actually starts (or diagnose a startup hang) | `oka run verify` (ADR-0029); `oka why <step>` for step-cache staleness |
 | Browse the docs site | `docs/` (published via docs.page) |
 | See CLI commands | `packages/oka/bin/oka.dart`, `packages/oka/lib/src/cli/` |
 | Understand/extend the build pipeline | `packages/oka_android/lib/src/pipeline/`; shared contracts in `packages/oka_core/lib/src/pipeline/` — see ADR 0002 |
