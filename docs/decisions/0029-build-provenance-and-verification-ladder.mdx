@@ -1,0 +1,185 @@
+# 0029 — Build provenance artifact and the release verification ladder
+
+- **Status:** proposed (design checkpoint — implement after review)
+- **Date:** 2026-09-29
+- **Depends on:** 0006 (incremental builds, typed steps), 0007 (artifact
+  evidence), 0010 (typed Dart config), 0015 (verb/target split), 0023
+  (delivery artifacts), 0028 (byte-verified inputs)
+- **Incident:** `docs/evidence/android-release-engine-pairing-2026-09-27.mdx`
+
+## Context
+
+The 2026-09-27 release splash-hang took a multi-hour bisect across four
+layers (engine pairing → AOT snapshot validity → dependency resolution →
+device/host health) even though **every fact needed was already in the
+pipeline's hands** at build time:
+
+1. oka packaged the **debug JIT engine** into release APKs via a silent
+   debug-jar fallback; the packaged `libflutter.so` was byte-identical to the
+   SDK's debug jar. The proof — `unzip | shasum` against two SDK jars — took
+   minutes once attempted, but nothing in the pipeline recorded which jar a
+   `libflutter.so` came from, so nothing could *check* it.
+2. The second layer ("VM snapshot invalid" → SIGSEGV at `AttachJNI`) cost the
+   longest stretch: manifest stripping, R8 toggles, hybrid APK swaps,
+   disassembling `libflutter.so`, and engine-source archaeology, all to learn
+   what the engine logs in one line — the AOT snapshot was compiled against
+   an **inconsistent pub resolution**. The build that produced the bad
+   snapshot had succeeded, so its success was trusted; nothing validated
+   snapshot↔engine pairing, and nothing recorded the resolution the snapshot
+   was compiled against.
+3. Verification itself was noise: host load >50, a sick AVD (systemui ANR at
+   boot), contested emulator lanes. Frames-0 evidence from an unhealthy
+   device sent the investigation into the app twice.
+4. "Did `main()` run?" required hand-editing the app (`_mark` filesystem
+   probes) plus a rebuild per iteration.
+
+The pattern: oka **composes** artifacts but does not **attest** them, and it
+**launches** apps but does not **verify** startup. Every diagnosis was a
+manual reconstruction of provenance that the pipeline could have emitted, and
+a manual walk of a checklist that could have been data.
+
+## Gaps (mapped to capabilities)
+
+| # | Gap | Capability that closes it |
+|---|---|---|
+| G1 | Artifacts carry no provenance (engine variant/jar hash, gen_snapshot, resolution, fingerprints) | Typed **provenance artifact** flowing through the pipeline (G1 → D1) |
+| G2 | No pairing/consistency assertion at package time | **Validation rungs** before side effects (D2) |
+| G3 | Launch verification = manual logcat archaeology | **Verification ladder** + failure-signature table as data (D3, D5) |
+| G4 | Cache staleness questions answered by reading code | `oka why <step>` over recorded fingerprints (D4) |
+| G5 | Unhealthy host/device silently poisons evidence | Device-health rung in the ladder + doctor checks (D3, D6) |
+| G6 | "Did Dart main run?" needs app surgery | Generated **startup beacon** probe, no source edits (D7) |
+
+## Decision
+
+**D1 — Provenance is a typed pipeline artifact, not a log.** A
+`ProvenanceCollector` step (composable, like `BuildInfoStampStep`) aggregates
+typed facts steps already know and writes `flutter_assets/oka-provenance.json`
+inside the artifact:
+
+```dart
+abstract class ProvenanceFact { String get key; Object get value; }
+
+// Steps contribute what they already computed:
+EngineExtractionStep → EngineProvenance(variant, flutterJarSha256, engineRevision)
+ReleaseAotStep       → AotProvenance(snapshotSha256, buildId, genSnapshotVersion)
+DependencyResolveStep → ResolutionProvenance(packageConfigSha256, pubspecLockSha256)
+FlutterAssembleStep  → AssembleProvenance(fingerprint, dartDefines, buildArgs)
+```
+
+Same machinery as `RecordRunSessionStep` (ADR-0011 H1): an artifact keyed by
+the run. Zero new information is invented — every field is already computed;
+it is only *recorded next to the thing it describes*. Pure and side-effect-
+free to read back: `oka verify --from-apk app-release.apk` replays checks
+against the embedded record with no rebuild.
+
+**D2 — Package-time validation rungs (validate before side effects).** Two
+assertions run inside packaging, before signing, and fail the build:
+
+- *pairing:* `_kDartSnapshotBuildId` (from `libapp.so`) must match the
+  engine's expected snapshot version (from `libflutter.so`); mode must match
+  the engine variant directory the natives were extracted from.
+- *provenance completeness:* every typed fact the configured steps promise is
+  present; a missing record fails rather than shipping unattested.
+
+The debug-jar fallback would have been **unreachable** under D2: the jar
+hash recorded by `engine-extraction` is re-verified against the staged
+native before packaging, and variant-vs-mode is asserted.
+
+**D3 — `oka verify release` = the verification ladder, composed.** A target
+(ADR-0015) that walks fixed rungs, each a small `VerifyStep` with a typed
+`Verdict` (pass / fail / *inconclusive-device*) and evidence lines:
+
+```
+artifact   provenance present, hashes match record
+pairing    snapshot build id ↔ engine expected; variant ↔ mode
+install    package state clean (no incremental residue)
+device     healthy host+device gate (load, boot, no recent systemui ANR)
+process    alive after budget
+dart-main  beacon observed (D7) or provenance-defined signal
+first-frame gfxinfo frames > 0 within budget
+```
+
+`inconclusive-device` is a first-class verdict: an unhealthy device **never**
+produces a silent false negative again. Each failing rung prints its evidence
+plus the matching entry from the signature table (D5) with the known fix.
+
+**D4 — `oka why <step>`: explain the cache like `oka explain` explains the
+pipeline.** The step cache already stores fingerprints; store the *input
+list* too, and `oka why release-aot` prints: current fingerprint inputs,
+which changed since the cached run, and — the gap that hid the path-dep bug —
+which resolution-referenced source roots are **not covered** by the
+fingerprint's declared inputs. Read-only, pure.
+
+**D5 — Failure signatures are data, not folklore.** A table
+(`launch_failure_signatures.dart`), populated from evidence docs:
+
+```dart
+FailureSignature(
+  logcat: 'VM snapshot invalid and could not be inferred from settings',
+  cause: 'AOT snapshot compiled against inconsistent pub resolution',
+  fix: 'oka build --release --refresh-resolution (re-run pub get, rebuild AOT)',
+  evidence: 'docs/evidence/android-release-engine-pairing-2026-09-27.mdx',
+)
+```
+
+Consumed by `oka run device`, `oka verify`, and `oka doctor`; the evidence
+doc and the tool share one source of truth. Growing it is a doc-plus-entry
+change, not code archaeology.
+
+**D6 — Device/host health becomes a doctor check + ladder rung.** Load
+average threshold, `sys.boot_completed`, recent systemui ANR in the dropbox,
+and an emulator-identity check (contested AVDs). Explicitly reports
+"inconclusive device" instead of pretending the run verified nothing.
+
+**D7 — Startup beacon probe (no app surgery).** For `dart-main` and
+`first-frame` rungs, oka can generate a temporary wrapper entrypoint (build
+step, not source edit): `main()` writes a marker into app files, then calls
+the real entrypoint. Opt-in per target (`DeviceTarget(probes:
+[DartMainProbe(), FirstFrameProbe(budget: 10s)])`), never in release
+artifacts by default, removed by the same step that added it. The 2026-09-27
+session hand-rolled exactly this; it is pipeline-composable.
+
+## Alternatives considered
+
+- **Generic SBOM/attestation frameworks (in-toto, SLSA).** Rejected: the
+  facts are pipeline-internal and Dart-typed already; a second schema would
+  paraphrase the pipeline instead of being generated from it (oka law: docs
+  and tables link to code, never paraphrase it). The emitted JSON can be
+  bridged later without changing the pipeline shape.
+- **Post-hoc APK inspection CLI only** (`oka verify --from-apk` alone).
+  Rejected as *insufficient*: pairing validation must run **before signing**
+  to fail the build; post-hoc reading is kept as the recovery path for
+  artifacts built before this ADR.
+- **Full log-analysis engine.** Rejected: signature table + ladder rungs
+  cover the observed classes; log mining beyond that re-creates the harness
+  oracle, which is `oka_harness` + `LogTap` (ADR-0027), not the build system.
+- **Content-address everything (ADR-0028 extension).** Unrelated axis:
+  0028 verifies inputs at rest; this ADR attests the composed artifact and
+  its startup. Provenance hashes complement byte-verified inputs.
+
+## Falsifiable gates
+
+1. **Incident replay:** reconstruct the 2026-09-27 failure states (debug
+   engine APK; mismatched snapshot) → `oka verify release` names the failing
+   rung + fix in **one command, under 5 minutes, without reading logcat by
+   hand**. Until this passes on the recorded fixtures, D2/D3 are not done.
+2. **No unattested release:** building release with any promised provenance
+   fact missing fails at packaging (test: strip a fact → red build).
+3. **Noise gate:** on a device with systemui ANR'd at boot, `oka verify`
+   returns `inconclusive-device`, never a silent pass/fail of app rungs.
+4. **Staleness gate:** seed a project with an uncovered path-dep source
+   change → `oka why release-aot` names the uncovered input (the exact bug
+   class fixed on 2026-09-27 becomes a one-lookup answer).
+
+## Consequences
+
+- Steps carry one extra responsibility: contribute the facts they already
+  computed (small, typed, per-step — no central registry to keep in sync).
+- Artifacts gain a small JSON record (kilobytes); provenance of release
+  artifacts becomes inspectable on-device (pull the file, read it).
+- `oka verify` becomes the canonical "does the release start" answer for
+  agents and humans, replacing ad-hoc logcat sessions; `oka run device`
+  composes the same rungs.
+- The failure-signature table turns incident write-ups into tool capability:
+  each evidence doc may add rows, and the ladder gets sharper with every
+  incident instead of every incident repeating the last one.
