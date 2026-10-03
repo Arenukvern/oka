@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:universal_automation_interface/universal_automation_interface.dart'
+    show SurfaceActionDescriptor;
+
 import 'events.dart';
 import 'receipt.dart';
 import 'session.dart';
@@ -13,12 +16,10 @@ import 'watcher.dart';
 /// loop declared as actions, not shell one-liners.
 ///
 /// [liveVerbCatalog] carries three verbs — `oka.live.patch`,
-/// `oka.live.watch`, `oka.live.verify` — as pure data
-/// ([LiveVerb.descriptor] serves the `SurfaceActionDescriptor` contract
-/// of `universal_automation_interface` 0.2.0: `name`, `description`,
-/// JSON-schema `inputSchema`; import the typed class when that version
-/// publishes) plus a [LiveVerb.run] that dispatches into the same
-/// session API the gates use. Embeddings provide the [LiveVerbHost]
+/// `oka.live.watch`, `oka.live.verify` — as pure data:
+/// [LiveVerb.descriptor] is a typed `SurfaceActionDescriptor`
+/// (`universal_automation_interface`), and [LiveVerb.run] dispatches
+/// into the same session API the gates use. Embeddings provide the [LiveVerbHost]
 /// (toolchain + root); transports (UA dispatch, a future `oka ship`
 /// daemon) carry the descriptor and argument maps — no new server.
 ///
@@ -52,13 +53,9 @@ final class LiveVerb {
           Map<String, Object?> args, LiveVerbHost host)
       run;
 
-  /// The `universal_automation_interface` `SurfaceActionDescriptor`
-  /// shape — pure data, carryable by any transport.
-  Map<String, Object?> get descriptor => {
-        'name': name,
-        'description': description,
-        'inputSchema': inputSchema,
-      };
+  /// The typed UA catalog entry — pure data, carryable by any transport.
+  SurfaceActionDescriptor get descriptor =>
+      SurfaceActionDescriptor(name: name, description: description, inputSchema: inputSchema);
 }
 
 /// The three declared live-update verbs.
@@ -181,7 +178,7 @@ Future<Map<String, Object?>> runLiveVerb(
 
 /// The descriptor list, transport-ready (UA action catalogs, MCP tool
 /// listings, `oka ship` manifests — the shape is identical everywhere).
-List<Map<String, Object?>> get liveVerbDescriptors =>
+List<SurfaceActionDescriptor> get liveVerbDescriptors =>
     [for (final v in liveVerbCatalog) v.descriptor];
 
 LivePatchSpec _specOf(Map<String, Object?> args) {

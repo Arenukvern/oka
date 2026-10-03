@@ -15,10 +15,11 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_mcp_harness/flutter_mcp_harness.dart';
+
+import 'flutter_delta.dart';
 import 'package:oka_update/oka_update.dart';
 
 // ignore_for_file: avoid_print, cancel_subscriptions, unused_local_variable, unintended_html_in_doc_comment, prefer_expression_function_bodies, avoid_redundant_argument_values
@@ -33,48 +34,8 @@ final flutterBin =
 
 const unitFile = 'packages/vosges_core/lib/src/hand_identity.dart';
 
-/// The flutter cache layout: <flutter>/bin/cache/{dart-sdk,artifacts}.
-(String dartSdk, String frontend, String patchedSdk) _flutterToolchain(
-    String flutterBin) {
-  final cache =
-      '${File(flutterBin).parent.parent.path}/bin/cache'; // <flutter>/bin/cache
-  final dartSdk = '$cache/dart-sdk';
-  return (
-    dartSdk,
-    '$dartSdk/bin/snapshots/frontend_server_aot.dart.snapshot',
-    '$cache/artifacts/engine/common/flutter_patched_sdk',
-  );
-}
-
-/// Compiles the unit delta with the app's own frontend server. The delta
-/// is the entry library's recompiled set at the current (marked) source
-/// state — exactly what the session expects as `patchedFiles`.
-UnitDeltaCompiler flutterFrontendDeltaCompiler(
-    String frontend, String dartSdk, String patchedSdk, String packages) {
-  return (request) async {
-    final out =
-        '${Directory.systemTemp.createTempSync('oka-ff-delta').path}'
-        '/${request.unit}.delta.dill';
-    final r = await Process.run('$dartSdk/bin/dartaotruntime', [
-      frontend,
-      '--sdk-root=$patchedSdk',
-      '--target=flutter',
-      '--incremental',
-      '--packages=$packages',
-      '--output-dill=$out',
-      '--output-incremental-dill=$out.incremental.dill',
-      ...request.patchedFiles,
-    ]);
-    if (!File(out).existsSync()) {
-      throw StateError(
-          'frontend delta compile failed: ${r.stdout}\n${r.stderr}');
-    }
-    return DeltaArtifact(path: out, bytes: File(out).lengthSync());
-  };
-}
-
 Future<void> main() async {
-  final (dartSdk, frontend, patchedSdk) = _flutterToolchain(flutterBin);
+  final (dartSdk, frontend, patchedSdk) = flutterToolchainPaths(flutterBin);
   final compile = flutterFrontendDeltaCompiler(
       frontend, dartSdk, patchedSdk, '$wsRoot/.dart_tool/package_config.json');
 

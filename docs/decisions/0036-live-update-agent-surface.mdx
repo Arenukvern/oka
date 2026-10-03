@@ -121,12 +121,39 @@ grep-able strings rather than receipts.
   `gate_live_e2e.sh mac-vm` PASS (ported leg), `gate_endless_loop.sh`
   and `gate_aot_slots.sh` PASS (refactored), `oka_update` 18/18 tests,
   analyze clean, `just check-contracts` green.
-- **Still open.** The linux/android/web e2e legs keep their shell
-  orchestration until ported (each needs its external harness in CI:
-  docker, emulator, Chrome); the pre-0036 kernel gates
-  (`gate_g1b_g2.sh`, `gate_g3*.sh`, …) keep their local helpers until
-  they adopt `gate_lib.sh`; typed `SurfaceActionDescriptor` import when
-  published; `oka ship` composes the same verbs for its journey.
+- **Still open — verified 2026-10-03 (same day).**
+  - *Typed `SurfaceActionDescriptor` import: DONE.* The blocker train
+    published — `flutter_mcp_harness` 7.0.0 pins
+    `universal_automation_interface ^0.2.0` — so `oka_dart_kernel` and
+    `oka_harness` moved to `flutter_mcp_harness ^7.0.0` (migrating
+    `oka_harness` off the deleted `WidgetDriver` to `ToolkitDriver`),
+    and the catalog now returns the typed class
+    (`test/live_agent_test.dart` round-trips it through
+    `SurfaceActionDescriptor.fromJson`).
+  - *Web + android e2e legs: DONE as drivers.* `tool/live_e2e_web.dart`
+    (web-server + Chrome + CDP baseline reset + dwds reload; probe b→c,
+    hold green) and `tool/live_e2e_android.dart` (emulator bring-up or
+    reuse, known-good build fixes applied/reverted) replace the legs'
+    shell orchestration; the gate legs now call the drivers. The android
+    run sharpened the frontend rule into a hard law: the
+    checkout-frontend delta — the shape the gate flew for months — now
+    **crashes the app on `_reloadKernel`** (the release trains drifted
+    past it); the app's own frontend delta applies cleanly on device
+    (DevFS + `_reloadKernel`, probe b→c, hold green). Both drivers share
+    `tool/flutter_delta.dart`. The linux/docker leg stays shell on
+    purpose: container lifecycle is gate-only, no standalone product
+    driver falls out of it.
+  - *Pre-0036 kernel gates adopting `gate_lib.sh`: DROPPED.* The audit
+    found no duplication to remove — those gates are short
+    single-purpose scripts without wait/restore/pkill helpers. The
+    Still-open claim was an unverified assumption; the honest outcome is
+    the finding, not the refactor.
+  - *`oka ship`: the verbs slice shipped as `oka live`.* The published
+    CLI delegates to `oka_dart_kernel/tool/oka_live.dart`
+    (`oka live verify|patch|watch --spec … [--json]`; runner tests +
+    thin delegator — the published package takes no non-publishable
+    dependency). `oka ship`'s publish stages stay gated on ADR-0034's
+    delivery rungs.
 
 ## Related
 

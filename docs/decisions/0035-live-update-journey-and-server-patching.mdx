@@ -324,8 +324,8 @@ real, external products grounded it — `tool/live_products_*.dart` +
 | Dart CLI (oka itself) | VM service + `_reloadKernel`, pre-staged delta | `gate_live_products.sh` leg 1 |
 | MCP stdio server (fmtk) | VM service + two revisions over one stdio session | leg 2 |
 | Flutter desktop app (vosges) | app's own frontend delta + DevFS + `reloadSources(pause:false, rootLibUri)` | leg 3 |
-| Plain Dart VM (mac/linux) | `_reloadKernel` | `gate_live_e2e.sh` leg 1–2 |
-| Android device | DevFS + `_reloadKernel` | `gate_live_e2e.sh` android |
+| Plain Dart VM (mac/linux) | `_reloadKernel` | `gate_live_e2e.sh` legs (mac-vm driver; linux docker) |
+| Android device | app-frontend delta + DevFS + `_reloadKernel` (`live_e2e_android.dart`) | `gate_live_e2e.sh` android |
 | Web (dwds/DDK) | dwds reload + CDP probes | `gate_live_e2e.sh` web |
 | AOT program | revision slots / snapshot handoff | `gate_aot_slots.sh`, S3 demo |
 

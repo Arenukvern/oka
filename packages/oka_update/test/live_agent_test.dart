@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:oka_update/oka_update.dart';
 import 'package:test/test.dart';
+import 'package:universal_automation_interface/universal_automation_interface.dart';
 
 import 'live_session_test.dart' show FakeTarget;
 
@@ -50,10 +51,15 @@ void main() {
     expect(names,
         ['oka.live.patch', 'oka.live.watch', 'oka.live.verify']);
     for (final d in liveVerbDescriptors) {
-      expect(d['name'], isNotEmpty);
-      expect((d['name'] as String).contains('.'), isTrue);
-      expect(d['description'], isNotEmpty);
-      expect(d['inputSchema'], isA<Map>());
+      expect(d.name, isNotEmpty);
+      expect(d.name.contains('.'), isTrue);
+      expect(d.description, isNotEmpty);
+      expect(d.inputSchema, isA<Map<String, Object?>>());
+      // Round-trips through the UA contract's own decoder.
+      expect(
+        SurfaceActionDescriptor.fromJson(d.toJson())?.name,
+        d.name,
+      );
     }
   });
 

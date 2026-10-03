@@ -667,3 +667,33 @@ pre-staged delta + `_reloadKernel`; MCP stdio server = two revisions over
 one session; Flutter desktop = app-frontend delta + DevFS +
 `reloadSources`; plain VM = `_reloadKernel`; Android device = DevFS +
 `_reloadKernel`; web = dwds + CDP; AOT = revision slots / handoff.
+
+## Still-open list completed; android frontend law sharpened (2026-10-03)
+
+ADR-0036's remaining items were value-verified then executed:
+
+- **Typed UA descriptors**: `flutter_mcp_harness` 7.0.0 published (pins
+  `universal_automation_interface ^0.2.0`); `oka_dart_kernel` +
+  `oka_harness` moved to the 7.0.0 train (oka_harness migrated off the
+  deleted `WidgetDriver` to `ToolkitDriver`; its emulator smoke drives
+  via `perform(ClickAction)` + snapshot scans). `liveVerbDescriptors`
+  now returns typed `SurfaceActionDescriptor`s, round-tripped through
+  the contract's own `fromJson`.
+- **Web + android e2e legs are standalone Dart drivers**
+  (`live_e2e_web.dart`, `live_e2e_android.dart`); the gate legs call
+  them. Web: web-server + Chrome + CDP baseline reset + dwds reload —
+  probe b→c, hold green. Android: emulator bring-up/reuse, known-good
+  build fixes applied/reverted — probe b→c, hold green.
+- **Android frontend law sharpened**: the checkout-frontend delta —
+  the shape the android gate flew for months — now crashes the app on
+  `_reloadKernel` (the release trains drifted past it). With the app's
+  own frontend (`frontend_server_aot` + flutter_patched_sdk, shared
+  `tool/flutter_delta.dart`) the same wire applies cleanly. The rule is
+  now version-proof: always compile with the target's frontend.
+- **`oka live`**: the published CLI gains `oka live verify|patch|watch`
+  (thin delegator; the runner `oka_dart_kernel/tool/oka_live.dart`
+  composes the declared verbs; 4 runner tests). The published package
+  takes no non-publishable dependency.
+- **Audit outcome**: the pre-0036 kernel gates were assumed to duplicate
+  gate helpers — they don't (short single-purpose scripts); the
+  gate_lib adoption claim was dropped instead of performed.

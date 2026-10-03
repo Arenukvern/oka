@@ -181,14 +181,14 @@ final class AndroidAppTarget implements AppTarget {
   }
 }
 
-/// Convenience: attach a [WidgetDriver] to the live session's VM service.
+/// Convenience: attach a [ToolkitDriver] to the live session's VM service.
 ///
 /// Refuses to launch anything — the runner owns the session; this only
 /// reads its published endpoint, through the contract-typed path
 /// ([resolveLiveSessionOutputs]).
-Future<WidgetDriver> driverForLiveSession(final String projectDir) async {
+Future<ToolkitDriver> driverForLiveSession(final String projectDir) async {
   final outputs = await resolveLiveSessionOutputs(projectDir);
-  return WidgetDriver(
+  return ToolkitDriver(
     await VmClient.connect(Uri.parse(outputs.require(runnerSessionVmUri))),
   );
 }

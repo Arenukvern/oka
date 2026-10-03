@@ -109,9 +109,13 @@ with evidence, not into a checked box.
   Flutter-app bring-up, the e2e mac-vm leg is a Dart driver, and
   `oka.live.patch/watch/verify` are declared in
   `oka_update/live_agent.dart` (18/18 tests) — no new MCP server.
-  Remaining: port the linux/android/web e2e legs, adopt `gate_lib.sh` in
-  the pre-0036 kernel gates, typed UAI descriptor import at 0.2.0.
-  Concise user/agent entry: `docs/guides/live_update.mdx`.
+  Done same-day: typed UAI descriptor import (harness 7.0.0 train),
+  web + android e2e legs as standalone Dart drivers, and `oka live
+  verify|patch|watch` in the published CLI (delegates to the
+  experimental runner — no non-publishable dependency). Remaining:
+  port the linux/docker e2e leg (kept shell on purpose — gate-only),
+  `oka ship` publish stages (ADR-0034-gated). Concise user/agent
+  entry: `docs/guides/live_update.mdx`.
 - **Done (ADR-0016 W0–W2, pending archive with evidence):**
   **W0** — `oka_web` shell station package (typed spec/contribution/entries,
   generate + inject emitters, emit + zip steps, `web-shell`/`web-build`

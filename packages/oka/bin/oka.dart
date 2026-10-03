@@ -14,6 +14,7 @@ import 'package:oka/src/cli/explain_command.dart';
 import 'package:oka/src/cli/get_command.dart';
 import 'package:oka/src/cli/init_command.dart';
 import 'package:oka/src/cli/launch_command.dart';
+import 'package:oka/src/cli/live_command.dart';
 import 'package:oka/src/cli/processes_command.dart';
 import 'package:oka/src/cli/run_command.dart';
 import 'package:oka/src/cli/session_state_command.dart';
@@ -70,6 +71,8 @@ void main(List<String> arguments) async {
         await DebugCommand().run(commandArgs);
       case 'launch':
         await LaunchCommand().run(commandArgs);
+      case 'live':
+        await LiveCommand().run(commandArgs);
       case 'cache':
         await CacheCommand().run(commandArgs);
       case 'processes':
@@ -123,6 +126,8 @@ Commands:
             DEX symbols (oka debug dex <apk> --find <class>)
   launch    Alias of `oka run device`: install the newest APK, launch on
             device, scan the device log for failure signatures
+  live      Live-update a running program (experimental; needs the
+            oka_dart_kernel checkout — docs/guides/live_update.mdx)
   run       Run a project-declared target (oka run <target>; targets are
             discovered from tool/oka_pipeline.dart — `oka run` lists them)
   dev       Start development mode with hot reload

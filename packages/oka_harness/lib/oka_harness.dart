@@ -8,7 +8,7 @@
 /// [LaunchedApp] wired to the forwarded VM service URI published in
 /// `.flutter_mcp/runner-session.json`.
 ///
-/// Scenarios then drive/assert with `WidgetDriver`/`Scenario` exactly like
+/// Scenarios then drive/assert with `ToolkitDriver`/`Scenario` exactly like
 /// desktop targets do; `example/` shows the composition root.
 library;
 

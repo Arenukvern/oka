@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:oka_harness/oka_harness.dart';
+import 'package:universal_automation_interface/universal_automation_interface.dart';
 
 /// Drive an Android app end-to-end through `oka dev` + the toolkit
 /// extensions (ADR-0026). Run from a device-connected project root:
@@ -21,17 +22,31 @@ Future<void> main(final List<String> args) async {
   try {
     final driver = await driverForLiveSession(projectDir);
 
-    final button = await driver.findRef('start');
-    if (button == null) {
+    final snap = await driver.snapshot();
+    final start = snap.nodes
+        .where(
+          (final node) =>
+              (node.name ?? '').toLowerCase().contains('start'),
+        )
+        .toList();
+    if (start.isEmpty) {
       stdout.writeln('FAIL: start button not found in semantic snapshot');
-      for (final (label, _) in await driver.snapshot()) {
-        stdout.writeln('  node: $label');
+      for (final node in snap.nodes) {
+        stdout.writeln('  node: ${node.role} ${node.name ?? ''}');
       }
     } else {
-      await driver.tap(button);
-      final confirmation = await driver.findValue(
-        (final value) => value.startsWith('SMOKE-'),
-      );
+      await driver.perform(const ClickAction(name: 'start'));
+      String? confirmation;
+      for (var attempt = 0; attempt < 10 && confirmation == null; attempt++) {
+        final after = await driver.snapshot();
+        for (final n in after.nodes) {
+          final value = n.value ?? '';
+          if (value.startsWith('SMOKE-')) confirmation = value;
+        }
+        if (confirmation == null) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      }
       passed = confirmation != null;
       stdout.writeln(
         passed

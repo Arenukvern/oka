@@ -132,77 +132,19 @@ leg_linux_docker() {
 }
 
 # ---------------------------------------------------------------- android
-# The app's committed android config cannot build under this flutter
-# (wrapper/AGP below the tool's floor; debug signing points at a
-# TCC-protected iCloud keystore). The leg applies the two known-good build
-# fixes and reverts them on exit — the app repo keeps its committed state.
-ANDROID_PATCHED=""
-android_patch_build() {
-  cp "$APP_ROOT/android/gradle/wrapper/gradle-wrapper.properties" "$OUT/gradle-wrapper.properties.orig"
-  cp "$APP_ROOT/android/settings.gradle.kts" "$OUT/settings.gradle.kts.orig"
-  cp "$APP_ROOT/android/app/build.gradle.kts" "$OUT/app_build_gradle.kts.orig"
-  sed -i '' 's/gradle-8.12-all.zip/gradle-8.14-all.zip/' \
-    "$APP_ROOT/android/gradle/wrapper/gradle-wrapper.properties"
-  sed -i '' 's/id("com.android.application") version "8.7.3" apply false/id("com.android.application") version "8.11.1" apply false/' \
-    "$APP_ROOT/android/settings.gradle.kts"
-  dart "$HERE/tool/live_e2e_spec.dart" patch-android-signing "$APP_ROOT" || return 1
-  ANDROID_PATCHED=1
-}
-android_restore_build() {
-  [ "$ANDROID_PATCHED" = 1 ] || return 0
-  cp "$OUT/gradle-wrapper.properties.orig" "$APP_ROOT/android/gradle/wrapper/gradle-wrapper.properties"
-  cp "$OUT/settings.gradle.kts.orig" "$APP_ROOT/android/settings.gradle.kts"
-  cp "$OUT/app_build_gradle.kts.orig" "$APP_ROOT/android/app/build.gradle.kts"
-  ANDROID_PATCHED=""
-}
-
+# The leg lives in a Dart driver now (ADR-0036 Tier 1): emulator
+# bring-up/reuse, known-good build fixes applied and reverted, DevFS
+# push + _reloadKernel with the app's own frontend delta.
 leg_android() {
-  echo "=== [live-e2e android] flutter run on emulator, unit fractional_order"
-  restore_markers
-  android_patch_build
-  export ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-$HOME/.oka/android-sdk}
-  export ANDROID_HOME=$ANDROID_SDK_ROOT
-  pkill -f "flutter_tools.snapshot run -d emulator" 2>/dev/null; sleep 1
-  # emulator up?
-  "$ADB" devices 2>/dev/null | grep -q "emulator-.*device" || {
-    nohup "$EMU" -avd oka-emulator -no-snapshot -no-audio -no-boot-anim \
-      > /tmp/oka_gate_emulator.log 2>&1 &
-    local i=0
-    while [ $i -lt 30 ]; do
-      [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
-      sleep 10; i=$((i+1))
-    done
-  }
-  "$ADB" devices | grep -q "emulator-.*device" || { echo "no emulator"; return 1; }
-  local dev fl_log spec receipt driver_log ws http
-  dev=$("$ADB" devices | grep "emulator-.*device" | head -1 | cut -f1)
-  fl_log=/tmp/oka_gate_leg3_flutter.log; : > "$fl_log"
-  ( cd "$APP_ROOT" && nohup "$FLUTTER/bin/flutter" run -d "$dev" --debug \
-      --android-skip-build-dependency-validation \
-      --pid-file="$OUT/flutter_android.pid" >> "$fl_log" 2>&1 & echo $! > "$OUT/leg3_flutter.pid" )
-  wait_for "$fl_log" "A Dart VM Service" 150 "flutter android vm service" || {
-    kill "$(cat "$OUT/leg3_flutter.pid")" 2>/dev/null; android_restore_build; return 1; }
-  local uri
-  uri=$(grep "A Dart VM Service" "$fl_log" | head -1 | grep -oE 'http://[^ ]+')
-  ws=$(echo "$uri" | sed 's|http://|ws://|; s|/$||')/ws
-  http="$uri"
-  spec="$OUT/spec_android.json"; receipt="$OUT/receipt_android.json"; driver_log="$OUT/leg3.log"
-  dart "$HERE/tool/live_e2e_spec.dart" android "$spec" --app="$APP_ROOT" \
-    --ws="$ws" --http="$http" || return 1
-  local checkout hash pkgs
-  checkout=${OKA_SDK_CHECKOUT_FLUTTER:-$HOME/xs/dart-sdks/sdk-3.13.4}
-  hash=$(git -C "$checkout" rev-parse --short=10 HEAD)
-  pkgs="$OUT/pipeline_package_config_3134.json"
-  [ -f "$pkgs" ] || pkgs=$(build_pkgs "$checkout" 3.13 "$OUT")
-  run_driver "$spec" "$receipt" "$driver_log" env \
-    LIVE_DELTA_DART="$FDART" LIVE_DELTA_PACKAGES="$pkgs" LIVE_SDK_HASH="$hash" \
-    OKA_TARGET=flutter \
-    DART_SDK_SUMMARY="$FLUTTER/bin/cache/artifacts/engine/common/flutter_patched_sdk/platform_strong.dill" \
-    DART_PACKAGES_CONFIG="$APP_ROOT/.dart_tool/package_config.json"
+  echo "=== [live-e2e android] flutter run on emulator (Dart driver)"
+  pkill_pattern "flutter_tools.snapshot run -d emulator"
+  sleep 1
+  local driver_log="$OUT/leg3.log"
+  ( cd "$HERE/../.." && dart \
+      --packages="$HERE/../../.dart_tool/package_config.json" \
+      "$HERE/tool/live_e2e_android.dart" ) > "$driver_log" 2>&1
   local rc=$?
-  kill "$(cat "$OUT/leg3_flutter.pid")" 2>/dev/null
-  pkill -f "flutter_tools.snapshot run -d emulator" 2>/dev/null
-  restore_markers
+  tail -3 "$driver_log"
   [ $rc -eq 0 ] && grep -q "live patch OK" "$driver_log"
 }
 
