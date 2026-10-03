@@ -130,14 +130,18 @@ Future<void> runLiveCli(
   final specJson =
       (jsonDecode(specFile.readAsStringSync()) as Map).cast<String, dynamic>();
 
-  final toolchain = await resolvePipelineToolchain(
-    okaDartKernelRoot:
-        kernelRoot ?? File.fromUri(Platform.script).parent.parent.path,
-    workDir: Directory.systemTemp,
-    appPackagesConfig: '${parsed.project}/.dart_tool/package_config.json',
-  );
+  // Resolve the real toolchain only when the embedding didn't inject a
+  // compiler (tests, custom hosts).
+  final compile = compiler ??
+      pipelineDeltaCompiler(await resolvePipelineToolchain(
+        okaDartKernelRoot:
+            kernelRoot ?? File.fromUri(Platform.script).parent.parent.path,
+        workDir: Directory.systemTemp,
+        appPackagesConfig:
+            '${parsed.project}/.dart_tool/package_config.json',
+      ));
   final host = _VerbHost(
-    compile: compiler ?? pipelineDeltaCompiler(toolchain),
+    compile: compile,
     root: parsed.project,
     targetOverrides: targetOverrides,
   );
