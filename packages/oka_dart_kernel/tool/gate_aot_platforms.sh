@@ -17,11 +17,12 @@
 #   windows          no host gen_snapshot; `app-aot-pecoff-obj` kind exists —
 #                    needs one windows host/CI run to join the matrix.
 #
-# Env: FLUTTER (default /Users/antonio/fvm/default), OKA_SDK_CHECKOUT.
+# Env: FLUTTER (default ${HOST_HOME}/fvm/default), OKA_SDK_CHECKOUT.
 set -euo pipefail
+HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 
 PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
-FLUTTER=${FLUTTER:-/Users/antonio/fvm/default}
+FLUTTER=${FLUTTER:-${HOST_HOME}/fvm/default}
 OUT="$PKG_DIR/.gate_aot_platforms"
 ENTRY="$PKG_DIR/example/kernel_app/tool/gate_entry.dart"
 UNITS=(--unit=units/tiny.dart --unit=units/greet.dart)
@@ -30,7 +31,7 @@ mkdir -p "$PKG_DIR/example/kernel_app/.dart_tool"
 {
   "configVersion": 2,
   "packages": [
-    {"name":"kernel_app","rootUri":"file:///Users/antonio/xs/oka/packages/oka_dart_kernel/example/kernel_app","packageUri":"lib/","languageVersion":"3.13"}
+    {"name":"kernel_app","rootUri":"file://${HOST_HOME}/xs/oka/packages/oka_dart_kernel/example/kernel_app","packageUri":"lib/","languageVersion":"3.13"}
   ]
 }
 EOF
@@ -85,8 +86,8 @@ grep -q 'GATE APP OK' "$OUT/mac.run.log"
 
 echo "=== [platforms 3/6] linux/amd64 container: ELF + manifest + RUN (qemu)"
 docker run --rm --platform linux/amd64 \
-  -v "/Users/antonio/xs/oka:/Users/antonio/xs/oka" \
-  -w /Users/antonio/xs/oka/packages/oka_dart_kernel dart:3.13.2 bash -c '
+  -v "${HOST_HOME}/xs/oka:${HOST_HOME}/xs/oka" \
+  -w ${HOST_HOME}/xs/oka/packages/oka_dart_kernel dart:3.13.2 bash -c '
     set -e; D=/usr/lib/dart
     $D/bin/utils/gen_snapshot --snapshot-kind=app-aot-elf \
       --elf=.gate_aot_platforms/lin_base.so \

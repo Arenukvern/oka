@@ -12,9 +12,10 @@
 # frontend_server lane for research (delta = whole component; documented
 # negative: 135MB, refused by the VM's kernel isolate).
 set -euo pipefail
+HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 
 PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
-FLUTTER=${FLUTTER:-/Users/antonio/fvm/default}
+FLUTTER=${FLUTTER:-${HOST_HOME}/fvm/default}
 APP_ROOT=${APP_ROOT:-$HOME/xs/storage_problem/last_answer}
 
 cd "$PKG_DIR"

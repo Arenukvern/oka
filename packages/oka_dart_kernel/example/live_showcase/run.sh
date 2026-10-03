@@ -11,6 +11,7 @@
 #
 # Restores the source on exit; rerunnable. Usage: ./run.sh
 set -euo pipefail
+HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 HERE=$(cd "$(dirname "$0")" && pwd)
 PKG=$(cd "$HERE/../.." && pwd)                 # packages/oka_dart_kernel
 APP="$HERE/app"
@@ -58,7 +59,7 @@ grep -q "VM service is listening" "$HERE/.build/app.log" || {
 grep "app:" "$HERE/.build/app.log" | head -1
 
 echo '== [3/4] apply the composed live patch (dart patch.dart)'
-( cd "$HERE" && dart --packages="/Users/antonio/xs/oka/.dart_tool/package_config.json" \
+( cd "$HERE" && dart --packages="${HOST_HOME}/xs/oka/.dart_tool/package_config.json" \
     patch.dart )
 STATUS=$?
 

@@ -17,6 +17,7 @@
 #
 # Plain variables only: must run on macOS stock bash 3.2.
 set -uo pipefail
+HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 # docker lives in /usr/local/bin on this Mac; keep the tool PATH minimal.
 PATH="$PATH:/usr/local/bin"
 HERE=$(cd "$(dirname "$0")/.." && pwd)
@@ -108,8 +109,8 @@ leg_linux_docker() {
   docker rm -f oka-live-linux >/dev/null 2>&1
   docker run -d --name oka-live-linux -p 127.0.0.1:8185:8185 \
     -v "$APP_ROOT:$APP_ROOT" \
-    -v "$HOME/xs/storage_problem/dart_flutter_packages:/Users/antonio/xs/storage_problem/dart_flutter_packages" \
-    -v "$HOME/.pub-cache:/Users/antonio/.pub-cache" \
+    -v "$HOME/xs/storage_problem/dart_flutter_packages:${HOST_HOME}/xs/storage_problem/dart_flutter_packages" \
+    -v "$HOME/.pub-cache:${HOST_HOME}/.pub-cache" \
     -w "$APP_ROOT" dart:3.13.2 \
     dart --enable-vm-service=8185/0.0.0.0 --disable-service-auth-codes \
     tool/oka_kernel_driver.dart --serve >/dev/null || return 1

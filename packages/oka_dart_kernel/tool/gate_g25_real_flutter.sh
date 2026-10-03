@@ -8,13 +8,14 @@
 # Manifest-only gate: the android ELF runs on a device/emulator through
 # oka's build harness — not here. Env:
 #   APP_ROOT   (default ~/xs/storage_problem/last_answer)
-#   FLUTTER    (default /Users/antonio/fvm/default)
+#   FLUTTER    (default ${HOST_HOME}/fvm/default)
 #   OKA_SDK_CHECKOUT (default ~/xs/dart-sdks/sdk-<flutter dart version>)
 set -euo pipefail
+HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 
 PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
 APP_ROOT=${APP_ROOT:-$HOME/xs/storage_problem/last_answer}
-FLUTTER=${FLUTTER:-/Users/antonio/fvm/default}
+FLUTTER=${FLUTTER:-${HOST_HOME}/fvm/default}
 FDART="$FLUTTER/bin/cache/dart-sdk/bin/dart"
 FDART_VERSION=$("$FDART" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 LANG_VERSION=$(echo "$FDART_VERSION" | cut -d. -f1-2)

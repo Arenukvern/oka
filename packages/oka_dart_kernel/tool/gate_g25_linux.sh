@@ -3,15 +3,16 @@
 # deferred-ized at the kernel level -> gen_snapshot emits 3 loading units
 # (root + 2), each unit holding exactly its own library, app runs on Linux.
 set -euo pipefail
+HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 
 PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
 HOST_REPO=$(cd "$PKG_DIR/../.." && pwd)
 
 docker run --rm -i \
-  -v "$HOST_REPO:/Users/antonio/xs/oka" \
-  -v "$HOME/xs/dart-sdks:/Users/antonio/xs/dart-sdks" \
-  -v "$HOME/.pub-cache:/Users/antonio/.pub-cache" \
-  -w /Users/antonio/xs/oka/packages/oka_dart_kernel \
+  -v "$HOST_REPO:${HOST_HOME}/xs/oka" \
+  -v "$HOME/xs/dart-sdks:${HOST_HOME}/xs/dart-sdks" \
+  -v "$HOME/.pub-cache:${HOST_HOME}/.pub-cache" \
+  -w ${HOST_HOME}/xs/oka/packages/oka_dart_kernel \
   dart:3.13.2 bash -s <<'SCRIPT'
 set -euo pipefail
 export DART_SDK_ROOT=/usr/lib/dart
@@ -25,11 +26,11 @@ cat > example/kernel_app/.dart_tool/package_config.json <<'PKGEOF'
 {
   "configVersion": 2,
   "packages": [
-    {"name":"kernel_app","rootUri":"file:///Users/antonio/xs/oka/packages/oka_dart_kernel/example/kernel_app","packageUri":"lib/","languageVersion":"3.13"}
+    {"name":"kernel_app","rootUri":"file://${HOST_HOME}/xs/oka/packages/oka_dart_kernel/example/kernel_app","packageUri":"lib/","languageVersion":"3.13"}
   ]
 }
 PKGEOF
-export DART_PACKAGES_CONFIG=/Users/antonio/xs/oka/packages/oka_dart_kernel/example/kernel_app/.dart_tool/package_config.json
+export DART_PACKAGES_CONFIG=${HOST_HOME}/xs/oka/packages/oka_dart_kernel/example/kernel_app/.dart_tool/package_config.json
 
 echo '=== [g25] pipeline (2 units)'
 "$SDK/bin/dart" -Dsdk_hash=60a57cd42d \
