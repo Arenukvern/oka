@@ -1,0 +1,216 @@
+# 0031 — Declarative patch units: store-free updates via deferred loading units, web first
+
+- **Status:** proposed
+- **Date:** 2026-10-02
+- **Decision-makers:** oka maintainers
+- **Extends:** ADR-0013 (content-addressed artifact store), ADR-0014/0023
+  (PublishTarget contract), ADR-0016 (web shell station + directory-artifact
+  publish), ADR-0028 (byte-verified inputs), ADR-0029 (provenance +
+  verification ladder)
+- **Proposes vocabulary later generalized by:** ADR-0030 §5 (composable
+  updates), if accepted
+
+## Context
+
+Applications need store-free updates: fix a Dart bug, ship it to running
+installations without an app-store review. The store landscape makes this
+per-platform: web has no gatekeeper; Apple/Google policies treat downloaded
+*executable* code as restricted territory, and Flutter's AOT output is machine
+code, not a bundle.
+
+Dart's `deferred as` loading is the language's own splitting mechanism, but it
+is compiler-dependent. It is production-grade on dart2js/DDC (and newer on
+dart2wasm); the Dart VM's AOT loading units exist at the compiler level
+(they power Flutter's Play-managed Android deferred components) but are not
+reachable through the public `dart compile` toolchain and carry a P2
+correctness bug ([sdk#64162]). Mobile code-swap today means an engine fork
+(vendor, e.g. Shorebird) or an interpreter island — both out of oka's scope.
+
+What oka already has makes a declarative layer viable without new runtime
+machinery: byte-verified inputs and per-file digests (ADR-0028), provenance
+facts bound into artifacts (ADR-0029), the PublishTarget contract with dry-run
+plans and delivery verification (ADR-0014/0023), the web build's
+directory-artifact publish convention (ADR-0016), browser session targets for
+verification (ADR-0017), and the verification ladder's promote gating.
+
+The spike ([dated evidence]) established the load-bearing facts:
+
+- dart2js emits one chunk per deferred unit and **embeds a content-hash
+  manifest in the core** (`deferredPartHashes`), verified by the loader at
+  chunk load. A unit-body-only release touches its own chunk plus 27 bytes of
+  the core; unchanged chunks stay byte-identical (build output is
+  deterministic).
+- A revision swap served from dumb static hosting transfers only changed
+  artifacts and applies on next load. No service worker is required for
+  correctness.
+- The deferred type rule forces stable contract libraries at unit boundaries —
+  the language enforces the patch-safety discipline the unit model needs.
+
+## Considered options
+
+1. Vendor a code-push service wholesale (e.g. Shorebird) for all platforms.
+2. Monolithic OTA manifest + snapshot swap only; no unit model.
+3. **Declarative patch units** built on deferred loading: web first, native
+   AOT explicitly gated until the VM toolchain is reachable and correct.
+4. Server-driven UI (rfw/stac): patch UI as data.
+
+Option 1 outsources the mechanism but not the semantics — eligibility,
+channels, rollback, verification remain the app's problem, and web is not
+covered. Option 2 ignores that the compiler already provides per-unit change
+isolation. Option 4 patches presentation only and is an application
+architecture decision, not build infrastructure. Option 3 keeps oka's
+composition layer platform-uniform while delegating the parts the platform
+actually gates.
+
+## Proposed decision
+
+Prefer **option 3**. An *update* is a validated transition between
+application revisions (ADR-0030 §5 vocabulary); a *patch unit* is the
+smallest declarable piece of an application that can take part in such a
+transition without a store release.
+
+1. **Units are declared in the composition, not annotated in code.** A unit
+   maps a name to a set of libraries. Source generation draws the file
+   boundaries the compiler needs: per unit a deferred export barrel plus a
+   generated registry through which the core resolves unit contracts
+   (`await units.load(id)` → contract-typed factory). Chunk granularity is
+   the library, so marker-driven splitting is generated file splitting.
+2. **Contract libraries hold every type crossing a unit boundary.** This is
+   required by the deferred type rule anyway; the generator enforces it as a
+   plan-time check rather than a compile error.
+3. **Eligibility is computed, not assumed.** `oka why`-style digest diffing
+   classifies a revision delta: unit-body-only diffs are patchable; contract,
+   core, or native-touched diffs produce an explicit "store release required"
+   result. A patch is never implied to apply when it cannot.
+4. **Delivery is the existing PublishTarget contract over content-addressed
+   storage.** A revision manifest (unit id → chunk → sha256 → contract
+   fingerprint) plus a small signed channel pointer (pinned revision, cohort
+   rules) served from any static host. The pointer pins the core artifact as
+   well: because dart2js part filenames are stable while their content
+   changes, a client that keeps a stale core will fail to load new chunks
+   (observed in the spike) — so a revision change must force core
+   revalidation or use content-addressed filenames. Rollback is a pointer
+   repoint; staged rollout is a pointer rule. Oka never serves traffic and no
+   resident oka process is authorized (ADR-0018/0022 posture).
+5. **Application semantics are honest: reload/restart granularity only.** No
+   live swap of *released* code on any platform. (The JIT dev/live lane
+   proven under [ADR-0032](0032-oka-dart-kernel-graph-ownership) — per-unit
+   kernel deltas applied to a running debug process via the VM service — is
+   a development-loop capability, not a release lane; it never reaches
+   AOT store binaries and must not be marketed as OTA.) A unit may expose a
+   factory the core re-invokes per session or operation to route new work to
+   freshly loaded code; that seam is explicit and opt-in.
+6. **Patches ride the verification ladder.** A verify rung boots the patched
+   bundle in a controlled browser session (ADR-0017), asserts every unit
+   hydrates and the startup beacon fires, and gates promotion (ADR-0029).
+   Provenance facts extend to the manifest.
+7. **Native AOT is out of scope for this ADR.** Probes (2026-10-02, see
+   [dated evidence]) reached the splitter from a plain kernel dill:
+   `gen_kernel` + `gen_snapshot --loading_unit_manifest` emits a per-unit
+   split with a JSON unit manifest, and on Linux the multi-unit ELF loads and
+   executes correctly (sdk#64162 stress passing). Platform facts were
+   widened the same day (evidence §Native AOT across platforms): the split
+   works through the **`app-aot-elf` kind on every host measured** — macOS
+   host and iOS/android cross `gen_snapshot` all emit `base.so` +
+   `base.so-N.part.so` — while the Mach-O kind refuses with
+   `deferred loading not implemented for Mach-O`; the runtime loads part
+   files itself through `Dart_SetDeferredLoadHandler` + the VM's own ELF
+   loader, which is the embedder seam Flutter's deferred components uses.
+   What still gates native per-unit delivery: unit files are code-only
+   fragments coupled to their root (not self-contained revisions), the VM
+   refuses foreign unit files at load with a program-identity check, a
+   one-unit change perturbs all units' bytes, sdk#64162 remains open, and
+   the shipping-app integration (an embedder like Flutter's engine driving
+   the deferred-load hook through deferred-components delivery) is unproven
+   — the bare-runtime path itself is proven: a stock
+   `dartaotruntime_product` built from the pinned checkout ran the
+   multi-unit split on the android arm64 emulator the same day. The SDK's
+   dynamic-modules (bytecode) path — the only
+   native *live*-swap mechanism — is still refused by the stock runtime.
+   Native therefore reduces to whole-revision-at-restart delivery plus a
+   gated research lane; a follow-up ADR is required before oka commits
+   to driving that toolchain. Mobile code updates meanwhile remain the store
+   lane or a vendor adapter, not an oka commitment.
+8. **Implementation home is a candidate new package** (`oka_update`, name to
+   be fixed at implementation): build-side generator, manifest/pointer
+   contracts, and the runtime registry/loader contract for applications.
+   Extraction follows the package rules of ADR-0022.
+
+## Acceptance gates before generalization
+
+On one web application with at least two units:
+
+1. Declared units generate barrels + registry; the app compiles and runs with
+   units loaded lazily at first use.
+2. A unit-body-only revision publishes (manifest + pointer to a static
+   target); a fresh client transfers only changed artifacts and reports the
+   new revision; the verify rung passes before promotion.
+3. A contract-touching diff is refused by the plan with an explicit
+   store-release alternative.
+4. A pointer repoint rolls a client back to the previous revision without
+   re-uploading payloads.
+5. (Probe run 2026-10-02, outcome recorded above and in [dated evidence].)
+   Native loading units additionally require on-device Linux/Android runtime
+   evidence for multi-unit loading — including sdk#64162 — and a follow-up
+   ADR before oka proposes owning that path.
+
+Gates 1–4 are spike-validated in miniature (see [dated evidence]); the gates
+test the generated, composition-integrated path, not the hand-written one.
+6. (Proven 2026-10-02, live lane.) The unit model also drives LIVE patch
+   application on running programs: one session API
+   (`oka_update/lib/src/live/`, declarative `LivePatchSpec` → per-target
+   receipts) applies a unit delta over the VM-service wire family — stock
+   VM (macOS, Linux), flutter devices (DevFS push + `_reloadKernel`),
+   dwds/DDK web (reloadSources + CDP probes), staged AOT next-launch —
+   verified on `last_answer` end-to-end per platform
+   (`tool/gate_live_e2e.sh`; matrix and wire facts in [dated evidence]).
+
+## Consequences
+
+Good:
+
+- Store-free Dart updates on web with per-unit change isolation, content
+  verification, and rollback, all inspectable plan artifacts rather than
+  imperative scripts.
+- The same eligibility/manifest/pointer layer is platform-uniform; native
+  mechanisms can attach later without redesigning the declarative surface.
+- Compiler-enforced contract discipline improves application architecture
+  regardless of whether a patch is ever shipped.
+
+Bad / Neutral:
+
+- Unit-only changes retransfer the core chunk until an updater binary-diff is
+  implemented (true delta is the 27-byte hash table).
+- Chunk URIs are fixed at compile time: application is next-load, never live.
+  This ADR does not promise hot-swap semantics.
+- The web build stays delegated (ADR-0016); patch operations act post-build on
+  the delegated artifact. Deeper web ownership is not proposed here.
+- Two manifest systems coexist conceptually (dart2js's embedded
+  `deferredPartHashes`, our revision manifest); ours must not contradict the
+  compiler's — the manifest references compiler output, never rewrites it.
+
+## Related records
+
+- [ADR-0034](0034-update-api-production-ladder) — the production ladder this
+  proposal's API must climb before it ships.
+- [ADR-0032](0032-oka-dart-kernel-graph-ownership) — kernel-graph ownership;
+  the unit partitioner and the dev/live lane behind the unit model.
+- [ADR-0030](0030-application-composition-and-operation-projections) — the
+  update-transition vocabulary this ADR adopts in miniature.
+- [ADR-0029](0029-build-provenance-and-verification-ladder) — provenance and
+  the promote gate patches must pass.
+- [ADR-0014](0014-distribution-targets-secrets-model) /
+  [ADR-0023](0023-multi-store-distribution-architecture) — PublishTarget
+  contract reused for pointer/manifest delivery.
+- [ADR-0016](0016-web-shell-station-store-contributions) — delegated web build
+  and the directory-artifact publish convention.
+- [ADR-0017](0017-browser-session-targets) — browser sessions used by the
+  verify rung.
+- [Dated evidence](../evidence/deferred-patch-units-spike-2026-10-01) — spike
+  results behind this proposal.
+
+[sdk#64162]: https://github.com/dart-lang/sdk/issues/64162
+[dated evidence]: ../evidence/deferred-patch-units-spike-2026-10-01
+
+**Authoritative source:** this ADR for the proposed direction. Code, tests,
+and dated evidence remain authoritative for shipped behavior.

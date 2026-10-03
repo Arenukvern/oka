@@ -1,0 +1,453 @@
+# 0035 — Live update as a Dart operation: authoring rule, server lanes, and the ship journey
+
+- **Status:** proposed
+- **Date:** 2026-10-03
+- **Decision-makers:** oka maintainers
+- **Extends:** ADR-0030 (§4 typed operations, §5 updates as validated
+  transitions), ADR-0031 (declarative patch units), ADR-0032 (kernel-graph
+  ownership), ADR-0034 (production ladder)
+- **Complements:** LIVE-E2E evidence
+  (`docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`,
+  §Live patching across platforms, §Kernel/live benchmarks)
+
+## Context
+
+The live-patch machinery was proven across platforms (macOS VM, linux,
+android, web — one session API, value flipped live, no restart), but two
+frictions surfaced while making it showcaseable:
+
+1. **The patch was authored as JSON** (`live_patch.json`). That contradicts
+   oka's core posture — everything is declared and controlled in Dart
+   (ADR-0006/0010, ADR-0030 §1: "Selecting additional configuration
+   languages is deferred"). JSON crept in because the first driver read a
+   file; the file was never the design.
+2. **"Server live patching" had no designed answer**, and neither did the
+   end-to-end journey from "I edited a unit" to "users are running the
+   patch" — the gates prove mechanisms, not a product.
+
+This record fixes (1) in code today and proposes the design for (2).
+
+## Part 1 — Dart-first authoring (implemented)
+
+The authoring surface is Dart values; files like JSON/YAML are **wire
+formats for machine output only** (receipts, manifests, CLI I/O — ADR-0024
+keeps CLI JSON canonical for agents). Never a hand-authored input.
+
+Implemented here:
+
+- `oka_update`: `runLivePatch(spec, compile:, root:, onEvent:)` — the
+  composition root's one-call entry; `TargetSpec.vmPort(port)` sugar;
+  everything else was already typed Dart (`LivePatchSpec`, `PatchEdit`,
+  `ProbeSpec`, `TargetSpec`).
+- `oka_dart_kernel` (new public library): `resolvePipelineToolchain()` —
+  convention-first resolution (running dart → pinned checkout → merged
+  kernel-stack config → AOT pipeline exe, cached under `~/.oka/cache`) —
+  and `pipelineDeltaCompiler(toolchain)` injecting the ~94x AOT delta path
+  into the session.
+- `example/live_showcase/patch.dart` replaces `live_patch.json`: the whole
+  patch — unit, edit, target wire, probes — is one composed Dart value,
+  ~40 lines, runnable as `dart patch.dart`.
+
+Rule going forward: any oka surface that wants a config file has failed to
+compose; the file may exist only as generated output.
+
+## Part 2 — Server live patching: critical research
+
+"Server" means a deployed Dart program (API server, worker, bot) on a
+machine oka can reach. Three lanes, honestly scoped:
+
+### S1 — JIT server (works today)
+
+`dart run --enable-vm-service=<addr> bin/server.dart` — the exact lane the
+macOS/linux legs prove. `VmJitTarget` applies the unit delta via
+`_reloadKernel`; **in-memory state survives** (VM hot-reload semantics);
+probes verify through the same wire (`evaluate` + hold probes).
+
+Requirements and limits: the VM service must be reachable (loopback + SSH
+tunnel or auth token — never an open port); JIT startup/memory cost is a
+deployment decision; a reload cannot change constructor signatures or
+static shape (the patch-shape matrix, ADR-0034 G3/G7, governs what is
+eligible — the same gates as everywhere else).
+
+### S2 — AOT server with a unit registry (the oka-shaped lane)
+
+`dart compile exe` has no kernel and no reload — the honest statement.
+But the AOT runtime **can load deferred unit artifacts at runtime**
+(proven: `app-aot-elf` + `<base>-<unit>.part.so` run on macOS, linux and
+android; the standalone loader reads them next to the snapshot). Loading
+is append-only per process — a unit loads once, and there is no unload.
+
+That yields a swap design: **revision-suffixed unit ids**. The generator
+emits each unit as `feature_r1`, `feature_r2`, … plus a one-line registry
+indirection (`Unit featureUnit => current;`). "Applying a patch" in-process
+means: load the new unit artifact, flip the registry pointer. Constraints
+that make it sound:
+
+- **Units are stateless** (or checkpoint into the core before swap). This
+  is already the contract-fingerprint discipline: unit bodies change,
+  contracts don't. State lives in the core, which never hot-swaps.
+- Rollback = flip the pointer back (the old artifact is still loaded).
+- Memory is bounded by patches-per-process (old code is unreachable but
+  resident); long-running processes recycle by ordinary restart.
+- Verification = the same probe discipline through the service's own
+  health surface.
+
+Missing before this lane exists (gaps, not hand-waving): the generator
+emits static bindings today, not the indirection seam; and the runtime
+needs a tiny update handler (see the ownership rule below).
+
+### S3 — Snapshot swap with process handoff (the AOT default)
+
+Rebuild the exe, hand the listener to a fresh process (SO_REUSEPORT /
+systemd socket activation), drain the old one. Sub-second cutover, no
+in-memory continuity, works everywhere, zero runtime cooperation. This is
+the default for AOT servers that have not adopted S2's seam — and S2's
+rollback of last resort. The session verifies via declared health probes;
+partial failure is reported per component (§5), never implied atomic.
+
+### Ownership and delivery (the protocol anchor)
+
+ADR-0030 §5: *an update is a validated transition between application
+revisions*, and "continuous update delivery, if needed, requires a
+separate decision about its runtime owner; no resident Oka manager is
+authorized." Applied here: **oka plans, delivers, and verifies; the
+runtime applies.** The server exposes a minimal, authenticated update
+handler (load unit / swap pointer / restart self) as part of its
+composition's declared update capability — not an oka daemon, no second
+policy engine. Delivery rides ADR-0031's manifest + pointer; eligibility
+rides `planRevisions` (contract fingerprints refuse what must not hot
+swap); every apply ends in a receipt with per-component
+requested/applied/failed/unknown.
+
+### Platform answers ("I built linux / web and want to update now")
+
+- **Linux server**: S1 if it runs JIT; S3 always; S2 once the seam lands.
+- **Linux/desktop app** (distributed binary): staged unit artifacts next to
+  the snapshot + restart lane (proven in the AOT platform matrix); live
+  only with S2's registry.
+- **Web (dev, DDC/DDK)**: live in-page patching works (proven; dwds wire +
+  CDP probes).
+- **Web (released, dart2js/wasm)**: no in-page swap exists for
+  fully-compiled JS — the immediate lane is ADR-0031's store-free pointer
+  flip: clients fetch the new revision chunks on next load/visibility
+  (service-worker assisted). Honest boundary: web updates are immediate to
+  PUBLISH and next-load to APPLY.
+
+## Part 2b — Seamless: the invisible loop (Jobs/Ive/Flutter iteration)
+
+The Part 3 journey needs verbs (`oka dev`, `oka ship`). The iteration on
+the idea — from the three lenses — removes the dev verb entirely:
+
+- **Jobs**: "the patch happens where the meaning is." The user saves a
+  file; that IS the intent to patch. No command between save and running
+  code.
+- **Ive**: silence is the success state. A 40 ms operation must not
+  announce itself; the only visible surface is the receipt when something
+  must be said (refusal, probe failure, unknown state).
+- **Flutter**: it must feel exactly like hot reload — save, applied before
+  alt-tab, state preserved — and be debuggable when it isn't.
+
+Implemented in `oka_update` and proven:
+
+- `applyChange(spec, changedFile:, compile:, root:)` — the editor-save
+  flow: no file rewriting (the user already edited), compile the touched
+  library as the unit delta, apply, verify probes.
+- `LiveWatcher` — watches the declared unit files; debounces; coalesces
+  saves while an apply is in flight (the program is patched to its latest
+  state, never stale); silent on success; receipts stream for
+  compositions that want them.
+
+The composition-level end state (once ADR-0030's composition root lands)
+is a **parameter, not a procedure** — live patching as a class-param of
+the app:
+
+```dart
+Oka(
+  // ...the whole application composition...
+  update: UpdatePolicy(
+    units: [PatchUnit('feature', ['lib/units/feature.dart'])],
+    targets: [deployment('api-1'), device('emulator'), webApp()],
+    dev: DevPatch.auto,          // the invisible loop; silence on success
+    ship: ShipPolicy(canary: 1),
+  ),
+)
+```
+
+`Oka -> target -> live patch -> autoapply` as a pipeline of declared
+values: the target is a composition fact, the patch is derived from the
+diff, the apply is driven by the file system. The verbs remain for
+oversight (`oka ship`), never for the loop.
+
+## Part 2c — Server live patching: empirical results
+
+Both server lanes now have measured runs (2026-10-03, macOS arm64 +
+linux amd64 container, dart 3.13.x):
+
+- **S1 (JIT server) — PROVEN.** `example/server_showcase`: a dart:io HTTP
+  server on `:8251`; a client connection opened on `/stream` BEFORE the
+  patch kept flowing THROUGH it — `stream: hello-v1` then
+  `stream[1]: hello-v2-live` on the SAME socket (curl never reconnected);
+  same pid before and after; `/health` answered ok during the patch
+  window; the patch itself was 640 B applied in 18–22 ms through the same
+  composition API as the app showcase (`runLivePatch` +
+  `TargetSpec.vmPort`). The app/server experiences are one experience.
+- **S3 (snapshot handoff) — PROVEN on linux, platform-honest on macOS.**
+  `handoff_demo.sh`: probe loop across a SO_REUSEPORT listener swap —
+  linux: **60/60 connections ok, 0 refused**, new snapshot serving across
+  the swap. On macOS, dart's `shared:` maps to SO_REUSEADDR (v2 cannot
+  bind while v1 lives) — the demo detects and reports it; macOS S3 needs
+  fd passing (launchd/systemd-style), which stays a gap.
+
+dart:io notes encoded in the showcase: chunked streaming requires
+`bufferOutput = false` (flush() alone does not push bytes on this stack),
+and a socket's `write -> flush -> close` must await the flush or `close`
+throws the sink-bound error.
+
+## Part 2d — The endless loop and AOT slots, empirically (last_answer)
+
+Adopting `last_answer` (Flutter app; Flutter-free domain engine
+`headless_core` — doc replicas, fractional ordering; Serverpod server)
+grounded two more pieces of the protocol:
+
+- **The endless loop — proven on the real engine.**
+  `oka_dart_kernel/tool/gate_endless_loop.sh`: a long-lived driver over
+  headless_core boots with document state (one DocReplicaStore, one
+  document, two ops), then **patch continue -> patch continue -> patch
+  RESET -> patch RESET** — four live applies (`fractionalBetween` flips
+  b->c->b through a function-body patch; the store ctor default flips
+  doc_replicas -> _live -> doc_replicas) with the **boot-state probe
+  holding after every step** (same replica, same op count) and zero
+  restarts. The editor-driven form of the same loop is `applyChange` +
+  `LiveWatcher`; the scripted form is `runLivePatch` with revert specs.
+  Rule re-confirmed here: patch function bodies or constructor defaults —
+  a `const` field's canonical value survives a reload, and the delta must
+  be compiled under the package config the target loads
+  (`appPackagesConfig`; dart discovers it upward from `tool/`, so the
+  driver is package-loaded even without a flag).
+- **AOT revision slots — proven in-process.**
+  `oka_dart_kernel/tool/gate_aot_slots.sh`: a fully AOT program
+  (oka pipeline dill -> `gen_snapshot app-aot-elf` + loading-unit
+  manifest = **3 loading units**) under `dartaotruntime` boots on
+  revision slot `feature_r1` (`aot: aot-v1 pid=6914`), then loads slot
+  `feature_r2` **in-process** when the update signal appears
+  (`aot: aot-v2-live pid=6914` — same pid, no VM service, no kernel
+  reload). This is the physical shape of "100% AOT live patching":
+  revision slots are pre-provisioned deferred units loaded lazily from
+  their part ELFs; the slot stream is bounded per process, and unbounded
+  revision streams ride S3's snapshot handoff (proven on linux, 0 refused
+  connections across the swap).
+
+### The oka experience protocol (capability-declaring targets)
+
+Unifying app and server: every target declares what it can do, and the
+same composed patch runs everywhere — oka picks the lane per target and
+reports per-target receipts:
+
+| Target capability | Lane | Revisions | State |
+|---|---|---|---|
+| `reload` (JIT: VM service) | `_reloadKernel` / dwds | unlimited | preserved |
+| `slotSwap` (AOT + registry slots) | deferred-load flip (proven) | bounded per process | core-held only |
+| `restartHandoff` (AOT server) | SO_REUSEPORT swap (proven, linux) | unlimited | checkpoint/restore |
+| `nextLoad` (web release) | pointer flip + chunk fetch | unlimited | n/a |
+
+The composition declares units + probes once; the protocol is the receipt.
+
+## Part 2e — Product families, empirically (oka itself, mcp_flutter, vosges)
+
+The protocol claims "all Dart-ish products, one composition." Adopting three
+real, external products grounded it — `tool/live_products_*.dart` +
+`tool/gate_live_products.sh` in `oka_dart_kernel`:
+
+- **oka itself (the CLI — a plain Dart product).**
+  `live_products_oka_cli.dart` spawns `oka doctor` under the VM service and
+  applies a pre-staged unit delta to the CLI's own library mid-run: the
+  probe flips in the live process (`_yamlToJson` helper), the pid holds,
+  and the CLI completes its command cleanly (exit 0). The delta is
+  compiled **before** the target starts (markers on, compile, restore,
+  keep the dill) and injected as the session's compile function — the
+  apply lands inside a single-shot command's lifetime.
+  Wire facts: a `_reloadKernel` while the isolate is paused-before-main
+  **no-ops** (and `resume` before the pause event fails 105); the ws
+  upgrade can hang if it lands in the VM service's startup window (hence
+  bounded RPCs + retry in `findLibrary`); piped child stdout is
+  block-buffered (drain before asserting on output); the doctor's VM
+  service stays responsive for seconds after main returns, so probes
+  remain verifiable after the output is done. A single-shot CLI's stdout
+  usually completes inside the patch path's floor, so the printed-marker
+  flip is a bonus here — the product-visible flips are carried by the
+  next two legs.
+- **mcp_flutter's fmtk server (a long-running MCP stdio product).**
+  `live_products_mcp_stdio.dart` spawns
+  `flutter_mcp_toolkit_server`, opens ONE MCP session (initialize →
+  initialized → tools/call), then applies **two revisions over that same
+  session**: rev 1 flips the per-call discovery diagnostics the MCP
+  client sees (`strategyUsed: machine_only → machine_only_live_patched`
+  — the next `tools/call` on the same stdio connection returns it, no
+  re-handshake); rev 2 flips a helper in the server's bin library (the
+  evaluate probe) with the pid holding throughout. Wire facts: a kernel
+  delta carries the **entry library's recompiled set only** — two
+  independent seams need two revisions (or one entry importing both);
+  dart_mcp's JSONL and the VM-service banner share the child's stdout
+  (filter non-JSON lines).
+- **vosges (a Flutter desktop app — macOS).**
+  `live_products_flutter_app.dart` spawns `flutter run -d macos --debug`
+  itself, catches the VM service URL from the log, and patches
+  `vosges_core`'s `palmPlaneSign` mid-boot (probe 0 -> 3, hold green,
+  94 ms apply) with the app still booting. The wire facts here are the
+  sharpest in the whole lane:
+  - Kernel deltas only parse in a VM whose frontend produced them. A
+    delta compiled by a *foreign* frontend (oka's source-built SDK
+    checkout) isn't refused — `ReadFromTypedData` fails, the reload
+    falls into the kernel-isolate lane, and desktop engines don't start
+    one (`start_kernel_isolate` unset) → "Error while starting Kernel
+    isolate task". Worse, a `_reloadKernel` on such a delta hits
+    `RELEASE_ASSERT(delta_program != nullptr)` and **kills the app**.
+  - The fix is to compile with **the app's own frontend**:
+    `<flutter>/bin/cache/dart-sdk/bin/dartaotruntime
+    .../snapshots/frontend_server_aot.dart.snapshot --sdk-root=
+    <flutter>/bin/cache/artifacts/engine/common/flutter_patched_sdk
+    --target=flutter --incremental --packages=<app package config>
+    --output-dill=<delta> <entry>` — then DevFS push +
+    `reloadSources {pause: false, rootLibUri}` (flutter's exact shape;
+    `pause` present, no `packagesUri`) loads the modified libraries in
+    place. `IsolateGroup::ReloadSources` reads the dill directly from
+    the rootLibUri when it parses — no kernel isolate involved.
+  - The DevFS push itself is identical to devices (HTTP PUT + gzip);
+    `_createDevFS` on desktop returns a real local directory.
+  - A crashed apply leaves patch markers on disk — drivers restore in
+    `finally`, gate steps restore from git.
+
+### The product-family map
+
+| Product family | Lane | Proof |
+|---|---|---|
+| Dart CLI (oka itself) | VM service + `_reloadKernel`, pre-staged delta | `gate_live_products.sh` leg 1 |
+| MCP stdio server (fmtk) | VM service + two revisions over one stdio session | leg 2 |
+| Flutter desktop app (vosges) | app's own frontend delta + DevFS + `reloadSources(pause:false, rootLibUri)` | leg 3 |
+| Plain Dart VM (mac/linux) | `_reloadKernel` | `gate_live_e2e.sh` leg 1–2 |
+| Android device | DevFS + `_reloadKernel` | `gate_live_e2e.sh` android |
+| Web (dwds/DDK) | dwds reload + CDP probes | `gate_live_e2e.sh` web |
+| AOT program | revision slots / snapshot handoff | `gate_aot_slots.sh`, S3 demo |
+
+**Self-reference finding (oka dogfood):** oka's build is self-referential —
+the example's step digests include oka's own sources (path-dep package
+closure), so patching the CLI's Dart **mid-build invalidates oka's own
+step caches** and re-enters artifact staging (aapt2 then fails on lost
+icon res). The CLI leg therefore patches a non-build command. Follow-ups
+recorded: step digests exclude the driving tool (or scope tool-digests
+explicitly), and `compile-and-dex`'s digest proved unstable across runs
+(inputs changed on an unmodified tree) with res/icon staging lost on
+re-runs — the packaging bug is tracked separately from this ADR.
+
+## Part 3 — The user journey (north star: `oka ship`)
+
+Compose once (in Dart, in the app):
+
+```dart
+// app/patch_units.dart — part of the application composition
+final patchUnits = UnitsSpec(revision: gitRev, units: [
+  PatchUnit(name: 'feature', libraries: ['lib/units/feature.dart']),
+  PatchUnit(name: 'pricing', libraries: ['lib/pricing/']),
+]);
+final shipTargets = [vmService(ssh: 'api-1'), webPointer(cdn), stagedExe()];
+final health = ProbeSpec(expression: 'health()', library: 'main.dart',
+    expect: 'ok');
+```
+
+Then the entire loop is:
+
+| Moment | User does | Oka does |
+|---|---|---|
+| Iterate | saves code (`oka dev`) | same session API hot-patches the running app |
+| Ship | **`oka ship`** | git diff → `planRevisions` → per-unit deltas (AOT pipeline, ~0.04 s each) → sign manifest → publish pointer → canary apply → probe-verify → promote; receipt or a refusal that names the fix |
+| Rollback | **`oka ship --rollback`** (or repoint) | pointer flip; per-component state reported |
+
+Extreme minimization comes from derivation, and every derivation is a
+composable override: revision from git (else given), changed units from the
+diff (else listed), targets from the composition (else flags), probes from
+the declared health surface (else the receipt is unverified and says so).
+Nothing is inferred silently: each derivation prints one receipt line.
+
+### MoE verdicts (structured critique)
+
+- **Steve Jobs (product)**: "One button." The demo is `oka ship` printing
+  `shipped ✓ rev 3f2a… to 4 targets, 2 units, verified`. Survives: the
+  default path must have zero flags; everything else is progressive
+  disclosure. Rejects: dashboards-as-prerequisite, version matrices in the
+  happy path.
+- **Jony Ive (interface)**: the receipt IS the interface — one quiet,
+  legible artifact; refusals that name the fix are the honest version of
+  care. Survives: `describe()` as the canonical human surface; no
+  progress-spam, no emoji noise.
+- **Flutter engineer**: hot reload already owns dev-time expectations;
+  live patching must feel identical (state preserved, probe-verifiable)
+  and must speak Dart, not YAML. Survives: Dart-only authoring (Part 1),
+  `oka dev` parity. Rejects: any second authoring language.
+- **SRE / infra**: canary-before-promote, per-component
+  requested/applied/failed/unknown, rollback as a first-class verb, and
+  the refusal lane to full release. Survives: §5 semantics verbatim;
+  S3 as always-available fallback.
+- **Security researcher**: the apply channel is a remote-code-execution
+  surface. Survives: signed manifests (ladder P2), authenticated update
+  handler, loopback/tunnel-only VM service, eligibility refusals.
+  Rejects: unauthenticated "convenience" apply endpoints; oka shipping a
+  resident privileged agent (ADR-0030's no-daemon posture).
+- **Git author (unexpected)**: patches are commits in disguise — revision
+  ids, diffs, rollbacks are VCS operations wearing runtime clothes.
+  Survives: git-derived revisions and eligibility; `oka patch log` as a
+  pointer history.
+- **Game live-ops (unexpected)**: units are content addressing — ship
+  tuning changes without redeploying; the registry swap is a mod loader
+  with contracts. Survives: revision-suffixed units; multiple patch
+  trains.
+- **Distributed-systems author (unexpected)**: a distributed update is
+  never globally atomic — the receipt must be able to say "applied on
+  api-1, unknown on api-2". Survives: §5 verbatim; no implied fleet-wide
+  success.
+
+### North star (inherits ADR-0030's promise)
+
+One composition for the whole application; updating it — dev hot-patch,
+server live swap, staged artifact, web pointer flip — is one typed
+operation (`ship`) over one declared unit model, where the default path
+requires no flags, the file formats are machine output only, and every
+result is a receipt that tells the truth.
+
+## Acceptance gates before generalization
+
+1. S1 on a real server: patch a unit in a `dart run` API server over SSH
+   with probes; receipt shows applied + held (mechanism exists; gate is
+   the deployment shape).
+2. S2 seam: generator emits revision-suffixed units + registry indirection;
+   an AOT server loads `feature_r2` and flips live; old artifact verified
+   unreachable-but-resident; restart recycles.
+3. `oka ship` happy path: from a dirty diff to a promoted pointer in one
+   command with a signed manifest and a canary receipt — zero flags.
+4. Rollback: repoint returns clients to the prior revision with per-target
+   receipts.
+
+## Consequences
+
+Good: authoring stays in Dart forever (rule with teeth: a config file in
+any oka surface is a bug); servers get an honest, staged answer instead of
+a hot-reload promise AOT cannot keep; the journey collapses to one verb
+while every decision stays composable and visible.
+
+Bad/neutral: S2 needs generator + handler work before any server uses it
+in production; web release updates remain next-load (a runtime-web truth,
+not an oka limitation); the update handler is new trust surface that must
+be designed under the security constraints above.
+
+## Related records
+
+- [ADR-0030](0030-application-composition-and-operation-projections) — the
+  typed-operation protocol this journey instantiates (§4 operations, §5
+  updates, no-resident-manager rule).
+- [ADR-0031](0031-declarative-patch-units) — units, manifests, pointer,
+  eligibility; gate 6 (live lanes).
+- [ADR-0032](0032-oka-dart-kernel-graph-ownership) — kernel mechanics;
+  LIVE-E2E gate.
+- [ADR-0034](0034-update-api-production-ladder) — the ladder this
+  journey's `oka ship` targets (P2/P3).
+- [ADR-0018](0018-process-lifecycle-leases) / ADR-0025 — lifecycle and
+  session-state rules the update handler must respect.

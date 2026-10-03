@@ -8,6 +8,12 @@ a no-Gradle pipeline (`flutter assemble` + Android SDK CLI tools: `aapt2`,
 `javac`, `d8`, `zipalign`, `apksigner`) with no daemon, no AGP, no 30s+
 configuration overhead.
 
+[ADR-0030](../decisions/0030-application-composition-and-operation-projections)
+proposes extending this model to the whole application across stacks and
+execution locations. That direction is recorded below as **proposed**;
+current ownership and accepted expansion gates remain in force until the
+ADR is accepted. This page does not establish implementation readiness.
+
 Three words carry the whole design:
 
 - **Declarative** — a build is described by typed values (`AndroidBuild`,
@@ -52,7 +58,57 @@ oka generation moves more per-platform noise — configs, defaults, recovery —
 into that single surface, until a platform build is as simple as copying one
 Dart file and running one command.
 
-## What oka owns
+## Proposed direction — one application composition
+
+**One composition for the whole application, across stacks and execution
+locations, with inspectable builds, operations, and supported live updates.**
+
+Developers should work with clients, services, contracts, bundles,
+configuration, and persistent resources as connected application components.
+Frontend and backend become placement and capability choices within the
+same authoring model. Each component can retain its own implementation
+language and stack; typed immutable composition remains the initial Dart
+authoring surface. Additional authoring languages are not selected here.
+
+Under [proposed ADR-0030](../decisions/0030-application-composition-and-operation-projections):
+
+- **Composition is the behavior contract.** Build, run, inspect, test,
+  package, and update are typed operations. CLI and MCP are projections of
+  the same operations used by API callers, with equivalent validation and
+  results rather than independent implementations.
+- **Connections are declared relationships.** Components refer to exported
+  contracts; adapters bind endpoints and clients for each environment.
+  Placement, authorization, remote failure, and compatibility stay explicit.
+- **Bundling is accessible composition.** Adapters expose supported
+  transforms, artifacts, and stages. Opaque delegation is labeled; deeper
+  ownership is earned through integration and tests, as with Android.
+- **Updates are composable capabilities.** A validated application revision
+  resolves to supported reload, replacement, restart, rebuild, or migration
+  operations. Plans and results expose affected components, applied
+  revisions, failures, and recovery limits.
+- **State has its own lifecycle.** Persistent resources retain explicit
+  ownership through executable replacement; backup and restore behavior
+  must be declared and verified independently of build caches.
+
+Oka would own composition semantics, operation plans, adapter contracts, and
+execution evidence. Adapters would own compiler, bundler, transport,
+runtime, storage, and update mechanics. Application authors retain business
+logic and architecture. This direction does not select a universal runtime,
+infrastructure manager, resident Oka supervisor, new API schema language,
+or replacement for Git.
+
+Success must first be demonstrated with a web application and backend in
+different languages: a declared typed connection, a real bundling extension,
+equivalent API/CLI/MCP operation behavior, supported live updates and honest
+fallbacks, and persistent data with a verified restore. The ADR records the
+future gates; none is claimed complete here.
+
+Acceptance would revise the Flutter-only wedge and reconsider the current
+Android-first gate, iOS-first candidate, and exclusion of web compilation
+composition. Publishing this proposal leaves the current boundaries below
+binding and preserves the no-Gradle Android invariant.
+
+## Current ownership
 
 - The **default build path**: `oka build apk` / `oka build aab` compile,
   package, align, and sign without Gradle — ever.
@@ -77,7 +133,7 @@ Dart file and running one command.
   custom flows (device, publish, test loops) stay explainable and valid
   ([ADR 0015](../decisions/0015-cli-verb-target-split)).
 
-## What oka does not own
+## Current exclusions
 
 - Full Gradle/AGP compatibility (AIDL, RenderScript, data binding, NDK).
 - iOS/desktop builds — **not yet, and criteria-gated** (below); the core
@@ -94,7 +150,7 @@ Dart file and running one command.
 - ~~The Rust/cargo-apk hybrid~~ — removed entirely (ADR-0001 → ADR-0009); only
   the no-Gradle path exists.
 
-## The long game — expanding to other platforms
+## Current expansion gates — other platforms
 
 One platform proves the model; the model is built for many. Expansion is
 **criteria-gated, not calendar-driven**:

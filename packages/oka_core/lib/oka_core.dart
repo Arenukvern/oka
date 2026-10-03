@@ -69,6 +69,7 @@
 /// * [okaRun], the runtime entrypoint for project hooks.
 library;
 
+export 'src/build_lease.dart';
 export 'src/composition.dart';
 export 'src/config/android_build.dart';
 export 'src/config/android_config.dart';

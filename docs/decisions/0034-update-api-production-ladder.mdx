@@ -1,0 +1,203 @@
+# 0034 — Update API production ladder: from proven gates to a production API
+
+- **Status:** proposed
+- **Date:** 2026-10-02
+- **Decision-makers:** oka maintainers
+- **Extends:** ADR-0031 (declarative patch units), ADR-0032 (kernel-graph
+  ownership), ADR-0029 (provenance + verification ladder), ADR-0028
+  (byte-verified inputs), ADR-0013 (toolchain provisioning), ADR-0022
+  (capability architecture / package rules)
+- **Nature:** critical gap analysis. This record does **not** claim
+  production readiness anywhere, and no gate below has been met yet.
+
+## Context — what actually exists (honest inventory)
+
+Proven end-to-end on a real app (last_answer), evidence in the dated spike
+doc: the partitioner matches the VM's dominator loading-unit semantics
+(kernel-free, unit-tested); kernel-level deferred-ization through a pipeline
+seam survives the VM's own transformation sequence; AOT multi-unit manifests
+emit via engine `gen_snapshot` (Linux ELF); the web lane transfers only
+changed chunks and verifies them; and a per-unit JIT delta (984B–22KB)
+live-patches a running app via the private `_reloadKernel` RPC — on debug /
+desktop lanes, with the wire facts (`reloadSources` has no kernel-bytes
+parameter; the flutter embedder has no kernel isolate; the frontend_server's
+incremental output is not a valid reload payload) recorded in the skill.
+
+The *code* behind that evidence is thin: `oka_dart_kernel/lib/src` holds one
+library (`unit_graph.dart`, 315 lines, 6 tests) and `oka_update/lib/src`
+holds two (`unit_spec.dart`, `patch_plan.dart`, ~115 lines, 4 tests) whose
+planner compares `libraries.toString()` and whose contract fingerprint is a
+regex. Everything else — the pipeline, the deferred-ization transform, the
+delta compiler, every gate driver — lives in `tool/`, is excluded from
+`dart analyze`, is driven by env vars (`OKA_TARGET`, `G3B_*`,
+`--unit=`), and communicates by printing lines. That is a harness, and the
+harness is the deliverable that exists. Naming this plainly is the point of
+this record: **today's API surface is ~430 lines of library code plus shell
+contracts; production is roughly a ladder of nine gaps away.**
+
+## Critical gaps
+
+**G1 — The pipeline is a harness, not an API.** The deferred-ization
+transform, the `--delta` compiler, and the transformation-sequence-with-
+re-flag hook all live in `tool/` with env-var contracts and stdout as their
+result type. Production shape: these become tested public libraries
+(`oka_dart_kernel` `lib/src`: `Partitioner` (exists), `Deferredize`,
+`DeltaCompiler`, `TransformPipeline`), taking typed inputs (component, unit
+specs, `KernelToolchain`) and returning typed results (plan, dill bytes +
+unit map, delta + matched-library count) with error objects instead of
+exceptions-that-print. Acceptance: every gate's core step reproducible by a
+`dart test` that never spawns a shell.
+
+**G2 — Toolchain provisioning is machine-local lore.** Gates require
+`~/xs/dart-sdks/sdk-<version>` checkouts, a baked `-Dsdk_hash=60a57cd42d`,
+hand-merged package configs, and a discovered flutter SDK. Production:
+a real provisioner (promote `tool/sdk_checkout.sh`) that pins, verifies
+(content-hash the checkout), and declares the toolchain as a value; no
+hardcoded hashes anywhere; an explicit version-matrix policy (which SDK
+versions may produce patches, which may apply them — kernel format is
+lockstep per the evidence). This is the largest works-on-one-machine risk
+and it blocks CI for everything else.
+
+**G3 — Patch-shape coverage is one point wide.** Exactly two shapes were
+ever live-patched (a top-level const, a ctor default). VM reload has hard
+semantic limits — member/class/library additions and removals, class-shape
+changes, const canonicalization, parts, extensions — none tested. Production
+needs a **patch-shape matrix suite**: each shape proves either clean apply
+(check `receivedLibraryCount`, then behavior) or an explicit, plan-time
+refusal, per lane. The plan-time refusal is G4's job; the suite is the
+ground truth that keeps G4 honest.
+
+**G4 — Eligibility planning is a prototype.** `planRevisions` string-
+compares library maps; contract fingerprints are a regex that provably
+misses expression-bodied declarations (recorded limit in the package
+README); transitive core-touching changes inside a unit's imports are
+invisible; the manifest is `Map<String, dynamic>`. Production: analyzer-
+backed fingerprints (element model), per-library digests wired to ADR-0028
+(they already exist), a typed `RevisionManifest` with enforced
+`schemaVersion` and a migration policy, and property tests that fuzz source
+edits and check plan verdicts against VM ground truth (G3's suite).
+
+**G5 — Delivery is a design, not a system.** ADR-0031's pointer/manifest
+model has a miniature proof (G4 web gate). Missing for production: the
+generator itself (deferred export barrels + generated registry),
+`UpdateClient` (the runtime that fetches, verifies, hydrates — ADR-0031 §8;
+it does not exist), pointer + manifest signing, content-addressed chunk
+names (the stale-core hazard is mitigated by pinning, not eliminated),
+channel/rollout/rollback semantics, and verify-gated promotion wired to
+ADR-0029's ladder.
+
+**G6 — Platform honesty must be typed, not prose.** The API must expose
+lanes as capabilities with preconditions and make ineligibility a return
+value: web chunks (production-eligible), JIT live (dev/desktop only — never
+a release lane), AOT whole-revision-at-restart (deliverable), per-unit AOT
+(research-gated: sdk#64162, ELF-only, program-identity check). A plan that
+cannot be applied on the target must refuse with an alternative, the way
+`planRevisions` already does for contract changes — generalized.
+
+**G7 — Failure taxonomy and observability.** This week's debugging IS the
+failure surface users will hit: silently dropped RPC params, missing kernel
+isolate, unparseable delta dills, isolate-not-runnable races. Production:
+every reload/update operation returns a typed result (report, notices,
+received/loaded counts, refusal reasons); `oka why` extends to update
+operations; known failure modes keep landing in the skill's troubleshooting
+table as they are discovered.
+
+**G8 — Testing and CI at production bar.** Today's gates need a mac host
+with flutter and a real workspace, docker images, and pinned checkouts —
+none of it hermetic. Production CI: the toy suite + partitioner property
+tests + G3's matrix suite in containers on every push; real-app gates as a
+nightly, non-blocking signal; byte-determinism test for delta builds (the
+web lane already depends on determinism — test it, don't assume it).
+
+**G9 — Package posture.** Neither package is published or versioned;
+changelogs, docs-drift gates (`check-contracts`), experimental-API
+annotations, and the ADR-0022 extraction rules all need to apply before any
+of this is callable by anyone outside this repo.
+
+## Proposed ladder
+
+Each rung is a stopping point with its own value; a rung may only be marked
+done with the evidence named below. Order is dependency order, not
+priority order — G2 blocks everything; G5 is the longest pole.
+
+- **P0 — Honest foundation (G1+G2+G9).** Pipeline libraries with typed
+  API + tests; provisioner with verified pinned checkouts; packages
+  versioned and contract-gated. Evidence: transforms covered by `dart test`;
+  gates rewritten to drive the library; zero baked hashes.
+- **P1 — Analyzer-grade planning (G4).** Typed manifest + analyzer
+  fingerprints + ADR-0028 digests + refusal taxonomy. Evidence: plan
+  verdicts match VM ground truth on G3's matrix; last_answer plans correctly
+  (patchable diffs patch, contract/core diffs refuse with reasons).
+- **P2 — Web lane production (G5, minus native).** Generator + UpdateClient
+  + signed pointer/manifest + verify-gated promotion on a real web app.
+  Evidence: ADR-0031's acceptance gates 1–4 on the generated path.
+- **P3 — Dev/live lane as product (G3+G7).** Per-unit reload driven from the
+  composition (units, not file paths), multi-unit ordered patches, full
+  patch-shape matrix, typed failure results. Evidence: G3/G3-real/G3-B run
+  through the public API. **Progressed 2026-10-02:** the public API exists
+  (`oka_update/lib/src/live/` — declarative `LivePatchSpec`, composable
+  `LivePatchTarget`s, event ladder, receipts) and its gate
+  (`oka_dart_kernel/tool/gate_live_e2e.sh`) proves the same spec shape on
+  macOS VM, linux/amd64, flutter android (DevFS + `_reloadKernel`), and DDK
+  web (oka-driven dwds reload + CDP probes) on `last_answer`. Still open
+  for this rung: composition-driven unit specs (the gate passes unit FILE
+  paths), multi-unit ordered applies, the full patch-shape matrix, and an
+  oka-owned web compile (the web leg still recompiles through
+  `flutter run`; the oka-owned alternative is a DDK frontend-server
+  session + `dartDevEmbedder.hotReload` over CDP).
+- **P4 — Native restart lane.** Whole-revision delivery over the pointer for
+  desktop/mobile at restart, eligibility refusing live claims. Evidence:
+  android end-to-end via `oka build` + pointer install + restart.
+- **P5 — Per-unit AOT.** Stays research-gated: the 2026-10-02 platform
+  matrix (evidence §Native AOT across platforms) removed the
+  linux-only assumption — the `app-aot-elf` kind splits and runs on macOS
+  and emits android/ios unit artifacts — but sdk#64162 remains open, Mach-O
+  packaging is refused verbatim, unit files stay root-coupled
+  (program-identity refusal), and android/ios runtime integration still
+  needs an embedder driving `Dart_SetDeferredLoadHandler`. Requires its own
+  follow-up ADR per ADR-0031 §7.
+
+## What production does NOT mean here
+
+No store bypass on iOS/Android for executable code; no live AOT swap; no
+SDK forks; no oka-serving infrastructure (static-host pointer only). The
+API's promise is: declarative units, computed eligibility that never lies,
+verified delivery, and honest lane limits — at the smallest truthful
+granularity each platform allows.
+
+## Consequences
+
+Good:
+
+- A testable definition of "done" for the update API that survives contact
+  with the evidence; each rung ships value without redesigning the next.
+- The harness knowledge (gates, wire facts, troubleshooting) becomes the
+  seed of the product's failure taxonomy instead of tribal memory.
+
+Bad / Neutral:
+
+- P0 is refactoring work with no user-visible feature — it will feel slow
+  and it is not optional; every later rung inherits its typing.
+- The patch-shape matrix (G3) will surface VM reload limits that force
+  plan-time refusals; some "it should work" patches will be refused. That is
+  the API being honest, not broken.
+- Version-matrix support (G2) is an ongoing tax: every SDK upgrade re-runs
+  the whole ladder's evidence at reduced depth (gate suite, not full ladder).
+
+## Related records
+
+- [ADR-0031](0031-declarative-patch-units) — the unit model this ladder
+  productionizes.
+- [ADR-0032](0032-oka-dart-kernel-graph-ownership) — the kernel-graph gates
+  this ladder's P0/P3 build on.
+- [ADR-0029](0029-build-provenance-and-verification-ladder) — promote gates
+  every delivery rung must pass.
+- [ADR-0028](0028-byte-verified-inputs-link-materialization-foreign-federation)
+  — digests P1's planner wires in.
+- [ADR-0013](0013-toolchain-provisioning-artifact-store) — the provisioner
+  P0 promotes.
+- [Dated evidence](../evidence/deferred-patch-units-spike-2026-10-01) — the
+  measured facts behind every claim above.
+
+**Authoritative source:** this ADR for the proposed direction. Code, tests,
+and dated evidence remain authoritative for shipped behavior.

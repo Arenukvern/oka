@@ -129,3 +129,7 @@ Run before every merge (`just check-contracts`):
 - Keep changes minimal and focused; match existing style.
 - Add/adjust tests for anything that changes packaging or pipeline behavior.
 - Run `just lint && just test && just check-contracts` before pushing.
+- Benchmark-affecting changes: `just bench` (build) and `just bench-kernel`
+  (kernel/live composition loop, delta pipeline, AOT pipeline exe); record
+  machine JSON under `.steward/benchmark-summaries/` and summarize in
+  `docs/evidence/`.

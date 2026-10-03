@@ -45,6 +45,10 @@ sync-version:
 bench:
     bash tool/benchmarks/build_benchmarks.sh example
 
+# Kernel/live-stack benchmarks: composition loop, delta pipeline, AOT exe
+bench-kernel:
+    bash tool/benchmarks/kernel_benchmarks.sh
+
 # Dry-run the complete pub.dev package train
 publish-dry-run:
     bash tool/release/publish_packages.sh --dry-run

@@ -1,0 +1,41 @@
+# Decision 0033: A machine-level build lease around flutter/dart builds
+
+- Status: Accepted
+- Date: 2026-10-02
+
+## Context
+
+Two builders on one machine do not queue — they destroy each other.
+Measured 2026-10-02: two agent sessions building the same Flutter
+workspace concurrently; the second build failed the first mid-flight and
+the loser surfaced as `Error: Failed to compile application` with no
+cause. The flutter tool's lock is machine-wide (the SDK cache), but raw
+`flutter build` invocations neither queue nor name the holder.
+
+## Decision
+
+`oka_core` gains `BuildLease` / `withBuildLease` (ADR-0033):
+
+- **Two lock files**: global `~/.oka/build.lock` (the flutter cache lock
+  is machine-wide — cross-project builds collide too) plus a per-project
+  `.dart_tool/oka_build.lock`. Each records holder pid + command + start
+  time.
+- **Stale takeover**: a holder whose pid is dead is taken over loudly,
+  never waited on. Live holders QUEUE with a message naming the holder —
+  waiting beats clobbering. `wait: false` refuses with
+  `BuildLeaseHeldException` (the doctor-style guard).
+- **Wired at the pipeline entry**: both `okaRun` build paths (platform
+  and ADR-0015 targets) run under the lease.
+- Release removes only the holder's own files; a racing builder keeps
+  its own lock.
+
+## Consequences
+
+- Concurrent sessions (the norm — parallel agents are standard
+  practice in these workspaces) queue visibly instead of failing
+  opaquely.
+- Raw `flutter build` commands bypass the lease by nature; the env-level
+  shell guard (a sourced hook that wraps `flutter`/`dart` in
+  `withBuildLease`) is the documented follow-up — machine config, not
+  repo code.
+- Non-posix hosts assume holders are alive (waiting beats clobbering).

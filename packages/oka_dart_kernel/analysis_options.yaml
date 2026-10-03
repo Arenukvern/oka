@@ -1,0 +1,10 @@
+include: ../../analysis_options.yaml
+
+# Kernel-importing tooling compiles only inside the checkout-provisioned
+# gate environment (see tool/sdk_checkout.sh); excluded from workspace
+# analysis. The kernel-free partitioner lives in lib/src/unit_graph.dart and
+# IS analyzed and tested here.
+analyzer:
+  exclude:
+    - tool/**
+    - example/**

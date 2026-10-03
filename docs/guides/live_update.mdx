@@ -1,0 +1,114 @@
+# Live update guide
+
+Change a running Dart program without restarting it. One composition —
+a `LivePatchSpec` (units, targets, probes) — covers the developer loop
+(JIT) and the production path (AOT). Behavior SSOT is code + tests
+(`packages/oka_update/test/`); this guide links, it does not paraphrase.
+
+Stack: `oka_dart_kernel` (unit graph, delta compiler, pipeline exe) +
+`oka_update` (session, targets, receipts) — experimental, not on pub.
+Design: ADR-0031/0032/0034/0035; evidence:
+`docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`.
+
+## First steps (30 seconds)
+
+```bash
+packages/oka_dart_kernel/example/live_showcase/run.sh
+```
+
+A running app flips `feature=alpha-v1 → alpha-v2-live` with no restart.
+The whole patch is one Dart value in `patch.dart` — no config files:
+
+```dart
+final receipt = await runLivePatch(spec, compile: pipelineDeltaCompiler(toolchain), root: appRoot);
+if (!receipt.ok) print(receipt.describe());
+```
+
+## Developer paths (JIT — live, state preserved)
+
+Pick the loop that matches how you work:
+
+| You are… | Use | What it does |
+|---|---|---|
+| editing one file | `applyChange(spec, changedFile: …)` | compiles that file's library as the delta, applies, verifies |
+| saving continuously | `LiveWatcher(…)` + `start()` | watches, debounces, applies on save; silent on success |
+| scripting a step | `runLivePatch(spec)` | one shot: patch → compile → apply → probes → receipt |
+| multi-revision | `runLivePatch` per revision | endless loop: continue / reset / continue (see `gate_endless_loop.sh`) |
+
+Every run ends in a receipt: per-target apply mode, probe flips, and the
+continuity hold. A probe that must not change (`hold: true`) is the
+no-restart proof; a probe with `expect:` is the change proof.
+
+Targets are plain data (`TargetSpec`): a stock VM or `dart run` server
+(`reload`), an Android device (DevFS), a web app (dwds), a Flutter
+desktop app, an MCP stdio server — see `gate_live_e2e.sh` and
+`gate_live_products.sh` for a worked example of each. Live session wire
+facts: `skills/oka-kernel/references/toolchain.md` §11–12.
+
+### JIT dangers (each one bit us; each is guarded)
+
+- **`const` values survive reloads.** Patch function bodies or
+  constructor defaults — never a `const` field's value.
+- **URI coherence.** The delta must be compiled under the *same package
+  config the target loads* (`appPackagesConfig`). Mismatch = reload
+  "succeeds", nothing changes.
+- **One seam per revision.** A delta carries the entry library's
+  recompiled set only. Two independent seams → two revisions (the
+  endless-loop shape), or one entry importing both.
+- **Flutter-hosted VMs: never trial `_reloadKernel`.** An unparseable
+  delta `RELEASE_ASSERT`s and **kills the app**. Compile with the app's
+  own frontend (`frontend_server_aot` + flutter_patched_sdk) and apply
+  via `reloadSources {pause: false, rootLibUri}` — `toolchain.md` §12.
+- **Don't interrupt an apply.** Patch markers land on real source files;
+  drivers restore in `finally`, gates restore via git. A killed run can
+  leave markers — `git status` before committing.
+- **Reload is not state migration.** Existing objects keep their fields;
+  your probes are the contract that the right thing changed.
+- **Patching a build tool invalidates its own caches** (oka's build is
+  self-referential). Host live-patch sessions on non-build commands.
+
+## Production path (AOT — no VM service, no JIT)
+
+Production processes don't expose a VM service. Updates ride **staged
+artifacts**, not wire reloads:
+
+| Lane | Mechanism | Status |
+|---|---|---|
+| `slotSwap` | pre-provisioned loading-unit part ELFs loaded lazily in-process on an update signal | **proven** (`gate_aot_slots.sh`): r1 → r2, same pid. Bounded slots per process |
+| `restartHandoff` | snapshot swap; new process takes over the socket (SO_REUSEPORT) | **proven on linux** (60/60, 0 refused); macOS needs fd passing |
+| `nextLoad` (web) | pointer flip + chunk fetch at next load | designed (G4 web gate); oka-owned DDK session pending |
+
+AOT dangers:
+
+- **Slot budget is per-process.** Unbounded revision streams must ride
+  `restartHandoff`, not slots.
+- **Mach-O has no unit packaging** — use ELF targets (macOS/linux
+  android); iOS is an embedder seam.
+- **Delta versions must match the runtime** — cross-version kernels fail
+  to parse (see JIT dangers; in AOT it manifests at load time).
+- **Delivery is not built yet.** Eligibility, manifests, signing,
+  `UpdateClient` are ADR-0034's ladder — until they land, "production"
+  means the harness paths above, not a shipped updater.
+
+## Verify, don't trust
+
+```bash
+packages/oka_dart_kernel/tool/gate_live_products.sh          # 3 real products (CLI, MCP server, Flutter app)
+packages/oka_dart_kernel/tool/gate_live_e2e.sh all           # 4 platforms (mac/linux/android/web)
+packages/oka_dart_kernel/tool/gate_endless_loop.sh           # continue/reset loop, state held
+packages/oka_dart_kernel/tool/gate_aot_slots.sh              # in-process AOT slot flip
+```
+
+Agent-facing troubleshooting (wire facts, failure signatures):
+`skills/oka-kernel/references/troubleshooting.md`.
+
+## What's next
+
+`oka ship` (ADR-0035 Part 3): watch → delta → stage → sign → publish as
+one zero-flag command; targets declare their lane
+(`reload | slotSwap | restartHandoff | nextLoad`) and the receipt is the
+protocol.
+
+Agents don't need shell for the loop: `oka_update/live_agent.dart`
+declares `oka.live.patch` / `oka.live.watch` / `oka.live.verify`
+(descriptors + dispatch, receipt JSON out) — ADR-0036.

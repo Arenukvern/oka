@@ -1,0 +1,237 @@
+# 0030 — Application composition and typed operation projections
+
+- **Status:** proposed
+- **Date:** 2026-09-30
+- **Decision-makers:** oka maintainers
+- **Extends:** ADR-0002 (composable pipelines), ADR-0006/0010 (typed Dart
+  composition), ADR-0013 (toolchains and artifacts), ADR-0015 (verb/target
+  split), ADR-0022 (capability boundaries), ADR-0026 (resource composition)
+- **Proposes amending on acceptance:** ADR-0024 §5 (CLI-canonical adapter
+  layering) and the north star's Flutter-only expansion boundary
+
+## Context
+
+Oka unlocks Flutter Android builds by describing compilation, dependencies,
+packaging, signing, and verification as composable values instead of hiding
+them behind Gradle configuration. The same authoring problem extends across
+an application: its client, services, API bindings, persistent state,
+bundles, configuration, and updates are assembled through unrelated files
+and commands. Developers repeatedly reconstruct relationships that belong
+to the application itself.
+
+The intended experience is to work with the whole application as one
+composition, like an application or game whose components can be declared,
+connected, inspected, tested, and replaced. Frontend and backend describe
+execution placement and capabilities within that composition. They need
+not be separate authoring models, and participating components need not
+share an implementation language.
+
+This is an application programming model, not a proposal to make Oka a
+general infrastructure manager or merely wrap more shell commands.
+Infrastructure is one possible realization of declared application needs.
+Bundling and supported on-air updates must be available through the same
+composition API, with actual decisions visible to humans and agents.
+
+The current north star limits expansion to Flutter platform builds.
+ADR-0026 already establishes typed resource composition and lifecycle
+vocabulary; it does not establish an application compiler, service contract
+bindings, or universal live updates. ADR-0024 makes CLI JSON canonical for
+agent adapters. These boundaries require an explicit decision checkpoint.
+
+## Considered options
+
+1. Keep Oka limited to Flutter platform builds and distribution targets.
+2. Add a general task runner over commands, inputs, and outputs.
+3. Introduce one application composition model with stack-specific adapters
+   and typed operations shared by API, CLI, and MCP.
+4. Require one new language/runtime for every client and service.
+
+## Proposed decision
+
+Prefer **option 3**. Keep the implementation and initial typed authoring
+surface in Dart while allowing components implemented in other languages.
+An application composition describes meaningful components and operations;
+adapters resolve them into validated execution plans and observable results.
+
+This record proposes a direction and acceptance gates, not a frozen public
+API, package layout, wire protocol, or authorization to implement all of it.
+Until accepted, existing ADRs and current north-star gates remain binding.
+
+### 1. Compose one application with several domain vocabularies
+
+The application declares components, typed connections, execution
+placement, configuration, persistent resources, and supported update
+behavior. Stack-specific values retain their meaning: a web bundle exposes
+entrypoints, transforms, chunks, and assets; a service exposes contracts and
+readiness; persistent state exposes ownership and migration requirements.
+
+Common planning and execution primitives connect these declarations without
+flattening everything into an arbitrary command graph or universal
+component superclass. Application authors compose typed immutable values
+through constructors and provider substitution, preserving ADR-0026's
+authoring model. Selecting additional configuration languages is deferred.
+
+### 2. Bind service identities and contracts through composition
+
+A connection refers to a component's exported contract, not a hand-copied
+address. Adapters resolve environment-specific endpoints and generate or
+reuse bindings from supported contract toolchains. Client applications and
+internal services consume the same declared relationships through their
+respective public or internal boundaries.
+
+Placement remains explicit where it affects behavior. Remote operations
+retain timeout, cancellation, authorization, delivery, and compatibility
+semantics. A backend-to-client event channel must declare its supported
+transport and delivery behavior. Typed connections do not imply that calls
+are local or that all deployed consumers update together.
+
+### 3. Unlock bundling through inspectable adapter capabilities
+
+Adapters declare the depth of composition they support:
+
+| Depth | Exposed composition |
+| --- | --- |
+| Delegated | Declared inputs, invocation, outputs, and diagnostics |
+| Integrated | Supported tool APIs, transforms, plugins, and build decisions |
+| Oka-owned | Individual pipeline stages, artifacts, and replaceable providers |
+
+Delegating a compiler or bundler does not establish control over its
+internals. Plans identify opaque work. Deeper integration must preserve
+the owning tool's semantics and have tests for the exposed extension points.
+The existing no-Gradle Android pipeline remains the owned build path; this
+proposal does not restore Gradle or the removed cargo-apk alternative.
+
+### 4. Make operations the shared behavior contract
+
+Build, run, inspect, test, package, and update operations are typed
+composition capabilities. An operation declares parameters, results,
+validation, effects, and supported planning/explanation. CLI and MCP project
+those declarations and invoke the same execution path as direct API callers.
+Transport decoding and presentation stay at their respective boundaries.
+
+On acceptance, this changes ADR-0024 §5's authority from CLI JSON to the
+typed operation contract. CLI remains a stable, independently usable
+machine interface; reproducible evidence must not require MCP. Existing CLI
+schemas and compatibility promises need a migration plan before changes.
+ADR-0020's cache selection, saved-plan validation, and deletion protections
+remain unchanged. Projections cannot introduce a second policy engine.
+
+### 5. Compose updates according to declared runtime capabilities
+
+An update is a validated transition between application revisions. Adapters
+declare which changes support reload, replacement, restart, rebuild, or
+migration; the application composes the required checks and transition
+policy. Unsupported changes produce an explicit alternative or a blocked
+result, never an implied hot-reload success.
+
+Runtime configuration, executable code, API contracts, and persistent data
+schemas have distinct change semantics. The plan identifies affected
+components, compatibility checks, state transitions, and recovery limits.
+Results distinguish requested, applied, failed, and unknown state for each
+affected component; a distributed update is not assumed globally atomic.
+Artifact rollback does not imply reversal of data migrations or writes.
+
+Binary deltas may optimize delivery where an adapter supports them. They do
+not replace semantic validation. Concurrent editing may produce a shared
+draft, but applying effects validates a specific revision and detects stale
+base revisions. Replacing Git or building a collaborative editor is outside
+this proposal. Continuous update delivery, if needed, requires a separate
+decision about its runtime owner; no resident Oka manager is authorized.
+
+### 6. Reuse lifecycle, storage, and verification contracts
+
+Compose with existing targets, steps, typed artifacts, provider contracts,
+readiness, lifecycle ownership, and provenance rather than introducing a
+parallel engine. Finite operations and persistent services retain distinct
+completion and readiness semantics. ADR-0018/0025/0026's owned/borrowed
+rules, conservative reconciliation, and no-daemon posture remain in force.
+
+Persistent resources have explicit owners and lifecycles independent of
+executable artifacts. Adapters expose placement, mounts or handles,
+migration, backup, and restore capabilities where supported. A cache is not
+application data; declaring backup policy is not evidence of recoverability.
+No mandatory storage provider, cluster, registry, or shared SDK is selected.
+
+## Proposed north-star change
+
+The proposed promise is: **one composition for the whole application,
+across stacks and execution locations, with inspectable builds, operations,
+and supported live updates.**
+
+If accepted, the north star expands from Flutter platform-build composition
+to application composition. Oka owns composition semantics, validated
+operation plans, adapter capability contracts, and evidence of execution.
+Adapters own compiler, bundler, protocol, runtime, and update mechanics;
+application authors own business logic and architecture.
+
+This revises the Flutter-only wedge and requires reconsidering the current
+Android-before-second-platform gate, the iOS-first candidate, and the claim
+that web compilation has no Oka composition surface. The existing Flutter
+web delegation in ADR-0016 remains current behavior; a new web adapter would
+need evidence for any deeper ownership. No accepted ADR is superseded by
+publishing this proposed record.
+
+## Acceptance gates before generalization
+
+Use one web application and one backend implemented in different languages,
+with one persistent resource, to establish the smallest complete slice:
+
+1. Declare their contract connection once and verify an actual client call
+   locally and on one selected deployment target without manually copied
+   service addresses.
+2. Inspect the application operations without starting resources. Invoke
+   one operation through typed API, CLI, and MCP; prove equivalent
+   validation, effects, results, cancellation, and failure behavior.
+3. Compose one real bundling extension through a supported tool API;
+   distinguish it from opaque delegated work.
+4. Apply a supported live update, report its applied revision, and preserve
+   unaffected components. Exercise explicit rebuild/restart fallback,
+   incompatible-contract rejection, and stale-base revision rejection.
+5. Preserve persistent data through executable replacement and verify a
+   backup/restore round trip. Inspect partial state after an interrupted
+   update and exercise bounded recovery and owned-resource cleanup.
+6. Substitute component providers in tests while preserving the operation
+   contracts. Measure native-tool baselines and Oka overhead separately;
+   distinguish tested fixtures from real runtime and deployment evidence.
+
+These are future gates, not completed phases. Public API/package extraction,
+non-Dart authoring, and any cross-process schema need follow-up decisions
+after this slice establishes the required boundaries.
+
+## Consequences
+
+Good:
+
+- Application relationships become reusable, inspectable, and testable
+  values across development, packaging, and supported updates.
+- Commands and agent tools share behavior with package consumers.
+- Adapter depth can grow without requiring every component to change stack.
+
+Bad / Neutral:
+
+- The scope is substantially broader than platform builds; an unbounded
+  adapter catalog or a second execution engine would dilute the product.
+- Seamless integration requires stack-specific work. Arbitrary executables
+  can participate opaquely but cannot acquire unsupported update guarantees.
+- Typed operation schemas and published projections introduce compatibility
+  obligations. Runtime placement and state evolution remain real concerns.
+
+Option 1 preserves focus but leaves application relationships outside the
+composition. Option 2 is easy to add but hides domain semantics behind
+commands. Option 4 could control more runtime behavior but would require
+users to abandon their stacks. Option 3 accepts adapter complexity to keep
+the application model coherent while preserving stack choice.
+
+## Related records
+
+- [North star](../start_here/why_this_repo_matters) — current scope and the
+  proposed application direction.
+- [ADR-0026](0026-declarative-resource-composition-sdk) — resource composition
+  vocabulary and existing lifecycle/extraction constraints.
+- [ADR-0024](0024-declarative-test-workflows-and-agent-adapters) — test
+  composition and the projection authority proposed for amendment.
+- [ADR-0029](0029-build-provenance-and-verification-ladder) — bounded
+  verification and provenance evidence to preserve.
+
+**Authoritative source:** this ADR for the proposed direction. Code, tests,
+and dated evidence remain authoritative for shipped behavior.

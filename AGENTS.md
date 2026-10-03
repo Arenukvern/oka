@@ -20,12 +20,22 @@ follow links.
 | I want to… | Read |
 |---|---|
 | Understand what oka owns / boundaries | `docs/start_here/why_this_repo_matters.mdx` |
+| Review the proposed whole-application composition direction | `docs/decisions/0030-application-composition-and-operation-projections.mdx` (proposed; current boundaries remain binding) |
+| Review the proposed store-free patch/update direction | `docs/decisions/0031-declarative-patch-units.mdx` (proposed; web-first evidence in `docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`) |
+| Review the proposed kernel-graph/bundler direction | `docs/decisions/0032-oka-dart-kernel-graph-ownership.mdx` (proposed; `packages/oka_dart_kernel` + `packages/oka_update`; harness manual in `skills/oka-kernel`) |
+| Know what stands between the update API and production | `docs/decisions/0034-update-api-production-ladder.mdx` (proposed; gap analysis + P0–P5 ladder) |
+| Design the patch-shipping journey or server live patching | `docs/decisions/0035-live-update-journey-and-server-patching.mdx` (proposed; Dart-first authoring, server lanes, `oka ship`) |
+| Decide shell vs harness vs declared verbs for live-update automation | `docs/decisions/0036-live-update-agent-surface.mdx` (accepted, implemented: gates = thin shell, orchestration = Dart drivers, `oka.live.*` verbs in `oka_update/live_agent.dart`) |
 | Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
 | Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
+| Run/understand live update (first steps → JIT dev loop → AOT production, dangers) | `docs/guides/live_update.mdx` |
 | Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`, `oka session-state`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |
 | Migrate an existing Gradle app | `docs/guides/gradle_migration.mdx` (works / needs config / unsupported + verification loop) |
 | Check phase status & evidence | `docs/PHASE_CHECKLIST.mdx` |
 | Verify a release actually starts (or diagnose a startup hang) | `oka run verify` (ADR-0029); `oka why <step>` for step-cache staleness |
+| Prove live patching on running apps across platforms | `packages/oka_dart_kernel/tool/gate_live_e2e.sh`; session API in `packages/oka_update/lib/src/live/` (ADR-0031 gate 6, ADR-0032 gate 10) |
+| Live-patch a real product family (oka CLI itself, an MCP stdio server, a Flutter desktop app) | `packages/oka_dart_kernel/tool/gate_live_products.sh` — per-family wire facts in `skills/oka-kernel/references/troubleshooting.md` (ADR-0035 §2e) |
+| Endless dev loop / AOT revision slots | `packages/oka_dart_kernel/tool/gate_endless_loop.sh` (last_answer, patch continue + reset) and `gate_aot_slots.sh` (in-process AOT slot flip) — ADR-0035 |
 | Browse the docs site | `docs/` (published via docs.page) |
 | See CLI commands | `packages/oka/bin/oka.dart`, `packages/oka/lib/src/cli/` |
 | Understand/extend the build pipeline | `packages/oka_android/lib/src/pipeline/`; shared contracts in `packages/oka_core/lib/src/pipeline/` — see ADR 0002 |

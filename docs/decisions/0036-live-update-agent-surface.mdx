@@ -1,0 +1,136 @@
+# 0036 — Live-update agent surface: what stays shell, what moves to Dart, what gets declared
+
+Status: accepted (implemented 2026-10-03) · Date: 2026-10-03 · Builds on
+ADR-0035 (§2e), ADR-0017 (invoke tier), ADR-0018 (leases)
+
+## Context
+
+The live-update work runs through a lot of shell: `oka_dart_kernel/tool/`
+carries ~1.5k lines of `gate_*.sh` (plus showcase `run.sh` scripts), while
+the newer drivers (`live_products_*.dart`, `endless_loop.dart`, ~0.9k
+lines) are Dart that already owns spawn, wait-for-marker, patch, apply,
+and restore. Before growing more of either, decide the boundary — and
+whether the agent-facing loop should be shell at all, given
+`flutter_mcp_harness` (published: build → launch → attach → drive as a
+plain Dart API) and the `universal_automation_*` family (pure-Dart
+observe/act/verify contracts, `session-<name>-handle` vocabulary shared
+with oka).
+
+### The shell patterns, and why they exist
+
+| Pattern | Where | Why it's shell today |
+|---|---|---|
+| process spawn/pid/kill/restore (`nohup … &`, `pkill -f`, `trap restore EXIT`, `sed -i`) | every gate | gates predate the Dart drivers; CI needs a single entry command |
+| wait-for-log-marker (`grep -q` poll loops) | every gate | evidence = the target's own output |
+| env pinning between legs (`OKA_SDK_CHECKOUT`, ports, `APP_ROOT`) | `gate_live_e2e.sh`, products gate | leg matrices predate per-driver env contracts |
+| spec materialization (python heredoc → JSON) | `gate_live_e2e.sh` only | legacy: specs predate Dart composition roots |
+| leg sequencing + PASS/FAIL collection (`tee`, `PIPESTATUS`) | all gates | this one is genuinely a job for a runner |
+
+Costs we actually paid this cycle: zsh quoting traps (heredocs, `$()`),
+duplicated helpers (15 pkill/restore/wait sites in one gate), python
+heredocs roting next to the Dart spec API, and evidence that lives in
+grep-able strings rather than receipts.
+
+## Options considered
+
+1. **Keep everything shell.** Rejected: gates re-implement what
+   `flutter_mcp_harness` ships (launch, `stdout.waitFor`, `vmUri`), and
+   the agent loop stays unreadable one-liners.
+2. **Move gates into the harness.** Rejected: `flutter_mcp_harness`
+   drives *Flutter apps*; gates orchestrate mixed targets (stock VMs,
+   docker, MCP servers, AOT runtimes) in CI with no Flutter dependency —
+   and gates are entry points, not product code.
+3. **Expose everything as MCP tools now.** Deferred: a live-update MCP
+   server is product surface (ADR-0034 delivery rungs); building it
+   before `oka ship` would stabilize the wrong API.
+4. **Declare verbs into the universal-automation/intentcall registry**
+   (ADR-0017's invoke tier already reads it). Adopted as the direction —
+   it is a *declaration*, not a server: actions with typed inputs and
+   receipt outputs, dispatchable by any UA/agent client.
+
+## Direction (three tiers)
+
+- **Tier 0 — gates stay thin shell.** CI entry points, PASS/FAIL
+  collection, evidence capture (AGENTS.md already sanctions this). What
+  changes: helpers dedupe into one sourced `tool/gate_lib.sh`
+  (`wait_for`, `kill_port`, `restore_markers`); python heredoc spec
+  generation is deleted (specs are Dart values; JSON only as the wire
+  form); gates shrink to leg sequencing + receipt assertion.
+- **Tier 1 — orchestration lives in Dart drivers** (already true for
+  everything new). Flutter-app targets use `flutter_mcp_harness` types
+  (`AppTarget.launch`, `stdout.waitFor`, `vmUri`) instead of hand-rolled
+  `Process.start` + log polling; non-Flutter targets keep plain
+  `Process` + the session API. Drivers are the SSOT for spawn/wait/patch
+  discipline; gates call drivers, they don't re-implement them.
+- **Tier 2 — declare, don't serve.** The interactive agent loop is
+  declared as UA/intentcall actions composed with fmtk, not a new MCP
+  server: `oka.live.patch` / `oka.live.watch` / `oka.live.verify`
+  (inputs: spec or changed file; output: the receipt). fmtk already
+  gives agents the Flutter app surface (connect, hot reload, evaluate);
+  oka's delta is the *unit delta* layer — eligibility, compile, probe
+  receipts — which fmtk does not have. Dispatch rides the existing
+  invoke tier; no new transport.
+
+## What becomes concise
+
+- Gate shell: ~1.5k → target ≤ ~600 lines (leg lists + assertions only).
+- One helper library instead of five copies; zero python in gates.
+- The agent loop becomes three declared verbs with receipt outputs —
+  no shell quoting, no log scraping; receipts are already structured.
+- `run.sh` showcases stay (they are the 30-second first step) but call
+  the same drivers the gates call.
+
+## Consequences
+
+- Gates lose nothing they need in CI (plain bash + `dart` on PATH).
+- Drivers gain a Flutter-lifecycle dependency **only where the target is
+  a Flutter app** (harness is already a published, hosted package oka
+  resolves).
+- Tier 2 is additive: verbs can land per-operation as ADR-0034's ladder
+  advances; nothing blocks `oka ship`.
+- Follow-ups: extract `gate_lib.sh`; port `gate_live_e2e.sh` legs to
+  Dart drivers; declare the three verbs (each gated by its operation
+  test); revisit when `oka ship` defines the real publish surface.
+
+## Implemented (2026-10-03)
+
+- **Tier 0.** `tool/gate_lib.sh` (`wait_for`, `kill_port`,
+  `pkill_pattern`, `restore_marker`, `require_env`) is sourced by the
+  live gates (`gate_live_e2e.sh`, `gate_live_products.sh`,
+  `gate_endless_loop.sh`); all five python heredoc blocks in
+  `gate_live_e2e.sh` are replaced by `tool/live_e2e_spec.dart`
+  (`mac-vm|linux|android|web` spec emission + the android-leg signing
+  patch). Zero python in the live gates.
+- **Tier 1.** `tool/live_products_flutter_app.dart` runs on
+  `flutter_mcp_harness` (^0.1.0, dev-dep on `oka_dart_kernel`):
+  `FlutterRunTarget.launch()` owns the `flutter run` session, `LogTap`
+  replaces sleep-and-grep, `LaunchedApp.stop()` owns teardown.
+  `tool/live_e2e_mac_vm.dart` ports the e2e mac-vm leg to a Dart driver
+  (bring-up + spec + patch + verify + teardown); its gate leg is now
+  one command plus an exit-code/receipt assert.
+- **Tier 2.** `oka_update` exports `live_agent.dart`:
+  `liveVerbCatalog` declares `oka.live.patch` / `oka.live.watch` /
+  `oka.live.verify` (descriptors serve the `SurfaceActionDescriptor`
+  shape of `universal_automation_interface` 0.2.0 — typed import lands
+  when that version publishes), `runLiveVerb` dispatches into the real
+  session paths, and `verifyLiveTargets` adds the pre-flight verb
+  (connect + probes, no patch). `test/live_agent_test.dart` covers
+  descriptor shape, dispatch, and all three verbs over in-memory
+  targets.
+- **Validated.** `gate_live_products.sh` ALL PASS (harness-based leg 3),
+  `gate_live_e2e.sh mac-vm` PASS (ported leg), `gate_endless_loop.sh`
+  and `gate_aot_slots.sh` PASS (refactored), `oka_update` 18/18 tests,
+  analyze clean, `just check-contracts` green.
+- **Still open.** The linux/android/web e2e legs keep their shell
+  orchestration until ported (each needs its external harness in CI:
+  docker, emulator, Chrome); the pre-0036 kernel gates
+  (`gate_g1b_g2.sh`, `gate_g3*.sh`, …) keep their local helpers until
+  they adopt `gate_lib.sh`; typed `SurfaceActionDescriptor` import when
+  published; `oka ship` composes the same verbs for its journey.
+
+## Related
+
+ADR-0035 §2e (product families, wire facts), ADR-0017 (invoke tier,
+intentcall registry), ADR-0018 (leases — ownership vocabulary UA
+mirrors), `flutter_mcp_harness` (mcp_flutter; published), `universal_automation_interface`
+(pure-Dart contracts, `session-<name>-handle`).

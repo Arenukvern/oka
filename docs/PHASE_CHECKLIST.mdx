@@ -75,6 +75,43 @@ with evidence, not into a checked box.
   `packages/oka_rustore` policy tests, conformance suites. Remaining gates:
   wire the verifier in a real release composition and record one device-spec
   split run per store family as evidence.
+- **Live update ladder (ADR-0031/0032/0034/0035) — lanes proven, delivery
+  surface pending.** Proven with gates + evidence:
+  (`docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`)
+  kernel-graph unit splitting (G1/G2, `oka_dart_kernel`), per-unit live
+  reload across platforms (G3-B: mac VM, linux, android, web),
+  `oka_update` live session API (spec/targets/probes/receipts; 12 tests),
+  Dart-first authoring (`runLivePatch`/`applyChange`/`LiveWatcher`,
+  live_showcase), server lanes (S1 HTTP server live-patched on one stream
+  socket; S2 AOT revision slots in-process, same pid; S3 SO_REUSEPORT
+  handoff on linux, 0 refused), the endless loop on last_answer's real
+  engine (continue/RESET ×4, boot state held, 0 restarts), the AOT
+  pipeline exe (~94× delta compile), and the product-families gate
+  (`gate_live_products.sh`: oka CLI itself, mcp_flutter's fmtk MCP stdio
+  server, vosges Flutter desktop — probe flip + continuity hold + product
+  or stdout flip per family). Remaining rungs, in dependency order:
+  (1) **`oka ship`** — the zero-flag journey CLI (ADR-0035 Part 3: watch →
+  delta → stage → sign → publish → targets declare their lane); (2)
+  **delivery + UpdateClient** — the typed manifest/pipeline from ADR-0034
+  (eligibility, fingerprints, delivery receipt) so patches travel beyond
+  the VM service; (3) **S2 registry seam** — the generator-side unit
+  registry + runtime update handler for unbounded AOT revision streams
+  (bounded slots proven); (4) **app-frontend compiler integration** — the
+  flutter-app lane compiles deltas with the target's own frontend
+  (frontend_server snapshot + flutter_patched_sdk; foreign frontends
+  fail to parse in the app VM); (5) **oka self-reference fix** — step
+  digests must not include the driving tool's sources (and
+  `compile-and-dex`'s digest is unstable across unmodified runs; res/icon
+  staging is lost on re-runs); (6) macOS S3 fd passing; (7) web release
+  lane (`nextLoad` pointer flip) and oka-owned DDK session; (8) **agent
+  surface** (ADR-0036, implemented 2026-10-03): `gate_lib.sh` shared by
+  the live gates (zero python in them), `flutter_mcp_harness` owns
+  Flutter-app bring-up, the e2e mac-vm leg is a Dart driver, and
+  `oka.live.patch/watch/verify` are declared in
+  `oka_update/live_agent.dart` (18/18 tests) — no new MCP server.
+  Remaining: port the linux/android/web e2e legs, adopt `gate_lib.sh` in
+  the pre-0036 kernel gates, typed UAI descriptor import at 0.2.0.
+  Concise user/agent entry: `docs/guides/live_update.mdx`.
 - **Done (ADR-0016 W0–W2, pending archive with evidence):**
   **W0** — `oka_web` shell station package (typed spec/contribution/entries,
   generate + inject emitters, emit + zip steps, `web-shell`/`web-build`

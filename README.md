@@ -278,6 +278,26 @@ pipeline. See [the long game](#the-long-game).
 | [`oka_web`](https://pub.dev/packages/oka_web) | Web shell station: per-store `web/index.html` as typed Dart, emitters, deploy targets |
 ```
 
+## Live patching (research preview)
+
+The kernel/update stack (`oka_dart_kernel` + `oka_update`, ADRs 0031–0034,
+experimental — not on pub) applies changes to **running** Dart programs:
+one composition — a `LivePatchSpec` (units, targets, probes) — covers the
+developer loop (JIT, state preserved) and the production path (AOT
+revision slots / snapshot handoff). Proven across macOS/linux/android/web
+and three real external products (the oka CLI itself, an MCP server, a
+Flutter desktop app).
+
+```bash
+packages/oka_dart_kernel/example/live_showcase/run.sh   # 30 s: a running app patched live — the whole patch is one Dart value
+```
+
+Guide (first steps → dev loop → production, with dangers):
+[docs/guides/live_update.mdx](docs/guides/live_update.mdx).
+Composition-loop speed is benchmarked (`just bench-kernel`): AOT pipeline
+deltas ~94x faster than JIT (0.04 s vs 3.7 s); a full live apply lands in
+**0.57 s**.
+
 ## The long game
 
 One platform proves the model; the model is built for many. The architecture

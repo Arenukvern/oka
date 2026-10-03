@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:yaml/yaml.dart';
 
+import 'build_lease.dart';
 import 'composition.dart';
 import 'config/build_context.dart';
 import 'config/oka_config.dart';
@@ -239,12 +240,19 @@ Future<void> okaRun(
       state: targetState,
       write: verbose ? stdout.writeln : null,
     );
-    result = await execution.run(
-      () => targetPipeline.run(
-        ctx,
-        initialState: targetState,
-        shouldCancel: () => execution.cancellationRequested,
+    // ADR-0033: the whole tool chain under one machine-level build
+    // lease — concurrent `oka build`s queue loudly instead of failing
+    // each other on the flutter tool's machine-wide cache lock.
+    result = await withBuildLease(
+      'oka run ${target.name}',
+      () => execution.run(
+        () => targetPipeline.run(
+          ctx,
+          initialState: targetState,
+          shouldCancel: () => execution.cancellationRequested,
+        ),
       ),
+      projectDir: root,
     );
     final plan = targetState[PublishPlanStep.plan.id];
     if (result.ok && plan is PublishPlan) {
@@ -269,7 +277,12 @@ Future<void> okaRun(
     }
   } else {
     await registerCacheProjectBestEffort(root, register: registerCacheProject);
-    result = await pipeline!.run(ctx);
+    // ADR-0033 — same lease as the target path.
+    result = await withBuildLease(
+      'oka build $platform',
+      () => pipeline!.run(ctx),
+      projectDir: root,
+    );
   }
   if (!result.ok) {
     stderr.writeln('❌ oka run failed: ${result.error}');

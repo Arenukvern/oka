@@ -1,0 +1,669 @@
+# Evidence: deferred patch units spike (2026-10-01)
+
+Empirical validation for [ADR-0031](../decisions/0031-declarative-patch-units).
+Spike workspace: `~/xs/oka-patch-spike/` (outside the repo; findings record in
+`FINDINGS.md`, runnable app in `spike/`). Environment: Dart SDK 3.13.2 stable,
+macOS arm64, dart2js output served by `python3 http.server`, observed in Chrome
+(PerformanceObserver + server access logs).
+
+**App under test.** Pure-Dart web app: DOM-free core + two deferred patch units
+(`alpha`, `beta`) imported `deferred as` through a hand-written registry
+(`await unit.loadLibrary()` behind a factory seam). No other dependencies.
+
+| # | Experiment | Result |
+|---|---|---|
+| E1 | Chunk split | **PASS.** `dart compile js` emits one part file per deferred unit (`main.dart.js_1.part.js` 594 B = alpha, `main.dart.js_2.part.js` 602 B = beta) beside the 256 KB core. Unit code appears only inside its own chunk. |
+| E2 | Lazy fetch | **PASS.** Boot fetches the core only. Each unit's chunk is fetched on first use (browser `window.__loaded` + server log agree). |
+| E3 | Change isolation | **PASS + discovery.** Editing only alpha's body and rebuilding: alpha chunk changed; beta chunk, maps, and `index.html` byte-identical; **core differs in exactly 27 bytes — the embedded `deferredPartHashes` array** (dart2js bakes one content hash per unit chunk into the core; beta's hash unchanged). Rebuild determinism control: byte-identical output for identical inputs, both directions. |
+| E4 | Two-revision swap over static hosting | **PASS.** Server dir swapped rev A → rev B (unchanged files kept rev A mtimes). Reload + use: `GET /` → 304 (reused), `GET /main.dart.js` → 200 (carries the hash-table delta), `GET /main.dart.js_1.part.js` → 200 (changed unit); the unchanged beta chunk was never re-requested. The page then ran the new unit (`alpha-v2 (6)`). |
+| E5 | Runtime correctness | **PASS.** Unit code executes; repeated `loadLibrary()` is safe (3 calls → 1 fetch). |
+| E6 | Multi-unit AOT loading units | **NOT REACHABLE via the public toolchain.** `dart compile aot-snapshot` produces a single merged unit (deferred satisfied eagerly; the issue #64162 crash conditions — `Function.apply` and instantiated generic tear-offs from a deferred unit — pass, matching "single-unit AOT is fine"). `gen_snapshot` contains the splitter (`--loading_unit_manifest=`, internals `Missing loading unit assignment`, `LoadingUnit::kRootId`) but `dart compile` never passes it and does not expose the intermediate dill. Multi-unit AOT is reachable only through toolchains that pass the manifest flag (Flutter's Android deferred-components pipeline, or a toolchain driving gen_snapshot directly). |
+
+**Interpretation.**
+
+- The compiler already implements the "unit manifest with content hashes"
+  design: `deferredPartHashes` in the core is verified by the loader at chunk
+  load. A unit-body-only release touches its own chunk plus 27 bytes of the
+  core. Patch semantics over dumb static hosting need no service worker for
+  correctness.
+- Known cost: because the hash table lives in the core, a unit-only change
+  retransfers the whole core chunk unless an updater binary-diffs it (the true
+  delta is 27 bytes; a compressed core diff is tiny). Recorded as a future
+  optimization, not a blocker.
+- The deferred type rule ("you can't use types from a deferred library in the
+  importing file") forces stable contract libraries across unit boundaries —
+  the language enforces the patch-safety discipline a unit system needs.
+
+**Automation footnote.** Playwright locator clicks and the dom_cua node path
+did not deliver events to the Dart app in the in-app browser; a programmatic
+`element.click()` via page evaluate did. Harness quirk, not app behavior.
+
+## Loading-units probe (2026-10-02)
+
+Follow-up to E6, driving the SDK tools directly (SDK 3.13.2, macOS arm64 host):
+
+- The kernel dill is producible without `dart compile`:
+  `dartaotruntime bin/snapshots/gen_kernel_aot.dart.snapshot --platform
+  <vm_platform_strong.dill> --aot --packages <package_config.json>
+  --target-os <os> -o program.dill <entry>.dart`.
+- `gen_snapshot --snapshot-kind=app-aot-elf --elf=units.so
+  --loading_unit_manifest=units_manifest.json program.dill` **emits a real
+  multi-unit AOT split**: root `units.so` (1.8 MB, entry + core),
+  `units.so-2.part.so` (34 KB, `units/alpha.dart` alone),
+  `units.so-3.part.so` (34 KB, `units/beta.dart` alone), plus a JSON manifest
+  listing each unit's id, path, and libraries — the VM produces the
+  unit-manifest shape natively.
+- **Mach-O is a hard refusal**: the same command with
+  `--snapshot-kind=app-aot-macho-dylib --macho=…` fails with *"deferred
+  loading not implemented for Mach-O"*. The split path is ELF-only today
+  (Android/Linux shapes).
+- Change isolation at the artifact level is coarse: after an alpha-body-only
+  edit, all three units' ELF bytes differ — while a same-source rebuild is
+  byte-identical for every unit (per-unit determinism control passed). So AOT
+  eligibility semantics hold (the manifest's library partition is stable), but
+  a one-unit patch retransfers all unit files. Cross-unit byte independence —
+  the property dart2js has (27-byte core delta) — does not hold in AOT ELF.
+- Runtime correctness of loading multi-unit output (sdk#64162 conditions)
+  remains unverified: ELF output cannot execute on the macOS host and no
+  Linux device was used.
+
+## Linux multi-unit AOT probe (2026-10-02)
+
+Official `dart:3.13.2` container (linux x64); same gen_kernel +
+`gen_snapshot --loading_unit_manifest` pipeline, `--target-os=linux`;
+experiment scripts in the spike workspace (`tool/linux_live_swap.sh`,
+`tool/live_driver.dart`).
+
+- **Q1 — loading/execution: WORKS.** The multi-unit ELF (root + alpha + beta
+  parts) loads and runs correctly on Linux, and the sdk#64162 stress
+  (`Function.apply` + instantiated generic tear-offs from deferred units)
+  passes — no repro in this shape on 3.13.2. Reproduced across three runs.
+- **Unit-file structure.** Part ELFs are code-only fragments: they contain no
+  strings/constants (all data lives in the root image), and within one build
+  all part files were byte-identical to each other. Parts are
+  compile-time-coupled code halves of their root, not self-contained
+  revisions — the opposite of dart2js chunks, which are self-contained
+  closures plus a 27-byte hash-table delta in the core.
+- **Q2 — program-identity verification: YES.** Replacing an *unloaded* unit's
+  `.so` on disk under a *running* process, then calling `loadLibrary()`, is
+  refused with a typed error: `DeferredLoadException: 'Deferred loading unit
+  is from a different program than the main loading unit'`. No crash; the VM
+  validates unit↔program consistency at load.
+- **Q3 — live swap by file replacement: NO.** Blocked by the above check, by
+  design.
+
+**Consequence.** Native AOT updates are whole-revision transitions: root and
+unit files must be swapped atomically as one content-addressed set, applied at
+restart — and the VM's own integrity check enforces set consistency (a real
+safety property for self-delivered updates). True live logic swap on native
+would require either the dynamic-modules/bytecode path (present in the SDK but
+the stock `dartaotruntime` refuses: "Loading of dynamic modules is not
+supported" — embedder/fork territory) or a hosted runtime (WASM) inside the
+app. Both are outside the no-fork constraint today.
+
+## Kernel round-trip gate (2026-10-02, ADR-0032 G1)
+
+Harness: `packages/oka_dart_kernel/tool/gate1_roundtrip.sh` +
+`tool/kernel_roundtrip.dart` (pinned dart-lang/sdk checkout at tag 3.13.2;
+`pkg/kernel` + `pkg/vm` consumed as ordinary Dart packages via a generated
+package_config).
+
+- **Substrate PASS.** The vendored compiler sources compile and run; the
+  gate dill (deferred unit + sdk#64162 stress) loads through the kernel with
+  a full library inventory; the re-serialized dill is **lossless on the Dart
+  side** — re-reading it reproduces identical mappings for all twelve VM
+  metadata subsections (direct-call 15,514 entries, inferred-type 18,898,
+  table-selector 1 component-keyed entry, ...).
+- **Four required discoveries** (each silently broke fidelity before being
+  found): (1) plain `BinaryBuilder`/`loadComponentFromBytes` drops *every*
+  metadata subsection — `BinaryBuilderWithMetadata` is required; (2) all
+  twelve VM repositories must be registered on the component before reading;
+  (3) `disableLazyReading: true` is required for metadata to materialize for
+  writing; (4) kernel's `expectedSdkHash` is a compile-time `-Dsdk_hash`
+  constant — a from-source compile writes `0000000000`, and the original
+  dill's hash (the release tag's short commit hash) must be carried through.
+- **Open (G1b).** gen_snapshot still refuses the re-serialized dill
+  ("Missing table selector metadata", `dispatch_table_generator.cc`) despite
+  content fidelity and a matching SDK hash. Conclusion: post-TFA dill
+  rewriting is not the supported seam; the transform point is *inside* the
+  compiler pipeline (`runCompiler` in `pkg/vm/kernel_front_end.dart`, before
+  TFA lowers and writes metadata) — exactly where ADR-0032 places oka's
+  transforms. This also explains why no tool in the ecosystem round-trips
+  AOT dills.
+
+## Pipeline seam gate — G1b + G2 (2026-10-02)
+
+Harness: `packages/oka_dart_kernel/tool/gate_pipeline.dart` +
+`tool/gate_g1b_g2.sh` (macOS) + `tool/gate_g2_linux.sh` (docker linux-x64).
+The pipeline mirrors `runCompiler`'s flow using public seams of the pinned
+checkout: `kernelForProgram` (CFE) → **transform hook** →
+`runGlobalTransformations` (mixin dedup, constant evaluation, TFA, call-site
+annotator, obfuscation prohibitions, deferred_loading) → `BinaryPrinter`
+serialize. The transform hook is where oka's kernel transforms live.
+
+- **G1b — no-op hook: PASS.** gen_snapshot accepts the pipeline's output
+  (macho + ELF) and the app runs. Metadata profile identical to gen_kernel's
+  (direct-call 15,514; inferred-type 18,898; table-selector 1; ...). Toolchain
+  knowledge gained: `getTarget('vm')` requires `installAdditionalTargets()`;
+  setting `sdkRoot` alongside `sdkSummary` makes the CFE recompile the SDK
+  from source (use `sdkSummary` alone); the packages config should be passed
+  explicitly; `-Dsdk_hash` must match the release hash.
+- **G2 — kernel deferred-ization: PASS.** The hook operates purely at the
+  kernel level on a *flat* app (plain import, direct calls, zero annotations):
+  flips `LibraryDependency.DeferredFlag` (the deferred marker — a mutable
+  `flags` bit on the dependency node, `1 << 1`) on the dependency targeting
+  the unit library, and inserts `await LoadLibrary(dep)` at the start of
+  `main`'s body. Result: gen_snapshot **partitions the ELF into 2 loading
+  units** (flat baseline: 1) with the unit in its own `.part.so`, and the
+  partitioned app executes correctly on Linux — `LoadLibrary` loads the unit
+  at runtime, entry points resolve, and the sdk#64162 stress (Function.apply,
+  generic tear-offs) passes.
+- Deferred-ness representation confirmed: the marker is the dependency flag
+  (`DeferredFlag`), plus `LoadLibrary`/`CheckLibraryIsLoaded` expression nodes
+  at use sites; kernel's AST layer carries it on `LibraryDependency` only
+  (`src/ast/libraries.dart`), which is why source-level greps missed it.
+- **Scope note:** loading-unit splitting is ELF-only (Mach-O refuses the
+  manifest path outright); macOS runs prove acceptance + execution with units
+  merged. The seam is exactly what ADR-0032's architecture predicted: oka
+  composes *inside* the kernel pipeline, before backends run.
+
+## G2.5 / G3 / G4 (2026-10-02)
+
+- **G2.5 — multi-unit partitioning: PASS.** Two declared units (tiny, greet)
+  through the generalized hook (`--unit=<path-suffix>`, repeatable, ordered)
+  produce **3 loading units**: root + `g25.so-2.part.so`
+  (`units/tiny.dart` alone) + `g25.so-3.part.so` (`units/greet.dart` alone)
+  — per-unit isolation verified from the manifest unit map; the app runs
+  with both units' outputs and the stress checks. Load-order policy:
+  all-units-at-boot in declaration order.
+- **G3 — live lane: PASS** (mechanism corrected later same day, see
+  §Per-unit reload). `tool/g3_live_reload.dart` orchestrates: frontend
+  server `compile` → run app from source with `--enable-vm-service` → edit
+  unit source → `recompile` → **delta dill (77,192 bytes)** → VM-service
+  reload → `ReloadReport success:true` (`loadedLibraryCount: 2`) → the live
+  process prints the patched label (`tiny-v3-live`) with no restart. At the
+  time the reload was driven via `reloadSources(kernelBytes:)` — a
+  parameter the public method does not have; the pass came from the VM's
+  own source recompilation, not the sent delta. The gate has since been
+  re-run through the real path (`--delta` + `_reloadKernel`, 984-byte
+  payload). Lane facts: incremental is refused under `--aot`; frontend full
+  dills are unlinked and cannot run standalone (the VM runner recompiles
+  from source); `getVM` may return `isolates` instead of `isolateIds`.
+- **G4 — web lane: PASS.** `tool/gate_g4_web.sh` (subject: the spike web
+  app): rev-a build → manifest (SHA256SUMS) + pointer → serve; rev-b (one
+  unit body changed) → repoint + swap with unchanged files keeping rev-a
+  mtimes. Conditional re-fetch transfers **only changed artifacts** (alpha
+  chunk 200, unchanged beta chunk 304, core 200), served bytes hash-match
+  the rev-b manifest, and the served chunk carries the rev-b marker — the
+  ADR-0031 pointer/manifest/verify contract, automated end to end.
+- Harness maintenance captured in `skills/oka-kernel`
+  (`references/toolchain.md`, `references/gates.md`,
+  `references/troubleshooting.md`); gate runner: `tool/gate.sh all`.
+
+## Generated declarative path (2026-10-02)
+
+The hand-written spike was re-derived through a generated path (in the spike
+workspace): units declared once in Dart (`UnitsSpec` value), and a plain-Dart
+generator emitting per-unit deferred barrels, the core-side registry, and a
+source-level revision manifest (per-library sha256 + contract fingerprint over
+sorted public declaration lines — a regex prototype; production requires the
+analyzer).
+
+- **Patch plan (eligibility):** body-only unit edit →
+  `{patchable: true, changedUnits: [alpha]}`; a unit's public signature change
+  → `{patchable: false, alternative: "full release via store lane"}` with the
+  offending unit named. Limitation found and documented: expression-bodied
+  (`=>`) declarations are invisible to the regex fingerprint — the analyzer
+  is mandatory for production.
+- **Generated app verified in browser:** rebuilt with the generated registry,
+  units load lazily and report the new revision (`alpha-v3 (4)`).
+- **Mixed-revision hazard (new finding).** dart2js part filenames are stable
+  across revisions while their content changes. With HTTP heuristic caching,
+  a plain reload ran the **old cached core** against **newly fetched unit
+  chunks** → `DeferredLoadException` ("part not loaded"), observed via the
+  server log (the core was never re-requested; one unchanged unit that
+  matched the old core kept working). Consequence for the design: the channel
+  pointer pins the core artifact too; whenever the pinned revision changes,
+  clients must hard-revalidate or content-address the core (update-policy /
+  service-worker layer). E4 passed only because its header timing forced a
+  core revalidation — correctness must not depend on that.
+
+## Real-app gates on last_answer (2026-10-02)
+
+The transform was pointed at a real app — `~/xs/storage_problem/last_answer`
+(Flutter workspace, 10 packages). Gates live in
+`packages/oka_dart_kernel/tool/gate_g25_real_app.sh` (Linux container),
+`gate_g25_real_flutter.sh` (host, engine gen_snapshot), and
+`gate_g3_real_app.sh` (live reload); the partitioner core is
+`lib/src/unit_graph.dart` (kernel-free, 6 unit tests) with the kernel
+adapter in `tool/deferredize.dart`.
+
+**G2.5-real (Linux container, PASS).** Units = two real `headless_core`
+modules with a genuine dependency chain (`doc_replica.dart` →
+`doc_replica_store.dart`), entry = a workspace driver over the app's real
+package_config. Result: 3 loading units — root, doc_replica (unit 2),
+doc_replica_store (unit 3), A before B; `universal_storage_convergence` and
+`document_node` stayed in root (the VM assigns loading units by dominator, so
+libraries with importers in two units — or exported by the barrel — are
+root's). The AOT app runs and prints labels computed from the real modules.
+
+**G2.5-real-B (host, PASS).** The real Flutter entry `lib/main.dart` (4087
+libraries: whole Flutter framework + dart:ui + app) compiled through the
+checkout kernel stack against the **Flutter patched SDK** (`--target=flutter`,
+flutter dart 3.13.4) and fed to the engine's `gen_snapshot`
+(android-arm64, darwin host build) → 4-unit manifest: root,
+`idea/create_idea_screen`, `idea/idea_view`, note feature (6 reachable libs,
+coherent, none in root). Manifest-only gate; device execution happens through
+oka's build harness. Semantics learned: a feature with one outside seam stays
+a single unit; a feature with several outside seams (idea screens are
+imported from home, project_view, and settings) fragments into one unit per
+seam, with seam-shared blocs in root. Requires a 3.13.4 checkout (`-Dsdk_hash`
+must match the engine's gen_snapshot) — the transform works unchanged.
+
+**G3-real (PASS; mechanism corrected later same day, see §Per-unit
+reload).** The live lane patched the real app: initial compile through
+flutter's 3.13.4 frontend_server (`--target=flutter`, patched SDK), app
+running, a real module edited (`doc_replica_store.dart` ctor default
+`doc_replicas` → `doc_replicas_live`), `recompile` → delta dill → reload →
+the running driver printed the patched value on its next tick with no
+restart (`ReloadReport success:true, finalLibraryCount:131,
+loadedLibraryCount:9`). The reload at the time went through
+`reloadSources(kernelBytes)` — a parameter that method does not have — so
+the pass came from the VM's own source recompilation over the patched file;
+the gate has since been re-run through the real `--delta` + `_reloadKernel`
+path (22KB payload, `loadedLibraryCount:1`).
+
+**Findings (each cost a gate iteration; recorded for the toolchain skill):**
+
+- **AOT part loads are lazy.** Flags-only partitioning (no `await
+  LoadLibrary` guards) crashes at the first cross-unit call (bus error, pc=0x1
+  — jump into an unmapped part). Guards are required; the synthetic deferred
+  entry imports are also required (deferred export flags alone don't drive
+  the C++ backend).
+- **Sync mains cannot take guards.** `await` inside a sync `main` compiles
+  but aborts the AOT loader at teardown; a post-CFE `asyncMarker` flip
+  produces an unlowered async body and crashes the same way (async lowering
+  is CFE-side). The transform refuses sync mains with a clear error —
+  `Future<void> main() async` (the standard Dart deferred shape) is the
+  contract.
+- **Mid-pipeline synthetic libraries re-open the seams.** `dart:
+  mixin_deduplication` (created inside `runGlobalTransformations`) adds fresh
+  non-deferred edges into unit members, dragging them back to root. Fix:
+  oka runs the transformation sequence itself
+  (`runGlobalTransformationsWithUnits`) and re-flags cross-boundary edges
+  right before `deferred_loading` — the ADR-0032 composition thesis in
+  practice.
+- **Circular imports (screens ↔ router) defeat "entering edge from outside
+  the closure" seeding** — the partitioner now defers every seed-entering
+  edge except seed→seed, anchored by the synthetic entry imports.
+- **SDK split for the JIT lane.** The 3.13.2 frontend_server crashes in
+  `ForInLowering` on this app (RangeError in `Substitution.fromInterfaceType`);
+  flutter 3.13.4's frontend_server works. The 3.13.4 VM service drops
+  params-bearing JSON-RPC requests (`reloadSources` with only `isolateId`
+  still reports `params:{}`), so the app ran under the stock 3.13.2 VM.
+  Kernel format is compatible across 3.13.x.
+- **G3-B (flutter run + DDS) — infrastructure proven, one blocker open.**
+  `flutter run -d macos` + DDS transport works (`getVM`, `getIsolate`,
+  `evaluate` on the real library returned `'b'` in the live app); our fs
+  produced the delta; the 130 MB payload went through DDS and reached the
+  VM, but the kernel isolate died on it ("Error while starting Kernel
+  isolate task"). Root cause: the stock frontend_server's recompile from the
+  entry re-serializes the whole component (delta = 130 MB ≈ full dill).
+  Follow-up: reload per patch unit (small roots) or per-file invalidation —
+  both fit the unit model (the patch unit is the reload root).
+
+## Per-unit reload under `flutter run` — G3-real-B (2026-10-02)
+
+The G3-B follow-up above is closed. Diagnosis overturned two assumptions;
+the working lane is smaller and simpler than planned.
+
+**Negative result 1 — the frontend_server cannot scope deltas.** With the
+incremental session re-rooted at the patch unit's own library
+(`recompile file://…/fractional_order.dart <boundary>` instead of the app
+entry), the CFE still re-serializes every transitive dependent of the
+patch: **135,382,896 bytes**, byte-near the full component. Dependents
+invalidation ignores the recompile root, so a small delta must be compiled
+*outside* the incremental session.
+
+**Negative result 2 — `reloadSources` never consumed our kernel bytes.**
+Reading `runtime/vm/service.cc`: the public `reloadSources` params are
+`force`, `pause`, `rootLibUri`, `packagesUri` — there is no kernel-bytes
+parameter, and unknown params are dropped silently. Without a root-lib
+binary it falls back to recompiling from source via the kernel isolate
+(`KernelIsolate::CompileToKernel`). The flutter embedder never starts the
+kernel isolate (`start_kernel_isolate` unset → `KernelIsolate::Start()`
+returns false), which is the *only* reason for "Error while starting Kernel
+isolate task" — the 130 MB payload size was never the blocker. Corollary
+(now fixed): the earlier toy/leg-A G3 passes had re-loaded through the same
+source-recompile path — the stock `dart` VM *does* run a kernel isolate
+over the patched files on disk — never through the sent delta; the gate
+was a placebo for the delta itself.
+
+**Negative result 3 — the frontend_server's incremental output is not a
+valid reload payload.** Feeding the fs `recompile` dill (1.4 MB,
+oka_kernel_driver incremental) to `_reloadKernel` crashes the VM at
+`RELEASE_ASSERT(delta_program != nullptr)` (`isolate_reload.cc`):
+`kernel::Program::ReadFromTypedData` refuses the incremental-serializer
+output. Reproduced in isolation on a 3.13.2 VM with a 3.13.4-fs dill. A
+plain `writeComponentFile` of a pruned component — what `gate_pipeline.dart
+--delta` emits — parses fine on both 3.13.2 and 3.13.4 VMs. The delta-lane
+payload must come from oka's own serializer, not from the incremental
+session. (Also measured: right after `--enable-vm-service` the main
+isolate is not yet runnable, so `_reloadKernel`'s isolateId validation
+fails until the app actually started — the tool retries.)
+
+**The working per-unit lane (PASS).**
+
+1. oka's own pipeline compiles the patch unit's library as the reload root:
+   `kernelForModule([unitLib])` (no `main` requirement — `kernelForProgram`
+   returns null for library entries), dart:\* kept as external summary
+   libraries, component pruned to the unit's own file (everything else
+   becomes canonical-name references the VM resolves against the loaded
+   program). Delta for `package:headless_core/src/fractional_order.dart`:
+   **11,096 bytes** (from 135 MB — ~12,000× smaller). `gate_pipeline.dart
+   --delta`, no global transforms (JIT delta).
+2. The delta file is applied with the private VM-service RPC **`_reloadKernel
+   {isolateId, kernelFilePath}`** through the DDS websocket — the VM reads
+   the file with its own file callbacks and loads it as the reload delta.
+   `ReloadReport success:true, finalLibraryCount:4180,
+   receivedLibraryCount:2, loadedLibraryCount:1`.
+3. Live `evaluate` in the real library scope returns the patched value
+   (`fractionalBetween('a', null)` → `'c'`), no restart.
+
+**The same lane re-proven on the other legs (2026-10-02, same day).** After
+the conversion, both remaining G3 gates run the identical per-unit lane:
+the toy app live-patches through a **984-byte** delta
+(`tiny-v1 → tiny-v3-live`, `loadedLibraryCount:1`), and the real
+last_answer driver live-patches `DocReplicaStore`'s `dir` through the
+same `--delta` + `_reloadKernel` path under the stock 3.13.2 VM — in both
+cases the gate now proves the delta bytes were consumed, not a
+source-recompile placebo.
+
+Applicable where the delta file is local to the app process (desktop /
+dev lanes). For remote devices the equivalent entry is
+`reloadSources {rootLibUri}` with the blob served through the embedder's
+library tag handler (DevFS) — same `DeltaProgram` kernel path in
+`isolate_reload.cc`, untested here.
+
+## Native AOT across platforms (2026-10-02)
+
+Gate: `tool/gate_aot_platforms.sh` (matrix: compile → split → run, per
+platform, with a dill built from the checkout matching each consumer's SDK
+version — the cross gen_snapshots verify the dill's sdk hash).
+
+**Overturned: "loading-unit splitting is ELF-only (linux-only)".** The
+3.13-era kind is `app-aot-macho-dylib` (and `app-aot-pecoff-obj` for
+Windows PE); `app-aot-elf` works on **every host we can run**. The mac
+host `gen_snapshot` (`<dart-sdk>/bin/utils/gen_snapshot`, also flutter's
+cross binaries) accepts `app-aot-elf --loading_unit_manifest` and emits
+`base.so` + `base.so-N.part.so` files. The Mach-O refusal is real and now
+recorded verbatim: `error: deferred loading not implemented for Mach-O`.
+
+**Why the part files load on macOS (and anywhere):** the standalone
+embedder installs `Loader::DeferredLoadHandler`
+(`runtime/bin/main_impl.cc`); on `await LoadLibrary` it reads
+`<script-url>-<unit-id>.part.so` next to the base snapshot and
+`Snapshot::TryReadAppSnapshot` falls back to the VM's **own** ELF loader
+(`Dart_LoadELF`, relocation in-process) when the host dynamic linker can't
+take the file. No host dlopen of ELF is involved on the mac path. Any
+embedder can intercept the same hook (`Dart_SetDeferredLoadHandler`) —
+that is exactly Flutter's Android deferred-components seam.
+
+**Measured matrix (3.13.x, mac host, one deferredized toy dill per SDK
+version):**
+
+| Platform | Split (compiler) | Run (runtime) | How |
+|---|---|---|---|
+| linux arm64 | PASS | PASS | docker `dart:3.13.2` (native container) |
+| linux amd64 | PASS | PASS | docker `--platform linux/amd64` (qemu) |
+| macOS arm64 | PASS | **PASS (new)** | host `gen_snapshot` + `dartaotruntime`, ELF kind |
+| android arm64 | PASS | **PASS (new)** | flutter cross `gen_snapshot` parts + stock `dartaotruntime_product` built from the pinned checkout, on the arm64 emulator (gate leg 7) |
+| ios arm64 | PASS | via embedder hook | flutter cross `gen_snapshot` emits base + 2 parts |
+| macOS/ios Mach-O | refused | — | `deferred loading not implemented for Mach-O` |
+| windows | pending | — | no windows-host `gen_snapshot` here; `app-aot-pecoff-obj` kind exists — one CI run settles it |
+
+(A cross-version note: the flutter cross gen_snapshots are 3.13.4 and
+refuse a 3.13.2-built dill with a bare `ApiError` — the dill must be built
+from the matching checkout with the matching `-Dsdk_hash`.)
+
+**Android runtime leg (2026-10-02: PASS).** The stock `dart_precompiled_runtime`
+for android is not shipped anywhere, but the SDK checkout's own build system
+supports it (`tools/build.py --os=android --arch=arm64`, stock sources — the
+vendored-checkout policy, no fork). Recipe that worked: gclient-sync a fresh
+clone of the 3.13.4 tag (`.gclient` solution named `sdk`, checkout at
+`<root>/sdk` — entry materialization lands under the solution dir, so the
+canonical name is load-bearing); symlink the existing NDK to
+`third_party/android_tools/ndk` (no `download_android_deps` needed); gn-gen
+with `dart_use_compressed_pointers=true` — **must match the snapshot** (a
+mismatch is rejected at load with the full config printed:
+`Snapshot not compatible with the current VM configuration ... compressed-pointers`);
+ninja target `dartaotruntime_product` (~143s after sync). Then push the
+runtime + `app.so` + `app.so-N.part.so` to the device and run —
+`Loader::DeferredLoadHandler` reads the part files next to the snapshot
+path. On the `oka-emulator` (arm64-v8a): **`GATE APP OK`, exit 0** — root
+plus 2 units, unit code executed through direct calls, tearoffs, and apply
+paths. The `flutter/android/sdk/all` cipd download is unnecessary; the NDK
+symlink suffices.
+
+
+## Live patching across platforms — one session API (2026-10-02)
+
+The per-unit reload lanes above were driven by ad-hoc gate drivers. This pass
+lifted them into a composable, declarative surface — `oka_update`'s **live
+session API** — and proved the same declarative run on every platform this
+machine can execute, with `last_answer` as the subject throughout.
+
+### API shape (`packages/oka_update/lib/src/live/`)
+
+- `LivePatchSpec` (JSON or in-code): revision, unit, `patches` (find/replace
+  source edits), `targets`, `probes`. Nothing about a target is discovered
+  implicitly; the spec names every wire.
+- `LivePatchTarget`: `vm` (stock VM / DDS / flutter devices — DevFS push when
+  `http`+`devfs` are set), `web` (dwds debug service, optional CDP page
+  probes), `staged` (AOT/restart lane; artifacts staged next to the base
+  snapshot, applied by the runtime's deferred loader at next launch — never
+  implied live).
+- `LivePatchSession`: plan (optional ADR-0031 manifest eligibility) → patch
+  files → compile (injected `UnitDeltaCompiler`; oka's `gate_pipeline
+  --delta` is the reference impl, spawned by `tool/live_e2e.dart`) → apply
+  per target → verify probes → receipt. Every step streams a
+  `LivePatchEvent`; `receipt.describe()` is the human view. A target that
+  cannot connect is a per-target refusal, not a run crash.
+- Probes: `expect` (value must contain the string after apply) and `hold`
+  (value must be IDENTICAL before/after — the no-restart evidence).
+
+### Platform matrix (gate: `packages/oka_dart_kernel/tool/gate_live_e2e.sh`)
+
+| Target | Program | Unit | Apply wire | Result |
+|---|---|---|---|---|
+| macOS VM (stock dart 3.13.2) | last_answer headless driver | `doc_replica_store` | `_reloadKernel(host path)` | PASS — 22,288 B delta, apply 19 ms, `storeLabel()` `doc_replicas`→`doc_replicas_live`, hold held |
+| Linux (docker `dart:3.13.2`, amd64) | same driver, same-path mounts | `doc_replica_store` | `_reloadKernel(host path)` | PASS — same delta, 1.3 s, hold held |
+| Android emulator (arm64, flutter 3.47 debug) | last_answer (real app) | `fractional_order` | DevFS push + `_reloadKernel(device path)` | PASS — 11,096 B delta, 1.9 s, `fractionalBetween('a', null)` b→c, hold held |
+| Web Chrome (DDK via flutter web-server) | last_answer (real app) | `fractional_order` | dwds `reloadSources` (oka-driven; recompile triggered by SIGUSR1 to `flutter run`) | PASS — b→c live in the page, `performance.timeOrigin` held (no page reload), isolate persisted |
+| macOS desktop flutter (prior gate, same session API shape) | last_answer (real app) | `fractional_order` | `_reloadKernel` via DDS | PASS — G3-real-B (above) |
+
+### Wire facts this pass pinned (all measured, flutter 3.47.5 / dart 3.13.x / dwds 27.x)
+
+- DevFS moved into the 3.13 runtime-service layer and the RPC was renamed
+  `createDevFS` → **`_createDevFS`** (`_deleteDevFS`, `_listDevFS`, …
+  siblings in `pkg/dart_runtime_service`); the device-side base URI points
+  into the app's `code_cache`. Recreation after a failed run needs the
+  delete-then-create dance (error 1001, "File system already exists").
+- **DDS quirk**: a fresh external client's first DevFS RPC can answer
+  `Unknown method (-32601)` even though the VM supports it — always make one
+  plain proxied call (`getVM`) before DevFS RPCs.
+- On flutter devices the delta reaches the VM by HTTP-PUTting (gzip) to the
+  VM-service HTTP endpoint with `dev_fs_name`/`dev_fs_uri_b64` headers (the
+  flutter_tools DevFS protocol), then `_reloadKernel(kernelFilePath:
+  <device path>)` applies it — the public `reloadSources(rootLibUri:)`
+  fallback (flutter's own hot-reload shape) was not needed.
+- The flutter daemon has NO hot-reload method; `flutter run` interactive
+  stdin is drivable, and `--pid-file` + **SIGUSR1** is the declarative
+  recompile trigger (SIGUSR2 = hot restart).
+- dwds (DDK / `WebSocketProxyService` mode) implements the VM-service
+  protocol, but its `evaluate` is currently broken for our call shapes
+  (dispatcher signature mismatch, and targetId-less calls fail with a null
+  subtype error). The web leg therefore probes through the **browser wire
+  (CDP `Runtime.evaluate`)** using the DDK embedder's synchronous library
+  handles: `dartDevEmbedder.importLibrary('package:…')` exposes top-levels
+  directly. `dartDevEmbedder.hotReload(files, libraries)` remains the
+  underlying browser primitive dwds drives.
+- Web no-restart proof: DDK reloads re-create function identities (even for
+  unpatched libraries), so identity-hash hold probes are invalid on web;
+  `performance.timeOrigin` (page boot time) is the honest hold — unchanged
+  across hot reload, changed by any page reload/restart. The isolate id
+  persisting across the apply is recorded as a wire fact.
+- After `reloadSources` returns on web, the reload may still be settling —
+  the target supports declarative `settleMs` before verification.
+- A stale baseline (page still running a previously patched module) makes
+  value probes vacuous; the gate asserts the pre-patch baseline explicitly
+  (`b`) after a controlled page reload before patching.
+
+## Kernel/live benchmarks + the AOT pipeline exe (2026-10-03)
+
+`just bench-kernel` (`tool/benchmarks/kernel_benchmarks.sh` ->
+`packages/oka_dart_kernel/tool/bench_live.dart`, schema
+`oka/kernel-benchmarks/v1`) measures the composition loop on a hermetic
+three-file app — no Flutter, no network. Measured run (macOS arm64, dart
+3.13.2, oka @ 6b6337e):
+
+| step | seconds | note |
+|---|---|---|
+| packages_config | 0.57 | merged checkout kernel-stack config (depshim pub get) |
+| pipeline_full_jit | 5.26 | whole-program kernel compile via `dart tool/gate_pipeline.dart` |
+| pipeline_full_aot | 1.13 | same compile through the AOT pipeline exe — **byte-identical dill** (asserted in the bench) |
+| pipeline_delta_jit | 3.75 | per-unit delta via dart |
+| pipeline_delta_aot | 0.04 | per-unit delta via the exe — **~94x** |
+| live_apply_vm | 0.57 | FULL composition loop: connect + baseline + patch + AOT delta + `_reloadKernel` + probes on a real VM |
+| patch_plan_x1000 | 0.012 | 1000 `planRevisions` eligibility runs (12 us each) |
+
+The exe is `dart compile exe tool/gate_pipeline.dart -Dsdk_hash=<checkout>`
+(`tool/build_pipeline_exe.sh`); `-D` defines are baked at compile time
+because the checkout's kernel stack reads them as const-from-environment.
+`live_e2e.dart` prefers it via `LIVE_PIPELINE_EXE` (JIT dart fallback); the
+live-e2e gate builds it once per run and the mac/linux legs use it.
+
+### URI coherence — why a "successful" reload can change nothing
+
+Preparing the showcase surfaced a semantic the gates had never contradicted:
+`_reloadKernel` matches delta libraries to loaded libraries by canonical
+URI. The bench's hermetic app passed its delta compile WITHOUT an app
+package config (file: importUri) and ran the app the same way — coherent.
+A showcase variant compiled the delta WITH an app package config
+(package: importUri) but ran the app without one (file:-loaded libraries):
+`ReloadReport success:true, loadedLibraryCount:1` — a stray copy was added,
+the live value never moved. Rules now encoded in the showcase and
+troubleshooting: run the app under the SAME package config the delta was
+compiled with (`--packages=...`; `DART_PACKAGES_CONFIG` is an oka pipeline
+variable, not a VM flag), and patch function bodies — a `const` field's
+canonical value survives a reload even when the function code swaps.
+
+## Seamless loop + server lanes, empirically (2026-10-03)
+
+Following ADR-0035, the invisible loop and both server lanes were proven:
+
+- **`applyChange` + `LiveWatcher`** (`oka_update/lib/src/live/watcher.dart`):
+  the editor-save flow — the user edits the unit file, the watcher
+  debounces, compiles the touched library as the unit delta, applies to
+  every connected target, verifies probes. Saves during an in-flight apply
+  coalesce (the program is patched to its latest state, never stale);
+  success is silent; the receipt stream is available to compositions.
+  Covered by an oka_update test (real file watch -> apply -> receipt).
+- **S1 server live patch** (`example/server_showcase/run.sh`): a dart:io
+  HTTP server, VM service on. One client connection opened on `/stream`
+  before the patch kept flowing through it — `stream: hello-v1` then
+  `stream[1]: hello-v2-live` on the SAME socket; same pid before/after;
+  `/health` ok during the window; 640 B delta applied in 18–22 ms via the
+  same composition root shape as the app showcase.
+  dart:io gotchas encoded there: chunked streaming needs
+  `response.bufferOutput = false` (flush() alone does not push bytes), and
+  `socket.write -> flush -> close` must await the flush or close throws.
+- **S3 snapshot handoff** (`example/server_showcase/handoff_demo.sh`):
+  SO_REUSEPORT listener swap with a live probe loop — linux (dart
+  container): **60/60 connections ok, 0 refused**, new snapshot serving
+  across the swap; macOS: dart's `shared:` maps to SO_REUSEADDR, so the
+  second listener cannot bind while the first lives — the demo detects it
+  and exits with the platform note (macOS S3 needs fd passing).
+
+The unified experience claim: the app showcase (`live_showcase`) and the
+server showcase are the SAME Dart composition shape (`LivePatchSpec` ->
+`runLivePatch` -> receipt); only the target differs.
+
+## Endless loop on last_answer + AOT revision slots (2026-10-03)
+
+- **Endless dev loop, real engine** (`oka_dart_kernel/tool/gate_endless_loop.sh`):
+  `last_answer`'s headless_core driver (`tool/oka_endless_driver.dart`)
+  boots with document state (DocReplicaStore + one document + 2 ops), then
+  patch continue (fractionalBetween b->c via a function-body patch; store
+  ctor default doc_replicas -> _live), patch RESET (both back) — four live
+  applies (9-22 ms each, 1-22 KB deltas), the boot-state probe
+  (`ops=2 replicaOpen=true`) held after every step, zero restarts.
+  Semantics confirmed the hard way: const FIELD values survive a reload —
+  patch function bodies (fresh locals) or constructor defaults; and the
+  delta must be compiled under the package config the target loads
+  (dart discovers `tool/` configs upward, so even unflagged drivers are
+  package-loaded).
+- **AOT revision slots** (`oka_dart_kernel/tool/gate_aot_slots.sh`): oka
+  pipeline dill -> gen_snapshot `app-aot-elf` + loading-unit manifest
+  (3 loading units: base + feature_r1 + feature_r2) -> `dartaotruntime`
+  boots `aot: aot-v1 pid=6914` -> update signal -> slot r2 loaded
+  IN-PROCESS: `aot: aot-v2-live pid=6914`. Fully AOT, no VM service, no
+  restart. This is S2's physical proof: bounded revision slots per
+  process; unbounded streams ride the S3 handoff (linux, 0 refused).
+
+## Product families: oka itself, mcp_flutter's fmtk, vosges (2026-10-03)
+
+`oka_dart_kernel/tool/gate_live_products.sh` — three real external
+products, one composition API (`LivePatchSpec` -> `runLivePatch` ->
+receipt). All legs PASS.
+
+- **Leg 1 — the oka CLI (plain Dart CLI, patched mid-run).**
+  `live_products_oka_cli.dart`: the delta is pre-staged (markers on,
+  compile with the AOT pipeline exe, restore, keep the dill) and injected
+  as the session's compile fn; `oka doctor` is spawned under the VM
+  service and patched ~2.5s in. Probe flips in the live process
+  (`_yamlToJson` helper), pid holds, CLI exits 0. Findings:
+  - oka's build is **self-referential**: the example's step digests
+    include oka's own sources, so patching the CLI mid-build invalidates
+    oka's own caches and re-enters artifact staging (aapt2 then failed on
+    lost icon res). `compile-and-dex`'s digest also proved unstable
+    across unmodified runs. Both recorded as oka follow-ups; the leg
+    therefore hosts on a non-build command.
+  - `_reloadKernel` while the isolate is paused-before-main no-ops;
+    `resume` before the pause event fails 105; the ws upgrade can hang in
+    the service's startup window (findLibrary now bounds each RPC and
+    retries); piped child stdout is block-buffered (drain before
+    asserting).
+- **Leg 2 — mcp_flutter's fmtk MCP server (stdio, patched mid-session).**
+  `live_products_mcp_stdio.dart`: one MCP session (initialize ->
+  tools/call), then two revisions over that session. Rev 1 flips the
+  per-call discovery diagnostics (`strategyUsed` -> `machine_only_live_patched`)
+  — the next `tools/call` on the SAME stdio connection returns it, no
+  re-handshake. Rev 2 flips the bin library's `_nonEmptyOption` (probe
+  `oka -> oka+live`). pid held throughout; 47 ms / 20 ms applies.
+  A kernel delta carries the entry library's recompiled set only — two
+  seams need two revisions.
+- **Leg 3 — vosges Flutter desktop app (macOS, patched mid-boot).**
+  `live_products_flutter_app.dart`: spawns `flutter run -d macos`,
+  catches the VM service URL, patches `palmPlaneSign` (empty-list branch
+  0 -> 3) with the app still booting: delta 145 KB from **the app's own
+  frontend** (`frontend_server_aot.dart.snapshot` + flutter_patched_sdk,
+  `--target=flutter --incremental`), DevFS push, `reloadSources
+  {pause:false, rootLibUri}` — applied 94 ms, probe flipped, hold green.
+  The negative results matter as much:
+  - A delta from a foreign frontend (source-built SDK checkout) fails
+    `ReadFromTypedData` in the app's VM; the reload then falls into the
+    kernel-isolate lane, which desktop engines don't start
+    (`start_kernel_isolate` unset) -> "Error while starting Kernel
+    isolate task"; and `_reloadKernel` on such a delta hits
+    `RELEASE_ASSERT(delta_program != nullptr)` and kills the app.
+  - The DevFS push is identical to devices (HTTP PUT + gzip);
+    `_createDevFS` on desktop returns a real local directory.
+  - Flutter's own hot reload on the same app reloaded 1 of 2422
+    libraries in 782 ms via the same RPC shape.
+
+Product-family map (lane per family, one composition): Dart CLI =
+pre-staged delta + `_reloadKernel`; MCP stdio server = two revisions over
+one session; Flutter desktop = app-frontend delta + DevFS +
+`reloadSources`; plain VM = `_reloadKernel`; Android device = DevFS +
+`_reloadKernel`; web = dwds + CDP; AOT = revision slots / handoff.

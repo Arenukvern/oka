@@ -1,0 +1,17 @@
+# Dart
+.dart_tool/
+pubspec.lock
+
+# Gate/bench build dirs and artifacts (evidence is recorded in docs/evidence)
+.gate*/
+.build/
+.steward/
+tool/recorded/*.dill
+example/kernel_app/.dart_tool/
+example/live_showcase/.build/
+pipeline
+pipeline.exe
+*.exe
+
+# Kernel-app gate artifacts
+example/kernel_app/tool/*.dill
