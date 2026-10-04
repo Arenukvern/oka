@@ -38,6 +38,10 @@ dependencies:
   oka_android: ^0.6.0 # x-release-please-version
   oka_huawei: ^0.6.0 # x-release-please-version
   oka_play: ^0.6.0 # x-release-please-version
+  # Unpublished stack (ADR-0037): the air-channel surface ships from a
+  # path dep until the packages publish.
+  oka_update:
+    path: ../packages/oka_update
 
 dependency_overrides:
   # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at

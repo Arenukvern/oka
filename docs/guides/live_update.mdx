@@ -10,6 +10,19 @@ Stack: `oka_dart_kernel` (unit graph, delta compiler, pipeline exe) +
 Design: ADR-0031/0032/0034/0035; evidence:
 `docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`.
 
+## Status at a glance
+
+| Capability | State | Proof |
+|---|---|---|
+| Live patch a running VM/desktop/web/flutter app (JIT) | **works** | `gate_live_e2e.sh`, `gate_live_products.sh`, `gate_run_dev.sh` |
+| Dev session r/R: `oka run dev --platform macos\|web` | **works** | `gate_run_dev.sh` (real last_answer desktop + web apps) |
+| Asset changes in the dev session | refuses with `R` (DevFS asset sync open) | ADR-0037 §6 |
+| Ship a patch invisibly: `oka ship` (derive, sign, deltas, channel) | **works** | `gate_air_channel.sh` (signed, bare-origin) |
+| Clients resolve + stage updates over file/HTTP/git; chains vs snapshots; boot watchdog | **works** | `gate_air_web.sh` + 59 `oka_update` tests |
+| Whole-revision snapshots derived from the build | **works** (explicit flag / policy trigger; `oka build` integration open) | `.gate_snap` proof + unit tests |
+| Android dev session in `oka run dev` | **not yet** — use `oka dev` (daemon) | ADR-0011 |
+| Per-unit AOT over-the-air (`slotSwap` OTA) | **research line** — needs sdk#64162, embedder seam, follow-up ADR | ADR-0037 G-AC9 |
+
 ## First steps (30 seconds)
 
 ```bash
@@ -26,6 +39,33 @@ if (!receipt.ok) print(receipt.describe());
 
 ## Developer paths (JIT — live, state preserved)
 
+### The converged session: `oka run dev`
+
+One command boots the app and owns the loop (ADR-0037 §6 — r is oka's
+unit-delta lane; R is the platform restart):
+
+```bash
+oka run dev --platform macos --project ~/xs/storage_problem/last_answer
+oka run dev --platform web  --project ~/xs/storage_problem/last_answer \
+    --port 8188 --open-browser
+```
+
+| Command | Lane | What happens |
+|---|---|---|
+| `r [file]` | **oka** | the changed file's library is compiled by the app's own frontend and applied over the VM service (DevFS + `reloadSources` + reassemble on desktop; dwds on web) — receipt per reload, probes verified |
+| `R` | platform | the serving `flutter run` session hot-restarts the app |
+| `q` | — | clean quit |
+| `--watch` | oka | every saved file in the watch set applies automatically (the invisible loop) |
+| `--probes <f>` | oka | declarative probe specs verified after each reload |
+| `--json` | oka | receipts as JSON lines (agents) |
+
+macOS and web are proven on last_answer (`tool/gate_run_dev.sh`); the
+android surface stays `oka dev` (ADR-0011 daemon) until oka owns a
+device build path. AOT dev rehearsal is the `slotSwap` lane
+(`gate_aot_slots.sh`) — a different, bounded contract.
+
+### The API surface
+
 Pick the loop that matches how you work:
 
 | You are… | Use | What it does |
@@ -34,6 +74,7 @@ Pick the loop that matches how you work:
 | saving continuously | `LiveWatcher(…)` + `start()` | watches, debounces, applies on save; silent on success |
 | scripting a step | `runLivePatch(spec)` | one shot: patch → compile → apply → probes → receipt |
 | a terminal, no Dart | `oka live patch --spec spec.json` | the declared verbs as a CLI (`oka live verify\|patch\|watch`; delegates to the experimental runner, ADR-0036) |
+| a server process (watcher for its lifetime) | `tool/oka_live_watch.dart --spec spec.json --watch <dir>` | JSON-line receipts on every save — supervisor-tailable, server shape |
 | multi-revision | `runLivePatch` per revision | endless loop: continue / reset / continue (see `gate_endless_loop.sh`) |
 
 Every run ends in a receipt: per-target apply mode, probe flips, and the
@@ -101,17 +142,109 @@ packages/oka_dart_kernel/tool/gate_live_products.sh          # 3 real products (
 packages/oka_dart_kernel/tool/gate_live_e2e.sh all           # 4 platforms (mac/linux/android/web)
 packages/oka_dart_kernel/tool/gate_endless_loop.sh           # continue/reset loop, state held
 packages/oka_dart_kernel/tool/gate_aot_slots.sh              # in-process AOT slot flip
+packages/oka_dart_kernel/tool/gate_air_channel.sh            # ship -> git branch -> client -> engine (ADR-0037)
 ```
 
 Agent-facing troubleshooting (wire facts, failure signatures):
 `skills/oka-kernel/references/troubleshooting.md`.
 
+## Shipping invisibly: `oka ship` (the air channel)
+
+A patch the developer writes by hand is a bug (ADR-0037 §1). Declare
+units **once** in the composition, then the whole loop is one command —
+revision, manifests, eligibility, deltas, and the channel tree are all
+derived; the receipt is the interface:
+
+```bash
+oka ship                     # derive everything from the working tree
+oka ship --dry-run           # plan + receipt, publish nothing
+oka ship --snapshot app.so   # also attach the whole-revision AOT set
+oka ship --snapshot-from-build build/web            # archive a build output
+oka ship --max-chain-bytes 262144                   # seed publisher policy
+```
+
+Units are declared in `tool/patch_units.dart` (plain project Dart):
+
+```dart
+import 'package:oka_update/oka_update.dart';
+
+final patchUnits = UnitsSpec(revision: 'baseline', units: [
+  PatchUnit(name: 'feature', libraries: ['lib/units/feature.dart']),
+]);
+```
+
+The channel is a content-addressed tree + `pointer.json` (default
+`build/oka-channel/`) — push it to a git branch, gh-pages, or any static
+host; nothing in the wire format knows which (ADR-0037 §2). Publishing to
+a local git repo is built in (orphan branch; the repo's working tree is
+untouched):
+
+```bash
+oka ship --publish-git ~/path/to/origin-repo   # branch: oka-channel
+```
+
+Bare repos and remote URLs publish through a throwaway clone + force-push
+(the publisher owns the branch) — same command. For a signed channel:
+
+```bash
+oka ship --generate-signing-key ~/.oka/signing-key   # once; prints the trust anchor
+oka ship --signing-key ~/.oka/signing-key --publish-git <repo>
+```
+
+Embed the printed trust anchor (public key) in the app at build time;
+`UpdateClient` then refuses unsigned pointers/manifests, foreign keys, and
+tampered bytes. Staged updates ride the boot watchdog
+(`StagedUpdateJournal`): the fetched set lands in `staged/`, the app's
+startup beacon promotes it (`journal.commit()`) or discards it
+(`journal.rollback()`) — a staged update can never brick an install.
+
+Clients resolve their own update with `UpdateClient` + `planChain`:
+migration chain within the declared byte/revision thresholds, head
+snapshot above them, typed refusals at store boundaries. The snapshot is
+**derived, not hand-picked** (ADR-0037 G-AC6): the ship projects the
+chain a fresh client would apply (`chainLoad`) and, when it would overrun
+the pointer policy, derives a whole-revision snapshot — `--snapshot-from-
+build <dir|file>` archives a build output, no value compiles the whole
+kernel from the entrypoint — and attaches it to the head node. A branch
+checkout is just a file tree — `FileChannelSource` reads it. Contract-
+or core-touching diffs refuse with the store-lane alternative — that is
+the API being honest, not broken.
+
+Proven end-to-end on last_answer's real engine (units declared once,
+invisible ship while the engine ran, fetched delta applied over the VM
+service, boot state held, one pid):
+
+```bash
+packages/oka_dart_kernel/tool/gate_air_channel.sh   # engine: ship -> git branch -> VM apply
+packages/oka_dart_kernel/tool/gate_air_web.sh       # web: ship -> release build -> static host -> HTTP client
+```
+
+Design: ADR-0037. Code + tests:
+`packages/oka_update/lib/src/channel/` + `packages/oka_dart_kernel/tool/oka_ship.dart`.
+
 ## What's next
 
-`oka ship` (ADR-0035 Part 3): watch → delta → stage → sign → publish as
-one zero-flag command; targets declare their lane
-(`reload | slotSwap | restartHandoff | nextLoad`) and the receipt is the
-protocol.
+In dependency order (execution view: [PHASE_CHECKLIST](../PHASE_CHECKLIST)):
+
+1. **DevFS asset sync** in `oka run dev` — changed non-code assets
+   currently refuse with `R`; syncing them closes the last
+   flutter-parity gap (G-RUN). Smallest step, daily value.
+2. **`oka run dev --platform android`** — all pieces exist (oka builds
+   the APK, the ADR-0011 daemon owns install/launch, the device lane
+   applies deltas); wiring them into the session retires the
+   two-command android loop.
+3. **`oka build` emits the head snapshot** so `oka ship` stages it with
+   no flag — the last wording gap in G-AC6; rides ADR-0030 composition.
+4. **Analyzer-backed unit fingerprints** (ADR-0034 G4) replace the
+   prototype declaration-line fingerprints (fail-closed today).
+5. **Web in-app adoption + unit generator** (ADR-0031 gate 1): the
+   bootstrap that consumes the channel at page load, plus
+   barrels/registry codegen.
+
+Research lines — deliberately not roadmated, each needs its own ADR
+before any coding: per-unit AOT over the air (G-AC9: sdk#64162, embedder
+`Dart_SetDeferredLoadHandler`, S2 registry), macOS fd-passing handoff,
+and unbounded AOT revision streams.
 
 Agents don't need shell for the loop: `oka_update/live_agent.dart`
 declares `oka.live.patch` / `oka.live.watch` / `oka.live.verify`

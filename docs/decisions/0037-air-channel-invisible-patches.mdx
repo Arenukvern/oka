@@ -1,0 +1,292 @@
+# 0037 — Air channel: invisible patches, serverless distribution, migration chains
+
+- **Status:** accepted. **Works today (gate-proven):** invisible
+  authoring (`oka ship`), signed channels, chains vs snapshots with a
+  boot watchdog, snapshot derivation from the build, git + static-host
+  publish, the web verify rung, and the converged dev session
+  `oka run dev` on macOS + web — gates G-AC1..8 below. **Open:**
+  DevFS asset sync, the android leg of `oka run dev`. **Research line
+  (ADR-gated, do not code):** G-AC9 per-unit AOT OTA.
+- **Date:** 2026-10-03
+- **Decision-makers:** Anton, oka agent
+- **Extends:** ADR-0030 (§5 updates as validated transitions), ADR-0031
+  (declarative patch units, manifest + pointer), ADR-0034 (production
+  ladder — this record is the P2/P5 client half), ADR-0035 (the `oka ship`
+  journey, server lanes S1–S3), ADR-0036 (declared verbs, thin delegation)
+- **Amends:** ADR-0011 (dev-loop session owner; see §6)
+
+## Context
+
+ADR-0035 Part 3 named the journey (`oka ship`: git diff → eligibility →
+per-unit deltas → sign → publish pointer → canary → promote) but left the
+publish stages gated on ADR-0034's delivery rungs, and nothing in `lib/`
+delivers: there is no `UpdateClient`, no channel resolution ("which patch
+applies to *my* installed revision?"), no pointer/rollback semantics, and
+no signing. A patch is still authored as a hand-composed `LivePatchSpec` —
+fine for gates, wrong for the product: a developer with a dirty diff wants
+to run **one command** and have the patch derived from the code and the
+previous channel state, not write patch code.
+
+This record fixes the authoring rule, the channel design, and the platform
+ladder (web → android → linux → macOS), and lands the first implementation
+slice.
+
+## 1. The invisible-authoring rule
+
+**A patch the developer writes by hand is a bug.** Everything below the
+unit declaration is derived; every derivation is a composable override;
+every derivation prints one receipt line (ADR-0035's minimization rule,
+now binding for authoring):
+
+| Input | Derived from | Override |
+|---|---|---|
+| units | declared **once** in the composition: `tool/patch_units.dart` exposing `UnitsSpec patchUnits` | `--units <file>` |
+| revision | `git rev-parse HEAD` (dirty state is stamped into the receipt) | `--revision <id>` |
+| base | the channel's current head manifest; a fresh channel seeds a **baseline** node (the store build's revision — never "current codebase") | `--baseline <id>` |
+| manifests | sha256 per unit-library file; declaration-signature fingerprints (prototype-grade — ADR-0034 G4 replaces them with analyzer-backed ones) | — |
+| eligibility | existing `planRevisions` verdict: unit-body-only → patchable; contract/core/unit-set changes → explicit refusal naming the store lane | — |
+| deltas | per changed unit via the injected `UnitDeltaCompiler` (the kernel pipeline; `appPackagesConfig` coherence rule from ADR-0035 §2d applies) | `--compiler` (DI in tests/hosts) |
+| channel tree | written under the channel directory: `pointer.json`, `manifests/<rev>.json`, `artifacts/…` | `--channel-dir` |
+
+Spec/manifest/pointer files are machine output only (ADR-0035 Part 1's
+rule, unchanged). The CLI verb is **`oka ship`** — `oka patch air` is not
+a second verb; shipping to the air channel *is* shipping (ADR-0035's
+"one button" verdict).
+
+## 2. Channel design (serverless first)
+
+The channel is a **content-addressed tree plus a small pointer file**,
+materializable on any dumb host. Oka never serves traffic and no resident
+oka process is authorized (ADR-0031 §4 posture, unchanged).
+
+```
+<channel-dir>/
+  pointer.json               # channel -> head revision + policy
+  manifests/<revision>.json  # one node per published revision
+  artifacts/<unit>-<rev>.delta.dill, <rev>.snapshot.zip, …
+```
+
+- **Pointer** (`schemaVersion 2`): channel name, head revision, policy
+  `{maxChainBytes, maxChainRevisions}`, and a typed signature slot
+  (`signedBy: {keyId, algorithm, signature} | null`). Digests (sha256 per
+  artifact) are mandatory from day one; signature *verification* is the
+  named gate below — until it lands, policy `requiresSignature: true`
+  refuses, it does not warn.
+- **Git is one materialization, not the protocol.** An OSS project
+  publishes by committing/pushing the tree (gh-pages, a `channel/` branch,
+  raw URLs); closed source publishes the same tree to any static host or
+  blob store. Nothing in the wire format knows git exists. Snapshot-sized
+  artifacts (whole-revision AOT sets) do not belong in git history — use
+  LFS/release assets/blob host; the tree does not care.
+- **Manifest node** (`schemaVersion 2`): revision, `parent`, `baseline`
+  (the app-binary revision this patchable segment grows from),
+  the recorded `plan` verdict (patchable / changed units / refusals /
+  coreChanged), per-unit artifacts (`delta`, optional `aotPart`) with
+  sha256 + bytes, and an optional whole-revision `snapshot` artifact.
+
+## 3. Migration chains and the snapshot threshold
+
+An update is a validated transition (ADR-0030 §5); a *chain* is the
+ordered segment of transitions from the client's applied revision to the
+channel head. Resolution (`planChain`) is pure and typed:
+
+1. Walk `parent` links from head down to the client's `appliedRevision`
+   (or its `baseline` for a never-patched install).
+2. **Segments break at store boundaries.** A node whose recorded plan is
+   not patchable cannot be crossed by chaining — clients below it fall to
+   the snapshot lane or refuse with the store alternative.
+3. **Threshold policy** (publisher-declared in the pointer, client-enforced
+   with hard ceilings): if the segment's cumulative artifact bytes exceed
+   `maxChainBytes`, or its length exceeds `maxChainRevisions`, resolve to
+   the **head snapshot** instead. A missing snapshot at head is a refusal
+   naming the fix (`oka ship --snapshot …`), never a silent full-chain
+   apply.
+4. **Failure policy:** mid-chain apply failure → discard the staged set,
+   fall back to the snapshot; snapshot failure → stay on the current
+   revision and report. Never brick. The boot-watchdog auto-revert
+   (startup beacon doesn't fire → revert locally to the previous staged
+   set) is the named client gate below.
+5. Receipts distinguish requested / applied / failed / unknown per
+   component (ADR-0030 §5); a distributed update is never implied atomic.
+
+## 4. Trust
+
+The apply channel is an RCE surface (ADR-0035's security verdict). Laddered
+honestly: artifact sha256 verification is in the first slice; pointer +
+manifest signatures (ed25519 over canonical bytes, `signedBy` slot above)
+are the next gate; the trust anchor lives in the app binary (public key +
+channel URL baked at build), which is also why **already-published apps
+cannot be retrofitted** — the first OTA-capable version arrives through
+the store, and only from that version do patchable diffs skip it.
+
+## 5. Platform ladder (web → android → linux → macOS)
+
+| Lane | Apply mechanism | Status |
+|---|---|---|
+| web (release) | `nextLoad`: pointer flip + chunk fetch on next load/visibility; transfer = changed artifacts only (ADR-0032 G4 lineage) | **verify rung proven** — generated channel over a real static host, changed-only transfer, rollback (`gate_air_web.sh`) |
+| android (AOT) | staged part ELFs at next launch (runtime loader proven on the emulator, ADR-0032 AOT-PLATFORMS); `slotSwap` in-process stays the P5 research lane (sdk#64162, embedder seam, program identity) | staged apply shared with linux/macOS below |
+| linux (AOT) | `restartHandoff` (S3, proven 60/60) or staged units; S2 registry slots as designed in ADR-0035 §S2 | staged apply shared |
+| macOS | **snapshot-swap only** — Mach-O refuses deferred unit packaging (recorded as a platform fact, not an oka gap); fd-passing handoff stays open | snapshot lane shared; whole-kernel derivation proven on last_answer |
+
+AOT store-distributed apps update **at next launch**, Chrome-style —
+"live" OTA is the servers' (S1/S2) and web's truth. The publish slice
+records that honesty in every AOT receipt (`staged-next-launch`).
+
+## 6. Run convergence (amends ADR-0011)
+
+ADR-0011 chose the flutter_tools daemon for the dev session *before* the
+kernel delta lane existed. The lane is now proven across four platforms
+and three product families (ADR-0035 §2e) and is the **same mechanism the
+production lanes use** — dev is the pipeline pointed at a device. The
+converged session ships as the built-in `oka run dev` target:
+
+- **`r` (hot reload) is oka's lane**: the developer's plain file save is
+  compiled by the app's own frontend and applied over the VM service —
+  DevFS + `reloadSources(rootLibUri)` + `ext.flutter.reassemble` on
+  flutter desktop, dwds `reloadSources` on web — with a per-reload
+  receipt (mode, reload report, reassemble, probe flip/hold). This is
+  byte-for-byte the production reload lane, pointed at the dev app.
+- **`R` (hot restart) stays the platform lane**: the serving
+  `flutter run` session recompiles and restarts (oka's lane is a *delta*
+  lane; full restarts stay delegated until oka owns the resident
+  compiler, ADR-0011 Option C's evidence bar). The session re-arms the
+  browser wire after a web restart.
+- **`q`** quits; `--watch` additionally applies every saved file in the
+  watch set (the invisible loop); `--json` emits receipts as JSON lines
+  for agents; `--probes` attaches declarative verification to each
+  reload.
+- `oka dev` (ADR-0011, the android daemon) is unchanged — it remains the
+  android surface until the oka lane owns a device build path, at which
+  point the alias inverts.
+
+G-RUN status: `ext.flutter.reassemble` is proven in the oka-owned session
+(probe flip + reassemble receipts on flutter desktop); **DevFS asset sync
+is the remaining flutter-parity gap** — a changed non-code asset refuses
+with "R" rather than syncing. AOT `r` is a different, bounded, debug-less
+contract (`slotSwap`, refusals escalate to `R`; `gate_aot_slots.sh`) and
+is a rehearsal lane, not the daily loop.
+
+## Acceptance gates
+
+1. **G-AC1 (done 2026-10-03).** Typed channel model (`schemaVersion 2`):
+   pointer + revision nodes + canonical JSON round-trip; per-artifact
+   sha256 mandatory.
+2. **G-AC2 (done 2026-10-03).** `planChain` pure resolution: chain within
+   thresholds; snapshot fallback on threshold; refusal on missing
+   snapshot; refusal at store-boundary nodes; up-to-date short-circuit.
+3. **G-AC3 (done 2026-10-03).** Invisible authoring: `oka ship` derives
+   manifests from the tree, plans via `planRevisions`, compiles per-unit
+   deltas, materializes the channel tree + pointer, receipts. Zero flags
+   beyond the project root in the happy path.
+4. **G-AC4 (done 2026-10-03).** `UpdateClient` fetch → digest-verify →
+   stage: file source and HTTP source; tampered artifact fails the receipt
+   with the digest mismatch; staged layout feeds `StagedTarget`
+   (`staged-next-launch`) — the android/linux/macOS AOT apply seam.
+5. **G-AC5 (done 2026-10-04).** Ed25519 signatures over canonical JSON
+   (`package:cryptography`; `ChannelSigner` / `verifySignature` in
+   `oka_update/lib/src/channel/signing.dart`). `oka ship --signing-key
+   <file>` signs the pointer and every manifest
+   (`--generate-signing-key <file>` mints a key and prints the trust
+   anchor); an install whose `LocalInstall.trustedPublicKeyHex` is set
+   refuses unsigned pointers/manifests, foreign keys, and tampered
+   canonical bytes — verified by the enforcement-matrix test. A channel
+   with `requiresSignature` and no anchor on the install also refuses.
+6. **G-AC6 (done 2026-10-04).** The boot watchdog:
+   `StagedUpdateJournal` (stage → startup beacon → `commit()` promotes,
+   `rollback()` discards and keeps the known-good set; corrupt journals
+   read dirty and roll back, never crash) and `UpdateClient.apply(...,
+   journal:)` stages every successful apply under it, journal state riding
+   the receipt JSON. A staged update cannot brick an install. And the
+   snapshot is derived from the build pipeline, not hand-picked:
+   `chainLoad` projects the bytes/revisions a client would have to apply;
+   when that would overrun the pointer policy the next ship derives a
+   whole-revision snapshot (kernel compile, build-dir archive, or a
+   `--snapshot-from-build <output>` the publisher names) and attaches it
+   to the head node — `oka ship --max-chain-bytes/--max-chain-revisions`
+   seed the publisher policy the trigger enforces.
+7. **G-AC7 (done 2026-10-04).** Git-branch publish target landed
+   (`publishChannelToGit`: orphan branch via a detached worktree — the
+   publisher owns the branch, the repo's working tree is untouched;
+   `checkoutChannelBranch` reads it back as a plain file tree), and the
+   full arc is proven on last_answer's real engine
+   (`tool/gate_air_channel.sh`): units declared once in the app's own
+   `tool/patch_units.dart`, an invisible ship derived from a plain file
+   save while the engine ran, the channel materialized as an `oka-channel`
+   branch, a client that read a checkout of that branch, verified sha256,
+   staged the fetched delta — and the FETCHED artifact (13 KB kernel
+   delta, `ReloadReport success:true, loadedLibraryCount:1`) applied over
+   `_reloadKernel`: the flip landed, boot state held, one pid. The push
+   lane (2026-10-04): non-work-tree targets — bare repos and remote URLs —
+   publish through a throwaway clone + `push --force HEAD:refs/heads/<branch>`
+   (the publisher owns the branch); the gate runs against a real BARE
+   origin with a SIGNED channel. The web verify rung (2026-10-04,
+   `tool/gate_air_web.sh`): ADR-0031 gates 2–4 on the GENERATED path —
+   the channel produced by the invisible ship, materialized beside a real
+   `flutter build web --release` of last_answer on a dumb static host, an
+   `UpdateClient` over plain HTTP transfers ONLY the changed artifact
+   (asserted from the host's request log), a contract-touching edit
+   refuses at plan time naming the store lane, and a rollback repoint
+   leaves a client at the old head up-to-date with zero payload fetches
+   (a client past head refuses honestly: delta chains do not reverse).
+   Gate 1 (barrel/registry generation) remains spike-validated — it is a
+   build-side generator concern (ADR-0031), not a channel concern.
+8. **G-AC8 (dev session landed 2026-10-04).** The converged session
+   ships as the built-in `oka run dev` target (`oka run dev --platform
+   macos|web`): build → launch → r/R over oka's lanes (§6). `r` applies
+   the unit delta with `reassemble` on flutter desktop and dwds
+   `reloadSources` on web; `R` restarts through the platform lane; the
+   session prints a receipt per reload and verifies declarative probes.
+   Proven on last_answer's real macOS desktop app and real web app
+   (`tool/gate_run_dev.sh`: r flips a live probe, R restarts, q exits).
+   Still open: DevFS asset sync (changed non-code assets refuse with "R")
+   and the android device leg (rides `gate_live_e2e.sh` android until
+   then).
+9. **G-AC9 (open, gated).** Per-unit AOT OTA (`slotSwap` over the air)
+   requires the ADR-0031 §7 follow-up ADR — sdk#64162, embedder
+   `Dart_SetDeferredLoadHandler` integration, S2 registry indirection.
+   Apple platforms additionally need the snapshot-swap embedder decision.
+
+### Wire facts learned by G-AC7 (each one bit us)
+
+- **The delta compiler resolved app-relative paths against its own CWD** —
+  a ship from any other directory compiled an *error-stub dill* (exit 0,
+  `ReloadReport success:true`, `receivedProceduresCount: 0`, zero
+  behavior change). `pipelineDeltaCompiler` now makes
+  `request.patchedFiles` absolute against `DeltaRequest.root`. The stub
+  mode is why `apply` receipts now carry the full reload report (G7) —
+  `success:true` alone is not evidence.
+- A kernel delta carries one seam per revision (ADR-0035 §2e); a ship
+  whose unit has several changed files refuses at plan time and names the
+  one-revision-at-a-time fix.
+- Units may live in workspace packages (`packages/<pkg>/lib/...`), not
+  only the app's `lib/`; the derivation scans each unit package's `lib/`
+  as core alongside the app's own.
+- Adoption needs no package dependency: the units probe reads
+  `tool/patch_units.dart` structurally, so plain classes work until the
+  app wants the typed surface.
+
+## Consequences
+
+Good: the developer-facing surface collapses to "declare units once, run
+`oka ship`"; distribution needs no server and no oka process anywhere;
+chains keep every outdated install updatable without unbounded payload;
+eligibility refusals keep the store lane honest.
+
+Bad/neutral: prototype-grade fingerprints can mis-classify exotic
+declarations until G4 lands (documented, plan-time, fail-closed);
+unsigned channels are integrity-verified but not authenticated until
+G-AC5; AOT OTA is next-launch by design — anything marketed as "live AOT
+OTA for store apps" is a lie until G-AC9.
+
+## Related records
+
+- ADR-0031 — units, manifest/pointer posture, native gating.
+- ADR-0032 — kernel-graph lanes; G4 web transfer; AOT platform matrix.
+- ADR-0034 — the ladder (this record lands P2-shaped delivery early and
+  names G-AC5..9 as its continuation).
+- ADR-0035 — `oka ship` journey, server lanes, invisible-loop lenses.
+- ADR-0011 — amended: session converges on the oka lane; daemon = fallback.
+
+**Authoritative source:** this ADR for the direction; code and tests
+(`packages/oka_update/lib/src/channel/`, `packages/oka_dart_kernel/tool/oka_ship.dart`)
+for shipped behavior.

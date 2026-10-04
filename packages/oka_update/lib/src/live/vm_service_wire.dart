@@ -132,6 +132,15 @@ class VmServiceWire {
   }
 
   /// The private delta lane on stock VMs, DDS and the flutter embedder.
+  /// Flutter's hot reload finishes with `ext.flutter.reassemble` — the
+  /// widget tree rebuild that makes a kernel delta visible in the UI
+  /// (G-RUN). Absent on non-Flutter VMs: callers treat LiveWireException
+  /// as 'no Flutter here', not a failure.
+  Future<Map<String, dynamic>> flutterReassemble(
+          {required String isolateId}) =>
+      rpc('callServiceExtension',
+          {'isolateId': isolateId, 'extension': 'ext.flutter.reassemble'});
+
   Future<Map<String, dynamic>> reloadKernel(
           {required String isolateId, required String kernelFilePath}) =>
       rpc('_reloadKernel',

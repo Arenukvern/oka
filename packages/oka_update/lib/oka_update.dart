@@ -12,6 +12,14 @@
 /// staged, never implied.
 library;
 
+export 'src/channel/channel_manifest.dart';
+export 'src/channel/channel_plan.dart';
+export 'src/channel/channel_source.dart';
+export 'src/channel/git_target.dart';
+export 'src/channel/ship.dart';
+export 'src/channel/signing.dart';
+export 'src/channel/staged_journal.dart';
+export 'src/channel/update_client.dart';
 export 'src/live/agent.dart';
 export 'src/live/events.dart';
 export 'src/live/receipt.dart';

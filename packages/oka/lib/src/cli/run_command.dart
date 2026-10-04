@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
 
+import 'kernel_stack.dart';
+
 /// A target discovered from the project entrypoint (ADR-0015).
 class DeclaredTarget {
   const DeclaredTarget({required this.name, required this.description});
@@ -49,6 +51,20 @@ class RunCommand {
     final targetName = args.first;
     final rest = args.skip(1).toList();
 
+    // Built-in `dev` target (ADR-0037 §6 run convergence): the converged
+    // dev session under `oka run dev` — a project that explicitly declares
+    // its own `dev` target keeps precedence.
+    if (targetName == 'dev' && !await _declaresTarget('dev', projectPath)) {
+      await delegateToKernelStack(
+        runner: 'packages/oka_dart_kernel/tool/oka_run_dev.dart',
+        args: rest,
+        missingMessage: 'oka run dev: the experimental live-update stack '
+            'is not available.\nPoint OKA_KERNEL_ROOT at a checkout with '
+            'packages/oka_dart_kernel (see docs/guides/live_update.mdx).',
+      );
+      return;
+    }
+
     if (entrypoint == null) {
       stderr.writeln(noEntrypointMessage('run $targetName'));
       exit(1);
@@ -60,6 +76,21 @@ class RunCommand {
       targetName: targetName,
       args: rest,
     );
+  }
+
+  /// True when the project's entrypoint declares a target named [name].
+  /// No entrypoint means nothing is declared.
+  Future<bool> _declaresTarget(
+    final String name,
+    final String projectPath,
+  ) async {
+    final entrypoint = await findPipelineEntrypoint(projectPath);
+    if (entrypoint == null) return false;
+    final targets = await loadDeclaredTargets(
+      projectPath: projectPath,
+      entrypoint: entrypoint,
+    );
+    return targets.any((final t) => t.name == name);
   }
 }
 

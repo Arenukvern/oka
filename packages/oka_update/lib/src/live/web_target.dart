@@ -191,5 +191,14 @@ class WebDwdsTarget implements LivePatchTarget {
   Future<void> close() async {
     await _wire.close();
     await _cdp?.close();
+    _cdp = null;
+  }
+
+  /// Drops the browser wire so the next page probe reconnects — a hot
+  /// restart reloads the page and the old CDP WebSocket dies with it.
+  Future<void> invalidateCdp() async {
+    final cdp = _cdp;
+    _cdp = null;
+    await cdp?.close();
   }
 }

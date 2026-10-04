@@ -9,10 +9,20 @@ import 'dart:io';
 import 'package:oka_update/oka_update.dart';
 
 /// The flutter cache layout: <flutter>/bin/cache/{dart-sdk,artifacts}.
+/// A bare binary name (`flutter`) is resolved via PATH — every path handed
+/// to the frontend must be ABSOLUTE or the compile dies on a relative
+/// sdk-root (the process CWD is the runner's, not the flutter root's).
 (String dartSdk, String frontend, String patchedSdk) flutterToolchainPaths(
     String flutterBin) {
+  var bin = flutterBin;
+  if (!bin.contains('/')) {
+    final which = Process.runSync('which', [bin]);
+    if (which.exitCode == 0) {
+      bin = (which.stdout as String).trim();
+    }
+  }
   final cache =
-      '${File(flutterBin).parent.parent.path}/bin/cache'; // <flutter>/bin/cache
+      '${File(bin).parent.parent.path}/bin/cache'; // <flutter>/bin/cache
   final dartSdk = '$cache/dart-sdk';
   return (
     dartSdk,

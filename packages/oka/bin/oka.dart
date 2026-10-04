@@ -18,6 +18,7 @@ import 'package:oka/src/cli/live_command.dart';
 import 'package:oka/src/cli/processes_command.dart';
 import 'package:oka/src/cli/run_command.dart';
 import 'package:oka/src/cli/session_state_command.dart';
+import 'package:oka/src/cli/ship_command.dart';
 import 'package:oka/src/cli/stop_command.dart';
 import 'package:oka/src/cli/why_command.dart';
 import 'package:oka/src/version.dart';
@@ -73,6 +74,8 @@ void main(List<String> arguments) async {
         await LaunchCommand().run(commandArgs);
       case 'live':
         await LiveCommand().run(commandArgs);
+      case 'ship':
+        await ShipCommand().run(commandArgs);
       case 'cache':
         await CacheCommand().run(commandArgs);
       case 'processes':
@@ -128,6 +131,9 @@ Commands:
             device, scan the device log for failure signatures
   live      Live-update a running program (experimental; needs the
             oka_dart_kernel checkout — docs/guides/live_update.mdx)
+  ship      Derive and publish a store-free patch from the working tree
+            (invisible authoring; ADR-0037 — needs the oka_dart_kernel
+            checkout)
   run       Run a project-declared target (oka run <target>; targets are
             discovered from tool/oka_pipeline.dart — `oka run` lists them)
   dev       Start development mode with hot reload

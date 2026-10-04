@@ -1,6 +1,15 @@
 # 0011 — Agent-first dev loop: hot reload/hot restart via the flutter_tools daemon protocol
 
-- **Status:** accepted
+- **Status:** accepted (amended 2026-10-03 by
+  [ADR-0037 §6](0037-air-channel-invisible-patches): the dev session
+  converges on oka's own unit-delta lane. Landed 2026-10-04 as the
+  built-in **`oka run dev`** target (`--platform macos|web`): `r` = oka's
+  delta lane with reassemble, `R` = the platform restart, `oka dev`
+  (this record's daemon) remains the android surface. The daemon protocol
+  stays the fallback for what the oka lane cannot do yet — DevFS asset
+  sync is the remaining G-RUN gap. Option C's escalation clause is
+  thereby exercised: the resident-compiler lane now exists and is
+  evidence-proven.)
 - **Date:** 2026-09-06
 - **Decision-makers:** Anton, oka agent
 - **Extends:** 0001 (no-Gradle default build path), 0002 (composable pipeline)

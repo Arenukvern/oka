@@ -78,11 +78,34 @@ class VmJitTarget implements LivePatchTarget {
       final sw = Stopwatch()..start();
       try {
         final isolate = await _isolateForApply();
-        await wire.reloadKernel(
+        final report = await wire.reloadKernel(
             isolateId: isolate, kernelFilePath: deltaPath);
         sw.stop();
+        // The report is the truth: success:false (or a rejected flag)
+        // must fail the receipt, never pass silently (ADR-0034 G7).
+        final success = report['success'];
+        final ok = !(success is bool && !success);
+        // G-RUN: a Flutter target repaints only when the reassemble
+        // service extension runs after the reload. Best-effort — a
+        // non-Flutter VM has no such extension and that is not a failure.
+        var reassemble = 'skipped (reload failed)';
+        if (ok) {
+          try {
+            await wire.flutterReassemble(isolateId: isolate);
+            reassemble = 'ok';
+          } on LiveWireException catch (e) {
+            reassemble = 'absent (${e.message})';
+          }
+        }
         return ApplyOutcome(
-            ok: true, mode: 'reloadKernel', wire: {'durationMs': sw.elapsedMilliseconds});
+            ok: ok,
+            mode: 'reloadKernel',
+            error: ok ? null : 'reload report: $report',
+            wire: {
+              'durationMs': sw.elapsedMilliseconds,
+              'reassemble': reassemble,
+              ...report,
+            });
       } on LiveWireException catch (e) {
         return ApplyOutcome(ok: false, mode: 'reloadKernel', error: e.message);
       }

@@ -198,18 +198,27 @@ UnitDeltaCompiler pipelineDeltaCompiler(PipelineToolchain toolchain) =>
     (request) async {
       final out = '${Directory.systemTemp.createTempSync('oka-delta').path}'
           '/${request.unit}.delta.dill';
+      // The pipeline resolves file paths against ITS cwd, not the app —
+      // root-relative paths must be made absolute against the request's
+      // app root or the delta compiles to an error stub (silently, exit
+      // 0; the reload then "succeeds" and changes nothing).
+      final patched = [
+        for (final f in request.patchedFiles)
+          if (f.startsWith('/')) f else '${request.root}/$f',
+      ];
       final ProcessResult proc;
       final env = {
         'DART_SDK_SUMMARY': toolchain.sdkSummary,
         // URI coherence: when the app runs under a package config, the
         // delta must be compiled under the same one.
-        'DART_PACKAGES_CONFIG': ?toolchain.appPackagesConfig,
+        if (toolchain.appPackagesConfig != null)
+          'DART_PACKAGES_CONFIG': toolchain.appPackagesConfig!,
       };
       final exe = toolchain.exe;
       if (exe != null) {
         proc = await Process.run(exe, [
           '--delta',
-          request.patchedFiles.first,
+          patched.first,
           out,
         ], environment: env);
       } else {
@@ -218,7 +227,7 @@ UnitDeltaCompiler pipelineDeltaCompiler(PipelineToolchain toolchain) =>
           '--packages=${toolchain.packagesConfig}',
           'tool/gate_pipeline.dart',
           '--delta',
-          request.patchedFiles.first,
+          patched.first,
           out,
         ], workingDirectory: toolchain.kernelRoot, environment: env);
       }
