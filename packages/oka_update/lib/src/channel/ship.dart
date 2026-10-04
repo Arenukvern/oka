@@ -432,12 +432,11 @@ Future<ShipReceipt> shipRevision({
     final built = File(await snapshotBuilder());
     snapshot = _stageSnapshot(channelDir, revision, built.path,
         dryRun: dryRun);
-    snapshotReason = [
-      'snapshot derived from the build pipeline: chain to head would be '
-          '$chainBytes B / $chainRevisions revisions against policy '
-          '(maxChainBytes ${effectivePolicy.maxChainBytes}, '
-          'maxChainRevisions ${effectivePolicy.maxChainRevisions})',
-    ];
+    final why = 'snapshot derived from the build pipeline: chain to head '
+        'would be $chainBytes B / $chainRevisions revisions against policy '
+        '(maxChainBytes ${effectivePolicy.maxChainBytes}, '
+        'maxChainRevisions ${effectivePolicy.maxChainRevisions})';
+    snapshotReason = [why];
   }
 
   if (dryRun) {
