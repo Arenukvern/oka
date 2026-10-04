@@ -6,23 +6,39 @@ title: Build & configuration guide
 
 How to run, build, and extend oka. Why-rationale lives in the
 [design FAQ](design_faq); settled decisions in
-[`docs/decisions/`](../decisions/index).
+[`docs/decisions/`](../decisions/index); stores and accounts in the
+[accounts & stores guide](accounts_and_stores).
 
 ## 🏠 Setup Hub
+
+**Q: How do I install oka and its Android SDK?**
+```bash
+dart pub global activate oka    # from the repo: just install && just global
+oka get android-sdk             # bootstrap SDK into ~/.oka/android-sdk
+oka doctor                      # verify everything
+```
 
 **Q: How do I start a new project (oka init)?**
 ```bash
 oka init               # full-Dart config: scaffolds tool/oka_pipeline.dart
                        # (typed AndroidBuild/FlutterBuild) — no oka.yaml
-oka init --yaml        # legacy YAML-first scaffold (suggests a Gradle
+oka init --yaml        # legacy YAML-first scaffold (prints a Gradle
                        # conversion checklist when android/app/build.gradle
                        # exists — ADR-0012: no embedded LLM)
 oka init --from-yaml   # converts an existing oka.yaml 1:1 into the typed
                        # Dart entrypoint (ADR-0010)
 ```
-`oka build` discovers `tool/oka_pipeline.dart` by convention — no YAML key
-needed. Non-interactive sessions (CI/agents) skip overwrite prompts; pass
-`--force` to overwrite.
+`oka build` discovers `tool/oka_pipeline.dart` by convention. Non-interactive
+sessions (CI/agents) skip overwrite prompts; pass `--force` to overwrite.
+Migrating an existing Gradle app: the
+[Gradle migration guide](gradle_migration).
+
+**Q: Where does configuration live?**
+Three sources, merged in precedence order (later wins):
+1. `oka.yaml` or a top-level `oka:` section in `pubspec.yaml`,
+2. typed Dart config in `tool/oka_pipeline.dart` (ADR-0010 — deep-merges
+   over the YAML baseline),
+3. CLI flags (`--release/--aab/--abi/--target/--dart-define`).
 
 **Q: How do I depend on oka packages before their first pub.dev release?**
 `oka_android` declares a hosted `oka_core` constraint, so until both are
@@ -34,32 +50,8 @@ dependency_overrides:
   oka_core:
     path: /path/to/oka/packages/oka_core
 ```
-Publish order (release train, see `.github/workflows/pub_publish.yml`):
-`oka_core` → `oka_android` → `oka`. Drop the overrides once published.
-
-**Q: How do I install oka and its Android SDK?**
-```bash
-just install          # dart pub get
-just global           # activate globally (clears snapshot cache)
-oka get android-sdk   # bootstrap SDK into ~/.oka/android-sdk
-oka doctor            # verify everything
-```
-
-**Q: How do I start a new project?**
-```bash
-oka init   # generates oka.yaml from pubspec.yaml (prints a Gradle
-           # conversion checklist when android/app/build.gradle exists)
-```
-The scaffold includes a **commented** `pipeline.dart_entrypoint` example
-(ADR-0006's declarative Dart hook) and a pointer to the full composition
-example (`example/tool/oka_pipeline.dart` in the oka repository). Uncomment
-when you want to own the pipeline in Dart; otherwise the YAML fast-settings
-path builds unchanged.
-
-**Q: How do I migrate an existing Gradle app to oka?**
-Read the [Gradle migration guide](gradle_migration) — what transfers
-automatically, what needs explicit config, what oka does not do, and the
-verification loop (`oka compare`, `oka launch`, `oka debug dex`).
+Publish order (release train): `oka_core` → `oka_android` → `oka`. Drop the
+overrides once published.
 
 **Q: How do I catch dependency/version resolution problems before building?**
 ```bash
@@ -68,12 +60,11 @@ oka explain --deps            # resolve the plugin dependency plan against
 oka explain --deps --network  # full resolution incl. downloads + POM
                               # transitives; exit 1 on hard failures
 ```
-Composes the plan from gradle-parsed plugin deps (post conditional-dedup,
-ADR-0007) + `pipeline.extra_deps` + the flutter-embedding set — the same
-collector and resolver the build uses, so plan and packaging cannot disagree.
-Cache-only misses print `⚠️ not in local maven cache`; with `--network` a
-resolution failure (404, unresolvable POM) prints `❌` and fails the dry-run.
-See [ADR-0008](../decisions/0008-dependency-plan-dry-run).
+The plan composes the same collector and resolver the build uses, so plan
+and packaging cannot disagree. Cache-only misses print
+`⚠️ not in local maven cache`; with `--network` a resolution failure prints
+`❌` and fails the dry-run. See
+[ADR-0008](../decisions/0008-dependency-plan-dry-run).
 
 **Q: How do I build the example app?**
 ```bash
@@ -81,102 +72,52 @@ cd example && flutter pub get && oka build apk
 # output: .oka_cache/build/debug/app-debug.apk
 ```
 
-**Q: How do I build an App Bundle (AAB) for Play Store?**
-```bash
-oka build aab            # or: oka build release aab
-# output: .oka_cache/build/<mode>/aab/app-<mode>.aab
-```
-Same `oka.yaml` config, plugins, extra_deps, icons and deeplinks as APK builds.
-Resources link with `aapt2 --proto-format`; the bundle signs with jarsigner v1
-(debug keystore by default — supply your upload key for store releases).
-
-**Q: An .aab can't be installed directly — how do I verify it?**
-An App Bundle is an upload format; Play/bundletool generate the installable
-split APKs. Verify locally (bundletool exercises the same parsing path as Play):
-```bash
-oka get bundletool          # one-time download into ~/.oka/tools
-oka build aab --verify-aab  # runs bundletool build-apks --mode=universal
-                            # (works for oka.yaml and Dart-entrypoint projects)
-adb install -r .oka_cache/build/<mode>/aab/universal/app-universal.apk
-adb shell am start -n com.example.example/.MainActivity
-```
-
-For the release gate, run the project-declared release target. Its verifier
-runs `bundletool validate`, can generate a device spec from a connected
-device, builds the matching split APK set, and optionally installs it:
-
-```bash
-oka run release-google
-# target arguments are project-defined; for example:
-oka run release-google --oka-target-arg device-spec=test/fixtures/pixel.json
-```
-
-The JSON report contains the AAB SHA-256 and byte size, ABIs discovered in the
-bundle, generated APK paths, and independent gate results. A target records an
-unavailable verifier as a failed or unverified gate rather than silently
-claiming store compatibility.
-Metadata is intentionally limited to archive metadata unless a future report
-consumer supplies an Android manifest dumper.
-
-**Q: How do multi-store Android targets fit into the build?**
-Stores are project-declared targets, not build switches. Declare the target
-names in `tool/oka_pipeline.dart`, inspect them with `oka explain --targets`,
-and run one with `oka run <declared-name>`. Do not add store-specific flags to
-`oka build`; the Android pipeline shares dependency resolution, Flutter
-assembly, packaging, signing, AAB/APK artifacts, and reports across targets.
-See the [multi-store distribution ADR](../decisions/0023-multi-store-distribution-architecture)
-and the [publishing guide](publishing) for target setup.
-
-Verification is still store-specific:
-
-- Play checks the release AAB and device-specific split behavior.
-- Huawei checks split and universal APK forms and must use the GMS-free
-  variant; a GMS-required step fails during composition validation.
-- RuStore checks a release-signed AAB and the registered upload-signature
-  constraints. A debug-signed or APK-only artifact is not publishable there.
-
-These checks are gates, not claims that a generic Android build is compatible
-with every store. A report must record an unavailable verifier as a failed or
-unverified gate rather than silently passing.
+## 🔨 Builds
 
 **Q: How do I build a release APK?**
 ```bash
 oka build apk --release
 # output: .oka_cache/build/release/app-release.apk
 ```
-Release mode AOT-compiles Dart to native `libapp.so` (no JIT snapshot),
-applies R8 shrinking, and signs with the release keystore: `android/key.properties`
-(Gradle-compatible: `storeFile`, `keyAlias`, `storePassword`, `keyPassword`)
-→ `oka.yaml` `android.signing:` → debug keystore fallback (a ⚠️ warning is
-printed when a release build falls back to the debug keystore — store uploads
-will be rejected). For store upload combine both:
+Release AOT-compiles Dart to native `libapp.so`, applies R8 shrinking, and
+signs with the release keystore (see [Signing](#-signing--versioning-g2)).
+Incremental caches are shared per-step and keyed by mode.
+
+**Q: How do I build an App Bundle (AAB) for Play Store?**
 ```bash
-oka build aab --release --verify-aab
+oka build aab            # or: oka build release aab
+# output: .oka_cache/build/<mode>/aab/app-<mode>.aab
 ```
-Same plugins, deps, icons and deeplinks as debug; incremental caches are
-shared per-step and keyed by mode.
-
-**Q: How does R8 shrinking work (and what do I need to install)?**
-Release builds run the **real R8 shrinker** (tree-shaking + minification) over
-the full program closure (app + Flutter embedding + plugin jars). R8 ships via
-Google Maven, not build-tools, so oka provisions it into `~/.oka/tools/r8`:
-
+Same config, plugins, extra deps, icons and deeplinks as APK builds.
+An .aab is an upload format — verify it locally with bundletool:
 ```bash
-oka get r8          # or let the build self-heal (OKA_NO_AUTO_INSTALL=1 opts out)
+oka get bundletool          # one-time download into ~/.oka/tools
+oka build aab --verify-aab  # bundletool build-apks --mode=universal
+adb install -r .oka_cache/build/<mode>/aab/universal/app-universal.apk
 ```
+For the release gate, run the project-declared release target
+(`oka run release-google`) — its verifier runs `bundletool validate`, can
+generate a device spec from a connected device, builds the matching split
+APK set, and reports independent gates (sha256, ABIs, split APKs). An
+unavailable verifier is recorded as failed/unverified, never as silent
+compatibility.
 
-R8 is invoked with documented CLI flags only (`--release --min-api --lib
---pg-conf --pg-map-output --pg-conf-output`), verified against R8 9.4.24.
-Outputs land under `<buildDir>/r8/`: `mapping.txt` (upload it with your Play
-release for deobfuscation) and `configuration.txt` (the merged rules). A
-release build fails hard if R8 is missing or produces no mapping — no silent
-D8 fallback.
+**Q: How do multi-store targets fit into the build?**
+Stores are project-declared targets, not build switches — `oka build` stays
+store-neutral. Declare targets in `tool/oka_pipeline.dart`, inspect with
+`oka explain --targets`, run one with `oka run <declared-name>`. Per-store
+variants, accounts, and the GMS-free Huawei build:
+[accounts & stores guide](accounts_and_stores).
 
-oka's default keep rules cover the reflection surface real apps rely on
-(Flutter embedding, plugin registrants, manifest components, JNI `native`
-methods, `Parcelable.CREATOR`, enum `values()/valueOf()`, reflection
-attributes). Project rules are typed config (ADR-0010):
-
+**Q: How does R8 shrinking work?**
+Release builds run the **real R8 shrinker** over the full program closure
+(app + Flutter embedding + plugin jars). R8 ships via Google Maven, so oka
+provisions it into `~/.oka/tools/r8` (`oka get r8`, or self-heal;
+`OKA_NO_AUTO_INSTALL=1` opts out). Outputs land under `<buildDir>/r8/`:
+`mapping.txt` (upload with your Play release) and `configuration.txt`. A
+release build fails hard if R8 is missing or produces no mapping. Default
+keep rules cover the reflection surface real apps rely on; project rules are
+typed config:
 ```dart
 AndroidBuild(
   // default: release shrinks. Set false only deliberately:
@@ -184,14 +125,15 @@ AndroidBuild(
   proguardFiles: ['android/proguard-rules.pro'],  // merged with defaults
 )
 ```
-
-A missing rule file fails the build; keep `proguard_files` in review.
+A missing rule file fails the build.
 
 **Q: How do I install & launch on a device?**
 ```bash
+oka run device                  # install → launch → failure-signature scan
+# manually:
 adb install -r example/.oka_cache/build/debug/app-debug.apk
 adb shell am start -n com.example.example/.MainActivity
-adb logcat -d -b crash | grep com.example   # check for crashes
+adb logcat -d -b crash | grep com.example
 ```
 
 **Q: How do I run tests?**
@@ -200,19 +142,10 @@ just test    # dart test
 just lint    # dart analyze
 ```
 
-**Q: Where does configuration live?**
-Three sources, merged in precedence order (later wins):
-1. `oka.yaml` or a top-level `oka:` section in `pubspec.yaml` (one manifest
-   for app + build config — convenient for apps),
-2. typed Dart config in `tool/oka_pipeline.dart` (ADR-0010 — deep-merges over
-   the YAML baseline),
-3. CLI flags (`--release/--aab/--abi/--target/--dart-define`).
-
 ## 🎛️ Full-Dart project config (ADR-0010)
 
 **Q: Can I drop oka.yaml and configure everything in Dart?**
-Yes. Create `tool/oka_pipeline.dart` (discovered by convention — no YAML key
-needed) and move the whole config there, strictly typed:
+Yes. `tool/oka_pipeline.dart` is the whole config, strictly typed:
 
 ```dart
 // tool/oka_pipeline.dart
@@ -228,7 +161,6 @@ Future<void> main(List<String> args) => okaRun(
           versionCode: 51, versionName: '3.22.0',
           abis: ['arm64-v8a'],
           javaVersion: 17,
-          // Passed to kotlinc separately from kotlin source paths.
           kotlinCompilerArgs: ['-opt-in=kotlin.ExperimentalStdlibApi'],
         ),
         flutterConfig: FlutterBuild(   // was flutter:
@@ -249,74 +181,43 @@ Future<void> main(List<String> args) => okaRun(
 - Field mapping: `android:` → `AndroidBuild`, `flutter:` → `FlutterBuild`,
   `pipeline:` + `android.icon/manifest/res_dirs` → `PipelineOverrides`,
   top-level `name:` → `AndroidBuild.name`.
-- Kotlin compiler requirements are declarative: use
-  `android.kotlin_compiler_args` in YAML or
-  `AndroidBuild.kotlinCompilerArgs` in Dart. `kotlinSources` remains a list of
-  source paths and is never used to smuggle compiler flags.
-- Precedence: defaults < `oka.yaml` (if kept) < typed Dart config < CLI args.
-- **Migrating an existing project** (e.g. last_answer):
-  ```bash
-  oka init --from-yaml   # converts oka.yaml 1:1 into tool/oka_pipeline.dart
-  oka explain            # verify the plan
-  oka build apk && oka compare old.apk .oka_cache/build/debug/app-debug.apk
-  ```
-- Proven byte-equivalent: same-hook A/B (yaml vs `AndroidBuild`) produced
-  identical badging/manifest/arsc/dex (ADR-0010 evidence). Full example:
-  `example/tool/oka_pipeline.dart`.
-
-## 🪝 Dart entrypoint hooks (ADR-0006)
+- Kotlin compiler requirements are declarative
+  (`AndroidBuild.kotlinCompilerArgs`); `kotlinSources` stays a list of
+  source paths.
+- **Migrating**: `oka init --from-yaml` → `oka explain` →
+  `oka build apk && oka compare old.apk .oka_cache/build/debug/app-debug.apk`.
+  Proven byte-equivalent (ADR-0010 evidence). Full working file:
+  [example/tool/oka_pipeline.dart](https://github.com/Arenukvern/oka/blob/main/example/tool/oka_pipeline.dart).
 
 **Q: How do I customize the pipeline without editing oka?**
-
-Declare a Dart entrypoint in `oka.yaml` (the **only** extensibility key —
-YAML growth is frozen; everything else is Dart):
-
-```yaml
-pipeline:
-  dart_entrypoint: tool/oka_pipeline.dart
-```
-
-`oka build` then delegates to `dart run tool/oka_pipeline.dart` with the same
-args (`--release/--aab/--abi/--target/--dart-define…`). The hook composes a
-declarative, typed `Oka` root — no mutable step surgery, no stringly maps:
+The composition root is a Dart program: add `BuildStep`s, compose step
+lists, branch on args (per-brand pipelines —
+[accounts & stores guide](accounts_and_stores)). `okaRun` handles arg
+parsing, `oka.yaml` merge, SDK/cache dirs. Steps declare `requires`/
+`provides` artifact sets; the runner **validates the whole chain before any
+tool runs** and fails naming the missing producer. Reusable logic ships as
+ordinary Dart packages — depend on `oka_android` (light deps) in the host
+app, not the `oka` CLI.
 
 ```dart
-// tool/oka_pipeline.dart
-import 'package:oka_android/oka_android.dart';
-import 'package:oka_core/oka_core.dart';
-
-Future<void> main(List<String> args) => okaRun(
-  args,
-  oka: Oka(
-    pipelines: [
-      AndroidPipeline(
-        overrides: PipelineOverrides().copyWith(
-          resourceConfigs: ['en', 'ru'],
-        ),
-        steps: [...AndroidPipeline.defaultSteps, MyStep()],
-      ),
-    ],
-  ),
-);
+class MyStep implements BuildStep {
+  @override
+  String get name => 'my-step';
+  @override
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
+    // read config from ctx, share artifacts via state
+    return StepResult.success();
+  }
+}
 ```
 
-- `okaRun` handles arg parsing, `oka.yaml` merge, SDK/cache dirs.
-- Steps declare `requires`/`provides` artifact sets (`Artifact<T>` typed
-  keys); the runner **validates the whole chain before any tool runs** and
-  fails naming the missing producer.
-- Config is overridden exclusively with `copyWith` on typed values
-  (`PipelineOverrides`, `ManifestSpec`, `SigningConfig`).
-- Reusable logic ships as ordinary Dart packages; depend on `oka_android`
-  (light deps) in the host app, not the `oka` CLI.
-
-Projects without `dart_entrypoint` keep the AOT fast path unchanged.
-See `example/tool/oka_pipeline.dart` for a working hook.
+Data flows between steps via `PipelineState` — a typed blackboard
+(`state.abis`, `state.flutterAssetsDir`, `state.dexFiles`, `state.apkPath`,
+…); custom keys use the `[]` operator.
 
 **Q: How do I customize the Android manifest?**
-
 The manifest is a typed `ManifestSpec` rendered by `host-codegen` — no XML
-patching, no per-attribute YAML fields:
-
+patching:
 ```yaml
 android:
   manifest:
@@ -332,84 +233,64 @@ android:
       - {scheme: https, host: example.com}   # autoVerify
       - {scheme: myapp}                       # scheme-only custom scheme
 ```
-
 Hooks override it wholesale via `ManifestSpec.copyWith`. The user `res/`
 tree (themes, splash, mipmaps) merges via `android.res_dirs`.
 
 ## 🔁 Dev Loop Station (ADR-0011)
 
-Three device-flow surfaces, one story — `oka launch` is an alias of `oka run
-device`, and `oka dev` reuses the same device steps (install → launch →
-logcat failure scan) plus the VM-service session steps, through the same
-validated pipeline machinery. Behavior SSOT: [hot_reload_plan.md](hot_reload_plan),
-[ADR-0011](../decisions/0011-hot-reload-run-loop).
+Three device-flow surfaces, one story — `oka launch` is an alias of
+`oka run device`, and `oka dev` reuses the same device steps plus the
+VM-service session steps, through the same validated pipeline machinery.
+History and phase evidence: [hot_reload_plan](hot_reload_plan).
 
 ```bash
 oka build apk --debug          # 1. oka owns assemble → package → sign;
                                #    records run_session.json (flag parity)
 oka run device                 # 2. one-shot: install + launch + failure-
-                               #    signature scan. No session. (oka launch
-                               #    = same dispatch)
+                               #    signature scan. No session.
 oka dev                        # 3. parity check → install → launch → logscan
-                               #    → VM service scrape + forward → attach
-                               #    session: hot reload / hot restart
+                               #    → VM service attach → hot reload/restart
 ```
 
 `oka dev` controls:
 
-- **Human TTY**: `r` hot reload · `R` hot restart (**loses app state** —
-  full kernel recompile + restart) · `q` quit (stops the app) · `d` detach
-  (app keeps running). Oka renders all progress — never the flutter TUI.
+- **Human TTY**: `r` hot reload · `R` hot restart (**loses app state**) ·
+  `q` quit (stops the app) · `d` detach (app keeps running). Oka renders all
+  progress — never the flutter TUI.
 - **Agent (`--json`)**: structured events on stdout
   (`{"scope":"dev","event":"session.ready"…}`); control lines on stdin:
   `reload` / `restart` / `stop` / `detach` / `quit` (wait for
   `session.ready` before sending).
-- **Agent (`--watch`)**: non-TTY watcher (no keyboard). Dart-only changes
-  reload automatically; native/res/manifest/asset/config changes print the
-  honest full-rebuild command (hot reload is Dart-only — never a dex push,
-  ADR-0011 §5). `--watch --rebuild-on-native` runs it automatically:
-  rebuild → reinstall → relaunch → re-attach.
+- **Agent (`--watch`)**: non-TTY watcher. Dart-only changes reload
+  automatically; native/res/manifest/asset/config changes print the honest
+  full-rebuild command (hot reload is Dart-only — never a dex push,
+  ADR-0011 §5). `--watch --rebuild-on-native` runs it automatically.
 
 Flag parity is enforced: `oka dev` validates the requested target/defines
 against the recorded `run_session.json` and refuses mismatches naming the
 differing fields; the session flutter binary always comes from the recorded
 SDK path, never `PATH`. Profile/release refuse loudly — debug (JIT) only.
-
-```bash
-oka doctor                     # [Dev Loop (ADR-0011)] readiness checks:
-                               # manifest, recorded-SDK binary, device ready
-```
+Readiness: `oka doctor` (manifest, recorded-SDK binary, device ready).
 
 ## ⚡ Incremental build cache
 
-Each step stores its input fingerprint *and per-input digests*; `oka why
-<step>` (e.g. `oka why release-aot`) names which input changed and which
-build-affecting sources the fingerprint does not cover.
-
-For disk usage, emulator/simulator storage and scoped cleanup, see
-[cache storage and cleanup](cache_storage): `oka cache stats`, then
-`oka cache prune --apply` (omit `--apply` to preview).
-
+Each step stores its input fingerprint *and per-input digests*;
+`oka why <step>` (e.g. `oka why release-aot`) names which input changed.
 `plugin-packaging`, `flutter-assemble`, `release-aot` and `compile-and-dex`
-are fingerprint-gated (content-hash for sources/manifests/res; size+mtime for
-jars). Unchanged inputs skip Maven resolution, kotlinc and d8 entirely —
-production-app repeat builds drop from minutes to ~25s. Fingerprints live in
-`.oka_cache/build/<mode>/step_cache.json`; `oka clean` or deleting the build
-dir resets. Any input change (sources, deps, defines, tool versions, manifest)
-forces a full re-run of that step only.
+are fingerprint-gated — unchanged inputs skip Maven resolution, kotlinc and
+d8 entirely; production-app repeat builds drop to ~25s. Fingerprints live in
+`.oka_cache/build/<mode>/step_cache.json`; `oka clean` resets.
 
 **Q: How do I re-run a single pipeline step against the existing cache?**
 ```bash
-oka debug step compile-and-dex              # run one step (plus its upstream
-                                            # prefix, cache-hit cheap) with
-                                            # verbose output
+oka debug step compile-and-dex              # one step (+ upstream prefix,
+                                            # cache-hit cheap), verbose
 oka debug step --list                       # discover available steps
 oka debug step plugin-packaging --project /path/to/app
 ```
-Uses the same context building as `okaRun` (oka.yaml + dart-defines +
-`.oka_cache` layout), so the probe sees exactly what a build sees. A single
-step cannot run alone — its upstream artifact providers run first; the
-incremental step cache keeps the prefix fast on a warm cache.
+Same context building as `okaRun` — the probe sees exactly what a build
+sees. Disk usage and scoped cleanup:
+[cache storage and cleanup](cache_storage).
 
 ## 🔐 Signing & versioning (G2)
 
@@ -427,12 +308,12 @@ android:
 ```
 
 Signing fallback chain: explicit config → `oka.yaml android.signing` →
-`android/key.properties` (Gradle-compatible) → debug keystore (dev only;
-release builds warn loudly).
+`android/key.properties` (Gradle-compatible: `storeFile`, `keyAlias`,
+`storePassword`, `keyPassword`) → debug keystore (dev only; release builds
+warn loudly — stores reject debug-signed artifacts). Per-brand keystores and
+stable-identity rules: [accounts & stores guide](accounts_and_stores).
 
 ## 🔧 Build Pipeline Station (ADR 0002)
-
-**Q: What are the pipeline steps and where do they live?**
 
 Default order (composed in `lib/src/pipeline/default_pipeline.dart`):
 
@@ -453,31 +334,9 @@ Default order (composed in `lib/src/pipeline/default_pipeline.dart`):
 | 13 | `validate-layout` | `steps/tool_steps.dart` |
 
 Shared tool logic (aapt2/javac/d8/zipalign/apksigner invocations) lives in
-`lib/src/pipeline/toolchain.dart`.
-
-**Q: How do I add a custom step?**
-Implement `BuildStep` from `lib/src/pipeline/pipeline.dart`:
-```dart
-class MyStep implements BuildStep {
-  @override
-  String get name => 'my-step';
-  @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
-    // read config from ctx, share artifacts via state
-    return StepResult.success();
-  }
-}
-```
-Compose it into a `Pipeline([...])` and call `pipeline.run(ctx)`.
-
-**Q: How does data flow between steps?**
-Via `PipelineState` — a typed blackboard (`state.abis`, `state.flutterAssetsDir`,
-`state.dexFiles`, `state.apkPath`, …). Steps read upstream outputs and write
-their own. Custom keys use the `[]` operator.
-
-**Q: What is the config precedence?**
-Built-in defaults < `oka.yaml` `pipeline:` section < Dart composition
-(a user-built `Pipeline` always wins).
+`lib/src/pipeline/toolchain.dart`. Config precedence: built-in defaults <
+`oka.yaml` `pipeline:` section < Dart composition (a user-built `Pipeline`
+always wins).
 
 ## 📦 Dependencies Station
 
@@ -488,28 +347,30 @@ pipeline:
   extra_deps:
     - "com.squareup.okhttp3:okhttp:4.12.0"
 ```
-It resolves from Google Maven / Maven Central into the shared store's `maven/`
-directory (with a legacy fallback; see [cache locations](cache_storage)),
-follows the same limited-depth POM transitive closure as plugin dependencies
-(ADR-0008), and is dexed into the APK. AAR dependencies also package their
-`jni/` natives — filtered to the build's ABIs — and `res/` trees, so host
-Kotlin/Java compiled against an extra dep both links and runs (e.g.
-MediaPipe `tasks-vision` pulls `tasks-core` classes and native libs without
-editing oka).
+Resolves from Google Maven / Maven Central into the shared store's `maven/`
+directory, follows the same limited-depth POM transitive closure as plugin
+dependencies (ADR-0008), and is dexed into the APK. AAR dependencies also
+package their `jni/` natives — filtered to the build's ABIs — and `res/`
+trees, so host Kotlin/Java compiled against an extra dep both links and
+runs.
 
 **Q: A build fails with `NoClassDefFoundError: Lfoo/Bar;` — what now?**
 Oka auto-suggests the Maven artifact on build failure. To resolve manually:
 ```bash
 oka get dep androidx.window:window:1.3.0
 ```
-This caches the artifact and prints the exact `oka.yaml` snippet.
-Mapping table: `lib/src/build/dependency_suggest.dart`
-(`kKnownClassArtifacts`) — add new entries there when you discover gaps.
+This caches the artifact and prints the exact `oka.yaml` snippet. Mapping
+table: `lib/src/build/dependency_suggest.dart` (`kKnownClassArtifacts`) —
+add new entries there when you discover gaps. A `NoClassDefFoundError` in a
+plugin class followed by ALL plugins failing to register usually means a
+dependency that only Gradle module metadata declares (`.module`, not the
+POM) — e.g. `androidx.camera` needs `kotlinx-atomicfu`; oka parses `.module`
+runtime deps (`parseModuleRuntimeDependencies` in `lib/src/maven_resolver.dart`).
 
 **Q: Where is the default AndroidX embedding dependency set?**
 `flutterEmbeddingAndroidXDeps()` in `lib/src/build/dependency_cache.dart`.
-Edit only when adding artifacts needed by *every* Flutter host; project-specific
-ones belong in `pipeline.extra_deps`.
+Edit only when adding artifacts needed by *every* Flutter host;
+project-specific ones belong in `pipeline.extra_deps`.
 
 ## 🎨 Assets & Icon Station
 
@@ -530,13 +391,9 @@ pipeline:
 ```
 Oka extracts classes.jar (dex input), `jni/<abi>/*.so` natives (staged to
 `lib/<abi>/`), and `res/**` XML (merged into aapt2 compile). Resource-only
-AARs (no classes.jar) are supported.
-
-**Q: What happens to res/ and jni/ inside Maven AARs?**
-They're extracted automatically. When oka resolves an AAR from Maven it also
-unpacks `jni/<abi>/*.so` and `res/**/*.xml` into the cache (`payload/` dir
-next to classes.jar) and merges them into the build — no config needed.
-Implementation: `extractAarPayload` in `lib/src/build/dependency_cache.dart`.
+AARs (no classes.jar) are supported. The same extraction happens
+automatically for Maven AARs (`extractAarPayload` in
+`lib/src/build/dependency_cache.dart`).
 
 **Q: How do I set the launcher icon?**
 ```yaml
@@ -548,15 +405,10 @@ android:
     name: my_launcher                   # optional, base resource name
     manifest_ref: "@mipmap/my_launcher" # optional, full override — generate nothing
 ```
-Vector-first: no PNG tooling needed; works on API 26+. Generated resources
-(`mipmap-anydpi-v26/<name>.xml` + foreground/background/monochrome companions)
-use `name` (default `ic_launcher`). Two user-owned paths:
-- ship your own icons (any density PNGs or XMLs) via `pipeline.res_dirs` —
-  when the merged res tree already defines the icon under `name` and no
-  generation settings are set, oka skips generation and references it as-is;
-- set `manifest_ref` to any existing resource reference to fully opt out of
-  icon generation.
-
+Vector-first: no PNG tooling; works on API 26+. Generated resources use
+`name` (default `ic_launcher`). Two user-owned paths: ship your own icons
+via `pipeline.res_dirs` (oka skips generation when the merged res tree
+already defines the icon), or set `manifest_ref` to opt out entirely.
 Implementation: `lib/src/build/launcher_icon.dart`.
 
 **Q: How do I add deeplinks?**
@@ -583,12 +435,6 @@ if regressed, device installs on Android 11+ fail.
 **Q: App crashes at launch with missing classes but tests pass?**
 Runtime link errors don't surface at compile time. Reproduce with adb, read
 `adb logcat -d -b crash`, then follow the dependency-recovery flow above.
-A `NoClassDefFoundError` in a plugin class followed by ALL plugins failing to
-register usually means a dependency that only Gradle module metadata declares
-(`.module`, not the POM) — e.g. `androidx.camera` needs `kotlinx-atomicfu`.
-oka parses `.module` runtime deps (`parseModuleRuntimeDependencies` in
-`lib/src/maven_resolver.dart`); if a new case surfaces, check the parsed
-variant output with `oka explain --deps --network`.
 
 **Q: Device shows `unauthorized` in adb?**
 Accept the USB debugging dialog on the phone (unlock first). If stale:
@@ -608,30 +454,26 @@ Walks the ladder: artifact provenance → snapshot↔engine pairing → install 
 device health → launch → process alive → Dart `main()` (startup beacon) →
 first rendered frame → failure signatures. Each rung prints a typed verdict;
 the run fails at the first broken rung with the cause and fix. Compose it in
-`tool/oka_pipeline.dart` (`VerifyTarget(...)`); add rungs and project
-failure signatures as values — see the extension contract in
+`tool/oka_pipeline.dart` (`VerifyTarget(...)`); add rungs and project failure
+signatures as values — see
 [ADR-0029](../decisions/0029-build-provenance-and-verification-ladder).
 
 **Q: What is `oka-provenance.json` inside my APK?**
-The build's birth certificate (ADR-0029 D1): engine variant and jar/
+The build's birth certificate (ADR-0029 D1): engine variant and
 `libflutter.so` hashes, AOT snapshot hash + build id, pub-resolution hashes,
 assemble fingerprint, mode and ABIs. Read it without oka:
-`unzip -p app.apk assets/flutter_assets/oka-provenance.json`. Steps and
-stacked pipelines contribute facts via `state.addProvenanceFact(...)` or
-`ProvenanceContributor`s (`ProvenanceStampStep`).
+`unzip -p app.apk assets/flutter_assets/oka-provenance.json`.
 
-**Q: Why did my build fail with `snapshot-engine-pairing` or
-`engine-variant-matches-mode`?**
-Packaging validates the pairing the engine enforces at startup
-(ADR-0029 D2) — a debug JIT engine paired with a release AOT snapshot, or a
-snapshot the engine will reject ("VM snapshot invalid"), is a red build
-instead of an app hanging on the splash screen. The fix is to rebuild the
-offending side from the same Flutter SDK, never to bypass the check.
+**Q: Why did my build fail with `snapshot-engine-pairing`?**
+Packaging validates the pairing the engine enforces at startup (ADR-0029
+D2) — a mismatched debug-JIT engine / release-AOT snapshot is a red build
+instead of an app hanging on the splash screen. Fix: rebuild the offending
+side from the same Flutter SDK. Never bypass the check.
 
 **Q: The device is fine but the ladder says INCONCLUSIVE?**
-The device-health rung treats a wedged system UI (ANR dialog in focus), an
-unbooted device, or an overloaded host as untrustworthy evidence — fix the
-device or use a fresh one. Results from that state are not evidence.
+The device-health rung treats a wedged system UI, an unbooted device, or an
+overloaded host as untrustworthy evidence — fix the device or use a fresh
+one. Results from that state are not evidence.
 
 ## 🚢 Release Station
 
@@ -653,16 +495,13 @@ oka compare old.apk new.apk          # exit 1 on differences
 oka compare old.aab new.aab --quiet  # differences don't fail (CI-friendly)
 oka compare a.apk b.apk --skip-badging   # zip entries only
 ```
-Diffs `aapt2 dump badging` (package, versionCode/Name, permissions,
-intent-filter/launchable metadata) and the zip entry lists (entries only in
-one artifact + common entries whose content changed, via crc32). This is the
-formal byte-equivalence gate for pipeline refactors (ADR-0007) — a claim is a
-command, not a PR description.
+Diffs `aapt2 dump badging` and the zip entry lists (crc32 content
+comparison). The formal byte-equivalence gate for pipeline refactors
+(ADR-0007) — a claim is a command, not a PR description.
 
 ## 🧪 Source-contract tests note
 
-**Q: What are "source contract" tests?**
 Tests that assert implementation details by reading source files (e.g.
-`test/layout_validation_fail_test.dart`). When moving code between files,
-update the paths in these tests — they encode invariants (no Gradle fallback,
-layout validation must fail loudly), not just locations.
+`test/layout_validation_fail_test.dart`) encode invariants (no Gradle
+fallback, layout validation must fail loudly), not just locations. When
+moving code between files, update the paths in these tests.

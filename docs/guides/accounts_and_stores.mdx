@@ -1,0 +1,236 @@
+---
+title: Accounts, stores & white-labeling
+---
+
+# Accounts, stores & white-labeling
+
+One codebase → many store listings, many developer accounts, many branded
+variants. This guide is the copy-paste map. Credential file formats and
+per-store console setup live in the [publishing guide](publishing); the
+architecture laws in [ADR-0013](../decisions/0013-toolchain-provisioning-artifact-store)/[ADR-0023](../decisions/0023-multi-store-distribution-architecture)/[ADR-0014](../decisions/0014-distribution-targets-secrets-model).
+
+## The mental model (30 seconds)
+
+Three different things, three different tools — oka never conflates them:
+
+| Concept | What it is | Where it lives |
+|---|---|---|
+| **Platform** | How the artifact gets built (Android pipeline) | `pipelines:` — one `AndroidPipeline` |
+| **Store** | Where the artifact is uploaded | `targets:` — a publish target package |
+| **Account** | Who owns the store listing (credentials + package id) | Per-target credential path + `packageName` |
+
+A brand variant (white-label) is a fourth thing: a **build** that differs per
+brand (application id, icon, name, keystore) — also just values in the same
+`tool/oka_pipeline.dart`.
+
+## Level 1 — one app, one store account
+
+The default. Declare the target, rehearse, ship:
+
+```dart
+targets: const [
+  PlayPublishTarget(),   // targetName: 'publish-play' (default)
+],
+```
+
+```bash
+oka build aab --release --verify-aab
+oka run publish-play          # dry-run plan — zero HTTP, no credentials needed
+```
+
+Flip `dryRun: false` only when the console setup is done (service account,
+grant, package id). Full walkthrough: [publishing guide](publishing).
+
+## Level 2 — multiple store accounts (same app, several owners)
+
+Every publish target is independently named and credentialed. For two Play
+accounts, declare two targets:
+
+```dart
+targets: const [
+  PlayPublishTarget(
+    targetName: 'publish-play-acme',
+    packageName: 'com.acme.myapp',
+    serviceAccountPath: 'keys/play-acme.json',
+    releaseTrack: PlayTrack.production,
+  ),
+  PlayPublishTarget(
+    targetName: 'publish-play-client',
+    packageName: 'com.client.myapp',
+    serviceAccountPath: 'keys/play-client.json',
+    releaseTrack: PlayTrack.internal,
+  ),
+],
+```
+
+```bash
+oka explain --targets         # both targets + their step chains, before anything runs
+oka run publish-play-acme     # rehearsal plan for account 1
+oka run publish-play-client   # rehearsal plan for account 2
+```
+
+Checklist for a second account:
+
+1. The app must exist in **that** Play Console under **that** package id —
+   the target validates `packageName` against nothing at plan time; the store
+   rejects mismatches at upload time. Rehearse with dry-run first.
+2. Give each account its own service-account JSON, referenced **by path**.
+3. If both accounts need separately built artifacts (different package ids),
+   you also need Level 3 below — one upload target per built variant.
+
+Works the same for Huawei (`credentialPath` per target) and any custom
+target. All targets obey the same conformance laws: dry-run succeeds without
+credentials; no secret value ever appears in state, logs, or plans.
+
+## Level 3 — white-label build variants (per-brand builds)
+
+There is no Gradle-style flavor DSL — **the composition root is a program**,
+so a brand is a helper function. Declare one `AndroidPipeline` per brand and
+pick it from the `--flavor` flag (a first-class oka arg) before `okaRun`:
+
+```dart
+// tool/oka_pipeline.dart
+AndroidPipeline _brand({
+  required String appName,
+  required String applicationId,
+  required String keystorePath,
+  required String storePassEnv,
+  required IconConfig icon,
+}) {
+  return AndroidPipeline(
+    config: AndroidBuild(
+      name: appName,
+      packageName: applicationId,     // or keep packageName fixed and set
+                                      // applicationId: to override the manifest id
+      minSdk: '23', targetSdk: '36', compileSdk: '36',
+      javaVersion: 17,
+      versionCode: 51, versionName: '1.0.0',
+    ),
+    flutterConfig: const FlutterBuild(entrypoint: 'lib/main.dart'),
+    overrides: PipelineOverrides(
+      icon: icon,
+      signing: SigningConfig(
+        keystorePath: keystorePath,
+        keyAlias: 'upload',
+        // Secrets come from the environment — never from code:
+        storePassword: Platform.environment[storePassEnv] ?? '',
+        keyPassword: Platform.environment['${storePassEnv}_KEY'] ?? '',
+      ),
+    ),
+    steps: [...AndroidPipeline.defaultSteps],
+  );
+}
+
+String _flavor(List<String> args, {required String fallback}) {
+  for (final i in Iterable<int>.generate(args.length)) {
+    if (args[i] == '--flavor' && i + 1 < args.length) return args[i + 1];
+    if (args[i].startsWith('--flavor=')) return args[i].split('=').last;
+  }
+  return fallback;
+}
+
+Future<void> main(List<String> args) {
+  final pipeline = switch (_flavor(args, fallback: 'acme')) {
+    'acme'   => _brand(appName: 'MyApp',     applicationId: 'com.acme.myapp',
+                        keystorePath: 'keys/acme.jks',
+                        storePassEnv: 'OKA_ACME_STORE_PASS', icon: _acmeIcon),
+    'client' => _brand(appName: 'ClientApp', applicationId: 'com.client.myapp',
+                        keystorePath: 'keys/client.jks',
+                        storePassEnv: 'OKA_CLIENT_STORE_PASS', icon: _clientIcon),
+    final f  => throw ArgumentError('unknown flavor: $f'),
+  };
+  return okaRun(args, oka: Oka(pipelines: [pipeline], targets: [DeviceTarget()]));
+}
+```
+
+```bash
+oka build apk --release --flavor client
+oka run publish-play-client          # the matching upload target
+```
+
+Per-brand extras, all typed values on the same pipeline:
+
+- **Dart-side branding**: `FlutterBuild(entrypoint: 'lib/main_client.dart')`
+  or `--dart-define=BRAND=client` read via `String.fromEnvironment`.
+- **Signing**: each brand gets its own keystore via
+  `PipelineOverrides.signing` (fallback chain: explicit config →
+  `oka.yaml android.signing` → `android/key.properties` → debug keystore —
+  a release build falling back to debug warns loudly and is rejected by
+  stores).
+- **Stable identity law** (ADR-0023 §4): one release key per store listing,
+  **stable across releases**. A re-signed app is a different app to the store.
+
+Caveats (honest list):
+
+- Build outputs go to `.oka_cache/build/<mode>/` — run one brand per
+  invocation, or copy/rename the artifact between brand builds (a custom
+  step can do this: see `PrintChecksumStep` in
+  [example/tool/oka_pipeline.dart](https://github.com/Arenukvern/oka/blob/main/example/tool/oka_pipeline.dart)).
+- `--flavor` exists on `BuildContext` but does not yet derive
+  package/signing/output-dir — branch explicitly as above.
+- Version codes are per-store-listing state; keep `versionCode` increasing
+  per account you ship to.
+
+## Level 4 — different stores with different rules
+
+| Store | Target package | Special rule |
+|---|---|---|
+| Google Play | `oka_play` | `bundletool` verification composable; staged rollout via `userFraction` |
+| Huawei AppGallery | `oka_huawei` | Must build the **GMS-free variant** — `HuaweiBuildVariant` filters GMS deps out and makes GMS-required steps fail at composition time, before any tool runs |
+| RuStore | `oka_rustore` | Release-signed AAB required; readiness planning + verification only — real upload needs a project-supplied adapter |
+| Web stores | `oka_web` | Per-store `index.html` contributions (SDK scripts, base href) as const Dart values; deploy to GitHub Pages / itch.io |
+
+```dart
+targets: const [
+  PlayPublishTarget(targetName: 'publish-play-acme',
+      packageName: 'com.acme.myapp', serviceAccountPath: 'keys/play-acme.json'),
+  HuaweiPublishTarget(                  // builds GMS-free, uploads to AGC
+    targetName: 'publish-huawei-acme',
+    release: HuaweiReleaseConfig(
+      appId: '110012345',
+      track: HuaweiReleaseConfig.defaultTrack,
+      releaseNotes: [AgcReleaseNote(language: 'en', file: 'whatsnew-en.txt')],
+    ),
+  ),
+  RuStorePublishTarget(targetName: 'publish-rustore-acme',
+      packageName: 'com.acme.myapp'),
+],
+```
+
+All three reuse the same Android pipeline and the same AAB artifact — stores
+are compositions, not forks ([ADR-0023](../decisions/0023-multi-store-distribution-architecture)).
+Web store differences: [web shell station guide](web_shell_station).
+
+## Where credentials live per account
+
+One convention, per target ([ADR-0014](../decisions/0014-distribution-targets-secrets-model) tier rule):
+
+| Precedence | Source | Example |
+|---|---|---|
+| 1 | typed config path on the target | `serviceAccountPath: 'keys/play-acme.json'` |
+| 2 | env var naming a **path** | `OKA_PLAY_SERVICE_ACCOUNT_JSON=/keys/play-acme.json` |
+| 3 | well-known location | `~/.oka/credentials/play/service-account-json` |
+
+Suggested layout for a multi-account project:
+
+```
+keys/                    # gitignored
+  play-acme.json         # Play service account, your account
+  play-client.json       # Play service account, client's account
+  agc-acme.json          # AppGallery API client
+  acme.jks  client.jks   # per-brand release keystores
+```
+
+`oka doctor` audits dart-define keys against secret-ish patterns — values
+belong in these files, never in defines, never in the composition root.
+
+## Decide in one table
+
+| I need… | Do this | Level |
+|---|---|---|
+| Ship to one store | One publish target, dry-run first | 1 |
+| Same app in two Play accounts | Two targets, distinct `targetName`/`packageName`/credential | 2 |
+| Client-branded builds | One pipeline per brand, branch in `main()` | 3 |
+| Play + Huawei from one codebase | `HuaweiPublishTarget` (GMS-free variant) alongside Play | 4 |
+| Per-store web builds | Shell contributions + deploy targets | web guide |
+| Patch shipped apps without the store | Air channel / live update ([ADR-0037](../decisions/0037-air-channel-invisible-patches)) | live guide |

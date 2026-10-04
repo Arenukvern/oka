@@ -4,6 +4,9 @@ analyzer:
   exclude:
     # The example is a Flutter app: analyzed by `flutter analyze` in example/.
     - example/**
+    # The examples ladder is copy-paste Flutter projects: each is analyzed
+    # in its own checkout after `flutter pub get`, not by the workspace.
+    - examples/**
     - build/**
     - android/**
     - ios/**

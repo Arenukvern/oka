@@ -1,0 +1,27 @@
+{
+  "projectName": "oka",
+  "projectOwner": "Arenukvern",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": ["README.md"],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "conventional",
+  "contributors": [
+    {
+      "login": "Arenukvern",
+      "name": "Arenukvern",
+      "avatar_url": "https://github.com/Arenukvern.png",
+      "profile": "https://github.com/Arenukvern",
+      "contributions": [
+        "ideas",
+        "code",
+        "doc",
+        "design",
+        "maintenance",
+        "review",
+        "test"
+      ]
+    }
+  ]
+}

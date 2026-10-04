@@ -5,35 +5,43 @@ Oka is a Dart CLI that replaces Gradle for Flutter Android builds. It runs
 `zipalign`, `apksigner`) directly — no Gradle daemon, no AGP, no 30-second
 configuration tax on every build.
 
+The whole build config is **one typed Dart file you own**
+(`tool/oka_pipeline.dart`) — stores, developer accounts, and branded
+variants are just more values in it.
+
 ## Choose your path
 
 | Audience | Start here |
 | --- | --- |
 | Build an app now | [Quick recipes](/start_here/quick_recipes) |
-| Operate oka as an AI agent | [`AGENTS.md`](https://github.com/Arenukvern/oka/blob/main/AGENTS.md) — the agent router |
-| Publish to Google Play / AppGallery | [Publishing guide](/guides/publishing) |
+| Learn by building (simplest → stores → live patch) | [Examples ladder](https://github.com/Arenukvern/oka/tree/main/examples) |
+| Publish to Google Play / AppGallery / RuStore | [Publishing guide](/guides/publishing) |
+| Multiple store accounts, white-label builds | [Accounts & stores guide](/guides/accounts_and_stores) |
 | Ship a web app to stores / hosting | [Web shell station guide](/guides/web_shell_station) |
 | Manage spawned processes (emulators, browsers) / stop leaks | [Process lifecycle guide](/guides/process_lifecycle) |
-| Design a declarative process/resource composition API | [Resource composition plan](/guides/resource_composition_plan) |
-| Understand the project | [Why this repo matters](/start_here/why_this_repo_matters) |
+| Operate oka as an AI agent | [`AGENTS.md`](https://github.com/Arenukvern/oka/blob/main/AGENTS.md) — the agent router |
 | Configure a build | [Build & configuration guide](/guides/build_and_config) |
-| Contribute / change architecture | [Docs map](/start_here/docs_map) |
+| Understand the project | [Why this repo matters](/start_here/why_this_repo_matters) |
 
 ## Highlights
 
 - **No Gradle, ever** — the default path never falls back to
   `flutter build apk` (enforced by tests).
-- **Plugin packaging** — Flutter plugin sources, Maven/AAR dependencies,
-  natives and resources, `GeneratedPluginRegistrant`.
-- **Fast settings** — extra deps, extra assets, deeplinks, adaptive vector
-  launcher icons: all declarative in `oka.yaml`.
+- **Explain before execute** — `oka explain` shows the validated plan; zero
+  tools run.
+- **Stores & accounts as values** — Play, AppGallery, RuStore, web deploy
+  targets; dry-run by default; per-account credentials by path.
+- **Plugin packaging** — Flutter plugin sources, Maven/AAR dependencies
+  (natives + resources included), `GeneratedPluginRegistrant`.
+- **Fast settings** — extra deps (`extra_deps`), extra assets, deeplinks,
+  adaptive vector launcher icons: all declarative.
 - **AAB support** — hand-assembled App Bundles with optional bundletool
   verification.
 - **Dependency recovery** — runtime missing-class crashes map back to Maven
   artifacts automatically.
 
 ```bash
-dart pub global activate --source path .   # or: just global
+dart pub global activate oka     # or from the repo: just global
 oka get android-sdk && oka doctor
 cd example && oka build apk
 ```

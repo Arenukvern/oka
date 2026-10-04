@@ -38,8 +38,10 @@ application UI work is outside this skill's scope.
    require device evidence — `oka run verify` is the canonical ladder (provenance,
    pairing, device health, launch, dart-main beacon, first frame), and
    `oka why <step>` answers step-cache staleness questions.
-6. Update usage docs/ADRs and dated evidence. Keep plans forward-only: extract
-   completed work into evidence/history and remove completed plan items.
+6. Update usage docs/ADRs and dated evidence per the docs lattice and gate
+   constraints in [docs.md](references/docs.md). Keep plans forward-only:
+   extract completed work into evidence/history and remove completed plan
+   items; compress stale plan-docs to status tables in place.
 
 ## Invariants
 

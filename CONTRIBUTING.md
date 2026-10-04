@@ -15,3 +15,12 @@ just install && just lint && just test && just check-contracts
   path must never fall back to Gradle.
 - Behavior SSOT is code + tests; docs link, never paraphrase.
 - Design forks need an ADR in `docs/decisions/` before coding.
+
+## Recognition
+
+Every kind of contribution counts — code, docs, examples, bug reports,
+design ideas, reviews. Oka uses the
+[all-contributors spec](https://github.com/all-contributors/all-contributors):
+add yourself with `npx all-contributors add <username> <contribution>`
+(config in `.all-contributorsrc`; it updates the table in `README.md`), or
+just ask in your PR and we'll add you.

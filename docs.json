@@ -85,24 +85,36 @@
           "href": "/guides/build_and_config"
         },
         {
-          "title": "Cache Storage & Cleanup",
-          "href": "/guides/cache_storage"
-        },
-        {
-          "title": "Capability Architecture",
-          "href": "/guides/capability_architecture"
-        },
-        {
-          "title": "Gradle Migration",
-          "href": "/guides/gradle_migration"
+          "title": "Accounts, Stores & White-labeling",
+          "href": "/guides/accounts_and_stores"
         },
         {
           "title": "Publishing",
           "href": "/guides/publishing"
         },
         {
+          "title": "Gradle Migration",
+          "href": "/guides/gradle_migration"
+        },
+        {
+          "title": "Cache Storage & Cleanup",
+          "href": "/guides/cache_storage"
+        },
+        {
           "title": "Web Shell Station",
           "href": "/guides/web_shell_station"
+        },
+        {
+          "title": "Live Update (experimental)",
+          "href": "/guides/live_update"
+        },
+        {
+          "title": "Process Lifecycle",
+          "href": "/guides/process_lifecycle"
+        },
+        {
+          "title": "Capability Architecture",
+          "href": "/guides/capability_architecture"
         },
         {
           "title": "Design FAQ",

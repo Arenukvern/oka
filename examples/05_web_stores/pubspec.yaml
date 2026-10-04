@@ -1,0 +1,17 @@
+name: web_stores_oka
+description: Example 05 — typed web shell, GitHub Pages + itch.io deploy.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  oka: ^0.6.0
+  oka_core: ^0.6.0
+  oka_web: ^0.6.0
+
+flutter:
+  uses-material-design: true

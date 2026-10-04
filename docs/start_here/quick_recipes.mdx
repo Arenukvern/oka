@@ -68,12 +68,43 @@ Store contributions (CrazyGames, Yandex Games, …) are const values your
 composition composes — no per-store branches. Docs:
 [Web Shell Station](../guides/web_shell_station).
 
+## Dev session (hot reload/restart on macOS & web)
+
+```bash
+oka run dev --platform macos --project <app-dir>          # real desktop app
+oka run dev --platform web  --project <app-dir> --open-browser
+```
+
+Inside the session: `r [file]` = hot reload through oka's unit-delta lane
+(app frontend → VM service → reassemble), `R` = platform hot restart,
+`q` = quit, `--watch` = apply on every save, `--json` = receipts for
+agents. Needs the experimental stack checkout (same posture as
+`oka ship`). Docs: [Live update](../guides/live_update), ADR-0037 §6.
+
 ## Release
 
 ```bash
 oka build apk --release
 oka build aab --verify-aab      # bundle + bundletool universal-APK verification
+oka run verify                  # prove the release actually starts (ADR-0029)
 ```
+
+## Stores & accounts
+
+Declare targets in `tool/oka_pipeline.dart`, then rehearse before you ship
+(dry-run is the default — zero HTTP, no credentials needed):
+
+```bash
+oka explain --targets           # every declared target + its step chain
+oka build aab --release --verify-aab
+oka run publish-play            # Google Play (Huawei: publish-huawei,
+                                # RuStore: your declared RuStore target name)
+```
+
+Credentials are file paths (typed config → `OKA_<TARGET>_*` env var →
+`~/.oka/credentials/<target>/`), never values. Two accounts or branded
+variants are two targets / two pipelines in the same file — recipes:
+[Accounts & stores guide](../guides/accounts_and_stores).
 
 ## Verify a release actually starts (ADR-0029)
 

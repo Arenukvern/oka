@@ -1,0 +1,20 @@
+name: stores_oka
+description: Example 04 — two Play accounts, white-label brands, Huawei + RuStore.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  oka: ^0.6.0
+  oka_android: ^0.6.0
+  oka_core: ^0.6.0
+  oka_play: ^0.6.0
+  oka_huawei: ^0.6.0
+  oka_rustore: ^0.6.0
+
+flutter:
+  uses-material-design: true
