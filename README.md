@@ -181,11 +181,12 @@ oka ship                                       # derive + publish a patch from t
 packages/oka_dart_kernel/example/live_showcase/run.sh   # 30 s demo
 ```
 
-Works today: the dev session (macOS/web), invisible patch authoring,
-signed channels, migration chains with snapshot fallback, the boot
-watchdog. Not yet: the android dev session, per-unit AOT over the air
-(research line, ADR-gated). The stack is not on pub.dev — it runs from an
-oka repo checkout.
+Works today: the dev session (macOS/web) with watch-on-save, asset sync,
+and live shader recompiles; invisible patch authoring; signed channels;
+migration chains with snapshot fallback; the boot watchdog. Not yet: the
+android dev session, live freshness for already-loaded assets (engine
+seam), per-unit AOT over the air (research line, ADR-gated). The stack is
+not on pub.dev — it runs from an oka repo checkout.
 
 Guide: [Live update](docs/guides/live_update.mdx).
 

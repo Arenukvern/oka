@@ -4,9 +4,11 @@
   authoring (`oka ship`), signed channels, chains vs snapshots with a
   boot watchdog, snapshot derivation from the build, git + static-host
   publish, the web verify rung, and the converged dev session
-  `oka run dev` on macOS + web — gates G-AC1..8 below. **Open:**
-  DevFS asset sync, the android leg of `oka run dev`. **Research line
-  (ADR-gated, do not code):** G-AC9 per-unit AOT OTA.
+  (`oka dev` = `oka run dev`, watch-on-save default) on macOS + web —
+  assets sync + evict, shaders recompile live (§6b) — gates G-AC1..8
+  below. **Open:** the android leg of `oka run dev`. **Research lines
+  (ADR-gated, do not code):** G-AC9 per-unit AOT OTA; live freshness of
+  already-loaded assets (engine asset-cache seam).
 - **Date:** 2026-10-03
 - **Decision-makers:** Anton, oka agent
 - **Extends:** ADR-0030 (§5 updates as validated transitions), ADR-0031
