@@ -1,0 +1,51 @@
+# General Dart targets — oka as the bundler for ALL Dart programs
+
+Vision: oka is a general bundler and live-update system for Dart — the
+bun/vite position for this ecosystem: fast, composable, declarative,
+extensible, testable. Flutter delivery (Gradle/APK/AAB/store) is one
+adapter on that core, never the core itself.
+
+## What is already general (proven)
+
+The kernel stack never needed Flutter:
+
+- **Units** (`oka_dart_kernel`): a unit graph + delta compiler over any
+  package config. Proven on `last_answer` (Flutter macos/web) AND on
+  `ecsai_harness` — a pure-Dart MCP stdio server (2026-10-05: 15 KB deltas,
+  `reloadKernel` applies in ~22 ms, probes flip, state holds, no restart).
+- **Targets are plain data** (`TargetSpec`): stock VM / `dart run` server,
+  Flutter desktop (DDS), Android (DevFS), web (dwds), staged AOT, MCP stdio
+  servers. One wire, one receipt shape.
+- **The invisible loop** (`LiveWatcher`, `applyChange`, receipts): editor
+  saves become live deltas for ANY target; probes (`expect:` / `hold:`)
+  are the no-restart proof.
+- **Declarative patches** (`LivePatchSpec`): one Dart value or one JSON
+  file; composed, diffable, testable.
+
+## The unified experience to build toward
+
+1. **`oka init` for plain Dart** — discover `package_config.json`, entry
+  points, and declare units/targets/probes in `oka.yaml`; no Gradle, no
+   Flutter requirement. A Dart server project should reach
+   `oka dev --watch` with one sentence of config.
+2. **`oka dev` for non-Flutter servers** — today `run dev` wraps
+   `flutter run` lanes. Generalize: target kind `vm-server` (start under
+   the VM service + attach the watcher + `R` = real restart, `r` = delta)
+   reusing `tool/oka_live_watch.dart`'s composition as the built-in lane.
+3. **One warm toolchain by default** — CLI verbs now take `--work-dir`;
+   the default should become a shared per-`sdkHash` dir under `~/.oka`
+   (bun installs once, then is instant). Cold `Directory.systemTemp`
+   builds per invocation are the current bottleneck (minutes vs ~15 s).
+4. **Targets registry as data** — project-declared targets
+   (`tool/oka_pipeline.dart` today) plus the built-in `TargetSpec` kinds
+   converge on one declarative table; plugins add kinds, not forks.
+5. **Checkers as targets** — the same receipt/probe contract should cover
+   `dart analyze`/test gates so a patch is verified by the project's own
+   declared checks, not just probes.
+
+## Non-claims
+
+The harness proof covers the JIT `dart run` lane on macOS. AOT owners
+remain the staged seam (ADR 0037, slotSwap; G-AC9 ADR-gated). Web/DevFS
+lanes are proven on Flutter apps, not yet on plain-Dart `dart compile js`
+output. Nothing here changes oka's Android delivery contracts.

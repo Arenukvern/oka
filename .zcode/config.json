@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "servers": {
+      "harnessd": {
+        "type": "stdio",
+        "command": "/bin/zsh",
+        "args": [
+          "-lc",
+          "cd /Users/antonio/xs/ecsai_harness && HARNESS_SEAT_CREDENTIAL=/Users/antonio/xs/ecsai_harness/.dart_tool/harnessd/local-seats-seat-owner-11c123133ed966ece85f0356265ece18-dIcliq/grant-116f8f5098182b59ee52f2e9a5e96b1e-0.credential exec ./tool/harnessd_seat.sh"
+        ]
+      }
+    }
+  }
+}
