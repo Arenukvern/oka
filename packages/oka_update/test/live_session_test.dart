@@ -61,6 +61,14 @@ class FakeTarget implements LivePatchTarget {
   }
 
   @override
+  Future<ApplyOutcome> syncAsset(
+          {required String assetKey,
+          required List<int> bytes,
+          required String flutterAssetsDir}) async =>
+      const ApplyOutcome(
+          ok: false, mode: 'assets-sync', error: 'fake: unsupported');
+
+  @override
   Future<String> evaluate(ProbeSpec probe) async => values[probe.expression]!;
 
   @override

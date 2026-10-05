@@ -81,30 +81,32 @@ with evidence, not into a checked box.
   reload across platforms, the endless loop, AOT slots + handoff, the
   product-families gate, `oka ship` (invisible authoring → signed,
   snapshot-bearing channels → git/static-host publish → `UpdateClient`
-  chains + boot watchdog), the web verify rung, and the converged dev
-  session `oka run dev` (macOS + web). History: spike evidence
+  chains + boot watchdog), the web verify rung, the converged dev
+  session `oka run dev` (macOS + web), and the dev-session asset lane
+  (sync + evict; live freshness is an engine-cache ceiling, ADR-0037
+  §6b). History: spike evidence
   (`docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`), ADR-0037
   gates G-AC1..8, ADR-0035 §2e/§S2. What's next, in dependency order:
-  1. **DevFS asset sync in `oka run dev`** — today a changed non-code
-     asset refuses with `R`; syncing assets through DevFS + reassemble
-     closes the last flutter-parity gap (G-RUN). Small, daily-value.
-  2. **`oka run dev --platform android`** — every piece exists (oka
+  1. **`oka run dev --platform android`** — every piece exists (oka
      builds the debug APK, ADR-0011's daemon owns install/launch, the
-     device lane applies deltas); wiring them into the converged session
-     retires the two-command android dev loop. Medium.
-  3. **`oka build` emits the head snapshot** — closes G-AC6's "without a
+     device lane applies deltas + syncs assets over DevFS); wiring them
+     into the converged session retires the two-command android loop.
+     Medium.
+  2. **`oka build` emits the head snapshot** — closes G-AC6's "without a
      flag" wording: each platform target's build output (web bundle, AOT
      set) registered so `oka ship` stages it automatically. Rides
      ADR-0030 composition. Medium.
-  4. **Analyzer-backed unit fingerprints** (ADR-0034 G4) — replaces the
+  3. **Analyzer-backed unit fingerprints** (ADR-0034 G4) — replaces the
      prototype declaration-line fingerprints that fail closed on exotic
      declarations. Medium.
-  5. **Web in-app adoption + unit generator** (ADR-0031 gate 1) — the
+  4. **Web in-app adoption + unit generator** (ADR-0031 gate 1) — the
      bootstrap that consumes the channel at page load, plus
      barrels/registry codegen. Medium-large.
   Research lines (not roadmated, need ADRs): G-AC9 per-unit AOT OTA
   (sdk#64162 + embedder seam), macOS fd-passing handoff, S2 registry
-  indirection for unbounded AOT streams. Concise user/agent entry:
+  indirection for unbounded AOT streams, and live asset freshness (the
+  engine's asset mapping cache ignores `ext.flutter.evict` on macOS —
+  engine seam). Concise user/agent entry:
   `docs/guides/live_update.mdx`.
 - **Build lane, carried from the ladder:** the oka self-reference fix —
   step digests must not include the driving tool's sources (patching the

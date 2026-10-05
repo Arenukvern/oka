@@ -26,7 +26,9 @@ import 'watcher.dart';
 /// What a verb embedding provides: the compiled-toolchain seam and the
 /// root the spec's relative paths resolve against.
 abstract interface class LiveVerbHost {
-  UnitDeltaCompiler get compile;
+  /// Null for compile-free embeddings (the verify verb never compiles;
+  /// patch/watch refuse with the fix when it is missing).
+  UnitDeltaCompiler? get compile;
   String get root;
   Map<String, LivePatchTarget> get targetOverrides;
   void Function(LivePatchEvent event)? get onEvent;
@@ -79,9 +81,13 @@ final List<LiveVerb> liveVerbCatalog = [
     },
     run: (args, host) async {
       final spec = _specOf(args);
+      if (host.compile == null) {
+        throw ArgumentError('oka.live.patch needs a delta compiler '
+            '(resolvePipelineToolchain + pipelineDeltaCompiler)');
+      }
       final receipt = await runLivePatch(
         spec,
-        compile: host.compile,
+        compile: host.compile!,
         root: host.root,
         targetOverrides: host.targetOverrides,
         onEvent: host.onEvent,
@@ -118,10 +124,14 @@ final List<LiveVerb> liveVerbCatalog = [
       final spec = _specOf(args);
       final changedFile = args['changedFile'] as String?;
       if (changedFile != null) {
+        if (host.compile == null) {
+          throw ArgumentError('oka.live.watch needs a delta compiler '
+              '(resolvePipelineToolchain + pipelineDeltaCompiler)');
+        }
         final receipt = await applyChange(
           spec,
           changedFile: changedFile,
-          compile: host.compile,
+          compile: host.compile!,
           root: host.root,
           targetOverrides: host.targetOverrides,
           onEvent: host.onEvent,
@@ -205,7 +215,7 @@ Future<LivePatchReceipt> _watchOnce(LivePatchSpec spec, LiveVerbHost host) {
     revision: spec.revision,
     targets: spec.targets,
     probes: spec.probes,
-    compile: host.compile,
+    compile: host.compile!,
     root: host.root,
     targetOverrides: host.targetOverrides,
     onEvent: host.onEvent,

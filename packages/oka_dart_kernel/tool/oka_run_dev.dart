@@ -369,21 +369,91 @@ Future<void> runRunDevCli(
         );
 
   LivePatchSpec specFor() => LivePatchSpec(
-        revision: 'dev-${++reloads}',
+        revision: 'dev-$reloads',
         unit: parsed.unit,
         patches: const [],
         targets: [targetSpec()],
         probes: specs,
       );
 
+  /// The asset lane (G-RUN): write the changed file into the engine's
+  /// asset directory and evict the app's caches. Honesty note: on macOS
+  /// the engine serves the previously-mapped bytes until the next engine
+  /// cycle (`R`) — the probes verify what is true, and when they have not
+  /// flipped the receipt says FAILED with the engine-cache reason rather
+  /// than implying the change is live.
+  Future<void> syncAssetLane(String changed) async {
+    final key = changed.startsWith('${parsed.project}/')
+        ? changed.substring('${parsed.project}/'.length)
+        : changed;
+    final dir = findFlutterAssetsDir(parsed.project);
+    if (dir == null) {
+      out('assets: no macOS build product found under '
+          'build/macos/Build/Products — run the app first; asset '
+          'changes need `R` (or a rebuild) otherwise');
+      return;
+    }
+    final bytes = await File(changed).readAsBytes();
+    final target = overrides['app'];
+    if (target == null) {
+      out('assets: no target connected yet');
+      return;
+    }
+    // The delta lane connects through the session; this lane owns the
+    // wire directly — connect is idempotent.
+    await target.connect();
+    final sw = Stopwatch()..start();
+    final outcome = await target.syncAsset(
+        assetKey: key, bytes: bytes, flutterAssetsDir: dir);
+    sw.stop();
+    // Probe honesty: capture fingerprints before/after evict so the
+    // receipt says whether the change is LIVE (engine cache served the
+    // new bytes) or staged-for-next-cycle.
+    final probeValues = <String, String>{};
+    for (final p in specs) {
+      try {
+        probeValues[probeKey(p)] = await target.evaluate(p);
+      } on Object catch (e) {
+        probeValues[probeKey(p)] = 'unreadable ($e)';
+      }
+    }
+    // The header line is the session's greppable spine (gates, humans);
+    // --json adds the full receipt object after it.
+    out('assets $reloads: ${outcome.ok ? 'OK' : 'FAILED'}');
+    out(parsed.jsonOut
+        ? const JsonEncoder.withIndent('  ').convert({
+            'ok': outcome.ok,
+            'mode': outcome.mode,
+            'asset': key,
+            'bytes': bytes.length,
+            'durationMs': sw.elapsedMilliseconds,
+            ...outcome.wire,
+            'probes': probeValues,
+          })
+        : 'assets $reloads: ${outcome.ok ? 'OK' : 'FAILED'} — $key '
+            '(${bytes.length}B) synced into the engine asset dir, '
+            'evict ${outcome.wire['evict'] ?? outcome.error}\n'
+            '  probes after evict: '
+            '${probeValues.values.join(' | ')}'
+            '${outcome.ok ? '' : '\n  FAILED: ${outcome.error}'}');
+  }
+
   Future<void> reload([String? file]) async {
-    final changed = file ?? lastChanged;
-    if (changed == null) {
+    final raw = file ?? lastChanged;
+    if (raw == null) {
       out('reload: no changed file — save one (--watch) or pass it: '
           'r <path>');
       return;
     }
+    // Session commands accept project-relative paths; everything
+    // downstream (delta compile, asset key, watch set) is absolute.
+    final changed = raw.startsWith('/') ? raw : '${parsed.project}/$raw';
     lastChanged = changed;
+    reloads++;
+    if (!changed.endsWith('.dart')) {
+      await syncAssetLane(changed);
+      return;
+    }
     final receipt = await applyChange(
       specFor(),
       changedFile: changed,
@@ -391,10 +461,12 @@ Future<void> runRunDevCli(
       root: parsed.project,
       targetOverrides: overrides,
     );
+    // The header line is the session's greppable spine (gates, humans);
+    // --json adds the full receipt object after it.
+    out('reload $reloads: ${receipt.ok ? 'OK' : 'FAILED'}');
     out(parsed.jsonOut
         ? const JsonEncoder.withIndent('  ').convert(receipt.toJson())
-        : 'reload $reloads: ${receipt.ok ? 'OK' : 'FAILED'}\n'
-            '${receipt.describe()}');
+        : receipt.describe());
   }
 
   Future<void> restart() async {
@@ -562,8 +634,11 @@ List<ProbeSpec>? _loadProbes(String? path, void Function(String) err) {
   }
 }
 
-/// Every dart file the watch set covers: the app's lib/ plus workspace
-/// packages' lib/ — the same scan discipline the ship derivation uses.
+/// Every file the watch set covers: the app's dart sources (lib/ plus
+/// workspace packages' lib/) plus the declared assets (pubspec
+/// `flutter: assets:`, dirs expanded) — the same scan discipline the
+/// ship derivation uses. Dart files ride the delta lane; assets ride
+/// the sync lane.
 List<String> _watchSet(String project) {
   final files = <String>[];
   final packagesDir = Directory('$project/packages');
@@ -581,6 +656,13 @@ List<String> _watchSet(String project) {
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))
         .map((f) => f.path));
+  }
+  try {
+    files.addAll(declaredAssetFiles(project)
+        .map((p) => '$project/$p'));
+  } on AssetSpecException {
+    // No (or broken) asset declaration: dart-only watch set. The
+    // refusal for a hand-named missing asset names the declaration.
   }
   return files;
 }

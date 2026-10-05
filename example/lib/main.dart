@@ -1,12 +1,34 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:mcp_toolkit/mcp_toolkit.dart';
+import 'package:flutter/services.dart' show rootBundle;
+
+// The dev-session asset probes (ADR-0037 §6b / gate_dev_assets.sh).
+// `evaluate` cannot await, so the probe is two-phase: evaluate
+// [refreshHelloAsset] (fires the async reload inside the app), then read
+// the cached fingerprint synchronously via [helloAssetFingerprint] —
+// length + byte-sum, so content changes are visible at a constant size.
+// NOTE: the bootstrap below is deliberately the STANDARD
+// WidgetsFlutterBinding — mcp_toolkit's `bootstrapFlutter` suppresses
+// framework service extension registration (ext.flutter.* never
+// appear), which the live stack's reassemble/evict calls need.
+int _helloFingerprint = 0;
+
+Future<void> refreshHelloAsset() async {
+  final d = await rootBundle.load('assets/hello.txt');
+  var sum = 0;
+  for (final b in d.buffer.asUint8List(d.offsetInBytes, d.lengthInBytes)) {
+    sum += b;
+  }
+  _helloFingerprint = d.lengthInBytes * 1000003 + sum;
+}
+
+int helloAssetFingerprint() => _helloFingerprint;
 
 Future<void> main() async {
-  await MCPToolkitBinding.instance.bootstrapFlutter(
-    runApp: () => runApp(const MyApp()),
-  );
+  WidgetsFlutterBinding.ensureInitialized();
+  await refreshHelloAsset();
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {

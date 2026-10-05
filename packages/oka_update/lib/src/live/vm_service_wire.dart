@@ -136,10 +136,22 @@ class VmServiceWire {
   /// widget tree rebuild that makes a kernel delta visible in the UI
   /// (G-RUN). Absent on non-Flutter VMs: callers treat LiveWireException
   /// as 'no Flutter here', not a failure.
+  ///
+  /// Wire shape (measured; this file once sent `callServiceExtension`,
+  /// which the VM service rejects as Unknown method — package:vm_service
+  /// sends the EXTENSION NAME as the JSON-RPC method with
+  /// `{isolateId, ...args}` params): the service framework dispatches any
+  /// `ext.*` method directly.
   Future<Map<String, dynamic>> flutterReassemble(
           {required String isolateId}) =>
-      rpc('callServiceExtension',
-          {'isolateId': isolateId, 'extension': 'ext.flutter.reassemble'});
+      rpc('ext.flutter.reassemble', {'isolateId': isolateId});
+
+  /// Asks the running app to drop its caches for one asset
+  /// (`ext.flutter.evict`, flutter_tools' hot-reload asset eviction).
+  /// The next `rootBundle.load` of [assetKey] re-reads from disk.
+  Future<Map<String, dynamic>> flutterEvict(
+          {required String isolateId, required String assetKey}) =>
+      rpc('ext.flutter.evict', {'isolateId': isolateId, 'value': assetKey});
 
   Future<Map<String, dynamic>> reloadKernel(
           {required String isolateId, required String kernelFilePath}) =>

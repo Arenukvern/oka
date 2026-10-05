@@ -21,6 +21,7 @@ export 'src/channel/signing.dart';
 export 'src/channel/staged_journal.dart';
 export 'src/channel/update_client.dart';
 export 'src/live/agent.dart';
+export 'src/live/assets.dart';
 export 'src/live/events.dart';
 export 'src/live/receipt.dart';
 export 'src/live/session.dart';

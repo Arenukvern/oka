@@ -160,11 +160,36 @@ converged session ships as the built-in `oka run dev` target:
   point the alias inverts.
 
 G-RUN status: `ext.flutter.reassemble` is proven in the oka-owned session
-(probe flip + reassemble receipts on flutter desktop); **DevFS asset sync
-is the remaining flutter-parity gap** — a changed non-code asset refuses
+(probe flip + reassemble receipts on flutter desktop); **DevFS asset
+sync is the remaining flutter-parity gap** — a changed non-code asset refuses
 with "R" rather than syncing. AOT `r` is a different, bounded, debug-less
 contract (`slotSwap`, refusals escalate to `R`; `gate_aot_slots.sh`) and
 is a rehearsal lane, not the daily loop.
+
+### 6b. Asset lane (landed 2026-10-05, with an honest ceiling)
+
+`r <asset>` and `--watch` cover declared assets (`flutter: assets:` in
+pubspec, dirs expanded): the session writes the bytes into the engine's
+asset directory (the build product's `App.framework` resources — the
+path the debug engine actually reads, discovered host-side; no app code
+required) and fires `ext.flutter.evict`. The receipt then reports the
+post-evict probe **honestly**: on macOS the engine's asset cache serves
+the previously-mapped bytes until the next engine cycle — `R` picks the
+synced bytes up (`gate_dev_assets.sh` proves sync → evict → restart →
+fingerprint verified). Flutter's own desktop asset hot reload has the
+same ceiling: flutter_tools syncs assets into a DevFS directory the
+engine never reads. Making the engine drop its asset mapping cache is an
+engine-seam research line, not an oka gap.
+
+Wire facts this lane established (see
+`skills/oka-kernel/references/troubleshooting.md`): service extensions
+are invoked as the extension NAME over the wire (`ext.flutter.evict`
+with `{isolateId, ...args}` — the `callServiceExtension` method shape is
+rejected as Unknown, which is why this ADR's earlier reassemble receipts
+read `absent`); a non-standard binding bootstrap (e.g.
+mcp_toolkit's `bootstrapFlutter`) suppresses ALL framework service
+extensions; and the debug macOS engine resolves assets from the build
+product, not the DevFS.
 
 ## Acceptance gates
 
@@ -230,17 +255,19 @@ is a rehearsal lane, not the daily loop.
    (a client past head refuses honestly: delta chains do not reverse).
    Gate 1 (barrel/registry generation) remains spike-validated — it is a
    build-side generator concern (ADR-0031), not a channel concern.
-8. **G-AC8 (dev session landed 2026-10-04).** The converged session
-   ships as the built-in `oka run dev` target (`oka run dev --platform
-   macos|web`): build → launch → r/R over oka's lanes (§6). `r` applies
-   the unit delta with `reassemble` on flutter desktop and dwds
-   `reloadSources` on web; `R` restarts through the platform lane; the
-   session prints a receipt per reload and verifies declarative probes.
-   Proven on last_answer's real macOS desktop app and real web app
-   (`tool/gate_run_dev.sh`: r flips a live probe, R restarts, q exits).
-   Still open: DevFS asset sync (changed non-code assets refuse with "R")
-   and the android device leg (rides `gate_live_e2e.sh` android until
-   then).
+8. **G-AC8 (dev session landed 2026-10-04; asset lane 2026-10-05).** The
+   converged session ships as the built-in `oka run dev` target (`oka
+   run dev --platform macos|web`): build → launch → r/R over oka's lanes
+   (§6). `r` applies the unit delta with `reassemble` on flutter desktop
+   and dwds `reloadSources` on web; `R` restarts through the platform
+   lane; the session prints a receipt per reload and verifies
+   declarative probes. Proven on last_answer's real macOS desktop app
+   and real web app (`tool/gate_run_dev.sh`: r flips a live probe, R
+   restarts, q exits). The asset lane (§6b): declared assets sync into
+   the engine's asset dir + `ext.flutter.evict`; live freshness is
+   engine-blocked on macOS (the receipt says so; `R` applies), proven by
+   `tool/gate_dev_assets.sh`. Still open: the android device leg (rides
+   `gate_live_e2e.sh` android until then).
 9. **G-AC9 (open, gated).** Per-unit AOT OTA (`slotSwap` over the air)
    requires the ADR-0031 §7 follow-up ADR — sdk#64162, embedder
    `Dart_SetDeferredLoadHandler` integration, S2 registry indirection.

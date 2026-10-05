@@ -46,5 +46,16 @@ abstract class LivePatchTarget {
   /// value as a string.
   Future<String> evaluate(ProbeSpec probe);
 
+  /// The dev-session asset lane (G-RUN): write [bytes] into the engine's
+  /// asset directory under [assetKey] and evict the app's asset caches.
+  /// Targets whose platform cannot take asset changes refuse in the
+  /// outcome (web: a page reload is the change; staged AOT: assets ride
+  /// the snapshot lane) — they never throw for an expected refusal.
+  Future<ApplyOutcome> syncAsset({
+    required String assetKey,
+    required List<int> bytes,
+    required String flutterAssetsDir,
+  });
+
   Future<void> close();
 }

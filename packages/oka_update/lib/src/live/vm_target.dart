@@ -160,14 +160,28 @@ class VmJitTarget implements LivePatchTarget {
           (r['details'] as Map? ?? const {}).cast<String, Object?>();
       final loaded = details['loadedLibraries'] ?? details['libraries'];
       final ok = !(r['success'] is bool && !(r['success'] as bool));
+      // G-RUN: repaint the widget tree after a successful reload — same
+      // best-effort contract as the host branch (a non-Flutter VM has no
+      // such extension and that is not a failure).
+      var reassemble = 'skipped (reload failed)';
+      if (ok) {
+        try {
+          await wire.flutterReassemble(isolateId: isolate);
+          reassemble = 'ok';
+        } on LiveWireException catch (e) {
+          reassemble = 'absent (${e.message})';
+        }
+      }
       return ApplyOutcome(
           ok: ok,
           mode: applyVia == 'reloadSources'
               ? 'reloadSources(rootLibUri)'
               : 'reloadKernel→reloadSources(rootLibUri)',
+          error: ok ? null : 'reload report: $r',
           wire: {
             'deviceUri': deviceUri,
             'packagesUri': ?packagesUri,
+            'reassemble': reassemble,
             ...details,
             if (loaded == null && details.isEmpty) 'detailsAbsent': true,
           });
@@ -192,6 +206,50 @@ class VmJitTarget implements LivePatchTarget {
         isolateId: loc.isolateId,
         libraryId: loc.libraryId,
         expression: probe.expression);
+  }
+
+  /// The dev-session asset lane (G-RUN): write [bytes] into the engine's
+  /// asset directory under [assetKey], then ask the app to evict its
+  /// caches (`ext.flutter.evict`). The probe half of the receipt is the
+  /// session's job; whether the engine serves the new bytes LIVE is a
+  /// platform fact the receipt reports, never hides (on macOS the
+  /// engine's asset cache holds the old mapping until the next engine
+  /// cycle).
+  @override
+  Future<ApplyOutcome> syncAsset({
+    required String assetKey,
+    required List<int> bytes,
+    required String flutterAssetsDir,
+  }) async {
+    final target = File('$flutterAssetsDir/$assetKey');
+    if (!target.parent.existsSync()) {
+      return ApplyOutcome(
+          ok: false,
+          mode: 'assets-sync',
+          error: 'asset dir missing: ${target.parent} — build the app '
+              'first (flutter run owns that)');
+    }
+    await target.writeAsBytes(bytes, flush: true);
+    final isolate = await _isolateForApply();
+    try {
+      final r = await _wire.flutterEvict(isolateId: isolate, assetKey: assetKey);
+      return ApplyOutcome(
+          ok: true,
+          mode: 'assets-sync',
+          wire: {
+            'assetKey': assetKey,
+            'bytes': bytes.length,
+            'dir': flutterAssetsDir,
+            'evict': r['type'] == '_extensionType' ? 'ok' : '$r',
+          });
+    } on LiveWireException catch (e) {
+      return ApplyOutcome(
+          ok: false,
+          mode: 'assets-sync',
+          error: 'evict failed: ${e.message} — is the target a Flutter '
+              'app with a standard binding bootstrap?',
+          wire: {'assetKey': assetKey, 'bytes': bytes.length});
+    }
   }
 
   Future<String> _isolateForApply() async {

@@ -46,9 +46,11 @@ class _FakeApp implements DevApp {
   Future<int> stop() async => 0;
 }
 
-/// A fake target: applies succeed, nothing touches a wire.
+/// A fake target: applies succeed, nothing touches a wire. Records
+/// asset syncs so the dev session's asset lane is testable.
 class _FakeTarget implements LivePatchTarget {
   int applies = 0;
+  final assetSyncs = <({String assetKey, int bytes, String dir})>[];
 
   @override
   String get kind => 'vm';
@@ -66,6 +68,22 @@ class _FakeTarget implements LivePatchTarget {
       required int deltaBytes}) async {
     applies++;
     return const ApplyOutcome(ok: true, mode: 'fake');
+  }
+
+  @override
+  Future<ApplyOutcome> syncAsset(
+      {required String assetKey,
+      required List<int> bytes,
+      required String flutterAssetsDir}) async {
+    assetSyncs.add((
+      assetKey: assetKey,
+      bytes: bytes.length,
+      dir: flutterAssetsDir,
+    ));
+    return ApplyOutcome(
+        ok: true,
+        mode: 'assets-sync',
+        wire: {'evict': 'ok', 'dir': flutterAssetsDir});
   }
 
   @override
@@ -148,6 +166,25 @@ void main() {
     await dev([], ['reload now', 'q']);
     expect(exit, 0);
     expect(out.join('\n'), contains('unknown command: reload now'));
+  });
+
+  test('r <asset> rides the sync lane, not the delta lane', () async {
+    Directory('$root/assets').createSync();
+    final asset = File('$root/assets/hello.txt')
+      ..writeAsStringSync('hello');
+    Directory('$root/build/macos/Build/Products/Debug'
+            '/app.app/Contents/Frameworks/App.framework/Versions/A'
+            '/Resources/flutter_assets')
+        .createSync(recursive: true);
+    await dev([], ['r assets/hello.txt', 'q']);
+    expect(exit, 0);
+    expect(target.applies, 0, reason: 'assets never compile as deltas');
+    expect(target.assetSyncs.single.assetKey, 'assets/hello.txt');
+    expect(target.assetSyncs.single.bytes, 5);
+    expect(target.assetSyncs.single.dir, contains('flutter_assets'));
+    expect(out.join('\n'), contains('assets 1: OK'));
+    // The synced file lands in the fake dir the target records.
+    expect(asset.existsSync(), isTrue);
   });
 
   test('malformed flags print usage and exit 2', () async {

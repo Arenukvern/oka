@@ -33,6 +33,16 @@ Future<LivePatchReceipt> verifyLiveTargets(
     onEvent: onEvent,
   );
   final (:baselines, :connectErrors) = await session.verifyOnly();
+  // Release every wire: verify is a read-only pass — the sockets must
+  // not keep the process alive after the receipt prints.
+  for (final t in session.targets.values) {
+    if (connectErrors.containsKey(t.id)) continue;
+    try {
+      await t.close();
+    } on Object {
+      // Best-effort: the receipt is already complete.
+    }
+  }
   final targets = <TargetReceipt>[];
   var ok = true;
   for (final t in spec.targets) {

@@ -46,6 +46,7 @@ class TargetReceipt {
     this.durationMs,
     this.probes = const [],
     this.refusal,
+    this.wire = const {},
   });
 
   final String targetId;
@@ -62,6 +63,10 @@ class TargetReceipt {
   /// Set when the target never applied (eligibility, connect failure).
   final String? refusal;
 
+  /// Raw wire facts from the apply (reload report, reassemble result,
+  /// evict result) — the honesty half of the receipt.
+  final Map<String, Object?> wire;
+
   Map<String, Object?> toJson() => {
         'target': targetId,
         'kind': kind,
@@ -69,6 +74,7 @@ class TargetReceipt {
         'mode': mode,
         if (deltaBytes != null) 'deltaBytes': deltaBytes,
         if (durationMs != null) 'durationMs': durationMs,
+        if (wire.isNotEmpty) 'wire': wire,
         'probes': [for (final p in probes) p.toJson()],
         if (refusal != null) 'refusal': refusal,
       };

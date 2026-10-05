@@ -367,6 +367,7 @@ class LivePatchSession {
         probes: probeResults[id] ?? const [],
         refusal: connectError ??
             (outcome == null ? null : (outcome.ok ? null : outcome.error)),
+        wire: outcome?.wire ?? const {},
       ));
     }
     return receipts;

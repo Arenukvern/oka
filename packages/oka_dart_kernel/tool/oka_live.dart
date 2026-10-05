@@ -21,6 +21,9 @@ const _usage = 'usage: oka live <verify|patch|watch> --spec <spec.json>\n'
     '  --changed-file <path>  file already saved; compiles as the delta\n'
     '  --watch                watcher until the first receipt\n'
     '  --project <dir>        root the spec paths resolve against\n'
+    '  --work-dir <dir>       stable pipeline toolchain dir (default: a\n'
+    '                         per-process temp dir — a cold build is slow;\n'
+    '                         share one warm dir to patch servers fast)\n'
     '  --json                 emit the receipt as JSON';
 
 /// Parsed `oka live` arguments.
@@ -28,9 +31,10 @@ class LiveArgs {
   const LiveArgs({
     required this.verb,
     required this.specPath,
+    required this.project,
     this.changedFile,
     this.watchOnce = false,
-    required this.project,
+    this.workDir,
     this.jsonOut = false,
   });
 
@@ -40,6 +44,10 @@ class LiveArgs {
   final String? changedFile;
   final bool watchOnce;
   final String project;
+
+  /// Stable pipeline toolchain directory; null = the legacy per-process
+  /// temp dir (cold builds recompile the pipeline there every run).
+  final String? workDir;
   final bool jsonOut;
 
   /// Null when the invocation is malformed; [error] then says why.
@@ -51,6 +59,7 @@ class LiveArgs {
     String? changedFile;
     var watchOnce = false;
     String? project = cwd;
+    String? workDir;
     var jsonOut = false;
     String? value(final String name, final String arg, final int i) {
       if (arg.startsWith('--$name=')) return arg.substring(name.length + 3);
@@ -78,6 +87,12 @@ class LiveArgs {
         if (a == '--project') i++;
         continue;
       }
+      final workV = value('work-dir', a, i);
+      if (workV != null) {
+        workDir = workV;
+        if (a == '--work-dir') i++;
+        continue;
+      }
       if (a == '--watch') {
         watchOnce = true;
       } else if (a == '--json') {
@@ -93,6 +108,7 @@ class LiveArgs {
       changedFile: changedFile,
       watchOnce: watchOnce,
       project: project,
+      workDir: workDir,
       jsonOut: jsonOut,
     );
   }
@@ -131,15 +147,23 @@ Future<void> runLiveCli(
       (jsonDecode(specFile.readAsStringSync()) as Map).cast<String, dynamic>();
 
   // Resolve the real toolchain only when the embedding didn't inject a
-  // compiler (tests, custom hosts).
+  // compiler (tests, custom hosts) — and only for verbs that compile:
+  // verify is connect + probes, no kernel work (it must work without an
+  // SDK checkout). A caller-supplied work dir keeps the pipeline warm
+  // across runs — the fast path for server patching.
+  final workDir = parsed.workDir;
   final compile = compiler ??
-      pipelineDeltaCompiler(await resolvePipelineToolchain(
+      (parsed.verb == 'verify'
+          ? null
+          : pipelineDeltaCompiler(await resolvePipelineToolchain(
         okaDartKernelRoot:
             kernelRoot ?? File.fromUri(Platform.script).parent.parent.path,
-        workDir: Directory.systemTemp,
+        workDir: workDir == null
+            ? Directory.systemTemp
+            : Directory(workDir),
         appPackagesConfig:
             '${parsed.project}/.dart_tool/package_config.json',
-      ));
+      )));
   final host = _VerbHost(
     compile: compile,
     root: parsed.project,
@@ -188,7 +212,8 @@ class _VerbHost implements LiveVerbHost {
     required this.targetOverrides,
   });
   @override
-  final UnitDeltaCompiler compile;
+  @override
+  final UnitDeltaCompiler? compile;
   @override
   final String root;
   @override

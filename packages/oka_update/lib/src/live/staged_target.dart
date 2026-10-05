@@ -69,5 +69,19 @@ class StagedTarget implements LivePatchTarget {
   }
 
   @override
+  Future<ApplyOutcome> syncAsset({
+    required String assetKey,
+    required List<int> bytes,
+    required String flutterAssetsDir,
+  }) async =>
+      ApplyOutcome(
+        ok: false,
+        mode: 'assets-sync',
+        error: 'AOT assets ride the snapshot lane — ship them with '
+            '`oka ship --snapshot-from-build` (staged-next-launch)',
+        wire: {'assetKey': assetKey},
+      );
+
+  @override
   Future<void> close() async {}
 }
