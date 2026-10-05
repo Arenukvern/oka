@@ -13,8 +13,11 @@ the decision record in [ADR-0011](../decisions/0011-hot-reload-run-loop).
 > **2026-10-04 — the convergence landed.** The oka-lane dev session now
 > ships as `oka run dev --platform macos|web` (ADR-0037 §6): `r` applies
 > oka's own unit delta (app frontend → VM service → reassemble; dwds on
-> web), `R` restarts through the platform lane. This page's `oka dev`
-> remains the **android** surface; the daemon is the fallback lane.
+> web), `R` restarts through the platform lane. **2026-10-05:** watch-
+> on-save is the default (`--no-watch` opts out), `oka dev` became the
+> session's short name, and this page's android daemon moved to
+> `oka dev android` — the bridge until `oka run dev --platform android`
+> lands (the daemon is then the fallback lane).
 
 ## Shape of the feature (as built)
 

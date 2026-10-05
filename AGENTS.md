@@ -30,7 +30,7 @@ follow links.
 | Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
 | Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
 | Run/understand live update (first steps → JIT dev loop → AOT production, dangers) | `docs/guides/live_update.mdx` |
-| Dev session with r/R on macOS/web (`oka run dev` — the ADR-0037 §6 convergence) | `docs/guides/live_update.mdx` → "The converged session"; gate: `packages/oka_dart_kernel/tool/gate_run_dev.sh` |
+| Dev session with watch-on-save + r/R on macOS/web (`oka dev` = `oka run dev`; android daemon = `oka dev android`) | `docs/guides/live_update.mdx` → "The converged session"; gate: `packages/oka_dart_kernel/tool/gate_run_dev.sh` |
 | Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`, `oka session-state`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |
 | Migrate an existing Gradle app | `docs/guides/gradle_migration.mdx` (works / needs config / unsupported + verification loop) |
 | Set up multiple store accounts / white-label brands / ship to stores | `docs/guides/accounts_and_stores.mdx` (per-account targets, per-brand pipelines via `--flavor`, credential layout) |

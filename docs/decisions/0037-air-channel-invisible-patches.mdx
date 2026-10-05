@@ -151,20 +151,21 @@ converged session ships as the built-in `oka run dev` target:
   lane; full restarts stay delegated until oka owns the resident
   compiler, ADR-0011 Option C's evidence bar). The session re-arms the
   browser wire after a web restart.
-- **`q`** quits; `--watch` additionally applies every saved file in the
-  watch set (the invisible loop); `--json` emits receipts as JSON lines
-  for agents; `--probes` attaches declarative verification to each
-  reload.
-- `oka dev` (ADR-0011, the android daemon) is unchanged — it remains the
-  android surface until the oka lane owns a device build path, at which
-  point the alias inverts.
+- **`q`** quits; **watch-on-save is DEFAULT** (flutter-run parity;
+  `--no-watch` opts out): every saved dart source, declared asset, or
+  declared shader applies without a command (the invisible loop).
+  `--json` emits receipts as JSON lines for agents; `--probes` attaches
+  declarative verification to each reload.
+- `oka dev` is the short name of this session; the ADR-0011 android
+  daemon lives at `oka dev android [...]` (§6c) until the android rung
+  lands.
 
-G-RUN status: `ext.flutter.reassemble` is proven in the oka-owned session
-(probe flip + reassemble receipts on flutter desktop); **DevFS asset
-sync is the remaining flutter-parity gap** — a changed non-code asset refuses
-with "R" rather than syncing. AOT `r` is a different, bounded, debug-less
-contract (`slotSwap`, refusals escalate to `R`; `gate_aot_slots.sh`) and
-is a rehearsal lane, not the daily loop.
+G-RUN status: `ext.flutter.reassemble` is proven in the oka-owned
+session (probe flip + reassemble receipts on flutter targets — after the
+extension-wire fix), and the asset lane (§6b) closed the DevFS-asset
+gap. AOT `r` is a different, bounded, debug-less contract (`slotSwap`,
+refusals escalate to `R`; `gate_aot_slots.sh`) and is a rehearsal lane,
+not the daily loop.
 
 ### 6b. Asset lane (landed 2026-10-05, with an honest ceiling)
 
@@ -275,18 +276,23 @@ product, not the DevFS.
    (a client past head refuses honestly: delta chains do not reverse).
    Gate 1 (barrel/registry generation) remains spike-validated — it is a
    build-side generator concern (ADR-0031), not a channel concern.
-8. **G-AC8 (dev session landed 2026-10-04; asset lane 2026-10-05).** The
-   converged session ships as the built-in `oka run dev` target (`oka
-   run dev --platform macos|web`): build → launch → r/R over oka's lanes
-   (§6). `r` applies the unit delta with `reassemble` on flutter desktop
-   and dwds `reloadSources` on web; `R` restarts through the platform
-   lane; the session prints a receipt per reload and verifies
-   declarative probes. Proven on last_answer's real macOS desktop app
-   and real web app (`tool/gate_run_dev.sh`: r flips a live probe, R
-   restarts, q exits). The asset lane (§6b): declared assets sync into
-   the engine's asset dir + `ext.flutter.evict`; live freshness is
-   engine-blocked on macOS (the receipt says so; `R` applies), proven by
-   `tool/gate_dev_assets.sh`. Still open: the android device leg (rides
+8. **G-AC8 (dev session 2026-10-04; asset + shader lanes, watch
+   default, one name 2026-10-05).** The converged session ships as the
+   built-in `oka run dev` target (`oka dev` is its short name; the
+   ADR-0011 daemon is `oka dev android`, §6c): build → launch → r/R over
+   oka's lanes (§6). `r` applies the unit delta with `reassemble` on
+   flutter desktop and dwds `reloadSources` on web; `R` restarts through
+   the platform lane; watch-on-save is default (`--no-watch` opts out);
+   the session prints a receipt per reload and verifies declarative
+   probes. Proven on last_answer's real macOS desktop app and real web
+   app (`tool/gate_run_dev.sh`: r flips a live probe, R restarts, q
+   exits). The asset lane (§6b): declared assets sync into the engine's
+   asset dir + `ext.flutter.evict`; declared shaders recompile through
+   impellerc and evict engine-side (live, no restart); live freshness of
+   already-loaded assets is engine-blocked on macOS (the receipt says
+   so; `R` applies), proven by `tool/gate_dev_assets.sh`. Bring-up is
+   deterministic: one offline pub get with lock-waits surfaced, then
+   `flutter run --no-pub`. Still open: the android device leg (rides
    `gate_live_e2e.sh` android until then).
 9. **G-AC9 (open, gated).** Per-unit AOT OTA (`slotSwap` over the air)
    requires the ADR-0031 §7 follow-up ADR — sdk#64162, embedder

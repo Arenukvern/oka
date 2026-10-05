@@ -55,7 +55,7 @@ the end-to-end gates are
 (engine: ship → git branch → VM apply) and
 [`gate_air_web.sh`](../../packages/oka_dart_kernel/tool/gate_air_web.sh)
 (web: ship → release build → static host → HTTP client). The dev loop
-runs as one command — `oka run dev --platform macos|web`
+runs as one command — `oka run dev --platform macos|web` (alias: `oka dev`; watch-on-save is the default)
 ([guide](../../docs/guides/live_update.mdx)).
 
 ## Learn more

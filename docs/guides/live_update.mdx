@@ -16,9 +16,9 @@ Design: ADR-0031/0032/0034/0035; evidence:
 |---|---|---|
 | Live patch a running VM/desktop/web/flutter app (JIT) | **works** | `gate_live_e2e.sh`, `gate_live_products.sh`, `gate_run_dev.sh` |
 | Dev session r/R: `oka run dev --platform macos\|web` | **works** | `gate_run_dev.sh` (real last_answer desktop + web apps) |
-| Asset changes in the dev session | **syncs + evicts; live freshness is engine-blocked on macOS** — `R` applies the synced bytes (flutter has the same ceiling) | `gate_dev_assets.sh` |
+| Asset changes in the dev session | **syncs + evicts** — never-loaded assets read fresh (models "hot reload"); already-loaded ones refresh at `R`; **shaders go live** (engine-native eviction) | `gate_dev_assets.sh` |
 | Ship a patch invisibly: `oka ship` (derive, sign, deltas, channel) | **works** | `gate_air_channel.sh` (signed, bare-origin) |
-| Clients resolve + stage updates over file/HTTP/git; chains vs snapshots; boot watchdog | **works** | `gate_air_web.sh` + 59 `oka_update` tests |
+| Clients resolve + stage updates over file/HTTP/git; chains vs snapshots; boot watchdog | **works** | `gate_air_web.sh` + 64 `oka_update` tests |
 | Whole-revision snapshots derived from the build | **works** (explicit flag / policy trigger; `oka build` integration open) | `.gate_snap` proof + unit tests |
 | Android dev session in `oka run dev` | **not yet** — use `oka dev` (daemon) | ADR-0011 |
 | Per-unit AOT over-the-air (`slotSwap` OTA) | **research line** — needs sdk#64162, embedder seam, follow-up ADR | ADR-0037 G-AC9 |
@@ -63,7 +63,7 @@ oka dev android   # the ADR-0011 daemon (manifest + attach + control port)
 | `--json` | oka | receipts as JSON lines (agents) |
 
 macOS and web are proven on last_answer (`tool/gate_run_dev.sh`); the
-android surface stays `oka dev` (ADR-0011 daemon) until oka owns a
+the android surface stays `oka dev android` (ADR-0011 daemon) until oka owns a
 device build path. AOT dev rehearsal is the `slotSwap` lane
 (`gate_aot_slots.sh`) — a different, bounded contract.
 
@@ -258,9 +258,9 @@ Design: ADR-0037. Code + tests:
 In dependency order (execution view: [PHASE_CHECKLIST](../PHASE_CHECKLIST)):
 
 1. **`oka run dev --platform android`** — all pieces exist (oka builds
-   the APK, the ADR-0011 daemon owns install/launch, the device lane
-   applies deltas and syncs assets over DevFS); wiring them into the
-   session retires the two-command android loop.
+   the APK, the daemon — now `oka dev android` — owns install/launch,
+   the device lane applies deltas and syncs assets over DevFS); wiring
+   them into the session retires the bridge subcommand.
 2. **`oka build` emits the head snapshot** so `oka ship` stages it with
    no flag — the last wording gap in G-AC6; rides ADR-0030 composition.
 3. **Analyzer-backed unit fingerprints** (ADR-0034 G4) replace the
@@ -279,3 +279,10 @@ engine seam, flutter has the same ceiling; ADR-0037 §6b).
 Agents don't need shell for the loop: `oka_update/live_agent.dart`
 declares `oka.live.patch` / `oka.live.watch` / `oka.live.verify`
 (descriptors + dispatch, receipt JSON out) — ADR-0036.
+
+### Watcher lifecycle
+
+`oka_live_watch.dart --parent-pid <pid>` exits when the given launcher dies, so a
+SIGKILLed launcher cannot orphan a hot lane pointing at a dead VM (the harness
+launcher passes its own pid; ADR 0063 in the harness repo for the ownership
+counterpart).
