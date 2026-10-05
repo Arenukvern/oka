@@ -72,7 +72,7 @@ leg() {
 
   ( cd "$WS" && dart --packages="$WS/.dart_tool/package_config.json" \
       "$WS/packages/oka/bin/oka.dart" run dev \
-      --project "$APP_ROOT" --platform "$platform" \
+      --project "$APP_ROOT" --platform "$platform" --no-watch \
       --probes "$OUT/probes-$platform.json" \
       "$@" < "$fifo" > "$log" 2>&1 ) &
   local session=$!

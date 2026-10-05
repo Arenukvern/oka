@@ -208,18 +208,12 @@ class VmJitTarget implements LivePatchTarget {
         expression: probe.expression);
   }
 
-  /// The dev-session asset lane (G-RUN): write [bytes] into the engine's
-  /// asset directory under [assetKey], then ask the app to evict its
-  /// caches (`ext.flutter.evict`). The probe half of the receipt is the
-  /// session's job; whether the engine serves the new bytes LIVE is a
-  /// platform fact the receipt reports, never hides (on macOS the
-  /// engine's asset cache holds the old mapping until the next engine
-  /// cycle).
   @override
   Future<ApplyOutcome> syncAsset({
     required String assetKey,
     required List<int> bytes,
     required String flutterAssetsDir,
+    bool shader = false,
   }) async {
     final target = File('$flutterAssetsDir/$assetKey');
     if (!target.parent.existsSync()) {
@@ -232,18 +226,13 @@ class VmJitTarget implements LivePatchTarget {
     await target.writeAsBytes(bytes, flush: true);
     final isolate = await _isolateForApply();
     try {
-      final r = await _wire.flutterEvict(isolateId: isolate, assetKey: assetKey);
-      // Shader bundles evict engine-side: the same call flutter_tools
-      // makes for its shaderPathsToEvict (live shader hot reload works
-      // because this extension is engine-native).
-      var shader = 'n/a';
-      if (assetKey.endsWith('.spirv')) {
-        try {
-          await _wire.reinitializeShader(isolateId: isolate, assetKey: assetKey);
-          shader = 'ok';
-        } on LiveWireException catch (e) {
-          shader = 'failed (${e.message})';
-        }
+      // Shaders evict engine-side (`ext.ui.window.reinitializeShader`) —
+      // the same call flutter_tools makes for shaderPathsToEvict; live
+      // shader hot reload works because that extension is engine-native.
+      if (shader) {
+        await _wire.reinitializeShader(isolateId: isolate, assetKey: assetKey);
+      } else {
+        await _wire.flutterEvict(isolateId: isolate, assetKey: assetKey);
       }
       return ApplyOutcome(
           ok: true,
@@ -252,8 +241,7 @@ class VmJitTarget implements LivePatchTarget {
             'assetKey': assetKey,
             'bytes': bytes.length,
             'dir': flutterAssetsDir,
-            'evict': r['type'] == '_extensionType' ? 'ok' : '$r',
-            'shader': shader,
+            'evict': shader ? 'reinitializeShader' : 'ok',
           });
     } on LiveWireException catch (e) {
       return ApplyOutcome(

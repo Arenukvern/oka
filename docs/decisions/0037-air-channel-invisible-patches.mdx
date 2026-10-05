@@ -168,24 +168,38 @@ is a rehearsal lane, not the daily loop.
 
 ### 6b. Asset lane (landed 2026-10-05, with an honest ceiling)
 
-`r <asset>` and `--watch` cover declared assets (`flutter: assets:` in
-pubspec, dirs expanded): the session writes the bytes into the engine's
-asset directory (the build product's `App.framework` resources — the
-path the debug engine actually reads, discovered host-side; no app code
-required) and fires `ext.flutter.evict` — the same sync+evict shape
-flutter_tools uses. `.spirv` shader bundles additionally ride
-`ext.ui.window.reinitializeShader` (engine-native — why shader hot
-reload works on desktop). The receipt reports the post-evict probes
-**honestly**: assets that were ALREADY loaded keep serving the engine's
-cached mapping until the next engine cycle — `R` picks the synced bytes
-up — while never-yet-loaded assets read fresh on their next load (which
-is why lazily-loaded content such as 3D models appears to hot reload).
-`gate_dev_assets.sh` proves sync → evict → restart → fingerprint
-verified. Flutter's own desktop asset hot reload has the same
-already-loaded ceiling for non-shader assets: flutter_tools syncs into
-a DevFS directory the desktop engine never reads. Making the engine
-drop live asset mappings is an engine-seam research line, not an oka
-gap.
+`r <asset>` and `--watch` (default ON, flutter-run parity; `--no-watch`
+opts out) cover declared assets (`flutter: assets:`, dirs expanded) and
+declared shaders (`flutter: shaders:`): the session writes the bytes
+into the engine's asset directory (the build product's `App.framework`
+resources — the path the debug engine actually reads, discovered
+host-side; no app code required) and fires the eviction. Regular assets
+evict via `ext.flutter.evict`; **shader sources** (`.frag`) first
+recompile through impellerc (the build's own toolchain, same argv shape
+as flutter_tools) and evict engine-side via
+`ext.ui.window.reinitializeShader` — shader changes go live without a
+restart, matching flutter_tools. The receipt reports the post-evict
+probes **honestly**: assets that were ALREADY loaded keep serving the
+engine's cached mapping until the next engine cycle — `R` picks the
+synced bytes up — while never-yet-loaded assets read fresh on their
+next load (which is why lazily-loaded content such as 3D models appears
+to hot reload). `gate_dev_assets.sh` proves sync → evict → restart →
+fingerprint verified. Flutter's own desktop asset hot reload has the
+same already-loaded ceiling for non-shader assets: flutter_tools syncs
+into a DevFS directory the desktop engine never reads. Making the
+engine drop live asset mappings is an engine-seam research line, not an
+oka gap. 3D asset formats are the ecosystem's own: flutter_scene
+runtime `.glb` (a regular asset to this lane) or its offline-imported
+bundles; documented in [live_update](../guides/live_update).
+
+### 6c. One dev command (name convergence)
+
+`oka dev` is now the short name of the converged session (same surface
+as `oka run dev`); the ADR-0011 android daemon keeps its exact behavior
+under `oka dev android [...]` until `oka run dev --platform android`
+lands — then the subcommand is deleted and one command owns all
+platforms. The runner-session contract (`.flutter_mcp/runner-session.json`)
+is untouched: the daemon still writes it under `oka dev android`.
 
 Wire facts this lane established (see
 `skills/oka-kernel/references/troubleshooting.md`): service extensions

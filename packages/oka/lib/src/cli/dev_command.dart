@@ -7,6 +7,8 @@ import 'package:oka_android/oka_android.dart';
 
 import 'delegation_dart.dart';
 
+import 'kernel_stack.dart';
+
 /// `oka dev` — build + install + launch + attach session (ADR-0011).
 ///
 /// One of the three device-flow surfaces:
@@ -25,6 +27,27 @@ import 'delegation_dart.dart';
 /// is the one explicit interactive surface (never a build path).
 class DevCommand {
   Future<void> run(final List<String> args) async {
+    // Name convergence (ADR-0037 §6): `oka dev` IS the converged dev
+    // session (same surface as `oka run dev`); the ADR-0011 android
+    // daemon keeps its exact behavior under `oka dev android [...]`
+    // until `oka run dev --platform android` lands — then it is deleted.
+    if (args.isEmpty || args.first != 'android') {
+      await delegateToKernelStack(
+        runner: 'packages/oka_dart_kernel/tool/oka_run_dev.dart',
+        args: args,
+        missingMessage: 'oka dev: the experimental live-update stack is '
+            'not available.\nPoint OKA_KERNEL_ROOT at a checkout with '
+            'packages/oka_dart_kernel (see docs/guides/live_update.mdx).',
+      );
+      return;
+    }
+    await _runAndroidDaemon(args.sublist(1));
+  }
+
+  /// The ADR-0011 android daemon session, byte-for-byte the shipped
+  /// surface (manifest preflight → device → attach --machine → control
+  /// port), now one subcommand deeper.
+  Future<void> _runAndroidDaemon(final List<String> args) async {
     final parser = ArgParser()
       ..addOption(
         'device',

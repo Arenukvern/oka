@@ -239,8 +239,10 @@ tree (themes, splash, mipmaps) merges via `android.res_dirs`.
 ## 🔁 Dev Loop Station (ADR-0011)
 
 Three device-flow surfaces, one story — `oka launch` is an alias of
-`oka run device`, and `oka dev` reuses the same device steps plus the
-VM-service session steps, through the same validated pipeline machinery.
+`oka run device`, and `oka dev android` reuses the same device steps plus
+the VM-service session steps, through the same validated pipeline
+machinery. (The bare `oka dev` is the converged desktop/web session —
+[ADR-0037 §6c](../decisions/0037-air-channel-invisible-patches).)
 History and phase evidence: [hot_reload_plan](hot_reload_plan).
 
 ```bash
@@ -248,11 +250,11 @@ oka build apk --debug          # 1. oka owns assemble → package → sign;
                                #    records run_session.json (flag parity)
 oka run device                 # 2. one-shot: install + launch + failure-
                                #    signature scan. No session.
-oka dev                        # 3. parity check → install → launch → logscan
+oka dev android                # 3. parity check → install → launch → logscan
                                #    → VM service attach → hot reload/restart
 ```
 
-`oka dev` controls:
+`oka dev android` controls:
 
 - **Human TTY**: `r` hot reload · `R` hot restart (**loses app state**) ·
   `q` quit (stops the app) · `d` detach (app keeps running). Oka renders all
@@ -266,7 +268,7 @@ oka dev                        # 3. parity check → install → launch → logs
   full-rebuild command (hot reload is Dart-only — never a dex push,
   ADR-0011 §5). `--watch --rebuild-on-native` runs it automatically.
 
-Flag parity is enforced: `oka dev` validates the requested target/defines
+Flag parity is enforced: `oka dev android` validates the requested target/defines
 against the recorded `run_session.json` and refuses mismatches naming the
 differing fields; the session flutter binary always comes from the recorded
 SDK path, never `PATH`. Profile/release refuse loudly — debug (JIT) only.

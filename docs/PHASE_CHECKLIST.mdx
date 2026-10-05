@@ -88,10 +88,10 @@ with evidence, not into a checked box.
   (`docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`), ADR-0037
   gates G-AC1..8, ADR-0035 §2e/§S2. What's next, in dependency order:
   1. **`oka run dev --platform android`** — every piece exists (oka
-     builds the debug APK, ADR-0011's daemon owns install/launch, the
-     device lane applies deltas + syncs assets over DevFS); wiring them
-     into the converged session retires the two-command android loop.
-     Medium.
+     builds the debug APK, the daemon — now `oka dev android` — owns
+     install/launch, the device lane applies deltas + syncs assets over
+     DevFS); wiring them into the converged session retires the bridge
+     subcommand. Medium.
   2. **`oka build` emits the head snapshot** — closes G-AC6's "without a
      flag" wording: each platform target's build output (web bundle, AOT
      set) registered so `oka ship` stages it automatically. Rides
@@ -102,6 +102,14 @@ with evidence, not into a checked box.
   4. **Web in-app adoption + unit generator** (ADR-0031 gate 1) — the
      bootstrap that consumes the channel at page load, plus
      barrels/registry codegen. Medium-large.
+  5. **oka owns the macOS build path** (today the desktop session rides
+     `flutter run`/xcodebuild) — the same move the android station made:
+     parse the Xcode project into a declarative build graph, drive
+     xcodebuild + the flutter macos assemble backend directly, record
+     provenance, and let `oka run dev --platform macos` launch the
+     oka-built binary (no owning flutter session; R becomes oka's
+     restart). Headless deterministic macos builds are the win. Needs
+     its ADR (design fork, mirrors the android station's shape). Large.
   Research lines (not roadmated, need ADRs): G-AC9 per-unit AOT OTA
   (sdk#64162 + embedder seam), macOS fd-passing handoff, S2 registry
   indirection for unbounded AOT streams, and live asset freshness (the

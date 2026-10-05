@@ -51,7 +51,7 @@ FIFO="$OUT/session.in"
 mkfifo "$FIFO"
 ( cd "$WS" && dart --packages="$WS/.dart_tool/package_config.json" \
     "$WS/packages/oka/bin/oka.dart" run dev \
-    --project "$APP" --platform macos --json \
+    --project "$APP" --platform macos --json --no-watch \
     < "$FIFO" > "$OUT/session.log" 2>&1 ) &
 SESSION=$!
 exec 3> "$FIFO"

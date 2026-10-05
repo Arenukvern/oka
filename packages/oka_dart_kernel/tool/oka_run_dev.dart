@@ -24,6 +24,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_mcp_harness/flutter_mcp_harness.dart';
 import 'package:oka_update/oka_update.dart';
@@ -37,6 +38,8 @@ const _usage = 'usage: oka run dev [--project <dir>] [--platform macos|web]\n'
     '  --port <n>          web-server port (default 8187)\n'
     '  --open-browser      web: launch Chrome with CDP for page probes\n'
     '  --watch             apply every saved file in the watch set\n'
+    '                      (default ON, flutter-run parity)\n'
+    '  --no-watch          explicit loop only (r/R/q)\n'
     '  --unit <name>       receipt unit label (default: dev)\n'
     '  --probes <file>     JSON ProbeSpec array verified after each reload\n'
     '  --json              receipts as JSON lines\n'
@@ -52,7 +55,7 @@ class RunDevArgs {
     this.device,
     this.port = 8187,
     this.openBrowser = false,
-    this.watch = false,
+    this.watch = true,
     this.unit = 'dev',
     this.probesFile,
     this.flutterBin,
@@ -77,7 +80,7 @@ class RunDevArgs {
     String? device;
     var port = 8187;
     var openBrowser = false;
-    var watch = false;
+    var watch = true;
     var unit = 'dev';
     String? probesFile;
     String? flutterBin;
@@ -139,6 +142,8 @@ class RunDevArgs {
           openBrowser = true;
         case '--watch':
           watch = true;
+        case '--no-watch':
+          watch = false;
         case '--json':
           jsonOut = true;
         default:
@@ -188,7 +193,7 @@ class _HarnessApp implements DevApp {
   @override
   void write(String line) {
     _app.process.stdin.writeln(line);
-    _app.process.stdin.flush();
+    unawaited(_app.process.stdin.flush());
   }
 
   @override
@@ -212,7 +217,7 @@ class _RawApp implements DevApp {
   @override
   void write(String line) {
     _process.stdin.writeln(line);
-    _process.stdin.flush();
+    unawaited(_process.stdin.flush());
   }
 
   @override
@@ -252,6 +257,7 @@ Future<(DevApp, Process?, String?)> _launchWeb({
     '-d',
     'web-server',
     '--debug',
+    '--no-pub',
     '--web-hostname',
     '127.0.0.1',
     '--web-port',
@@ -393,7 +399,25 @@ Future<void> runRunDevCli(
           'changes need `R` (or a rebuild) otherwise');
       return;
     }
-    final bytes = await File(changed).readAsBytes();
+    var bytes = await File(changed).readAsBytes();
+    Uint8List payload;
+    var isShader = false;
+    if (changed.endsWith('.frag')) {
+      // Fragment shaders are NOT bundle assets: compile the source with
+      // impellerc (the build's own toolchain) — the compiled bytes ride
+      // the bundle under the SOURCE's key.
+      isShader = true;
+      try {
+        payload = await compileShader(
+            fragPath: changed,
+            flutterBin: _flutterBinFor(parsed));
+      } on AssetSpecException catch (e) {
+        out('assets: ${e.message}');
+        return;
+      }
+    } else {
+      payload = bytes;
+    }
     final target = overrides['app'];
     if (target == null) {
       out('assets: no target connected yet');
@@ -404,7 +428,8 @@ Future<void> runRunDevCli(
     await target.connect();
     final sw = Stopwatch()..start();
     final outcome = await target.syncAsset(
-        assetKey: key, bytes: bytes, flutterAssetsDir: dir);
+        assetKey: key, bytes: payload, flutterAssetsDir: dir,
+        shader: isShader);
     sw.stop();
     // Probe honesty: capture fingerprints before/after evict so the
     // receipt says whether the change is LIVE (engine cache served the
@@ -504,6 +529,11 @@ Future<void> runRunDevCli(
       out('dev: launching flutter run -d $device '
           '(${parsed.project.split('/').last})…');
 
+      // Deterministic bring-up: pub is resolved ONCE, offline, before
+      // launch — `flutter run`'s implicit resolve hangs indefinitely on
+      // an unstable network (measured), and --no-pub turns that class
+      // of stall into a fast, named failure.
+      await _pubGetOffline(parsed.project, flutterBin, out);
       if (isWeb) {
         pidFile =
             '${Directory.systemTemp.path}/oka-dev-web-${parsed.port}.pid';
@@ -533,6 +563,7 @@ Future<void> runRunDevCli(
         final harness = await FlutterRunTarget(
           projectDir: parsed.project,
           device: device,
+          extraArgs: const ['--no-pub'],
           flutterBin: flutterBin,
           name: 'oka-dev',
           // First desktop builds of a cold checkout easily exceed the
@@ -618,6 +649,70 @@ Future<void> runRunDevCli(
   }
 }
 
+/// One offline resolution before launch: fast, deterministic, and the
+/// failure (a genuinely missing package, or a lock held by a zombie
+/// flutter command) is named instead of a silent multi-minute hang
+/// inside `flutter run`'s implicit resolve. The lock-wait line is
+/// surfaced live — "Waiting for another flutter command…" is the stall
+/// users otherwise only see in a swallowed log.
+Future<void> _pubGetOffline(
+    String project, String flutterBin, void Function(String) out) async {
+  final sw = Stopwatch()..start();
+  out('dev: pub get --offline…');
+  final process = await Process.start(
+      flutterBin, ['pub', 'get', '--offline'],
+      workingDirectory: project);
+  final stdoutLog = StringBuffer();
+  final stderrLog = StringBuffer();
+  final sub1 = process.stdout
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .listen((l) {
+    stdoutLog.writeln(l);
+    if (l.contains('Waiting for another flutter command')) {
+      out('dev: pub get --offline: $l (a zombie flutter/dart process '
+          'holds the lock — kill it or wait)');
+    }
+  });
+  final sub2 = process.stderr
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .listen(stderrLog.writeln);
+  final code = await process.exitCode.timeout(
+    const Duration(minutes: 3),
+    onTimeout: () {
+      process.kill(ProcessSignal.sigkill);
+      throw StateError(
+          'flutter pub get --offline exceeded 3 minutes — almost always '
+          'a killed session left a flutter/dart process holding the '
+          'Swift Package Manager lock; find and kill it, then retry');
+    },
+  );
+  await sub1.asFuture<void>();
+  await sub2.asFuture<void>();
+  sw.stop();
+  if (code != 0) {
+    throw StateError(
+        'flutter pub get --offline failed (${sw.elapsedMilliseconds}ms):\n'
+        '$stdoutLog\n$stderrLog');
+  }
+  out('dev: pub get --offline ok (${sw.elapsedMilliseconds}ms)');
+}
+
+/// The flutter binary for toolchain lookups: explicit flag, env, PATH,
+/// then the fvm default checkout (the same discovery oka ship uses).
+String _flutterBinFor(RunDevArgs parsed) {
+  final env = Platform.environment['FLUTTER_BIN'];
+  if (parsed.flutterBin != null) return parsed.flutterBin!;
+  if (env != null) return env;
+  final which = Process.runSync('which', ['flutter']);
+  if (which.exitCode == 0) return (which.stdout as String).trim();
+  final fvm =
+      '${Platform.environment['HOME']}/fvm/default/bin/flutter';
+  if (File(fvm).existsSync()) return fvm;
+  return 'flutter';
+}
+
 String _wsUri(Uri http) =>
     '${http.toString().replaceFirst('http', 'ws').replaceAll(
         RegExp(r'/+$'), '')}/ws';
@@ -660,9 +755,11 @@ List<String> _watchSet(String project) {
   try {
     files.addAll(declaredAssetFiles(project)
         .map((p) => '$project/$p'));
+    files.addAll(declaredShaderFiles(project)
+        .map((p) => '$project/$p'));
   } on AssetSpecException {
-    // No (or broken) asset declaration: dart-only watch set. The
-    // refusal for a hand-named missing asset names the declaration.
+    // No (or broken) asset/shader declaration: dart-only watch set. The
+    // refusal for a hand-named missing file names the declaration.
   }
   return files;
 }

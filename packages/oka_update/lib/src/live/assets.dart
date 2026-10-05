@@ -16,6 +16,7 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
 /// Exception naming the fix (missing pubspec section, unexpected shape).
 class AssetSpecException implements Exception {
@@ -31,20 +32,34 @@ class AssetSpecException implements Exception {
 /// recursively (sorted, project-root-relative). Non-dart files only make
 /// sense here, but the declaration is trusted: whatever pubspec lists is
 /// what the dev session watches.
-List<String> declaredAssetFiles(String projectRoot) {
+List<String> declaredAssetFiles(String projectRoot) =>
+    _declaredUnder(projectRoot, 'assets:');
+
+/// The fragment shader sources the app declares under
+/// `flutter: shaders:` (`.frag`, project-root-relative). These are NOT
+/// bundle assets: the build compiles each with impellerc and the
+/// compiled bytes ride the bundle under the SOURCE's key —
+/// `FragmentProgram.fromAsset('shaders/foo.frag')` takes the source
+/// path. The dev session watches the sources and recompiles on save
+/// (flutter_tools' own hot reload does the same).
+List<String> declaredShaderFiles(String projectRoot) =>
+    _declaredUnder(projectRoot, 'shaders:');
+
+List<String> _declaredUnder(String projectRoot, String section) {
   final pubspec = File('$projectRoot/pubspec.yaml');
   if (!pubspec.existsSync()) {
     throw AssetSpecException('no pubspec.yaml under $projectRoot');
   }
   final lines = pubspec.readAsLinesSync();
-  // Minimal shape walk: the `flutter:` top-level key, then its `assets:`
-  // list (`- path` items at deeper indent). Everything else is ignored.
+  // Minimal shape walk: the `flutter:` top-level key, then the named
+  // list section (`- path` items at deeper indent). Everything else is
+  // ignored.
   String? stripComment(String l) {
     final i = l.indexOf('#');
     return i < 0 ? l : l.substring(0, i);
   }
   var inFlutter = false;
-  var inAssets = false;
+  var inSection = false;
   final files = <String>{};
   for (final raw in lines) {
     final line = stripComment(raw);
@@ -52,15 +67,15 @@ List<String> declaredAssetFiles(String projectRoot) {
     final indent = line.length - line.trimLeft().length;
     if (indent == 0) {
       inFlutter = line.trim() == 'flutter:';
-      inAssets = false;
+      inSection = false;
       continue;
     }
     if (!inFlutter) continue;
     if (indent <= 2) {
-      inAssets = line.trim() == 'assets:';
+      inSection = line.trim() == section;
       continue;
     }
-    if (!inAssets) continue;
+    if (!inSection) continue;
     final entry = line.trim();
     if (!entry.startsWith('- ')) continue;
     final path = entry.substring(2).trim();
@@ -77,12 +92,94 @@ List<String> declaredAssetFiles(String projectRoot) {
       files.add(path);
     } else {
       throw AssetSpecException(
-          'pubspec declares asset `$path` but it does not exist under '
-          '$projectRoot');
+          'pubspec declares `$section` entry `$path` but it does not exist '
+          'under $projectRoot');
     }
   }
   return files.toList()..sort();
 }
+
+/// Compiles a `.frag` source with impellerc and returns the compiled
+/// bytes that ride the bundle under the source's key — the exact
+/// flutter_tools shape (`--iplr --sl=<out> --spirv=<out>.spirv`, plus
+/// the platform's runtime stages: `--sksl --runtime-stage-metal` on
+/// darwin; the `.spirv` side output is deleted after use). [flutterBin]
+/// locates `bin/cache/artifacts/engine/<host>/impellerc` (+ its
+/// `shader_lib` include dir).
+Future<Uint8List> compileShader({
+  required String fragPath,
+  required String flutterBin,
+}) async {
+  final root = _flutterRoot(flutterBin);
+  if (root == null) {
+    throw AssetSpecException(
+        'cannot locate the flutter SDK from `$flutterBin` — pass '
+        '--flutter-bin');
+  }
+  String? impellerc;
+  for (final host in _hostArtifactDirs()) {
+    final candidate = '$root/bin/cache/artifacts/engine/$host/impellerc';
+    if (File(candidate).existsSync()) {
+      impellerc = candidate;
+      break;
+    }
+  }
+  if (impellerc == null) {
+    throw AssetSpecException(
+        'impellerc not found under $root/bin/cache/artifacts/engine — '
+        'run `flutter doctor` (the shader tooling ships with the SDK)');
+  }
+  final work = Directory.systemTemp.createTempSync('oka-shader-');
+  final out = '${work.path}/shader.iplr';
+  final targets = Platform.isMacOS
+      ? const ['--sksl', '--runtime-stage-metal']
+      : const ['--sksl', '--runtime-stage-gles', '--runtime-stage-gles3'];
+  try {
+    final r = await Process.run(impellerc, [
+      ...targets,
+      '--iplr',
+      '--sl=$out',
+      '--spirv=$out.spirv',
+      '--input=$fragPath',
+      '--input-type=frag',
+      '--include=${File(fragPath).parent.path}',
+      '--include=${File(impellerc).parent.path}/shader_lib',
+    ]);
+    final file = File(out);
+    if (r.exitCode != 0 || !file.existsSync()) {
+      throw AssetSpecException('impellerc failed on $fragPath:\n'
+          '${r.stdout}\n${r.stderr}');
+    }
+    return file.readAsBytesSync();
+  } finally {
+    try {
+      work.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Temp cleanup is best-effort.
+    }
+  }
+}
+
+String? _flutterRoot(String flutterBin) {
+  var bin = flutterBin;
+  if (!bin.contains('/')) {
+    final which = Process.runSync('which', [bin]);
+    if (which.exitCode == 0) bin = (which.stdout as String).trim();
+  }
+  final fvmDefault =
+      '${Platform.environment['HOME']}/fvm/default/bin/flutter';
+  if (!File(bin).existsSync() && File(fvmDefault).existsSync()) {
+    bin = fvmDefault;
+  }
+  final root = File(bin).parent.parent.path; // <flutter>/bin/flutter
+  return Directory('$root/bin/cache').existsSync() ? root : null;
+}
+
+List<String> _hostArtifactDirs() => [
+      if (Platform.isMacOS) ...['darwin-arm64', 'darwin-x64'],
+      if (Platform.isLinux) ...['linux-x64', 'linux-arm64'],
+      if (Platform.isWindows) 'windows-x64',
+    ];
 
 /// The flutter_assets directory a debug macOS build product exposes —
 /// the newest `.app` under `build/macos/Build/Products/*/`, resolved

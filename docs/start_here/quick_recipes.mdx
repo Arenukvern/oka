@@ -72,7 +72,8 @@ composition composes — no per-store branches. Docs:
 
 ```bash
 oka run dev --platform macos --project <app-dir>          # real desktop app
-oka run dev --platform web  --project <app-dir> --open-browser
+oka dev --platform web --project <app-dir> --open-browser # `oka dev` = same session
+oka dev android                                           # the ADR-0011 android daemon
 ```
 
 Inside the session: `r [file]` = hot reload through oka's unit-delta lane

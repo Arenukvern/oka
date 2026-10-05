@@ -42,20 +42,23 @@ if (!receipt.ok) print(receipt.describe());
 ### The converged session: `oka run dev`
 
 One command boots the app and owns the loop (ADR-0037 §6 — r is oka's
-unit-delta lane; R is the platform restart):
+unit-delta lane; R is the platform restart). `oka dev` is the same
+session under its short name; the ADR-0011 android daemon lives at
+`oka dev android` until the android rung lands:
 
 ```bash
 oka run dev --platform macos --project ~/xs/storage_problem/last_answer
-oka run dev --platform web  --project ~/xs/storage_problem/last_answer \
+oka dev --platform web --project ~/xs/storage_problem/last_answer \
     --port 8188 --open-browser
+oka dev android   # the ADR-0011 daemon (manifest + attach + control port)
 ```
 
 | Command | Lane | What happens |
 |---|---|---|
-| `r [file]` | **oka** | a `.dart` file: the changed library is compiled by the app's own frontend and applied over the VM service (DevFS + `reloadSources` + reassemble on desktop; dwds on web) — receipt per reload, probes verified. A **declared asset**: bytes sync into the engine's asset dir + `ext.flutter.evict` (live freshness is engine-blocked on macOS; `R` applies) |
+| `r [file]` | **oka** | a `.dart` file: the changed library is compiled by the app's own frontend and applied over the VM service (DevFS + `reloadSources` + reassemble on desktop; dwds on web) — receipt per reload, probes verified. A **declared asset**: bytes sync into the engine's asset dir + `ext.flutter.evict` (already-loaded assets refresh at the next engine cycle — `R`; never-loaded ones read fresh immediately). A **declared shader** (`flutter: shaders:` `.frag`): impellerc recompiles, the compiled `.iplr` rides the source's key, and the engine-native `ext.ui.window.reinitializeShader` makes it live WITHOUT a restart |
 | `R` | platform | the serving `flutter run` session hot-restarts the app |
 | `q` | — | clean quit |
-| `--watch` | oka | every saved file in the watch set applies automatically (dart sources + declared assets — the invisible loop) |
+| `--watch` (default) | oka | every saved file in the watch set applies automatically — dart sources + declared assets + shaders (flutter-run parity). `--no-watch` for the explicit loop |
 | `--probes <f>` | oka | declarative probe specs verified after each reload |
 | `--json` | oka | receipts as JSON lines (agents) |
 
@@ -63,6 +66,35 @@ macOS and web are proven on last_answer (`tool/gate_run_dev.sh`); the
 android surface stays `oka dev` (ADR-0011 daemon) until oka owns a
 device build path. AOT dev rehearsal is the `slotSwap` lane
 (`gate_aot_slots.sh`) — a different, bounded contract.
+
+### What flutter actually loads (formats, October 2026)
+
+The dev session's lanes mirror the real pipeline, so it matters what the
+toolchain truly consumes:
+
+- **Fragment shaders**: you author GLSL `.frag` files declared under
+  `flutter: shaders:`; the build compiles each with **impellerc** into
+  the Impeller runtime format (`.iplr`; plus SkSL for Skia backends) and
+  the compiled bytes ride the bundle **under the source's key** —
+  `FragmentProgram.fromAsset('shaders/foo.frag')` takes the `.frag`
+  path, never a compiled name. In debug, flutter_tools recompiles on
+  hot reload and evicts engine-side (`ext.ui.window.reinitializeShader`)
+  — which is why shader changes go live without a restart. The oka lane
+  does the same: impellerc from the flutter cache, same argv shape
+  (`--iplr --sl=… --spirv=…`), compiled bytes synced under the `.frag`
+  key, engine eviction. Docs:
+  [fragment shaders](https://docs.flutter.dev/ui/design/graphics/fragment-shaders).
+- **3D models**: the Flutter-GPU stack is
+  [flutter_scene](https://pub.dev/packages/flutter_scene) (Impeller
+  only, Flutter 3.47+, no web). Two import paths: **runtime `.glb`**
+  (glTF-binary declared under `flutter: assets:`,
+  `Node.fromGlbAsset('assets/model.glb')`) or the offline
+  [flutter_scene_importer](https://pub.dev/packages/flutter_scene_importer)
+  preprocessing to a binary bundle (`dart run
+  flutter_scene_importer:import`) loaded via `importBundle` for faster
+  startup. `.glb` files are ordinary bundle assets to the sync lane —
+  and because models load lazily, a synced model is typically read
+  fresh on its next load (the next-load-fresh nuance, ADR-0037 §6b).
 
 ### The API surface
 
@@ -198,8 +230,7 @@ tampered bytes. Staged updates ride the boot watchdog
 startup beacon promotes it (`journal.commit()`) or discards it
 (`journal.rollback()`) — a staged update can never brick an install.
 
-Clients resolve their own update with `UpdateClient` + `planChain`:
-migration chain within the declared byte/revision thresholds, head
+Clients resolve their own update with `UpdateClient` + `planChain`:migration chain within the declared byte/revision thresholds, head
 snapshot above them, typed refusals at store boundaries. The snapshot is
 **derived, not hand-picked** (ADR-0037 G-AC6): the ship projects the
 chain a fresh client would apply (`chainLoad`) and, when it would overrun

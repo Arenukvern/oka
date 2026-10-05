@@ -207,6 +207,7 @@ class WebDwdsTarget implements LivePatchTarget {
     required String assetKey,
     required List<int> bytes,
     required String flutterAssetsDir,
+    bool shader = false,
   }) async =>
       ApplyOutcome(
         ok: false,

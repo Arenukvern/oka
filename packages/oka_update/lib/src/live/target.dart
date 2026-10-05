@@ -47,14 +47,18 @@ abstract class LivePatchTarget {
   Future<String> evaluate(ProbeSpec probe);
 
   /// The dev-session asset lane (G-RUN): write [bytes] into the engine's
-  /// asset directory under [assetKey] and evict the app's asset caches.
-  /// Targets whose platform cannot take asset changes refuse in the
-  /// outcome (web: a page reload is the change; staged AOT: assets ride
-  /// the snapshot lane) — they never throw for an expected refusal.
+  /// asset directory under [assetKey] and evict the app's caches. Shader
+  /// bundles ([shader], compiled `.frag` → `.iplr`) evict engine-side via
+  /// `ext.ui.window.reinitializeShader`; everything else via
+  /// `ext.flutter.evict`. Targets whose platform cannot take asset
+  /// changes refuse in the outcome (web: a page reload is the change;
+  /// staged AOT: assets ride the snapshot lane) — they never throw for an
+  /// expected refusal.
   Future<ApplyOutcome> syncAsset({
     required String assetKey,
     required List<int> bytes,
     required String flutterAssetsDir,
+    bool shader = false,
   });
 
   Future<void> close();

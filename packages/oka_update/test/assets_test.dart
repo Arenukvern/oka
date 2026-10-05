@@ -56,6 +56,21 @@ flutter:
     expect(declaredAssetFiles(root), isEmpty);
   });
 
+  test('declaredShaderFiles reads the shaders: section, not assets:', () {
+    Directory('$root/shaders').createSync();
+    File('$root/shaders/hello.frag').writeAsStringSync('#version 320 es');
+    File('$root/pubspec.yaml').writeAsStringSync('''
+flutter:
+  assets:
+    - assets/hello.txt
+  shaders:
+    - shaders/hello.frag
+''');
+    expect(declaredShaderFiles(root), ['shaders/hello.frag']);
+    expect(declaredAssetFiles(root), ['assets/hello.txt'],
+        reason: 'the sections are independent');
+  });
+
   test('findFlutterAssetsDir picks the newest build product', () async {
     expect(findFlutterAssetsDir(root), isNull,
         reason: 'no build products yet');

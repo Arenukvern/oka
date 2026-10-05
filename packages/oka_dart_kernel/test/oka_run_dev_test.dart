@@ -74,7 +74,8 @@ class _FakeTarget implements LivePatchTarget {
   Future<ApplyOutcome> syncAsset(
       {required String assetKey,
       required List<int> bytes,
-      required String flutterAssetsDir}) async {
+      required String flutterAssetsDir,
+      bool shader = false}) async {
     assetSyncs.add((
       assetKey: assetKey,
       bytes: bytes.length,
