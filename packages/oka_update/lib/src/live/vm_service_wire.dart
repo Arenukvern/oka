@@ -153,6 +153,16 @@ class VmServiceWire {
           {required String isolateId, required String assetKey}) =>
       rpc('ext.flutter.evict', {'isolateId': isolateId, 'value': assetKey});
 
+  /// Asks the ENGINE to re-initialize one shader bundle
+  /// (`ext.ui.window.reinitializeShader`) — the engine-native eviction
+  /// flutter_tools uses for `.spirv` assets. Engine-side (unlike
+  /// `ext.flutter.*`), so it is registered even in apps whose framework
+  /// extensions are suppressed.
+  Future<Map<String, dynamic>> reinitializeShader(
+          {required String isolateId, required String assetKey}) =>
+      rpc('ext.ui.window.reinitializeShader',
+          {'isolateId': isolateId, 'assetKey': assetKey});
+
   Future<Map<String, dynamic>> reloadKernel(
           {required String isolateId, required String kernelFilePath}) =>
       rpc('_reloadKernel',

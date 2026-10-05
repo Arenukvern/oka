@@ -172,14 +172,20 @@ is a rehearsal lane, not the daily loop.
 pubspec, dirs expanded): the session writes the bytes into the engine's
 asset directory (the build product's `App.framework` resources — the
 path the debug engine actually reads, discovered host-side; no app code
-required) and fires `ext.flutter.evict`. The receipt then reports the
-post-evict probe **honestly**: on macOS the engine's asset cache serves
-the previously-mapped bytes until the next engine cycle — `R` picks the
-synced bytes up (`gate_dev_assets.sh` proves sync → evict → restart →
-fingerprint verified). Flutter's own desktop asset hot reload has the
-same ceiling: flutter_tools syncs assets into a DevFS directory the
-engine never reads. Making the engine drop its asset mapping cache is an
-engine-seam research line, not an oka gap.
+required) and fires `ext.flutter.evict` — the same sync+evict shape
+flutter_tools uses. `.spirv` shader bundles additionally ride
+`ext.ui.window.reinitializeShader` (engine-native — why shader hot
+reload works on desktop). The receipt reports the post-evict probes
+**honestly**: assets that were ALREADY loaded keep serving the engine's
+cached mapping until the next engine cycle — `R` picks the synced bytes
+up — while never-yet-loaded assets read fresh on their next load (which
+is why lazily-loaded content such as 3D models appears to hot reload).
+`gate_dev_assets.sh` proves sync → evict → restart → fingerprint
+verified. Flutter's own desktop asset hot reload has the same
+already-loaded ceiling for non-shader assets: flutter_tools syncs into
+a DevFS directory the desktop engine never reads. Making the engine
+drop live asset mappings is an engine-seam research line, not an oka
+gap.
 
 Wire facts this lane established (see
 `skills/oka-kernel/references/troubleshooting.md`): service extensions

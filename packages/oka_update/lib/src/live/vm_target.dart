@@ -233,6 +233,18 @@ class VmJitTarget implements LivePatchTarget {
     final isolate = await _isolateForApply();
     try {
       final r = await _wire.flutterEvict(isolateId: isolate, assetKey: assetKey);
+      // Shader bundles evict engine-side: the same call flutter_tools
+      // makes for its shaderPathsToEvict (live shader hot reload works
+      // because this extension is engine-native).
+      var shader = 'n/a';
+      if (assetKey.endsWith('.spirv')) {
+        try {
+          await _wire.reinitializeShader(isolateId: isolate, assetKey: assetKey);
+          shader = 'ok';
+        } on LiveWireException catch (e) {
+          shader = 'failed (${e.message})';
+        }
+      }
       return ApplyOutcome(
           ok: true,
           mode: 'assets-sync',
@@ -241,6 +253,7 @@ class VmJitTarget implements LivePatchTarget {
             'bytes': bytes.length,
             'dir': flutterAssetsDir,
             'evict': r['type'] == '_extensionType' ? 'ok' : '$r',
+            'shader': shader,
           });
     } on LiveWireException catch (e) {
       return ApplyOutcome(
