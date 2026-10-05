@@ -12,6 +12,9 @@ packages/*/build/
 # IDE
 .idea/
 .vscode/
+
+# ZCode session-local config (MCP servers etc.)
+.zcode/
 *.iml
 *.ipr
 *.iws
