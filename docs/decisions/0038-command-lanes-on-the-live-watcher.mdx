@@ -1,0 +1,73 @@
+# 0038 — Command lanes on the live watcher: declarative watch → gate → run
+
+Status: accepted (implemented 2026-10-06) · Date: 2026-10-06 · Builds on
+ADR-0035 (the continuous watcher), ADR-0036 (thin shell, orchestration in
+Dart)
+
+## Context
+
+`oka_live_watch` patches RUNNING Dart VMs: every saved `.dart` file under a
+`--watch` root becomes a unit delta applied to the spec's targets. That
+covers one freshness class — a live process. A second class is process-
+shaped: artifacts that must be REBUILT and SWAPPED on save (AOT exes,
+snapshots, generated bundles). Consumers hand-roll that today as zsh poll
+loops with private trigger logic, gates and locks — the first one born
+this week was the harness's OptMem exe deploy (`tool/hot_optmem.sh`:
+poll HEAD → refuse dirty scopes → analyze/test → compile → atomic swap).
+Each new artifact would clone that loop with subtly different semantics:
+one more place where "stale mount" and "shipped WIP" are decided by
+accident.
+
+The shape wanted is the one the watcher already has — declarative spec,
+event-driven, JSON-line receipts — minus the kernel: a command lane has no
+targets, no toolchain, and its gate lives in the command itself
+(last-known-good is the command's promise, not the runner's).
+
+## Decision
+
+1. **Optional, declarative `commands` in the live-watch spec.** Each lane
+   declares `name`, `watch` roots, `run` (argv, no shell), and optionally
+   `project` (working directory), `extensions` (default: any file) and
+   `debounceMs` (default 500). A spec without `commands` behaves
+   byte-identically to today.
+
+2. **Commands-only specs are first-class.** With no `targets`, the watcher
+   resolves no kernel toolchain and requires none of `--work-dir`,
+   `--app-packages-config`, `--watch` — a pure process lane boots in
+   milliseconds with no oka build state. One spec may also carry VM
+   targets and command lanes together: one process, one liveness, both
+   freshness classes (composable).
+
+3. **Receipts are data; the command owns correctness.** The lane emits
+   `command_start` / `command_receipt` (`ok`, `exitCode`, `durationMs`)
+   and inherits the command's stdio. The runner never retries, never
+   interprets output, and never gates: bound loops, analyze/test gates,
+   atomic swaps and last-known-good are the command's declared promise.
+   This keeps ADR-0036's boundary — the runner is mechanics, the command
+   is policy.
+
+4. **At-least-once per burst, serialized per lane.** Events during a run
+   coalesce into exactly one follow-up run; lanes never overlap
+   themselves. No global lock is imposed — concurrent-safe commands (the
+   first consumer takes its own stale-steal lock and unique temp path)
+   compose under any supervisor, including two watchers.
+
+5. **Trigger vocabulary is the file system.** Command lanes watch paths,
+   not semantics: create/modify/delete/move under the roots, filtered by
+   `extensions` when declared. What a change MEANS (a new commit pair, a
+   saved source, a manifest edit) is the command's reading, keeping the
+   runner free of per-project logic.
+
+## Consequences and limits
+
+- A lane that fails stays failed until the next file-system event; there
+  is no timer-based retry (deliberate — retries belong to the command or
+  a supervisor, never to a watcher that cannot judge evidence).
+- Receipts go to stdout only; capturing or forwarding them is the
+  supervisor's job.
+- No per-lane environment declaration in v1 — lanes inherit the watcher's
+  environment; a lane needing different env wraps itself in a script.
+- The first consumer is the harness's OptMem OTA lane
+  (`ecsai_harness/tool/optmem_ota_spec.json` through a thin launcher),
+  replacing its hand-rolled poll loop; its builder gained its own lock as
+  a result of §4.

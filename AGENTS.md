@@ -26,6 +26,7 @@ follow links.
 | Know what stands between the update API and production | `docs/decisions/0034-update-api-production-ladder.mdx` (proposed; gap analysis + P0–P5 ladder) |
 | Design the patch-shipping journey or server live patching | `docs/decisions/0035-live-update-journey-and-server-patching.mdx` (proposed; Dart-first authoring, server lanes, `oka ship`) |
 | Decide shell vs harness vs declared verbs for live-update automation | `docs/decisions/0036-live-update-agent-surface.mdx` (accepted, implemented: gates = thin shell, orchestration = Dart drivers, `oka.live.*` verbs in `oka_update/live_agent.dart`) |
+| Run a rebuild-and-swap artifact lane (OTA exes, generated bundles) from file saves | `docs/decisions/0038-command-lanes-on-the-live-watcher.mdx` (accepted, implemented: optional spec `commands` section in `oka_live_watch`, commands-only boots need no toolchain; first consumer: the harness OptMem deploy) |
 | Ship store-free patches invisibly / run the air channel | `docs/decisions/0037-air-channel-invisible-patches.mdx` (accepted, implemented: `oka ship` derives everything from the working tree incl. snapshot-from-build; `UpdateClient`/`planChain` resolve chains vs snapshots; signed channels; gates G-AC1..8 done, G-AC9 ADR-gated) |
 | Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
 | Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
