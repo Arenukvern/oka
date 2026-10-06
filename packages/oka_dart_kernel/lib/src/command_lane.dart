@@ -181,3 +181,55 @@ final class CommandLane {
     });
   }
 }
+
+/// Runs [lanes] as a long-lived, commands-only watcher: one `ready`
+/// receipt, one liveness loop, lanes subscribed for the process lifetime.
+///
+/// This is the Dart-first composition entry (ADR-0035's authoring rule,
+/// ADR-0038 §6): a project declares its lanes as a small typed Dart file
+/// instead of a JSON spec — configurable per project, copyable, and
+/// static-checkable. The `--spec` JSON path on `oka_live_watch` remains
+/// the transport form; both resolve to the same [CommandLane] mechanics.
+///
+/// Returns a future that completes only when [parentPid] names a dead
+/// process (the watcher exits instead of orphaning) — otherwise it runs
+/// until the isolate is killed.
+Future<void> runCommandLanes({
+  required String projectRoot,
+  required List<CommandLaneSpec> lanes,
+  void Function(Map<String, Object?> receipt)? onReceipt,
+  int? parentPid,
+}) async {
+  void emit(final Map<String, Object?> receipt) {
+    (onReceipt ?? (final _) {})(receipt);
+  }
+
+  if (parentPid != null) {
+    Timer.periodic(const Duration(seconds: 5), (timer) {
+      bool alive;
+      try {
+        final probe = Process.runSync('ps', ['-p', '$parentPid', '-o', 'pid=']);
+        alive =
+            probe.exitCode == 0 && (probe.stdout as String).trim().isNotEmpty;
+      } on Object {
+        alive = true; // probe failure must never kill a healthy lane
+      }
+      if (!alive) {
+        emit({'event': 'exit', 'reason': 'parent gone'});
+        timer.cancel();
+        exit(0);
+      }
+    });
+  }
+  final running = <CommandLane>[];
+  for (final spec in lanes) {
+    final lane = CommandLane(spec: spec, projectRoot: projectRoot, onReceipt: emit);
+    lane.start();
+    running.add(lane);
+  }
+  emit({
+    'event': 'ready',
+    'lanes': [for (final lane in lanes) lane.name],
+  });
+  await Completer<void>().future;
+}

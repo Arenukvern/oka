@@ -218,6 +218,34 @@ void main() {
     await lane$.stop();
   });
 
+  test('runCommandLanes composes typed lanes and emits ready', () async {
+    final watched = Directory('${root.path}/watched')..createSync();
+    final ready = Completer<void>();
+    unawaited(runCommandLanes(
+      projectRoot: root.path,
+      lanes: [
+        CommandLaneSpec(
+          name: 'typed',
+          watch: [watched.path],
+          run: ['sh', '-c', 'echo run >> ${root.path}/log'],
+          debounceMs: 50,
+        ),
+      ],
+      onReceipt: (receipt) {
+        receipts.add(receipt);
+        if (receipt['event'] == 'ready') ready.complete();
+      },
+    ));
+    await ready.future.timeout(const Duration(seconds: 10));
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    await touch('${watched.path}/unit.dart');
+    await until(() => File('${root.path}/log').existsSync());
+    expect(
+      receipts.map((receipt) => receipt['event']),
+      containsAllInOrder(['ready', 'command_start', 'command_receipt']),
+    );
+  });
+
   test('a failing command surfaces as ok:false with its exit code',
       () async {
     final watched = Directory('${root.path}/watched')..createSync();

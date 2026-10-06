@@ -58,6 +58,17 @@ targets, no toolchain, and its gate lives in the command itself
    saved source, a manifest edit) is the command's reading, keeping the
    runner free of per-project logic.
 
+6. **Dart-first lane authoring (oka's own rule, applied back).** Oka
+   exists to make build configs typizable, copyable Dart — a lane
+   declared as JSON would betray that. `runCommandLanes()` in
+   `oka_dart_kernel` is therefore the primary entry: a project declares
+   its lanes in a small typed Dart file (paths derived from the script
+   location, doc comments, static checks) and runs it — per-project
+   configuration with zero new formats. The `--spec` JSON form stays as
+   the transport for bootstraps and the VM-lane watchers; both resolve
+   to the same `CommandLane` mechanics. The first consumer composes its
+   lane in the project repo (`ecsai_harness/tool/optmem_ota_lane.dart`).
+
 ## Consequences and limits
 
 - A lane that fails stays failed until the next file-system event; there
@@ -67,7 +78,5 @@ targets, no toolchain, and its gate lives in the command itself
   supervisor's job.
 - No per-lane environment declaration in v1 — lanes inherit the watcher's
   environment; a lane needing different env wraps itself in a script.
-- The first consumer is the harness's OptMem OTA lane
-  (`ecsai_harness/tool/optmem_ota_spec.json` through a thin launcher),
-  replacing its hand-rolled poll loop; its builder gained its own lock as
-  a result of §4.
+- The first consumer is the harness's OptMem OTA lane, composed as a
+  typed Dart file in the project repo per §6.
