@@ -6,5 +6,6 @@
 /// the mechanics.
 library;
 
+export 'src/command_lane.dart';
 export 'src/live_pipeline.dart';
 export 'src/unit_graph.dart';
