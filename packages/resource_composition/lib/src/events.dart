@@ -43,7 +43,8 @@ enum LifecycleEventKind {
   readinessTimeout('readinessTimeout'),
   componentFailed('componentFailed'),
   componentStopped('componentStopped'),
-  reconcileObserved('reconcileObserved');
+  reconcileObserved('reconcileObserved'),
+  supervisorFinding('supervisorFinding');
 
   const LifecycleEventKind(this.wire);
 
@@ -190,4 +191,32 @@ final class ReconcileObserved extends LifecycleEvent {
 
   @override
   Map<String, Object?> get details => {'observation': observation};
+}
+
+/// A steady-state supervisor finding (ADR-0040): the convergence diff
+/// reported something that is not an action — a healthy component, a
+/// waiting job, an orphan record, an unowned process, or an exhausted
+/// restart budget. Findings are evidence; only budgeted, owned actions
+/// change the world.
+final class SupervisorFindingEvent extends LifecycleEvent {
+  SupervisorFindingEvent({
+    required super.componentId,
+    required this.code,
+    this.message,
+    super.at,
+  });
+
+  /// Stable finding code, e.g. `giveUp`, `orphan`, `unowned`, `ready`.
+  final String code;
+
+  final String? message;
+
+  @override
+  LifecycleEventKind get kind => LifecycleEventKind.supervisorFinding;
+
+  @override
+  Map<String, Object?> get details => {
+        'code': code,
+        if (message != null) 'message': message,
+      };
 }

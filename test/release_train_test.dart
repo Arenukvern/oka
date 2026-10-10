@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 const packages = [
   'resource_composition',
   'oka_core',
+  'oka_supervisor',
   'oka_conformance',
   'oka_android',
   'oka_huawei',
@@ -37,6 +38,7 @@ void main() {
       'resource_composition': [],
       'oka_core': ['resource_composition'],
       'oka_conformance': ['oka_core'],
+      'oka_supervisor': ['resource_composition'],
       'oka_android': ['oka_core'],
       'oka_huawei': ['oka_android', 'oka_core'],
       'oka_play': ['oka_core'],
@@ -229,6 +231,7 @@ void main() {
     expect(dartPackages(fake.log), [
       'resource_composition',
       'oka_core',
+      'oka_supervisor',
       'oka_conformance',
       'oka_android',
     ]);

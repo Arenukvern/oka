@@ -1,0 +1,33 @@
+name: oka_supervisor
+description: >-
+  Declarative supervisor (ADR-0040): steady-state convergence over the
+  resource_composition substrate. Desired state is declared as typed
+  component specs; a pure planner diffs desired against observed; a
+  crash-only converge driver acts once and exits — budgeted restarts,
+  cession-based ownership, and an advisory machine registry. No daemon,
+  no second watcher, no output interpretation.
+version: 0.6.0 # x-release-please-version
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_supervisor
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - supervisor
+  - lifecycle
+  - processes
+  - declarative
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  crypto: ^3.0.3
+  path: ^1.9.0
+  resource_composition: ^0.6.0 # x-release-please-version
+
+dev_dependencies:
+  lints: ^6.1.0
+  oka_core: ^0.6.0 # x-release-please-version
+  test: ^1.25.0

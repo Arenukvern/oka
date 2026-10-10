@@ -59,6 +59,8 @@ dependency_overrides:
     path: ../packages/oka_huawei
   oka_play:
     path: ../packages/oka_play
+  oka_supervisor:
+    path: ../packages/oka_supervisor
   oka_web:
     path: ../packages/oka_web
 

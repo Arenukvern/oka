@@ -6,6 +6,7 @@ import 'dart:io';
 const packages = <String>[
   'resource_composition',
   'oka_core',
+  'oka_supervisor',
   'oka_conformance',
   'oka_android',
   'oka_huawei',
