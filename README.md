@@ -201,6 +201,7 @@ This is what "AI-native" means — every operation is checkable and scriptable:
 | `oka debug step <name>` | One pipeline step re-run against `.oka_cache` — 10-minute loops become 30-second probes |
 | `oka compare a.apk b.apk` | Byte-equivalence gate — refactors prove, not claim |
 | `oka cache --json` / `oka cache clean` | Storage inventory and reclaimable totals as data |
+| `oka supervisor status --json` / `check plan.json` | Recorded process state and the plan-vs-records drift gate as data |
 | `oka doctor` | Full environment + build-health audit, secret-tier checks included |
 
 ## Configuration in one glance
@@ -303,7 +304,8 @@ More: [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq).
 | [`oka_rustore`](https://pub.dev/packages/oka_rustore) | RuStore target (readiness + verification; adapter-supplied upload) |
 | [`oka_web`](https://pub.dev/packages/oka_web) | Web shell station + deploy targets |
 | [`oka_conformance`](https://pub.dev/packages/oka_conformance) | The contract suite every target must pass |
-| `oka_dart_kernel`, `oka_update`, `oka_harness`, `resource_composition` | Live-patching / harness stack (experimental, not on pub) |
+| `oka_supervisor`, `resource_composition` | Declarative process supervision + the composition substrate (governance stack) |
+| `oka_dart_kernel`, `oka_update`, `oka_harness` | Live-patching / harness stack (experimental, not on pub) |
 
 ## Documentation
 
@@ -315,6 +317,7 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 | Run/build/test/configure | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
 | Publish to stores, set up accounts | [Publishing](https://docs.page/arenukvern/oka/guides/publishing) · [Accounts & stores](https://docs.page/arenukvern/oka/guides/accounts_and_stores) |
 | Ship a web app | [Web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station) |
+| Govern daemons, watchers, automations | [Supervisor guide](https://docs.page/arenukvern/oka/guides/supervisor) |
 | Migrate from Gradle | [Migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
 | Check phase status | [`docs/PHASE_CHECKLIST.mdx`](docs/PHASE_CHECKLIST.mdx) |
