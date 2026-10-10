@@ -1,0 +1,32 @@
+name: oka_artifacts
+description: >-
+  Content-addressed artifact store with delta chains (ADR-0043): git
+  stores provenance pointers, bytes live outside the codebase, and the
+  snapshot cadence emerges from measured delta ratios. The "diff ->
+  diff... -> snapshot only" storage shape for dills, AOT snapshots and
+  any other build artifact class, with zstd --patch-from as the default
+  codec behind a seam.
+version: 0.6.0 # x-release-please-version
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_artifacts
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - artifacts
+  - storage
+  - delta
+  - content-addressed
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  args: ^2.5.0
+  crypto: ^3.0.3
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.25.0

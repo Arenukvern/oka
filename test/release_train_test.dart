@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 const packages = [
   'resource_composition',
+  'oka_artifacts',
   'oka_core',
   'oka_supervisor',
   'oka_conformance',
@@ -36,6 +37,7 @@ void main() {
     );
     final dependencies = <String, List<String>>{
       'resource_composition': [],
+      'oka_artifacts': [],
       'oka_core': ['resource_composition'],
       'oka_conformance': ['oka_core'],
       'oka_supervisor': ['resource_composition'],
@@ -230,6 +232,7 @@ void main() {
     expect(result.exitCode, isNot(0));
     expect(dartPackages(fake.log), [
       'resource_composition',
+      'oka_artifacts',
       'oka_core',
       'oka_supervisor',
       'oka_conformance',

@@ -1,0 +1,90 @@
+# 0043 — Artifact store: pointers in git, delta chains in the store
+
+**Status**: accepted · **Date**: 2026-10-11 · **Builds on**: ADR-0037
+(content-addressed trees, "nothing in the wire format knows git exists"),
+ADR-0038 (lanes emit artifacts from saves), the 2026-09-28 cache
+strategy analysis (scoped, see consequences)
+
+## Context
+
+Compiled Dart kernels are entering git histories as first-class citizens:
+`ecsai_harness/bin/harnessd.jit.dill` is **32 MB with 26 revisions**
+already packed (~800 MB raw inside a 437 MiB pack), not yet LFS-tracked,
+re-minted by the rebuild lane on every source save. LFS makes this a
+billing line item, not a fix: LFS objects are standalone (no delta
+compression), so every rebuild is a full new object, forever. The same
+curve awaits every artifact class the ecosystem is about to produce
+(AOT snapshots, model bundles, LA assets).
+
+The insight that dissolves it: **a dill is a cache entry with
+provenance, not a source file.** Its identity is fully determined by
+(entrypoint, source tree, SDK version, flags) — git already holds the
+semantics; the bytes are a warm-start hint at best.
+
+## Decisions
+
+1. **Git stores pointers, never bytes.** The artifact path becomes a
+   ~200-byte manifest: output `sha256`, entrypoint, SDK version, input
+   tree hash, backend URI. Clones stay small forever; history growth is
+   O(pointers); LFS demotes from requirement to optional backend.
+2. **Bytes live in a content-addressed store.** Full snapshots under
+   `blobs/<sha256>` (dedup by hash: same inputs → no-op write); per-
+   artifact delta chains under `chains/<name>/`. The store lives
+   **outside the visible codebase** (`~/.oka/artifacts`), so the usual
+   developer's tree gains nothing, ever — oka generates what it needs
+   silently (ADR-0038 lane + this store). Sharing warm starts across
+   clones is *opt-in*: one pointer file replaces the 32 MB binary.
+3. **Delta chains with ratio-triggered rollover** (the
+   "diff → diff… → snapshot" shape, made automatic): append
+   `zstd --patch-from` deltas while `deltaSize / fullSize < threshold`
+   (0.35 default); take a fresh snapshot when a delta stops paying, at
+   chain depth `maxChainDepth`, or every `orEvery` revisions regardless.
+   The snapshot cadence is not configured — it *emerges from the
+   measured ratio*.
+4. **Codec is a seam.** Default `ZstdCliCodec` (chosen: zstd
+   `--patch-from`, fast, one well-loved dependency); the store is
+   format-agnostic; absent codec = named, loud degradation to
+   SnapshotOnly in the receipt, never a silent full-copy policy change.
+5. **Hosting works over plain HTTP.** The pointer names the backend;
+   `blobs/<sha>` and chain entries are static files; the content hash
+   *is* the integrity check on fetch (identity = digest). No server
+   logic required — R2/S3/static host/air-channel host all work.
+6. **Composition API in `packages/oka_artifacts`.** Closed rule types
+   (`SnapshotOnly`, `DeltaChain(rolloWhen:, orEvery:, maxChainDepth:)`),
+   one `ArtifactStore.record/materialize/verify` surface, provenance
+   required on pointers. Lanes call it on save; consumers fetch-or-build
+   via the boot ladder (`snapshotFirst → jitSource`), so a dill is a
+   warm-start hint, never a requirement.
+
+## Non-goals
+
+No git history rewrite (existing dill history ages in place; new
+commits stop adding). No delta tracking inside git. No server logic.
+No general VCS.
+
+## Consequences
+
++ Clone size and history growth become independent of artifact churn;
+  rebuilds stop being storage decisions (identical inputs → no-op).
++ The measured delta ratios tune the snapshot cadence for every
+  artifact class with one knob.
+− Pointers can dangle (backend unreachable/pruned): consumers must
+  fail over to build-from-source — the boot ladder makes this the
+  normal path, not an error.
+− Scoped note vs the 2026-09-28 "no byte-CAS" cache decision: that
+  measured *build-cache* economics (compression dead end for inputs);
+  this store serves *distributable outputs that cross machines*, where
+  dedup and delta economics pay. Different problem, kept separate on
+  purpose.
+
+**First consumer**: the harness `harnessd.jit.dill` rebuild lane
+(follow-up wiring; this ADR ships the store).
+
+## Kill criteria
+
+If measured delta ratios hover at/above the snapshot threshold for an
+artifact class (deltas never pay), that class collapses to
+SnapshotOnly — the rule type already exists, nothing else changes. If
+pointer-dangle failures reach users (build-from-source fallback broken
+*and* backend unreachable), the pointer law is wrong and must be
+re-decided, not papered over with retries.

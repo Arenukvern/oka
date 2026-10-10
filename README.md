@@ -202,6 +202,7 @@ This is what "AI-native" means — every operation is checkable and scriptable:
 | `oka compare a.apk b.apk` | Byte-equivalence gate — refactors prove, not claim |
 | `oka cache --json` / `oka cache clean` | Storage inventory and reclaimable totals as data |
 | `oka supervisor status --json` / `check plan.json` | Recorded process state and the plan-vs-records drift gate as data |
+| `oka_artifacts` (package CLI: put/materialize/verify) | Build artifacts as pointers + delta chains — git stays small, LFS optional |
 | `oka doctor` | Full environment + build-health audit, secret-tier checks included |
 
 ## Configuration in one glance
@@ -304,7 +305,7 @@ More: [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq).
 | [`oka_rustore`](https://pub.dev/packages/oka_rustore) | RuStore target (readiness + verification; adapter-supplied upload) |
 | [`oka_web`](https://pub.dev/packages/oka_web) | Web shell station + deploy targets |
 | [`oka_conformance`](https://pub.dev/packages/oka_conformance) | The contract suite every target must pass |
-| `oka_supervisor`, `resource_composition` | Declarative process supervision + the composition substrate (governance stack) |
+| `oka_supervisor`, `oka_artifacts`, `resource_composition` | Governance stack: process supervision, artifact storage (pointers + delta chains), composition substrate |
 | `oka_dart_kernel`, `oka_update`, `oka_harness` | Live-patching / harness stack (experimental, not on pub) |
 
 ## Documentation
