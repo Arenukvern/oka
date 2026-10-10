@@ -24,8 +24,10 @@ dependencies:
   args: ^2.5.0
   oka_android: ^0.6.0 # x-release-please-version
   oka_core: ^0.6.0 # x-release-please-version
+  oka_supervisor: ^0.6.0 # x-release-please-version
   oka_web: ^0.6.0 # x-release-please-version
   path: ^1.9.0
+  resource_composition: ^0.6.0 # x-release-please-version
   yaml: ^3.1.2
 
 dev_dependencies:

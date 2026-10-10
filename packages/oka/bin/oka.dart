@@ -20,6 +20,7 @@ import 'package:oka/src/cli/run_command.dart';
 import 'package:oka/src/cli/session_state_command.dart';
 import 'package:oka/src/cli/ship_command.dart';
 import 'package:oka/src/cli/stop_command.dart';
+import 'package:oka/src/cli/supervisor_command.dart';
 import 'package:oka/src/cli/why_command.dart';
 import 'package:oka/src/version.dart';
 
@@ -84,6 +85,8 @@ void main(List<String> arguments) async {
         await SessionStateCommand().run(commandArgs);
       case 'stop':
         await StopCommand().run(commandArgs);
+      case 'supervisor':
+        await SupervisorCommand().run(commandArgs);
       case 'run':
         await RunCommand().run(commandArgs);
       default:
@@ -144,6 +147,9 @@ Commands:
              identity-verified, never signals a recycled pid)
   session-state Inspect, resume, reconcile or close durable browser/emulator
                 state; resume is an explicit action, cleanup needs `--apply`
+  supervisor Declarative process supervision (ADR-0040): `status` shows
+             recorded component state, `apply <plan.json>` converges one
+             pass from a plan document
   get       Install missing Android SDK dependencies
   clean     Clean build cache
   cache     Storage stats and preview/apply pruning across platforms
