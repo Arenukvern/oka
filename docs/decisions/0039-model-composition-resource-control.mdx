@@ -1,0 +1,129 @@
+# 0039 — Models as composition resources: one control surface for local model serving
+
+Status: proposed · Date: 2026-10-08 · Builds on ADR-0030 (application
+composition and operation projections), the `resource_composition`
+component model, and the local-serve core that landed 2026-10-08 in
+`dart_flutter_packages` (`xsoulspace_inference_local_serve`,
+`xsoulspace_inference_mlx`, serving `xsoulspace_optmem` and the
+`ecsai_harness` AFM lane as first consumers).
+
+## Context
+
+Local models arrived as working code before they arrived as a resource:
+today an MLX text model reaches its consumers through per-consumer
+environment knobs (`OPTMEM_MLX_ENDPOINT`, `HARNESS_MLX_MODEL`,
+`HARNESS_MLX_SPAWN`, …), a hand-started `mlx_lm.server` process, and
+conventions documented in READMEs. This has the same failure shape device
+management had before oka controlled devices: every consumer re-decides
+endpoint, lifecycle, readiness and model identity, and the decisions drift
+(measured 2026-10-08: the OptMem lane defaulted its wire model id to
+`local`, and `mlx_lm.server` resolved that unknown id as a Hugging Face
+repo at request time — a 404 that only the second consumer would have
+caught). Laya solved the same problem for its decision model with a
+bespoke lane inside one daemon; a second model immediately cloned the
+shape. Neither env knobs nor per-daemon lanes give the third consumer
+anything.
+
+Models are infrastructure the same way devices are: long-lived, shared,
+health-bearing, with an identity that must be declared once and resolved
+everywhere. oka already has the vocabulary: components with providers,
+readiness, lifecycle, outputs, and diagnostics.
+
+## Decision
+
+1. **A model is a `resource_composition` component.** One component per
+   served model, declared like any other resource:
+
+   ```dart
+   ModelComponent(
+     id: 'nap-drafter',
+     provider: MlxLmServerProvider(
+       model: 'LiquidAI/LFM2.5-1.2B-Instruct-MLX-4bit',
+       port: 8765,                       // loopback only, always
+       engine: EnginePolicy.nativeFirst, // see (3)
+     ),
+     readiness: HealthProbe.ready('/health'),
+     lifecycle: Lifecycle(deactivateOnIdle: Duration(minutes: 10)),
+     provides: [OutputRef<ChatEndpoint>(#chat), OutputRef<ModelFacts>(#facts)],
+   )
+   ```
+
+   Consumers require the `chat` output; none of them knows how the server
+   is started, which port it owns, or whether the engine is Python,
+   native Swift, or the pure-Dart fake.
+
+2. **Identity and facts are declared once.** `ModelFacts` carries the
+   checkpoint id, quantization, license name, measured context fit, and
+   capability bounds — the data every consumer today re-states in
+   comments. Provenance flows from here: anything a model drafts carries
+   these facts with it.
+
+3. **Engine policy, not engine choice.** `EnginePolicy` declares a
+   preference ladder — `nativeFirst` (Swift/MLX via the laya native-assets
+   pattern), `pythonServe` (`mlx_lm.server`), `fake` (the pure-Dart wire
+   fake, for tests and conformance) — and the component starts the first
+   engine whose requirements are met, recording which one answered. The
+   wire contract (OpenAI-compatible chat on loopback) does not change
+   across engines, so consumers never re-resolve. This is the migration
+   path from the current Python serving to the laya-style native engine
+   without touching a single client.
+
+4. **Port and process ownership are the component's, never the
+   consumer's.** The component owns: the loopback bind, the health probe,
+   attach-vs-spawn (spawn always opt-in, mirroring the serve-core law),
+   kill-only-what-you-spawned, and idle deactivation for RAM-heavy models.
+   One port registry per machine (a tiny sidecar under `~/.oka/models/`)
+   prevents two compositions from claiming 8765.
+
+5. **Model download is a separate, explicit step.** The component never
+   downloads (the serve-core law: never installs, never fetches). The
+   counterpart lane is `oka models pull <repo>` over the existing update
+   machinery — content-addressed, resumable, with a named receipt — so a
+   composition with a missing checkpoint refuses with the pull command,
+   the way a missing toolchain refuses with its installer.
+
+## Consequences
+
+- The OptMem drafting lane and the harness `mlx_local` palette entry
+  become two consumers of one declaration; the env-knob families collapse
+  into component outputs.
+- The measured 2026-10-08 failure class (wire model id drifting from the
+  served checkpoint) becomes structurally impossible: the id travels with
+  the component's `chat` output.
+- The native-engine migration (ml-explore/mlx-swift's LLM package is the
+  leading candidate; research recorded 2026-10-08) becomes an
+  `EnginePolicy` swap behind a stable wire, not a client migration.
+- Non-goals, explicitly: no remote serving (loopback only, unchanged), no
+  model training/finetuning surface, no automatic downloads, no scheduler
+  beyond idle deactivation.
+
+## Status note (2026-10-08, later the same day)
+
+The native engine leg of `EnginePolicy` exists for text: `nativeFirst` is
+implemented in `dart_flutter_packages/pkgs/xsoulspace_inference_mlx`
+(`native/mlx_text_native` over ml-explore/mlx-swift-lm, the laya
+native-assets hook pattern), measured faster than the Python server on
+every axis (cold 2.9s vs 4.9s full-prefill; 45 vs 36 tok/s decode; p50
+1366ms vs 1418ms warm repeated-prompt) — behind the same loopback wire,
+so consumers never re-resolved. The lane's nightly automation now starts
+native first with Python as named fallback.
+
+## Status note (2026-10-08, later the same day)
+
+The native engine leg of `EnginePolicy` exists for text: `nativeFirst` is
+implemented in `dart_flutter_packages/pkgs/xsoulspace_inference_mlx`
+(`native/mlx_text_native` over ml-explore/mlx-swift-lm, the laya
+native-assets hook pattern), measured faster than the Python server on
+every axis (cold 2.9s vs 4.9s full-prefill; 45 vs 36 tok/s decode; p50
+1366ms vs 1418ms warm repeated-prompt) — behind the same loopback wire,
+so consumers never re-resolved. The drafting lane's nightly automation
+starts native first with Python as the named fallback.
+
+## Non-claims
+
+- Nothing here is implemented in oka yet; this ADR proposes, it does not
+  describe. The serving primitives it composes exist and are gated in
+  `dart_flutter_packages` (serve core 15/15, mlx package 15/15) and
+  `ecsai_harness` (lane e2e 4/4, gates green).
+- The measured latency/faithfulness numbers for the first served model
+  live in the consumers' benchmark ledgers, not here.
