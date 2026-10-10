@@ -19,6 +19,16 @@ with evidence, not into a checked box.
 
 ## Now (unblocked, code-ready)
 
+- **Supervisor L0 first consumers (ADR-0040/0041).** The supervisor R1
+  (`packages/oka_supervisor`), the L0 ladder rung (plan codec,
+  `SpecStore`, status projection, `oka supervisor status|apply|check`),
+  and the observe-only consumer bridges are in place: harness
+  `tool/supervisor_beat/`, dfp `tool/supervisor_composition/`, codemap
+  read-only projection in `packages/oka_supervisor/tool/`. Remaining:
+  keep the bridges recording (the R2 resident needs ≥2 consumers
+  recording for a month before its ADR can be accepted — see
+  ADR-0042's proposed entry criteria), and wire the harness bridge
+  into the beat carrier as an opt-in.
 - **Resource composition R1–R2 (ADR-0026 as amended 2026-09-27) — contract
   package + process seam landed; adapters pending.**
   `packages/resource_composition` is the zero-dependency, vendor-neutral
@@ -288,6 +298,18 @@ with evidence, not into a checked box.
 
 ## Next (needs a checkpoint / ADR)
 
+- **Supervisor ladder rungs L1 mesh + L2 git (ADR-0041, gated).** L1:
+  `statusJson` snapshot frames over Last Answer's LiveMeshService
+  (newest-wins + epoch, no CRDT; LA privacy law + paired-peer gate).
+  L2: `supervisor/plans/*.json` convention, in-app read-only, CI drift
+  gate — the gate mechanism (`oka supervisor check`) is shipped; rung
+  adoption waits on an LA consumer proving the L0 status surface.
+- **R2 resident + OTA runtime owner (ADR-0042, proposed).** One
+  resident per machine, two powers, one pure policy engine; supersedes
+  ADR-0001 + ADR-0030 §5 together with signed epoch-replay-protected
+  cession. Acceptance is gated on ADR-0042's entry criteria (≥2
+  consumers recording for a month, recorded restart demand, an
+  approved cession threat model) — not on enthusiasm.
 - **Session matrices / mesh (ADR-gated, future).** N concurrent
   cross-engine sessions with rendezvous artifacts (the mesh case: one app
   alive in several browsers) as a composition over ADR-0017
@@ -328,6 +350,12 @@ with evidence, not into a checked box.
 
 ## Later (north-star alignment)
 
+- **Supervisor R2 resident → L3 server (ADR-0042, proposed).** The
+  design is drafted — one resident per machine, two powers, one pure
+  policy engine, signed epoch-replay-protected cession. It stays
+  proposed until ADR-0042's entry criteria hold (≥2 consumers recording
+  for a month, recorded restart demand, approved cession threat model);
+  nothing in L0–L2 grows a resident implicitly.
 - **Container & server session instances (ADR-0017 future).** Extend the
   `session-<name>-handle` convention beyond browsers: `apple/container` /
   Docker sessions (images via the ADR-0013 artifact store; handle =

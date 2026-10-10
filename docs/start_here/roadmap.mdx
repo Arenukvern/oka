@@ -106,6 +106,9 @@ Work is grouped by horizon, not by date:
   language-specific SDKs are gated on pilots with `ecsai_harness`, Oka, and
   IntentCall. Any supervisor remains optional and may be a separate
   implementation or project; this does not change Oka's no-daemon posture.
+  The supervisor exists now (ADR-0040 R1) and grows along an adoption
+  ladder — local → mesh → git → server — whose every rung beyond local
+  stays ADR-gated so the posture holds (ADR-0041).
 - **Every platform, same laws.** The north star is one code for every
   platform build: typed values, validated pipelines, no hidden glue, and
   an agent that can set up and fix a build from oka's messages alone. Each

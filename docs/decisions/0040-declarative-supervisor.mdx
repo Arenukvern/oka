@@ -1,0 +1,123 @@
+# 0040 — Declarative supervisor: steady-state convergence over the composition substrate
+
+Status: accepted · Date: 2026-10-09 · Builds on ADR-0026
+(`resource_composition`), ADR-0018 (process leases), ADR-0038 (command
+lanes, which defer retries "to a supervisor"), ADR-0039 (models as
+composition resources), ADR-0030 (operation projections). Informed by a
+four-lens MoE review (supervision semantics, declarative API, integration
+boundaries, product UX) and a laya decision-model arbitration
+(2026-10-08).
+
+## Context
+
+Long-lived processes across the ecosystem — daemons, MCP servers, file
+watchers, local model servers, lanes — are governed by hand-started shell
+scripts, env knobs, and README conventions. The pain is live, not
+hypothetical: on 2026-10-08 three harnessd instances ran while **zero**
+hot-apply watchers were alive (a property that died silently, noticed by
+no one); three repos spell the same "lane" idea three ways (codemap's
+Python `CommandLaneSpec`, oka's Dart `CommandLaneSpec`, harness zsh
+lock/pid wrappers); the mlx wire model id drifted from the served
+checkpoint into a 404 (ADR-0039); facts live in four separate envelopes;
+and `resource_composition` declares `CrashPolicy.reconcile` with nothing
+implementing steady-state observation. ADR-0018 deliberately out-scoped a
+process manager; ADR-0038 explicitly deferred retries "to a supervisor".
+This ADR is that supervisor — scoped so it earns its keep before it
+becomes a second kernel.
+
+## Decision
+
+1. **The substrate stays `resource_composition`; the supervisor is a
+   policy layer, not a new contract.** Desired state is declared as
+   `ComponentSpec` values (provider by name via a `ProviderFactory`);
+   `DesiredState.composition()` builds the substrate `Composition`, so
+   validate-before-side-effects, readiness dialects, typed outputs, and
+   terminal-cause events are reused verbatim. Providers keep all
+   mechanics (spawn, probes, stop ladders — `LeasedProcessProvider`,
+   serve-core); the supervisor owns only desire, diff, and decision.
+
+2. **Convergence is explicit and crash-only.** `converge` = observe →
+   diff → act once → exit, emitting the same JSONL evidence. v1 ships no
+   resident process: the ADR-0001 no-daemon posture holds until the
+   resident rung (below) supersedes it with its own ADR and evidence.
+
+3. **Restart is declared, budgeted, and ledgered — never implicit.** A
+   spec's `SupervisionPolicy` declares shape (`service` = desired
+   running; `job` = desired succeeded once), `maxRestarts` within
+   `restartWindow`, and a `revision`. The restart ledger lives in the
+   registry record; exhausting the budget yields a terminal `giveUp`
+   finding that only a revision bump (or explicit reset) clears. The
+   one-shot runner never restarts anything.
+
+4. **Shape and trigger are properties, not a kind taxonomy.** `shape ∈
+   {service, job}` and `Trigger ∈ {watch, interval, none}` compose on
+   every spec — no `kind` switches, no component-kind hierarchy (the
+   failure mode behind the three "lane" spellings). Interval-triggered
+   jobs re-run when due in `converge`; watch triggers are declared and
+   recorded, enforced by the resident rung — v1 adds no second file
+   watcher.
+
+5. **Attach is a cession protocol; observe-only is the default.**
+   Registry records carry `killPolicy: spawned | ceded | none`. Stop and
+   restart are proposed only for records the supervisor spawned or that
+   ceded kill rights; foreign and hand-started processes produce
+   findings (`orphan`, `unowned`, `unknown`), never signals. Identity is
+   verified before any signal (epoch + provider identity token).
+
+6. **The machine registry is advisory.** Records live under
+   `~/.oka/supervisor/records/<scope>/<component>.json` (scope = short
+   hash of the project root, so two repos cannot collide), written
+   atomically (temp + rename) **before** spawn — identity-before-side-
+   effects. Kill authority never derives from registry presence.
+
+7. **Facts stay in the substrate envelope.** One new event kind
+   (`supervisorFinding`) joins `resource_composition`'s lifecycle events
+   in the same JSONL evidence stream. No fifth envelope.
+
+8. **Dart-first authoring.** Specs are typed Dart values (the house
+   style); the registry records and the fact stream are the JSON
+   surfaces. A full serializable spec projection (for cross-language
+   consumers like codemap) belongs to the resident rung, with a
+   generated-projection + drift-check discipline — never hand-edited
+   JSON authority.
+
+### The ladder
+
+- **R1 (this ADR, implemented now):** `packages/oka_supervisor` — specs,
+  pure planner, advisory machine registry, converge driver, finding
+  events, fake-provider test coverage. First consumers: the demo
+  composition and any composition root that wants declared convergence.
+- **R2 (resident, ADR-gated):** a resident reconciler — only when ≥2
+  real consumers record into the registry and restart automation is
+  actually demanded; requires superseding the no-daemon posture, OS
+  bootstrap (launchd KeepAlive — the OS supervises the supervisor,
+  nothing self-supervises), and the serializable spec projection.
+- **R3 (protocol + widgets, gated):** loopback fact-stream protocol
+  (`snapshot` + `events?since=seq`) and a vendorable Flutter widget set,
+  so agent chat apps *resolve* automations from declarations instead of
+  building their own stacks. The UI is read-mostly: no authoring, no
+  second policy engine, every action receipted.
+
+## Consequences
+
+- The "3 daemons, 0 watchers" class becomes a diffable desired-vs-actual
+  finding instead of a silent absence.
+- ADR-0038's deferred retries land somewhere concrete (the policy
+  ledger); ADR-0039's `ModelComponent` should be expressed as a
+  `ComponentSpec` + serve-core provider once that lane lands, reusing
+  this policy layer instead of the ADR draft's bespoke `Lifecycle` API.
+- Crash loops terminate in `giveUp` instead of becoming automated doom
+  loops; unowned processes can never be killed by a registry entry.
+- Non-goals, explicitly: no cron parsing (intervals and OS schedulers
+  cover recorded needs), no remote/multi-machine supervision, no port
+  allocator (ports are advisory record fields), no UI in v1, no second
+  file watcher, no output interpretation (codemap's mechanics-only law).
+
+## Non-claims
+
+- Kill criteria: if after R1 ships no consumer beyond oka records into
+  the registry within a month of real use, fold the planner back into
+  `oka_core` and delete the package; if it needs to interpret command
+  output or own gates to be useful, the boundary failed — delete it.
+- Windows liveness for the demo path follows `oka_core`'s platform
+  support; the supervisor core is platform-neutral and fake-tested.

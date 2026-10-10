@@ -1,0 +1,85 @@
+# 0042 — Resident supervisor and OTA runtime owner (R2 / L3)
+
+**Status**: proposed — gated, do not implement until every entry
+criterion in decision 4 holds · **Date**: 2026-10-10 ·
+**Supersedes when accepted**: ADR-0001 (no-daemon posture), ADR-0030 §5
+(no resident Oka manager is authorized) · **Extends**: ADR-0040 (R2
+rung), ADR-0041 (L3 rung)
+
+## Context
+
+Every silent-death incident in the constellation traces to one gap:
+**bootstrap**. Converge is explicit and crash-only (ADR-0040), so
+something must carry it — a human, a beat, a nightly lane. Until a
+carrier exists, "declared 6 hours, last ran 30 hours ago" is rebuilt by
+hand. The 2026-10-09 integration analysis named this the #1 cross-cutting
+risk, and ADR-0041 kept every rung above local gated on it.
+
+Two pending powers need the *same* missing piece:
+
+1. **R2 (ADR-0040)**: a resident reconciler so convergence happens
+   without a human remembering to converge.
+2. **The OTA runtime owner**: applying air-channel revisions
+   (ADR-0037) via `r=` slot-swap / `R=` restart handoff (ADR-0035)
+   needs an always-available, policy-bound process that can restart an
+   app into a new revision and roll back when it fails to become
+   ready.
+
+ADR-0001 and ADR-0030 §5 both currently forbid the resident. This ADR
+is the single decision point where both are superseded together — never
+one without the other, never by implication.
+
+## Proposed decisions
+
+1. **One resident per machine, two powers, one policy engine.** A
+   single resident process (launchd/systemd `KeepAlive`, not a custom
+   supervisor-of-supervisors) runs the converge loop and is the *only*
+   component authorized to apply OTA revisions. It contains no new
+   policy: the planner stays pure (ADR-0040), the resident is only its
+   carrier. Any behavior the planner cannot express is a planner
+   change, never resident logic.
+2. **All ADR-0040 laws carry over unchanged**: explicit convergence
+   passes, budgeted restarts with terminal `giveUp`, cession-only kill
+   rights, advisory registry, one fact envelope. The resident adds
+   *cadence*, not authority.
+3. **Signed cession for remote actuation (L3).** Remote desired-state
+   documents are signed; the resident verifies against pinned keys
+   before acting. Replay protection = component `epoch`: a stale epoch
+   can never authorize a signal. Unsigned input is observed (findings
+   only), never acted on.
+4. **Entry criteria — all must hold, evidenced:**
+   - ≥2 recording consumers live for ≥1 month (the ADR-0041 L0
+     consumers — harness bridge, dfp composition, codemap projection —
+     qualify once they record for that window);
+   - recorded giveUp/restart demand (finding fatigue is evidence too:
+     a human re-running converge by hand N times);
+   - an operator-approved threat model for signed cession (who holds
+     keys, what a stolen key may converge).
+5. **OTA runtime ownership.** The resident applies revisions from the
+   air channel (ADR-0037) through the update session's slot-swap /
+   restart-handoff tiers (ADR-0035), owns the revision ledger, and
+   rolls back on readiness failure. It never mutates specs — desired
+   state stays in plans and git (ADR-0041 two-artifact law).
+6. **Kill switch by construction.** The resident is one launchd label
+   plus its scope directory; deleting both restores today's posture
+   exactly. No component may *require* the resident: every consumer
+   degrades gracefully to converge-on-demand.
+
+## Non-goals
+
+Remote kill without signed cession · cross-machine planner merges (a
+component has exactly one owning device; mesh stays snapshot-based,
+ADR-0041 L1) · a supervisor-of-supervisors · resident-authored specs.
+
+## Consequences
+
++ Closes the bootstrap gap — the last unguarded step of the ladder.
++ One resident instead of per-app watchers/daemons (the current
+  disease: N daemons, each with its own lock/pid/log conventions).
+− A resident exists; the no-daemon posture is deliberately ends. This
+  ADR is the only place that change may be decided.
+
+**Kill criteria**: if the resident's loop drifts from the pure planner
+(behavior divergence between converge-on-demand and resident-cadence),
+or a second resident appears (two governors = the original disease),
+revert to converge-on-demand and re-decide.

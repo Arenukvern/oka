@@ -1,0 +1,43 @@
+# Codemap lanes read-only projection — 2026-10-10
+
+Evidence for ADR-0041 law 7 (the supervisor owns the schema, not the
+implementation language). The projection tool read the real codemap
+declarations (`load_project_lanes`, exported read-only via
+`dataclasses.asdict`) and the repo's receipts (codemap persists none).
+
+Run: `cd packages/oka_supervisor && dart run tool/codemap_projection.dart
+--snapshot <lanes.json> --root ~/xs/codemap --json`
+
+```json
+{
+  "lanes": [
+    {
+      "id": "aot",
+      "trigger": "watch",
+      "finding": {"code": "unrun", "message": "watch lane declared; no receipt observed"}
+    },
+    {
+      "id": "quick-check",
+      "trigger": "watch",
+      "finding": {"code": "unrun", "message": "watch lane declared; no receipt observed"}
+    },
+    {
+      "id": "store-refresh",
+      "trigger": "interval",
+      "intervalS": 21600,
+      "finding": {"code": "unrun", "message": "interval 21600s declared; no receipt observed"}
+    },
+    {
+      "id": "index-refresh",
+      "trigger": "watch",
+      "finding": {"code": "unrun", "message": "watch lane declared; no receipt observed"}
+    }
+  ],
+  "receipts": {"scanned": 0, "corrupt": 0, "orphan": 0}
+}
+```
+
+The honest verdict: all four declared lanes are `unrun` — codemap
+persists no receipt evidence anywhere, so "store-refresh declared 6h,
+last ran when?" has no answer on disk. That absence is exactly the
+finding the supervisor names (ADR-0040 context).

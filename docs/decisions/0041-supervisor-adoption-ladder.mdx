@@ -1,0 +1,125 @@
+# 0041 — Supervisor adoption ladder: local → mesh → git → server
+
+**Status**: accepted · **Date**: 2026-10-10 · **Supervises**: ADR-0040
+(gated by it), ADR-0030 §5, ADR-0001
+
+## Context
+
+ADR-0040's R1 supervisor governs one machine through explicit converge —
+but the demand does not stop at one machine. The same silent-death
+disease (daemons and MCP servers with no one holding the leash) exists
+across repos, and the supervisor's intended consumer includes **Last
+Answer (LA)**, a six-platform Flutter app that must let users *see*
+automations, manage their state, and give agents the same abilities —
+without LA building its own automation engine. The scale ladder is
+known: first local (one computer), then mesh (device-to-device), then
+git (repo-governed, OSS), then real servers.
+
+Two failure modes are endemic here and must be designed out:
+
+1. **A format per rung.** The ecosystem already paid for three
+   incompatible "lane" spellings (codemap Python, oka Dart, harness
+   zsh lock files). A ladder that invents a schema per hop recreates
+   that disease at every rung.
+2. **A premature resident daemon.** ADR-0001 (no-daemon) and ADR-0030
+   §5 (no resident Oka manager is authorized) both forbid the obvious
+   "just run a supervisor service" shortcut. The ladder must deliver
+   value at every rung *without* a resident, until an ADR explicitly
+   supersedes both.
+
+## Decisions
+
+1. **One ladder, two artifacts.** Every rung shares exactly two
+   documents: the **plan** (versioned JSON authored/decoded through
+   `SpecCodec` — discriminated kinds, round-trip law:
+   decode∘encode preserves every spec's `revisionHash`) and the
+   **record** (MachineRegistry JSON, ADR-0040). Status is a pure
+   projection of the two (`projectStatus` / `statusJson`), never a
+   third artifact. A rung changes *transport and authority*, never
+   schema. New fields = plan-schema version bump in the codec, never a
+   side format.
+2. **L0 — local (implemented with this ADR).** Plan files +
+   `SpecStore` (the device-local authoring tier:
+   `~/.oka/supervisor/plans/<appId>/<name>.json`, atomic writes) +
+   status projection + the `oka supervisor status|apply` verbs.
+   Authority unchanged from ADR-0040: converge-only action, advisory
+   registry, cession-based kill rights.
+3. **L1 — mesh (ADR-gated).** Supervisor state rides LA's existing
+   LiveMeshService as **snapshots, not merges**: `statusJson` is the
+   frame body; the receiving peer re-projects from it; record `epoch`
+   already arbitrates staleness, so no CRDT is introduced. Privacy law
+   is LA's, unchanged: agent-activity frames always flow to the human
+   owner; human activity is opt-in at the source; the adoption gate is
+   a paired peer.
+4. **L2 — git (ADR-gated).** Repo-governed plans are committed files
+   (`supervisor/plans/*.json` as the convention). Embedded apps render
+   them **read-only**; changes land as PR patch suggestions, never
+   in-app edits of repo files. CI gets a drift gate: `status --json`
+   diffed against the committed expectation (a `--check` mode when
+   needed). Adopting repos opt in; the ladder does not mandate layout
+   beyond the convention.
+5. **L3 — servers (deliberately undesigned).** Multi-host supervision
+   requires superseding **both** ADR-0001 and ADR-0030 §5 in one new
+   ADR, plus cryptographic cession (signed handoff, replay-protected
+   by component epoch). Entered only on proven multi-host demand;
+   nothing in L0–L2 may grow a resident implicitly.
+6. **LA integration shape.** LA embeds `oka_supervisor` **on-device**
+   (pure Dart, all six platforms; the OS's background-task hooks solve
+   the cold-start problem — no resident oka daemon is needed, keeping
+   ADR-0001 intact on mobile). Authoring is **two-tier**: device-local
+   plans authored in-app through `SpecStore`; repo plans consumed
+   read-only per L2. Agents get the same verbs under the existing
+   cession ladder: observe everything (status, facts), act only on
+   ceded components (converge/apply), never touch `killPolicy: none`
+   records.
+7. **Shims exec, they never decide.** Git hooks, launchd plists, CI
+   steps, and foreign runners (e.g. codemap's Rust rewrite) stay
+   one-line executors of a Dart or protocol entry point; policy never
+   leaks into sh/py/rs. A foreign runner either writes native records
+   validated by a conformance suite or is invoked as a job — the
+   supervisor owns the *schema*, not the implementation language.
+8. **Views move first, acts stay gated.** Status and facts are
+   evidence, never authority (extends ADR-0040's law). Every rung
+   ships its read surface before its write surface; write surfaces
+   gate on the rung's ADR.
+
+## Ladder
+
+| Rung | Transport | New authority | Gate | State |
+|---|---|---|---|---|
+| L0 local | plan files + registry | none beyond ADR-0040 | — | **implemented** (this ADR) |
+| L1 mesh | LA LiveMeshService frames | none (view-only) | paired peer; privacy law | gated |
+| L2 git | committed plan files + CI drift gate | repo owns desired state | per-repo adoption | gated |
+| L3 server | TBD | resident reconciler + remote actuation | supersedes ADR-0001 + ADR-0030 §5; signed cession | gated, undesigned |
+
+## Shipped with this ADR (L0)
+
+- `packages/oka_supervisor/lib/src/codec.dart` — plan schema v1
+  (`SpecCodec`, `SpecFormatException`), round-trip-tested against
+  `revisionHash`.
+- `packages/oka_supervisor/lib/src/spec_store.dart` — device-local
+  plan storage (`SpecStore`).
+- `packages/oka_supervisor/lib/src/status.dart` — status projection
+  (`ComponentStatus`, `projectStatus`, `renderStatus`, `statusJson`).
+- `oka supervisor status` / `oka supervisor apply <plan.json>` /
+  `oka supervisor check <plan.json>` (the L2 drift-gate mechanism)
+  (`packages/oka/lib/src/cli/supervisor_command.dart`).
+
+## Consequences
+
++ One file format to keep round-trip-tested instead of one per rung;
+  LA and the CLI speak the same plan and status documents from day one.
+− Dart-side handshake `parse` closures do not cross JSON (decoded plans
+  match-only) — accepted; parsing stays a composition-root concern.
+− Plan files are a new surface to keep in sync with `ComponentSpec`;
+  the round-trip test is the guardrail.
+
+**Non-goals** (unchanged from ADR-0040, plus): cron parsing, remote
+kill, CRDT merge, in-app authoring of repo-governed plans.
+
+## Kill criteria
+
+If the plan format drifts from `ComponentSpec` (a round-trip test
+breaks and the fix is a special case), or a second status format
+appears next to `statusJson`, this ADR's central law has failed:
+revert to Dart-only authoring and re-decide.
