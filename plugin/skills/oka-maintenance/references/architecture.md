@@ -18,6 +18,10 @@ or functions; no service locator or reactive framework is needed for a CLI.
   compatibility; simple file records need no framework.
 - Platform adapters own metadata, readiness and graceful operations. Core owns
   shared identity/ownership/cleanup policy. Diagnostics never grants deletion rights.
+- Governance (process supervision) is a thin policy layer over `resource_composition`:
+  `packages/oka_supervisor` owns desired-state specs, the budgeted planner and the
+  advisory registry; the substrate keeps every contract, and kill rights come from
+  spawn lineage or cession — never from evidence (ADR-0040/0041).
 - Type closed choices; retain intentional open extension keys such as diagnostic
   kinds. Prefer stable public exports and compatibility wrappers.
 

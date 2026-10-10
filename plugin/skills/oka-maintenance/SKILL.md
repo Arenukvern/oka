@@ -7,7 +7,7 @@ description: >-
   reviewing capability boundaries or preventing mixed-responsibility files.
 license: MIT
 metadata:
-  version: 1.5.0
+  version: 1.6.0
   author: Arenukvern
 compatibility:
   - dart
