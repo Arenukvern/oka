@@ -86,13 +86,18 @@ converges itself.
    in ecsai_harness) · dfp model composition on the shipped substrate
    (`tool/supervisor_composition/` in dart_flutter_packages) · codemap
    lanes read-only projection (`packages/oka_supervisor/tool/`,
-   schema-not-language, ADR-0041 law 7).
+   schema-not-language, ADR-0041 law 7) · **Last Answer supervisor
+   panel** (last_answer `lib/settings/features/supervisor_*` — the
+   on-device status surface: device plans + records rendered from the
+   status projection). All landed.
 2. **L1 mesh frames** in Last Answer: `statusJson` snapshot frames
    over LiveMeshService; newest-wins + epoch arbitration, no CRDT.
-   Gated on an LA consumer proving the L0 status surface first.
+   The L0 status consumer is landed (the supervisor panel); frames
+   remain gated on the paired-peer + privacy law at the source.
 3. **L2 git plans**: `supervisor/plans/*.json` convention + CI drift
-   gate — the gate mechanism (`oka supervisor check`) is shipped;
-   rung adoption is gated on an LA consumer per the ladder.
+   gate — the gate mechanism (`oka supervisor check`) is shipped and
+   the LA consumer exists; rung adoption is now unblocked for repos
+   that opt in.
 4. **R2 resident** (blocks L3): drafted as ADR-0042 (proposed,
    gated) — one resident, two powers (converge loop + OTA runtime
    owner), supersedes ADR-0001 + ADR-0030 §5 together; entered only
