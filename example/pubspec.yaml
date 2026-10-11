@@ -34,10 +34,10 @@ dependencies:
     sdk: flutter
 
   mcp_toolkit: ^5.0.4
-  oka: ^0.6.0 # x-release-please-version
-  oka_android: ^0.6.0 # x-release-please-version
-  oka_huawei: ^0.6.0 # x-release-please-version
-  oka_play: ^0.6.0 # x-release-please-version
+  oka: ^1.0.0 # x-release-please-version
+  oka_android: ^1.0.0 # x-release-please-version
+  oka_huawei: ^1.0.0 # x-release-please-version
+  oka_play: ^1.0.0 # x-release-please-version
   # Unpublished stack (ADR-0037): the air-channel surface ships from a
   # path dep until the packages publish.
   oka_update:
