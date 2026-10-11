@@ -385,6 +385,67 @@ void main() {
 ]}''', containing: 'positive "periodS"');
     });
 
+    test('interval anchor "at" round-trips and rejects bad shapes', () {
+      final desired = codec.decode('''
+{"version": 1, "specs": [
+  {"id": "nightly", "provider": "p", "shape": "job",
+   "trigger": {"kind": "interval", "periodS": 86400, "at": "03:00"}}
+]}''');
+      final trigger = desired.specs.single.trigger as IntervalTrigger;
+      expect(trigger.at, '03:00');
+      expect(
+        const SpecCodec()
+            .encode(desired)
+            .contains('"at": "03:00"'),
+        isTrue,
+      );
+      expect(
+        desired.specs.single.revisionHash,
+        isNot(
+          const ComponentSpec(
+            id: 'nightly',
+            providerName: 'p',
+            policy: SupervisionPolicy(shape: SupervisionShape.job),
+            trigger: IntervalTrigger(period: Duration(seconds: 86400)),
+          ).revisionHash,
+        ),
+        reason: 'the anchor changes the revision hash',
+      );
+      for (final bad in ['24:00', '3:00', 'aa:bb', '03:60']) {
+        expectRejected('''
+{"version": 1, "specs": [
+  {"id": "api", "provider": "p",
+   "trigger": {"kind": "interval", "periodS": 60, "at": "$bad"}}
+]}''', containing: '"at"');
+      }
+    });
+
+    test('anchored nextRunAfter keeps the wall clock', () {
+      final daily = IntervalTrigger(
+        period: const Duration(days: 1),
+        at: '03:00',
+      );
+      // Ran Monday 15:00 -> next due is Tuesday 03:00 (period elapsed AND
+      // at the anchor time).
+      final last = DateTime(2026, 10, 12, 15);
+      expect(daily.nextRunAfter(last), DateTime(2026, 10, 13, 3));
+      // Ran at the anchor itself -> next occurrence the following day.
+      expect(
+        daily.nextRunAfter(DateTime(2026, 10, 13, 3)),
+        DateTime(2026, 10, 14, 3),
+      );
+      // Catch-up: ran long ago, several anchors passed -> due now.
+      expect(
+        daily.nextRunAfter(DateTime(2026, 10, 1, 3)),
+        DateTime(2026, 10, 2, 3),
+      );
+      // Unanchored: plain period arithmetic.
+      expect(
+        const IntervalTrigger(period: Duration(hours: 6)).nextRunAfter(last),
+        last.add(const Duration(hours: 6)),
+      );
+    });
+
     test('unknown readiness kind', () {
       expectRejected('''
 {"version": 1, "specs": [

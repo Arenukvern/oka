@@ -66,14 +66,52 @@ final class WatchTrigger extends Trigger {
 }
 
 /// Run at most once per [period] (the recorded nightly-lane shape: an
-/// interval, not a cron parser — an ADR-0040 non-goal).
+/// interval, not a cron parser — an ADR-0040 non-goal). The optional
+/// [at] anchor ("HH:mm", local wall clock) keeps human schedules
+/// honest — "daily at 03:00" stays at 03:00 across restarts and
+/// catch-up runs: the next run is the first anchor occurrence at or
+/// after `last + period` ([nextRunAfter]).
 final class IntervalTrigger extends Trigger {
-  const IntervalTrigger({required this.period});
+  const IntervalTrigger({required this.period, this.at});
 
   final Duration period;
 
+  /// Local wall-clock anchor, "HH:mm" (00:00–23:59), or null. The codec
+  /// validates the shape; this class only parses ([nextRunAfter]).
+  final String? at;
+
+  /// The first instant at/after [last] this trigger is due: `last +
+  /// period`, advanced to the next [at] occurrence when anchored.
+  DateTime nextRunAfter(final DateTime last) {
+    final earliest = last.add(period);
+    final anchor = at;
+    if (anchor == null) return earliest;
+    final (hour, minute) = parseAnchor(anchor);
+    var slot = DateTime(last.year, last.month, last.day, hour, minute);
+    if (slot.isBefore(earliest)) {
+      slot = slot.add(const Duration(days: 1));
+    }
+    return slot;
+  }
+
+  /// Whether [anchor] is a valid "HH:mm" wall-clock anchor.
+  static bool isValidAnchor(final String anchor) =>
+      RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(anchor);
+
+  /// Parses "HH:mm" into local hours/minutes. Throws [ArgumentError] on
+  /// any other shape (plan documents are validated upstream; this is the
+  /// loud-failure backstop).
+  static (int, int) parseAnchor(final String anchor) {
+    if (!isValidAnchor(anchor)) {
+      throw ArgumentError.value(anchor, 'at', 'must be "HH:mm" (00:00–23:59)');
+    }
+    return (int.parse(anchor.substring(0, 2)), int.parse(anchor.substring(3)));
+  }
+
   @override
-  String describe() => 'interval:${period.inSeconds}s';
+  String describe() =>
+      'interval:${period.inSeconds}s'
+      '${at == null ? '' : '@$at'}';
 }
 
 /// Steady-state policy: the budgeted restart ledger a spec declares

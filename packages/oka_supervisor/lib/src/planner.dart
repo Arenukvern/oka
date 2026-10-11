@@ -183,14 +183,18 @@ void _planOne({
         !drift) {
       final trigger = spec.trigger;
       if (trigger is IntervalTrigger) {
-        final due = now.difference(record.startedAt) >= trigger.period;
+        // Anchored intervals ("daily at 03:00") stay on the wall clock:
+        // due = now at/after the first anchor slot following last+period.
+        final nextRun = trigger.nextRunAfter(record.startedAt.toLocal());
+        final due = !now.toLocal().isBefore(nextRun);
         if (due) {
           actions.add(SupervisorAction(
             kind: SupervisorActionKind.restart,
             componentId: spec.id,
             reason:
-                'interval ${trigger.period.inSeconds}s due (last run '
-                '${now.difference(record.startedAt).inMinutes}m ago)',
+                'interval ${trigger.period.inSeconds}s'
+                '${trigger.at == null ? '' : ' at ${trigger.at}'} due '
+                '(last run ${now.difference(record.startedAt).inMinutes}m ago)',
           ));
         } else {
           findings.add(SupervisorFinding(

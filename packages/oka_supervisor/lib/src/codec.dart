@@ -211,7 +211,18 @@ final class SpecCodec {
             'spec "$id": interval trigger needs a positive "periodS"',
           );
         }
-        return IntervalTrigger(period: Duration(seconds: periodValue));
+        final at = value['at'];
+        if (at != null &&
+            (at is! String || !IntervalTrigger.isValidAnchor(at))) {
+          throw SpecFormatException(
+            'spec "$id": interval "at" must be an "HH:mm" string '
+            '(00:00-23:59)',
+          );
+        }
+        return IntervalTrigger(
+          period: Duration(seconds: periodValue),
+          at: at as String?,
+        );
       case final Object? unknown:
         throw SpecFormatException(
           'spec "$id": unknown trigger kind "$unknown"',
@@ -392,9 +403,10 @@ final class SpecCodec {
           'extensions': List<String>.of(extensions),
           'debounceMs': debounce.inMilliseconds,
         },
-        IntervalTrigger(:final period) => {
+        IntervalTrigger(:final period, :final at) => {
           'kind': 'interval',
           'periodS': period.inSeconds,
+          'at': ?at,
         },
       };
 
