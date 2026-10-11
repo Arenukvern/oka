@@ -138,7 +138,16 @@ final class AndroidAppTarget implements AppTarget {
   ) async {
     final deadline = DateTime.now().add(sessionTimeout);
     while (DateTime.now().isBefore(deadline)) {
-      final session = readRunnerSessionFile(projectDir);
+      final DevSessionDiscovery? session;
+      try {
+        session = readRunnerSessionFile(projectDir);
+      } on FormatException {
+        // A torn or half-published file is "not ready yet" while the
+        // deadline holds — the writer may be mid-publish. The deadline
+        // surfaces the real content instead.
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        continue;
+      }
       if (session != null) return session;
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }

@@ -73,18 +73,16 @@ final class FileDevDiscoveryStore implements DevDiscoveryStore {
     try {
       final file = File(runnerSessionPath(projectPath));
       await file.parent.create(recursive: true);
-      await file.writeAsString(
-        '${const JsonEncoder.withIndent('  ').convert({
-          'schema': 1,
-          'runner': 'oka-dev',
-          'vm_service_uri': vmServiceUri,
-          'control_port': controlPort,
-          'device_id': deviceId,
-          'pid': processPid ?? pid,
-          'started_at': (startedAt ?? DateTime.now().toUtc()).toIso8601String(),
-        })}\n',
+      // Atomic publish (temp + rename): a polling reader must never see
+      // a torn half-written session file.
+      final temp = File(
+        '${file.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+      );
+      await temp.writeAsString(
+        '${const JsonEncoder.withIndent('  ').convert({'schema': 1, 'runner': 'oka-dev', 'vm_service_uri': vmServiceUri, 'control_port': controlPort, 'device_id': deviceId, 'pid': processPid ?? pid, 'started_at': (startedAt ?? DateTime.now().toUtc()).toIso8601String()})}\n',
         flush: true,
       );
+      await temp.rename(file.path);
     } on FileSystemException {
       // Discovery is advisory.
     }
@@ -105,9 +103,7 @@ final class FileDevDiscoveryStore implements DevDiscoveryStore {
       if (decoded is! Map) {
         throw const FormatException('runner-session root must be an object');
       }
-      json = decoded.map(
-        (key, value) => MapEntry(key.toString(), value),
-      );
+      json = decoded.map((key, value) => MapEntry(key.toString(), value));
     } on FormatException catch (error) {
       throw FormatException(
         'Unreadable $path: ${error.message}\n'
@@ -128,8 +124,11 @@ final class FileDevDiscoveryStore implements DevDiscoveryStore {
     final device = json['device_id'];
     final processPid = json['pid'];
     final startedAt = json['started_at'];
-    if (uri is! String || port is! int || device is! String ||
-        processPid is! int || startedAt is! String) {
+    if (uri is! String ||
+        port is! int ||
+        device is! String ||
+        processPid is! int ||
+        startedAt is! String) {
       throw FormatException(
         'Incomplete $path — all fields (schema, vm_service_uri, '
         'control_port, device_id, pid, started_at) are required.\n'
