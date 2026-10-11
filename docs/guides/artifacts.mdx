@@ -1,0 +1,64 @@
+# Artifacts — bytes out of git, delta chains in the store
+
+**TL;DR**: compiled outputs (dills, snapshots) never enter git. `oka
+artifacts put` records them into `~/.oka/artifacts` as delta chains;
+git keeps at most a ~200-byte provenance pointer. ADR:
+[0043](../decisions/0043-artifact-store-delta-chains.mdx).
+Package: `packages/oka_artifacts`.
+
+## The 60-second version
+
+```bash
+oka artifacts put build/app.dill --name app-dill \
+  --pointer build/app.dill.json          # optional shared warm start
+oka artifacts materialize app-dill -o build/app.dill
+oka artifacts verify app-dill
+```
+
+Snapshot cadence is automatic: zstd deltas append while they cost
+≤35% of the full size; ratio, depth (8) or cadence (20) roll a fresh
+snapshot. Identical content is a no-op write.
+
+## Adopting in a repo (the 4-step recipe)
+
+1. Untrack the binaries: `git rm --cached <files>` + `.gitignore` glob.
+2. Wire the producing lane/script to `oka artifacts put` (or the
+   `ArtifactStore.record` API) — best-effort, failure-tolerant.
+3. Optionally commit the pointer file where the binary used to be.
+4. Consumers read via `materialize` **or** rebuild from source — the
+   dill is a warm-start hint, never a requirement.
+
+## Unblocking a push that LFS/size gates reject
+
+GitHub rejects any file over 100 MB that isn't in LFS — and the blob
+blocks **every** push that carries it in history, even after
+`git rm --cached` (history keeps it). Filter it out:
+
+```bash
+git bundle create /tmp/backup.bundle --all      # safety first
+git filter-repo --force --invert-paths --path-glob '*.dill'
+git remote add origin <url>                     # filter-repo removes it
+git push origin <branch>
+```
+
+`filter-repo` rewrites commit ids on the filtered branches — land or
+communicate in-flight work first. This unblocked `last_answer` (a
+124 MB + a 129 MB `main.dart.dill` in history).
+
+## Two toolchains, one rule
+
+This machine has **brew dart** (3.13.2) and **fvm flutter's dart**
+(3.13.4). A JIT dill must be *built and booted* by the same SDK
+generation — a mismatch compiles and then dies mid-reload. Rules:
+
+- The harness snapshot lane pins both sides (`DART_BIN`, default
+  `/opt/homebrew/bin/dart`) — don't override one side only.
+- Anything pairing a source checkout with a running VM
+  (`bench_live`, pipelines) checks the versions first — the guard
+  names the mismatch and the exact fix command.
+
+## Where to look
+
+- Store CLI/API: `packages/oka_artifacts` (README has the Dart API).
+- First wired consumer: harness `build_owner_snapshot.sh` →
+  `tool/supervisor_beat/bin/artifact_store.dart`.

@@ -320,6 +320,7 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 | Ship a web app | [Web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station) |
 | Govern daemons, watchers, automations | [Supervisor guide](https://docs.page/arenukvern/oka/guides/supervisor) |
 | Migrate from Gradle | [Migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration) |
+| Keep build binaries out of git | [Artifacts guide](https://docs.page/arenukvern/oka/guides/artifacts) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
 | Check phase status | [`docs/PHASE_CHECKLIST.mdx`](docs/PHASE_CHECKLIST.mdx) |
 
