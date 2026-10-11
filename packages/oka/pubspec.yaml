@@ -23,6 +23,7 @@ environment:
 dependencies:
   args: ^2.5.0
   oka_android: ^0.6.0 # x-release-please-version
+  oka_artifacts: ^0.6.0 # x-release-please-version
   oka_core: ^0.6.0 # x-release-please-version
   oka_supervisor: ^0.6.0 # x-release-please-version
   oka_web: ^0.6.0 # x-release-please-version

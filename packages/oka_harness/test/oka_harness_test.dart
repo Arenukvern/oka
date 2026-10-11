@@ -1,3 +1,9 @@
+// Bring-up spawns real processes (fake `oka` scripts) and polls the
+// runner-session contract; a loaded CI runner stretches every wait, so
+// per-test budgets stay generous rather than the 30 s default.
+@Timeout(Duration(minutes: 3))
+library;
+
 import 'dart:async';
 import 'dart:io';
 
@@ -70,6 +76,20 @@ Future<bool> tapContains(final LaunchedApp app, final String needle) async {
   return app.stdout.firstMatch(needle) != null;
 }
 
+/// Polls [condition] every 100 ms until it holds; fails with [reason] on
+/// expiry so a hung wait names the observable instead of timing out darkly.
+Future<void> waitFor(
+  final bool Function() condition, {
+  final String reason = 'condition never held',
+  final Duration timeout = const Duration(seconds: 10),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) fail(reason);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  }
+}
+
 void main() {
   late Directory workspace;
 
@@ -117,8 +137,21 @@ void main() {
       logcat: false,
     );
     final app = await target.launch();
+    final pid = app.process.pid;
     final code = await app.stop();
     expect(code, isNonZero, reason: 'SIGTERM should end the fake session');
+    // The named observable, checked directly rather than trusted to the
+    // exit-code plumbing: the owning session's pid leaves the process
+    // table. Generous deadline — CI load can stretch reaping.
+    await waitFor(
+      () => Process.runSync('ps', [
+        '-p',
+        '$pid',
+        '-o',
+        'pid=',
+      ]).stdout.toString().trim().isEmpty,
+      reason: 'owning session pid $pid survived stop()',
+    );
   });
 
   test(

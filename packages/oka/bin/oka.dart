@@ -3,6 +3,7 @@
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:oka/src/cli/artifacts_command.dart';
 import 'package:oka/src/cli/build_command.dart';
 import 'package:oka/src/cli/cache_command.dart';
 import 'package:oka/src/cli/clean_command.dart';
@@ -87,6 +88,8 @@ void main(List<String> arguments) async {
         await StopCommand().run(commandArgs);
       case 'supervisor':
         await SupervisorCommand().run(commandArgs);
+      case 'artifacts':
+        await ArtifactsCommand().run(commandArgs);
       case 'run':
         await RunCommand().run(commandArgs);
       default:
@@ -150,6 +153,9 @@ Commands:
   supervisor Declarative process supervision (ADR-0040): `status` shows
              recorded component state, `apply <plan.json>` converges one
              pass from a plan document
+  artifacts  Content-addressed artifact store (ADR-0043): `put` records
+             revisions as delta chains, `materialize`/`verify` read them;
+             bytes stay out of git
   get       Install missing Android SDK dependencies
   clean     Clean build cache
   cache     Storage stats and preview/apply pruning across platforms

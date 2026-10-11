@@ -24,16 +24,25 @@ import 'package:oka_update/oka_update.dart';
 
 const _sdkHash = '60a57cd42d'; // dart 3.13.2 checkout pin (see gates)
 
-Future<ProcessResult> _run(String exe, List<String> args,
-        {Map<String, String> env = const {}, String? workingDirectory}) =>
-    Process.run(exe, args,
-        workingDirectory: workingDirectory,
-        environment: env,
-        stdoutEncoding: utf8,
-        stderrEncoding: utf8);
+Future<ProcessResult> _run(
+  String exe,
+  List<String> args, {
+  Map<String, String> env = const {},
+  String? workingDirectory,
+}) => Process.run(
+  exe,
+  args,
+  workingDirectory: workingDirectory,
+  environment: env,
+  stdoutEncoding: utf8,
+  stderrEncoding: utf8,
+);
 
-Future<void> _waitFor(File log, String pattern,
-    {required Duration timeout}) async {
+Future<void> _waitFor(
+  File log,
+  String pattern, {
+  required Duration timeout,
+}) async {
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     if (log.existsSync() && log.readAsStringSync().contains(pattern)) return;
@@ -63,7 +72,8 @@ void main() {
 }
 ''');
   File('${dir.path}/pubspec.yaml').writeAsStringSync(
-      'name: bench_app\npublish_to: none\nenvironment:\n  sdk: ^3.12.0\n');
+    'name: bench_app\npublish_to: none\nenvironment:\n  sdk: ^3.12.0\n',
+  );
   return ('${dir.path}/lib/main.dart', '${units.path}/feature.dart');
 }
 
@@ -74,34 +84,87 @@ UnitDeltaCompiler _compiler({
   required String summary,
   required String sdkHash,
   required Directory deltaDir,
-}) =>
-    (request) async {
-      final out = '${deltaDir.path}/${request.unit}.delta.dill';
-      final ProcessResult proc;
-      if (exe != null) {
-        proc = await _run(exe, ['--delta', request.patchedFiles.first, out],
-            env: {'DART_SDK_SUMMARY': summary});
-      } else {
-        proc = await _run(dartBin, [
-          '-Dsdk_hash=$sdkHash',
-          '--packages=$packages',
-          'tool/gate_pipeline.dart',
-          '--delta',
-          request.patchedFiles.first,
-          out,
-        ], env: {'DART_SDK_SUMMARY': summary});
-      }
-      if (proc.exitCode != 0) {
-        throw StateError('delta compile failed: ${proc.stderr}');
-      }
-      return DeltaArtifact(path: out, bytes: File(out).lengthSync());
-    };
+}) => (request) async {
+  final out = '${deltaDir.path}/${request.unit}.delta.dill';
+  final ProcessResult proc;
+  if (exe != null) {
+    proc = await _run(
+      exe,
+      ['--delta', request.patchedFiles.first, out],
+      env: {'DART_SDK_SUMMARY': summary},
+    );
+  } else {
+    proc = await _run(
+      dartBin,
+      [
+        '-Dsdk_hash=$sdkHash',
+        '--packages=$packages',
+        'tool/gate_pipeline.dart',
+        '--delta',
+        request.patchedFiles.first,
+        out,
+      ],
+      env: {'DART_SDK_SUMMARY': summary},
+    );
+  }
+  if (proc.exitCode != 0) {
+    throw StateError('delta compile failed: ${proc.stderr}');
+  }
+  return DeltaArtifact(path: out, bytes: File(out).lengthSync());
+};
 
 Future<void> main(List<String> args) async {
   final env = Platform.environment;
-  final checkout = env['OKA_SDK_CHECKOUT'] ??
+  final checkout =
+      env['OKA_SDK_CHECKOUT'] ??
       '${Platform.environment['HOME']}/xs/dart-sdks/sdk-3.13.2';
+  if (!File('$checkout/pkg/kernel/pubspec.yaml').existsSync()) {
+    stderr.writeln(
+      'bench: SDK checkout not usable at "$checkout" '
+      '(need pkg/kernel, pkg/vm, pkg/front_end sources). Provision:\n'
+      '  git clone --depth 1 -b <dart-version> '
+      'https://github.com/dart-lang/sdk.git "$checkout"\n'
+      'or point OKA_SDK_CHECKOUT at an existing dart-lang/sdk checkout.',
+    );
+    exitCode = 255;
+    return;
+  }
   final dartBin = env['OKA_BENCH_DART'] ?? Platform.resolvedExecutable;
+  // The checkout's kernel stack and the VM that live-applies must be the
+  // same SDK generation — a mismatch compiles fine and then dies mid-
+  // reload ("Service has disappeared"). Name it before wasting a run.
+  String? checkoutVersion;
+  final versionFile = File('$checkout/tools/VERSION');
+  if (versionFile.existsSync()) {
+    final text = versionFile.readAsStringSync();
+    String? part(final String name) =>
+        RegExp('^$name (\\d+)', multiLine: true).firstMatch(text)?.group(1);
+    final major = part('MAJOR');
+    final minor = part('MINOR');
+    final patch = part('PATCH');
+    if (major != null && minor != null && patch != null) {
+      checkoutVersion = '$major.$minor.$patch';
+    }
+  }
+  final dartVersionOut = await Process.run(dartBin, ['--version']);
+  final versionText = '${dartVersionOut.stdout}${dartVersionOut.stderr}';
+  final runningDartVersion =
+      RegExp(r'(\d+\.\d+\.\d+)').firstMatch(versionText)?.group(1) ?? 'unknown';
+  if (runningDartVersion != checkoutVersion &&
+      !runningDartVersion.startsWith('$checkoutVersion.')) {
+    stderr.writeln(
+      'bench: SDK mismatch — checkout $checkoutVersion vs running dart '
+      '$runningDartVersion. The live-apply step pairs the checkout kernel stack '
+      'with this VM; provision a matching checkout:\n'
+      '  git clone --depth 1 -b $runningDartVersion '
+      'https://github.com/dart-lang/sdk.git '
+      '"\${HOME}/xs/dart-sdks/sdk-$runningDartVersion"\n'
+      'and point OKA_SDK_CHECKOUT at it (or OKA_BENCH_DART at a VM of '
+      'version $checkoutVersion).',
+    );
+    exitCode = 255;
+    return;
+  }
   final here = File.fromUri(Platform.script).parent.parent.path; // package dir
   final outDir = await Directory.systemTemp.createTemp('oka-bench-live');
   final results = <String, double>{};
@@ -119,9 +182,12 @@ Future<void> main(List<String> args) async {
   // 0. merged config (the checkout kernel stack the pipeline runs under).
   late String packages;
   await step('packages_config', () async {
-    final proc = await _run(
-        'bash', ['tool/pipeline_packages_config.sh', checkout, '3.13', outDir.path],
-        workingDirectory: here);
+    final proc = await _run('bash', [
+      'tool/pipeline_packages_config.sh',
+      checkout,
+      '3.13',
+      outDir.path,
+    ], workingDirectory: here);
     if (proc.exitCode != 0) {
       throw StateError('packages config failed: ${proc.stderr}');
     }
@@ -133,31 +199,34 @@ Future<void> main(List<String> args) async {
   final summaryPath = File(dartBin).parent.parent.path;
   final summary = '$summaryPath/lib/_internal/vm_platform_strong.dill';
   final appPackages = '${outDir.path}/app_package_config.json';
-  File(appPackages).writeAsStringSync(jsonEncode({
-    'configVersion': 2,
-    'packages': [
-      {
-        'name': 'bench_app',
-        'rootUri': 'file://${outDir.path}',
-        'packageUri': 'lib/',
-        'languageVersion': '3.12',
-      }
-    ],
-  }));
+  File(appPackages).writeAsStringSync(
+    jsonEncode({
+      'configVersion': 2,
+      'packages': [
+        {
+          'name': 'bench_app',
+          'rootUri': 'file://${outDir.path}',
+          'packageUri': 'lib/',
+          'languageVersion': '3.12',
+        },
+      ],
+    }),
+  );
 
   // 1. full compile: JIT vs AOT (same bytes).
   final jitFull = '${outDir.path}/full_jit.dill';
   await step('pipeline_full_jit', () async {
-    final proc = await _run(dartBin, [
-      '-Dsdk_hash=$_sdkHash',
-      '--packages=$packages',
-      'tool/gate_pipeline.dart',
-      entry,
-      jitFull,
-    ], env: {
-      'DART_SDK_SUMMARY': summary,
-      'DART_PACKAGES_CONFIG': appPackages,
-    });
+    final proc = await _run(
+      dartBin,
+      [
+        '-Dsdk_hash=$_sdkHash',
+        '--packages=$packages',
+        'tool/gate_pipeline.dart',
+        entry,
+        jitFull,
+      ],
+      env: {'DART_SDK_SUMMARY': summary, 'DART_PACKAGES_CONFIG': appPackages},
+    );
     if (proc.exitCode != 0) throw StateError('jit full failed: ${proc.stderr}');
   });
 
@@ -176,10 +245,11 @@ Future<void> main(List<String> args) async {
 
   final aotFull = '${outDir.path}/full_aot.dill';
   await step('pipeline_full_aot', () async {
-    final proc = await _run(exe!, [entry, aotFull], env: {
-      'DART_SDK_SUMMARY': summary,
-      'DART_PACKAGES_CONFIG': appPackages,
-    });
+    final proc = await _run(
+      exe!,
+      [entry, aotFull],
+      env: {'DART_SDK_SUMMARY': summary, 'DART_PACKAGES_CONFIG': appPackages},
+    );
     if (proc.exitCode != 0) throw StateError('aot full failed: ${proc.stderr}');
     bool sameBytes(List<int> a, List<int> b) {
       if (a.length != b.length) return false;
@@ -189,9 +259,17 @@ Future<void> main(List<String> args) async {
       return true;
     }
 
-    final same = sameBytes(await File(jitFull).readAsBytes(),
-        await File(aotFull).readAsBytes());
-    if (!same) throw StateError('AOT full dill differs from JIT');
+    final same = sameBytes(
+      await File(jitFull).readAsBytes(),
+      await File(aotFull).readAsBytes(),
+    );
+    if (!same) {
+      final a = await File(jitFull).length();
+      final b = await File(aotFull).length();
+      throw StateError(
+        'AOT full dill differs from JIT (jit=$a bytes, aot=$b bytes)',
+      );
+    }
   });
 
   // 2. delta compile: JIT vs AOT.
@@ -200,51 +278,73 @@ Future<void> main(List<String> args) async {
   Future<void> compileDelta(String name, String out, {required bool aot}) =>
       step(name, () async {
         final compiler = _compiler(
-            exe: aot ? exe : null,
-            dartBin: dartBin,
-            packages: packages,
-            summary: summary,
-            sdkHash: _sdkHash,
-            deltaDir: outDir);
-        await compiler(DeltaRequest(
-            revision: 'bench', unit: 'feature', root: outDir.path,
-            patchedFiles: [unitFile]));
+          exe: aot ? exe : null,
+          dartBin: dartBin,
+          packages: packages,
+          summary: summary,
+          sdkHash: _sdkHash,
+          deltaDir: outDir,
+        );
+        await compiler(
+          DeltaRequest(
+            revision: 'bench',
+            unit: 'feature',
+            root: outDir.path,
+            patchedFiles: [unitFile],
+          ),
+        );
       });
 
-  await compileDelta('pipeline_delta_jit', '${outDir.path}/d_jit.dill',
-      aot: false);
-  await compileDelta('pipeline_delta_aot', '${outDir.path}/d_aot.dill',
-      aot: true);
+  await compileDelta(
+    'pipeline_delta_jit',
+    '${outDir.path}/d_jit.dill',
+    aot: false,
+  );
+  await compileDelta(
+    'pipeline_delta_aot',
+    '${outDir.path}/d_aot.dill',
+    aot: true,
+  );
 
   // 3. live session apply on a real running app (the composition loop).
   await step('live_apply_vm', () async {
     const port = 8231;
     final appLog = File('${outDir.path}/app.log');
-    final app = await Process.start(dartBin, [
-      '--enable-vm-service=$port/127.0.0.1',
-      '--disable-service-auth-codes',
-      entry,
-    ], environment: {'DART_PACKAGES_CONFIG': appPackages});
+    final app = await Process.start(
+      dartBin,
+      [
+        '--enable-vm-service=$port/127.0.0.1',
+        '--disable-service-auth-codes',
+        entry,
+      ],
+      environment: {'DART_PACKAGES_CONFIG': appPackages},
+    );
     final logSink = appLog.openWrite();
     unawaited(app.stdout.listen(logSink.add).asFuture<void>());
     unawaited(app.stderr.listen(logSink.add).asFuture<void>());
     try {
-      await _waitFor(appLog, 'VM service is listening',
-          timeout: const Duration(seconds: 60));
+      await _waitFor(
+        appLog,
+        'VM service is listening',
+        timeout: const Duration(seconds: 60),
+      );
       final spec = LivePatchSpec(
         revision: 'bench-v2',
         unit: 'feature',
-        patches: [
-          PatchEdit(file: unitFile, find: editOld, replace: editNew),
-        ],
+        patches: [PatchEdit(file: unitFile, find: editOld, replace: editNew)],
         targets: [
-          const TargetSpec(kind: 'vm', id: 'bench-vm', ws: 'ws://127.0.0.1:$port/ws'),
+          const TargetSpec(
+            kind: 'vm',
+            id: 'bench-vm',
+            ws: 'ws://127.0.0.1:$port/ws',
+          ),
         ],
         probes: [
           const ProbeSpec(
-              expression: 'feature()',
-              library: 'main.dart',
-              expect: 'alpha-v2-live'),
+            expression: 'feature()',
+            library: 'main.dart',
+            expect: 'alpha-v2-live',
+          ),
           const ProbeSpec(expression: 'boot', library: 'main.dart', hold: true),
         ],
       );
@@ -252,12 +352,13 @@ Future<void> main(List<String> args) async {
         spec: spec,
         root: outDir.path,
         compile: _compiler(
-            exe: exe,
-            dartBin: dartBin,
-            packages: packages,
-            summary: summary,
-            sdkHash: _sdkHash,
-            deltaDir: outDir),
+          exe: exe,
+          dartBin: dartBin,
+          packages: packages,
+          summary: summary,
+          sdkHash: _sdkHash,
+          deltaDir: outDir,
+        ),
       );
       final receipt = await session.run();
       stderr.writeln(receipt.describe());
@@ -273,18 +374,18 @@ Future<void> main(List<String> args) async {
   await step('patch_plan_x1000', () async {
     const units = {'alpha': <String, dynamic>{}, 'beta': <String, dynamic>{}};
     Map<String, dynamic> manifest(String rev) => {
-          'revision': rev,
-          'coreFingerprint': 'core-1',
-          'units': {
-            for (final e in units.entries)
-              e.key: {
-                'libraries': {
-                  'lib/${e.key}.dart': {'sha256': rev == 'r1' ? 'x' : 'y'},
-                },
-                'contractFingerprint': 'c-1',
-              }
+      'revision': rev,
+      'coreFingerprint': 'core-1',
+      'units': {
+        for (final e in units.entries)
+          e.key: {
+            'libraries': {
+              'lib/${e.key}.dart': {'sha256': rev == 'r1' ? 'x' : 'y'},
+            },
+            'contractFingerprint': 'c-1',
           },
-        };
+      },
+    };
     final base = manifest('r1');
     final next = manifest('r2');
     for (var i = 0; i < 1000; i++) {
@@ -296,19 +397,22 @@ Future<void> main(List<String> args) async {
   });
 
   // Machine summary.
-  final gitProc = await _run('git', ['rev-parse', '--short=8', 'HEAD'],
-      workingDirectory: Directory.current.path);
-  final dartVersion = (await _run(dartBin, ['--version']))
-      .stderr
-      .toString()
-      .trim();
+  final gitProc = await _run('git', [
+    'rev-parse',
+    '--short=8',
+    'HEAD',
+  ], workingDirectory: Directory.current.path);
+  final dartVersion = (await _run(dartBin, [
+    '--version',
+  ])).stderr.toString().trim();
   final machine = {
     'schema': 'oka/kernel-benchmarks/v1',
     'timestamp': DateTime.now().toUtc().toIso8601String(),
     'results_seconds': results,
     'notes': {
       'pipeline_full_aot': 'byte-identical dill to pipeline_full_jit',
-      'live_apply_vm': 'connect + baseline + patch + AOT delta + '
+      'live_apply_vm':
+          'connect + baseline + patch + AOT delta + '
           '_reloadKernel + probes, on a real dart VM',
     },
     'environment': {

@@ -43,6 +43,31 @@ bool _adbAndEmulatorOnPath() {
   return has('adb') && has('emulator');
 }
 
+/// One-shot skip guard for [EnsureAvdStep] (cached): the step resolves the
+/// real `avdmanager` through the default toolchain policy (Android SDK root
+/// resolution — a bare PATH hit alone does not satisfy it) before the
+/// scripted fake runner matters. Null when resolvable, so CI runners with
+/// the SDK still run these tests as a gate; otherwise the resolution
+/// failure is surfaced as a loud skip instead of a machine-local red.
+final Future<String?> _avdManagerResolutionGap = () async {
+  try {
+    await ResolvedToolchain().require(const ToolQuery('avdmanager'));
+    return null;
+  } on Object catch (error) {
+    return '$error';
+  }
+}();
+
+/// Marks the running test skipped when the machine cannot resolve
+/// `avdmanager` the way [EnsureAvdStep] does. Returns true when skipped —
+/// callers must `return` (markTestSkipped does not stop the body).
+Future<bool> _skipWithoutAvdManager() async {
+  final gap = await _avdManagerResolutionGap;
+  if (gap == null) return false;
+  markTestSkipped('avdmanager not resolvable on this machine: $gap');
+  return true;
+}
+
 void main() {
   group('pure argv builders', () {
     test('emulator launch args: headless by default', () {
@@ -109,6 +134,7 @@ void main() {
 
   group('EnsureAvdStep', () {
     test('existing AVD is a no-op success', () async {
+      if (await _skipWithoutAvdManager()) return;
       final fake = FakeRunner()
         ..reply = (_, _) =>
             ProcessResult(0, 0, 'Name: oka-emulator\nPath: /x\n', '');
@@ -124,6 +150,7 @@ void main() {
     });
 
     test('missing AVD + createIfMissing runs avdmanager create', () async {
+      if (await _skipWithoutAvdManager()) return;
       final fake = FakeRunner()..reply = (_, _) => ProcessResult(0, 0, '', '');
       final step = EnsureAvdStep(
         avdName: 'oka-emulator',
@@ -139,6 +166,7 @@ void main() {
     test(
       'missing system image fails closed naming the sdkmanager command',
       () async {
+        if (await _skipWithoutAvdManager()) return;
         final fake = FakeRunner()
           ..reply = (_, _) => ProcessResult(
             1,
@@ -159,6 +187,7 @@ void main() {
     );
 
     test('createIfMissing=false fails naming the manual command', () async {
+      if (await _skipWithoutAvdManager()) return;
       final fake = FakeRunner()..reply = (_, _) => ProcessResult(0, 0, '', '');
       final step = EnsureAvdStep(
         avdName: 'gone',
@@ -176,8 +205,9 @@ void main() {
   group('BootEmulatorStep', () {
     test('reuses an already-running emulator for the same AVD', () async {
       if (!_adbAndEmulatorOnPath()) {
-        // ignore: avoid_print
-        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        markTestSkipped(
+          'adb/emulator not on PATH (CI runners carry the Android SDK)',
+        );
         return;
       }
 
@@ -209,8 +239,9 @@ void main() {
 
     test('boots a new emulator and waits for sys.boot_completed', () async {
       if (!_adbAndEmulatorOnPath()) {
-        // ignore: avoid_print
-        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        markTestSkipped(
+          'adb/emulator not on PATH (CI runners carry the Android SDK)',
+        );
         return;
       }
 
@@ -255,8 +286,9 @@ void main() {
 
     test('boot timeout fails with an actionable message', () async {
       if (!_adbAndEmulatorOnPath()) {
-        // ignore: avoid_print
-        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        markTestSkipped(
+          'adb/emulator not on PATH (CI runners carry the Android SDK)',
+        );
         return;
       }
 
@@ -281,8 +313,9 @@ void main() {
 
     test('deviceId override waits on THAT serial', () async {
       if (!_adbAndEmulatorOnPath()) {
-        // ignore: avoid_print
-        print('skipped: adb/emulator not on PATH (CI without Android SDK)');
+        markTestSkipped(
+          'adb/emulator not on PATH (CI runners carry the Android SDK)',
+        );
         return;
       }
 
