@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+
+- Anchored `IntervalTrigger.at` wall-clock schedules (`HH:mm`).
+- `oka supervisor status|apply|check` CLI integration (in `oka` package).
+
 ## 0.6.0
 
 - Initial release (ADR-0040 rung 1): `ComponentSpec`/`DesiredState` over

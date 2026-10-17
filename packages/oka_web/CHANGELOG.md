@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+
+- Release train alignment with `oka` 0.7.0.
+
 ## 0.4.0
 
 - Version alignment with the 0.4.0 oka release train; no functional changes in this package.

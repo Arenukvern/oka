@@ -5,6 +5,12 @@ All notable changes to this package are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0
+
+### Changed
+
+- Release train alignment with `oka` 0.7.0 (no API changes in this package).
+
 ## 0.4.0
 
 ### Added

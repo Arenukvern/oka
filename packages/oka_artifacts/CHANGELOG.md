@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+
+- `oka artifacts` CLI surface in the `oka` package (`put`, `materialize`,
+  `verify`).
+
 ## 0.6.0
 
 - Initial release: `ArtifactStore` (content-addressed snapshots,

@@ -1,3 +1,7 @@
+## 0.7.0
+
+- Release train alignment with `oka` 0.7.0.
+
 ## 0.2.0
 
 - Join the complete package release train with compatible `0.2.0` internal

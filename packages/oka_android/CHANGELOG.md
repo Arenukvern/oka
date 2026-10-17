@@ -1,3 +1,9 @@
+## 0.7.0
+
+### Changed
+
+- Release train alignment with `oka` 0.7.0.
+
 ## 0.5.0
 
 ### Fixed
