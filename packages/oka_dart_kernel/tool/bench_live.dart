@@ -137,7 +137,7 @@ Future<void> main(List<String> args) async {
   final versionFile = File('$checkout/tools/VERSION');
   if (versionFile.existsSync()) {
     final text = versionFile.readAsStringSync();
-    String? part(final String name) =>
+    String? part(String name) =>
         RegExp('^$name (\\d+)', multiLine: true).firstMatch(text)?.group(1);
     final major = part('MAJOR');
     final minor = part('MINOR');

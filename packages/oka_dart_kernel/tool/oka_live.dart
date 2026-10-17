@@ -61,7 +61,7 @@ class LiveArgs {
     String? project = cwd;
     String? workDir;
     var jsonOut = false;
-    String? value(final String name, final String arg, final int i) {
+    String? value(String name, String arg, int i) {
       if (arg.startsWith('--$name=')) return arg.substring(name.length + 3);
       if (arg == '--$name' && i + 1 < args.length) return args[i + 1];
       return null;
@@ -127,8 +127,8 @@ Future<void> runLiveCli(
   String? workingDir,
 }) async {
   final out = output ?? print;
-  final err = errorOutput ?? (final m) => stderr.writeln(m);
-  final exitWith = setExitCode ?? (final c) => exitCode = c;
+  final err = errorOutput ?? (m) => stderr.writeln(m);
+  final exitWith = setExitCode ?? (c) => exitCode = c;
 
   final args0 = args.isNotEmpty && args.first == 'live' ? args.sublist(1) : args;
   final parsed = LiveArgs.parse(args0, cwd: workingDir ?? Directory.current.path);
