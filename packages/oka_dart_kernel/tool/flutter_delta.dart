@@ -8,12 +8,15 @@ import 'dart:io';
 
 import 'package:oka_update/oka_update.dart';
 
-/// The flutter cache layout: <flutter>/bin/cache/{dart-sdk,artifacts}.
+import 'frontend_protocol.dart';
+
+/// The flutter cache layout: `<flutter>/bin/cache/{dart-sdk,artifacts}`.
 /// A bare binary name (`flutter`) is resolved via PATH — every path handed
 /// to the frontend must be ABSOLUTE or the compile dies on a relative
 /// sdk-root (the process CWD is the runner's, not the flutter root's).
 (String dartSdk, String frontend, String patchedSdk) flutterToolchainPaths(
-    String flutterBin) {
+  String flutterBin,
+) {
   var bin = flutterBin;
   if (!bin.contains('/')) {
     final which = Process.runSync('which', [bin]);
@@ -31,15 +34,20 @@ import 'package:oka_update/oka_update.dart';
   );
 }
 
-/// Compiles the unit delta with the app's own frontend server. The delta
-/// is the entry library's recompiled set at the current (marked) source
-/// state — exactly what the session expects as `patchedFiles`.
+/// Compiles through a fresh frontend and validates its terminal error report.
+/// The successful temporary artifact is consumed/retired by the calling owner.
+/// A failed compile removes only its own temporary directory. The artifact
+/// contains the entry library's compiled component; this one-shot factory
+/// does not retain an incremental compiler baseline across calls.
 UnitDeltaCompiler flutterFrontendDeltaCompiler(
-    String frontend, String dartSdk, String patchedSdk, String packages) {
-  return (request) async {
-    final out =
-        '${Directory.systemTemp.createTempSync('oka-ff-delta').path}'
-        '/${request.unit}.delta.dill';
+  String frontend,
+  String dartSdk,
+  String patchedSdk,
+  String packages,
+) => (request) async {
+  final directory = Directory.systemTemp.createTempSync('oka-ff-delta');
+  final out = '${directory.path}/unit.delta.dill';
+  try {
     final r = await Process.run('$dartSdk/bin/dartaotruntime', [
       frontend,
       '--sdk-root=$patchedSdk',
@@ -50,10 +58,20 @@ UnitDeltaCompiler flutterFrontendDeltaCompiler(
       '--output-incremental-dill=$out.incremental.dill',
       request.patchedFiles.first,
     ]);
-    if (!File(out).existsSync()) {
+    final terminal = parseFrontendResult(r.stdout as String);
+    if (r.exitCode != 0 ||
+        terminal == null ||
+        terminal.errors != 0 ||
+        terminal.path != out ||
+        !File(out).existsSync() ||
+        File(out).lengthSync() == 0) {
       throw StateError(
-          'frontend delta compile failed: ${r.stdout}\n${r.stderr}');
+        'frontend delta compile failed (exit ${r.exitCode}): ${r.stdout}\n${r.stderr}',
+      );
     }
     return DeltaArtifact(path: out, bytes: File(out).lengthSync());
-  };
-}
+  } catch (_) {
+    await directory.delete(recursive: true);
+    rethrow;
+  }
+};

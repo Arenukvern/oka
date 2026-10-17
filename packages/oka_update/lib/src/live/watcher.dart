@@ -41,7 +41,13 @@ class LiveWatcher {
     this.onEvent,
     this.targetOverrides = const {},
     this.debounce = const Duration(milliseconds: 400),
-  });
+    Stream<FileSystemEvent> Function(Directory)? watchDirectory,
+  }) : _watchDirectory = watchDirectory ?? _directoryEvents;
+
+  static Stream<FileSystemEvent> _directoryEvents(Directory directory) =>
+      directory.watch();
+
+  final Stream<FileSystemEvent> Function(Directory) _watchDirectory;
 
   final String unit;
   final List<String> files;
@@ -60,7 +66,7 @@ class LiveWatcher {
   final Duration debounce;
 
   final _receipts = StreamController<LivePatchReceipt>.broadcast();
-  StreamSubscription<FileSystemEvent>? _watchSub;
+  final _watchSubscriptions = <StreamSubscription<FileSystemEvent>>[];
   Timer? _debounce;
   String? _lastPath;
   Future<void> _inFlight = Future.value();
@@ -75,12 +81,14 @@ class LiveWatcher {
     final watched = files.map((f) => File(f).absolute.path).toSet();
     final dirs = files.map((f) => File(f).absolute.parent).toSet();
     for (final dir in dirs) {
-      _watchSub = dir.watch().listen((event) {
-        if (_stopped) return;
-        if (!watched.contains(File(event.path).absolute.path)) return;
-        if (event is FileSystemModifyEvent && !event.contentChanged) return;
-        _schedule(event.path);
-      });
+      _watchSubscriptions.add(
+        _watchDirectory(dir).listen((event) {
+          if (_stopped) return;
+          if (!watched.contains(File(event.path).absolute.path)) return;
+          if (event is FileSystemModifyEvent && !event.contentChanged) return;
+          _schedule(event.path);
+        }),
+      );
     }
   }
 
@@ -119,7 +127,10 @@ class LiveWatcher {
   Future<void> stop() async {
     _stopped = true;
     _debounce?.cancel();
-    await _watchSub?.cancel();
+    for (final subscription in _watchSubscriptions) {
+      await subscription.cancel();
+    }
+    _watchSubscriptions.clear();
     await _inFlight;
     await _receipts.close();
   }

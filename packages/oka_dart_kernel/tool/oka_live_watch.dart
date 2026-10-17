@@ -32,6 +32,8 @@ import 'dart:io';
 import 'package:oka_dart_kernel/oka_dart_kernel.dart';
 import 'package:oka_update/oka_update.dart';
 
+import 'live_watch_batch.dart';
+
 // ignore_for_file: avoid_print
 
 Future<void> main(List<String> args) async {
@@ -59,7 +61,9 @@ Future<void> main(List<String> args) async {
       case '--parent-pid':
         parentPid = int.parse(args[++i]);
       default:
-        print(jsonEncode({'event': 'fatal', 'error': 'unknown arg ${args[i]}'}));
+        print(
+          jsonEncode({'event': 'fatal', 'error': 'unknown arg ${args[i]}'}),
+        );
         exit(2);
     }
   }
@@ -69,9 +73,14 @@ Future<void> main(List<String> args) async {
     Timer.periodic(const Duration(seconds: 5), (timer) {
       bool alive;
       try {
-        final result = Process.runSync('ps', ['-p', '$parentPid', '-o', 'pid=']);
-        alive = result.exitCode == 0 &&
-            (result.stdout as String).trim().isNotEmpty;
+        final result = Process.runSync('ps', [
+          '-p',
+          '$parentPid',
+          '-o',
+          'pid=',
+        ]);
+        alive =
+            result.exitCode == 0 && (result.stdout as String).trim().isNotEmpty;
       } on Object {
         alive = true; // probe failure must never kill a healthy lane
       }
@@ -127,8 +136,7 @@ Future<void> main(List<String> args) async {
     print(
       jsonEncode({
         'event': 'fatal',
-        'error':
-            'the VM lane needs --work-dir, --app-packages-config, --watch',
+        'error': 'the VM lane needs --work-dir, --app-packages-config, --watch',
       }),
     );
     exit(2);
@@ -140,7 +148,7 @@ Future<void> main(List<String> args) async {
           okaDartKernelRoot:
               kernelRoot ?? File.fromUri(Platform.script).parent.parent.path,
           workDir: Directory(workDir!),
-          appPackagesConfig: appPackages!,
+          appPackagesConfig: appPackages,
         )
       : null;
   print(
@@ -152,16 +160,15 @@ Future<void> main(List<String> args) async {
     }),
   );
 
-  Future<void> inFlight = Future.value();
-  Timer? debounce;
-  String? pending;
   var revision = 0;
 
   Future<void> apply(String path) async {
     final compile = pipelineDeltaCompiler(toolchain!);
     revision++;
-    final unit =
-        path.split(Platform.pathSeparator).last.replaceAll(RegExp(r'\.dart$'), '');
+    final unit = path
+        .split(Platform.pathSeparator)
+        .last
+        .replaceAll(RegExp(r'\.dart$'), '');
     try {
       final receipt = await applyChange(
         LivePatchSpec(
@@ -175,41 +182,40 @@ Future<void> main(List<String> args) async {
         compile: compile,
         root: root,
       );
-      print(jsonEncode({
-        'event': 'receipt',
-        'ok': receipt.ok,
-        'unit': receipt.unit,
-        'file': path,
-        if (receipt.refusal != null) 'refusal': receipt.refusal,
-        'targets': [for (final t in receipt.targets) t.toJson()],
-      }));
+      print(
+        jsonEncode({
+          'event': 'receipt',
+          'ok': receipt.ok,
+          'unit': receipt.unit,
+          'file': path,
+          if (receipt.refusal != null) 'refusal': receipt.refusal,
+          'targets': [for (final t in receipt.targets) t.toJson()],
+        }),
+      );
     } catch (e) {
       print(jsonEncode({'event': 'error', 'file': path, 'error': '$e'}));
     }
   }
 
-  void schedule(String path) {
-    pending = path;
-    debounce?.cancel();
-    debounce = Timer(const Duration(milliseconds: 500), () {
-      final file = pending;
-      if (file == null) return;
-      pending = null;
-      inFlight = inFlight.then((_) => apply(file));
-    });
-  }
+  final batch = LiveWatchBatch(
+    apply: apply,
+    onError: (path, error, _) =>
+        print(jsonEncode({'event': 'error', 'file': path, 'error': '$error'})),
+  );
 
   for (final dir in watchDirs) {
-    Directory(dir).watch(recursive: true).listen(
-      (event) {
-        if (!event.path.endsWith('.dart')) return;
-        if (event is FileSystemModifyEvent && !event.contentChanged) return;
-        schedule(event.path);
-      },
-      onError: (Object e) {
-        print(jsonEncode({'event': 'error', 'watch': dir, 'error': '$e'}));
-      },
-    );
+    Directory(dir)
+        .watch(recursive: true)
+        .listen(
+          (event) {
+            if (!event.path.endsWith('.dart')) return;
+            if (event is FileSystemModifyEvent && !event.contentChanged) return;
+            batch.schedule(event.path);
+          },
+          onError: (Object e) {
+            print(jsonEncode({'event': 'error', 'watch': dir, 'error': '$e'}));
+          },
+        );
   }
   for (final laneSpec in lanes) {
     CommandLane(

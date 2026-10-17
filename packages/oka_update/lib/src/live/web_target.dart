@@ -2,17 +2,11 @@
 /// VM-service protocol (`reloadSources`, `evaluate`, …) over the same
 /// JSON-RPC wire as native — that is the unification this API rides on.
 ///
-/// Division of labor (measured, dwds 27.x / flutter 3.47):
-/// - The recompile from patched sources is performed by the serving
-///   toolchain (flutter run's frontend_server in DDC/DDK mode; build_runner
-///   under `webdev serve`). The spec's `signal`/`pidFile` target fields let
-///   the session trigger it declaratively (SIGUSR1 == hot reload for
-///   `flutter run`).
-/// - The apply is `reloadSources` on the dwds debug service — callable by
-///   anyone holding the URI, not only by the toolchain that compiled.
-///   Underneath, dwds drives `dartDevEmbedder.hotReload(files, libraries)`
-///   in the page (DDK) or `$dartHotReloadStartDwds/EndDwds` (DDC).
-/// - Verification (`evaluate` with library scoping) rides the same wire.
+/// Reload ownership is explicit: the serving tool can own compile and apply
+/// as one acknowledged operation, or an already-compiled source revision can
+/// be applied through DWDS. Flutter SIGUSR1 performs hot reload; sending that
+/// signal and then another reloadSources RPC duplicates application.
+/// Verification (`evaluate` with library scoping) rides the same wire.
 library;
 
 import 'dart:async';
@@ -55,21 +49,26 @@ class _CdpWire {
     final id = _id++;
     final completer = Completer<Map<String, dynamic>>();
     _pending[id] = completer;
-    _ws.add(jsonEncode({
-      'id': id,
-      'method': 'Runtime.evaluate',
-      'params': {
-        'expression': jsExpression,
-        'returnByValue': true,
-        'awaitPromise': true,
-      },
-    }));
-    final response = await completer.future
-        .timeout(const Duration(seconds: 60));
+    _ws.add(
+      jsonEncode({
+        'id': id,
+        'method': 'Runtime.evaluate',
+        'params': {
+          'expression': jsExpression,
+          'returnByValue': true,
+          'awaitPromise': true,
+        },
+      }),
+    );
+    final response = await completer.future.timeout(
+      const Duration(seconds: 60),
+    );
     final result = response['result'] as Map<String, dynamic>? ?? const {};
     if (result['exceptionDetails'] != null) {
-      throw LiveWireException('cdp evaluate failed: '
-          '${jsonEncode(result['exceptionDetails'])}');
+      throw LiveWireException(
+        'cdp evaluate failed: '
+        '${jsonEncode(result['exceptionDetails'])}',
+      );
     }
     final value = result['result'] as Map? ?? const {};
     return (value['value'] as String?) ??
@@ -87,6 +86,7 @@ class WebDwdsTarget implements LivePatchTarget {
     this.pidFile,
     this.signal,
     this.cdpPageWsUrl,
+    this.platformReload,
   });
 
   @override
@@ -102,6 +102,10 @@ class WebDwdsTarget implements LivePatchTarget {
   /// declarative recompile trigger for `flutter run`.
   final String? pidFile;
   final String? signal;
+
+  /// Complete compile-and-apply operation owned by the serving tool. When
+  /// supplied, no signal or DWDS reload is sent by this target.
+  final Future<void> Function()? platformReload;
 
   /// Browser CDP page WebSocket for `webExpression` probes.
   final String? cdpPageWsUrl;
@@ -126,26 +130,29 @@ class WebDwdsTarget implements LivePatchTarget {
     _connected = true;
   }
 
-  /// Triggers the platform recompile (SIGUSR1 to `flutter run`), then
-  /// applies through dwds' `reloadSources`. The probe side-effect (patched
-  /// value live in the page) is checked by the session.
+  /// Dispatches through exactly one compile/apply owner. Probes independently
+  /// check the changed application value; an acknowledgement alone is not proof.
   @override
   Future<ApplyOutcome> apply({
     required String unit,
     required String deltaPath,
     required int deltaBytes,
   }) async {
-    if (pidFile != null && signal != null) {
-      final pid = File(pidFile!).readAsStringSync().trim();
-      final r = await Process.run('kill', ['-${signal!}', pid]);
-      if (r.exitCode != 0) {
-        throw LiveWireException(
-            'signal ${signal!} to pid $pid failed: ${r.stderr}');
-      }
-    }
+    final mode = platformReload == null
+        ? 'dwds reloadSources'
+        : 'serving tool reload';
     try {
       final sw = Stopwatch()..start();
-      await _wire.reloadSources(_isolateId);
+      if (platformReload != null) {
+        await platformReload!();
+      } else {
+        if (pidFile != null || signal != null) {
+          throw LiveWireException(
+            'Signal compile-and-apply requires an acknowledged platformReload owner; refusing duplicate reload',
+          );
+        }
+        await _wire.reloadSources(_isolateId);
+      }
       // Liveness fact: the isolate that connected is still the one serving
       // probes. A hot RESTART replaces the isolate; a hot reload does not.
       final vm = await _wire.rpc('getVM');
@@ -155,7 +162,7 @@ class WebDwdsTarget implements LivePatchTarget {
       sw.stop();
       return ApplyOutcome(
         ok: true,
-        mode: 'dwds reloadSources',
+        mode: mode,
         wire: {
           'durationMs': sw.elapsedMilliseconds,
           // The delta bytes are produced for cross-target parity and
@@ -165,7 +172,7 @@ class WebDwdsTarget implements LivePatchTarget {
         },
       );
     } on LiveWireException catch (e) {
-      return ApplyOutcome(ok: false, mode: 'dwds reloadSources', error: e.message);
+      return ApplyOutcome(ok: false, mode: mode, error: e.message);
     }
   }
 
@@ -182,9 +189,10 @@ class WebDwdsTarget implements LivePatchTarget {
     }
     final loc = await _wire.findLibrary(fragment);
     return _wire.evaluate(
-        isolateId: loc.isolateId,
-        libraryId: loc.libraryId,
-        expression: probe.expression);
+      isolateId: loc.isolateId,
+      libraryId: loc.libraryId,
+      expression: probe.expression,
+    );
   }
 
   @override
@@ -208,12 +216,12 @@ class WebDwdsTarget implements LivePatchTarget {
     required List<int> bytes,
     required String flutterAssetsDir,
     bool shader = false,
-  }) async =>
-      ApplyOutcome(
-        ok: false,
-        mode: 'assets-sync',
-        error: 'web assets are served by the dev server — an asset change '
-            'takes effect on the next page load (`R`)',
-        wire: {'assetKey': assetKey},
-      );
+  }) async => ApplyOutcome(
+    ok: false,
+    mode: 'assets-sync',
+    error:
+        'web assets are served by the dev server — an asset change '
+        'takes effect on the next page load (`R`)',
+    wire: {'assetKey': assetKey},
+  );
 }

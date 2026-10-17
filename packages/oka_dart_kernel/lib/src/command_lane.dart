@@ -11,6 +11,8 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:oka_core/oka_core.dart';
+
 /// One declared lane from the spec's optional `commands` section.
 final class CommandLaneSpec {
   const CommandLaneSpec({
@@ -232,4 +234,56 @@ Future<void> runCommandLanes({
     'lanes': [for (final lane in lanes) lane.name],
   });
   await Completer<void>().future;
+}
+
+/// [runCommandLanes] plus the ADR-0038 consumer single-instance lock.
+///
+/// Acquires [lockDirectory] (stale-steal via [DirectoryProcessLock]); on
+/// contention exits 0 without starting lanes. Releases the lock when the
+/// isolate exits (parent-gone or signal). Product gates stay in [lanes]'
+/// `run` commands — this API is mechanics only.
+Future<void> runSupervisedCommandLanes({
+  required String projectRoot,
+  required List<CommandLaneSpec> lanes,
+  required Directory lockDirectory,
+  String lockLabel = 'command-lane',
+  void Function(Map<String, Object?> receipt)? onReceipt,
+  int? parentPid,
+  ProcessLiveness? liveness,
+}) async {
+  final lock = DirectoryProcessLock(
+    lockDirectory,
+    label: lockLabel,
+    liveness: liveness,
+  );
+  if (!await lock.tryAcquire()) {
+    exit(0);
+  }
+
+  var released = false;
+  void release() {
+    if (released) return;
+    released = true;
+    lock.release();
+  }
+
+  ProcessSignal.sigterm.watch().listen((_) {
+    release();
+    exit(0);
+  });
+  ProcessSignal.sigint.watch().listen((_) {
+    release();
+    exit(0);
+  });
+
+  try {
+    await runCommandLanes(
+      projectRoot: projectRoot,
+      lanes: lanes,
+      onReceipt: onReceipt,
+      parentPid: parentPid,
+    );
+  } finally {
+    release();
+  }
 }

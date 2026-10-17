@@ -117,7 +117,7 @@ void main() {
         headless: false,
         windowSize: (width: 1280, height: 800),
       );
-      expect(args, contains('--window-size=1280x800'));
+      expect(args, contains('--window-size=1280,800'));
       expect(args, isNot(contains('--headless')));
       // Automation flags apply headful too — agents never click dialogs.
       expect(args, contains('--no-first-run'));
@@ -1167,7 +1167,7 @@ void main() {
     });
 
     test(
-      'reuse path flips an owned lease to borrowed, kills nothing',
+      'reuse preserves the existing owner lease and gives borrower no PID',
       () async {
         final step = EnsureChromeSessionStep(
           stateRegistry: stateRegistry,
@@ -1194,10 +1194,13 @@ void main() {
             stopHint: const LeaseStopHint(tool: 'kill', args: ['1717']),
           ),
         );
-        final r = await step.run(ctx(temp), PipelineState());
+        final state = PipelineState();
+        final r = await step.run(ctx(temp), state);
         expect(r.ok, isTrue, reason: r.error);
         final lease = await registry.read('chrome-main');
-        expect(lease!.ownership, LeaseOwnership.borrowed);
+        expect(lease!.ownership, LeaseOwnership.owned);
+        expect(lease.pid, 1717);
+        expect(state[chromeSessionPidArtifactId('main')], isNull);
         expect(lease.identity['cdp_port'], '9223');
         expect(liveness.killed, isEmpty);
       },

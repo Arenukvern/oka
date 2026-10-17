@@ -19,6 +19,7 @@ class VmJitTarget implements LivePatchTarget {
     this.devfsBaseOverride,
     this.applyVia,
     this.packagesPath,
+    this.platformReload,
   }) : _device = httpEndpoint != null && devfsName != null;
 
   @override
@@ -47,6 +48,9 @@ class VmJitTarget implements LivePatchTarget {
   /// Device-lane: local package config staged as `packagesUri`.
   final String? packagesPath;
 
+  /// Optional complete compile/reload owner; this target dispatches no second reload.
+  final Future<void> Function()? platformReload;
+
   final bool _device;
   late VmServiceWire _wire;
   late String _devfsBase;
@@ -56,13 +60,12 @@ class VmJitTarget implements LivePatchTarget {
   Future<void> connect() async {
     if (_connected) return;
     _wire = await VmServiceWire.connect(wsUri);
-    if (_device) {
+    if (_device && platformReload == null) {
       final devfsName = this.devfsName;
       if (devfsName == null) {
         throw ArgumentError('device target needs `devfs`');
       }
-      _devfsBase =
-          devfsBaseOverride ?? await _wire.devfsCreate(devfsName);
+      _devfsBase = devfsBaseOverride ?? await _wire.devfsCreate(devfsName);
     }
     _connected = true;
   }
@@ -74,12 +77,40 @@ class VmJitTarget implements LivePatchTarget {
     required int deltaBytes,
   }) async {
     final wire = _wire;
+    if (platformReload != null) {
+      final clock = Stopwatch()..start();
+      try {
+        final before = await _isolateForApply();
+        await platformReload!();
+        final after = await _isolateForApply();
+        return ApplyOutcome(
+          ok: before == after,
+          mode: 'serving tool reload',
+          error: before == after
+              ? null
+              : 'Reload owner replaced the native isolate',
+          wire: {
+            'durationMs': clock.elapsedMilliseconds,
+            'deltaBytesAdvisory': deltaBytes,
+            'isolatePersists': before == after,
+          },
+        );
+      } catch (error) {
+        return ApplyOutcome(
+          ok: false,
+          mode: 'serving tool reload',
+          error: '$error',
+        );
+      }
+    }
     if (!_device) {
       final sw = Stopwatch()..start();
       try {
         final isolate = await _isolateForApply();
         final report = await wire.reloadKernel(
-            isolateId: isolate, kernelFilePath: deltaPath);
+          isolateId: isolate,
+          kernelFilePath: deltaPath,
+        );
         sw.stop();
         // The report is the truth: success:false (or a rejected flag)
         // must fail the receipt, never pass silently (ADR-0034 G7).
@@ -98,14 +129,15 @@ class VmJitTarget implements LivePatchTarget {
           }
         }
         return ApplyOutcome(
-            ok: ok,
-            mode: 'reloadKernel',
-            error: ok ? null : 'reload report: $report',
-            wire: {
-              'durationMs': sw.elapsedMilliseconds,
-              'reassemble': reassemble,
-              ...report,
-            });
+          ok: ok,
+          mode: 'reloadKernel',
+          error: ok ? null : 'reload report: $report',
+          wire: {
+            'durationMs': sw.elapsedMilliseconds,
+            'reassemble': reassemble,
+            ...report,
+          },
+        );
       } on LiveWireException catch (e) {
         return ApplyOutcome(ok: false, mode: 'reloadKernel', error: e.message);
       }
@@ -120,10 +152,11 @@ class VmJitTarget implements LivePatchTarget {
     final devicePath = Uri.parse(deviceUri).toFilePath();
     final bytes = await File(deltaPath).readAsBytes();
     await wire.devfsWrite(
-        httpEndpoint: httpEndpoint,
-        fsName: devfsName,
-        deviceUri: deviceUri,
-        bytes: bytes);
+      httpEndpoint: httpEndpoint,
+      fsName: devfsName,
+      deviceUri: deviceUri,
+      bytes: bytes,
+    );
     final isolate = await _isolateForApply();
     // Flutter's own desktop hot reload stages the app's package file
     // alongside the kernel and passes both URIs; without `packagesUri`
@@ -134,10 +167,11 @@ class VmJitTarget implements LivePatchTarget {
       packagesUri =
           '${base.endsWith('/') ? base : '$base/'}package_config.json';
       await wire.devfsWrite(
-          httpEndpoint: httpEndpoint,
-          fsName: devfsName,
-          deviceUri: packagesUri,
-          bytes: File(packagesPath).readAsBytesSync());
+        httpEndpoint: httpEndpoint,
+        fsName: devfsName,
+        deviceUri: packagesUri,
+        bytes: File(packagesPath).readAsBytesSync(),
+      );
     }
     // Flutter desktop embedders die on a failed `_reloadKernel`
     // (isolate_reload.cc CHECKs `delta_program != nullptr`) — when the
@@ -146,18 +180,22 @@ class VmJitTarget implements LivePatchTarget {
       try {
         await wire.reloadKernel(isolateId: isolate, kernelFilePath: devicePath);
         return ApplyOutcome(
-            ok: true,
-            mode: 'reloadKernel(devfs)',
-            wire: {'deviceUri': deviceUri});
+          ok: true,
+          mode: 'reloadKernel(devfs)',
+          wire: {'deviceUri': deviceUri},
+        );
       } on LiveWireException {
         // fall through to the public reloadSources form
       }
     }
     try {
-      final r = await wire.reloadSources(isolate,
-          rootLibUri: deviceUri, packagesUri: packagesUri);
-      final details =
-          (r['details'] as Map? ?? const {}).cast<String, Object?>();
+      final r = await wire.reloadSources(
+        isolate,
+        rootLibUri: deviceUri,
+        packagesUri: packagesUri,
+      );
+      final details = (r['details'] as Map? ?? const {})
+          .cast<String, Object?>();
       final loaded = details['loadedLibraries'] ?? details['libraries'];
       final ok = !(r['success'] is bool && !(r['success'] as bool));
       // G-RUN: repaint the widget tree after a successful reload — same
@@ -173,24 +211,26 @@ class VmJitTarget implements LivePatchTarget {
         }
       }
       return ApplyOutcome(
-          ok: ok,
-          mode: applyVia == 'reloadSources'
-              ? 'reloadSources(rootLibUri)'
-              : 'reloadKernel→reloadSources(rootLibUri)',
-          error: ok ? null : 'reload report: $r',
-          wire: {
-            'deviceUri': deviceUri,
-            'packagesUri': ?packagesUri,
-            'reassemble': reassemble,
-            ...details,
-            if (loaded == null && details.isEmpty) 'detailsAbsent': true,
-          });
+        ok: ok,
+        mode: applyVia == 'reloadSources'
+            ? 'reloadSources(rootLibUri)'
+            : 'reloadKernel→reloadSources(rootLibUri)',
+        error: ok ? null : 'reload report: $r',
+        wire: {
+          'deviceUri': deviceUri,
+          'packagesUri': ?packagesUri,
+          'reassemble': reassemble,
+          ...details,
+          if (loaded == null && details.isEmpty) 'detailsAbsent': true,
+        },
+      );
     } on LiveWireException catch (e) {
       return ApplyOutcome(
-          ok: false,
-          mode: 'reloadSources(rootLibUri)',
-          error: e.message,
-          wire: {'deviceUri': deviceUri});
+        ok: false,
+        mode: 'reloadSources(rootLibUri)',
+        error: e.message,
+        wire: {'deviceUri': deviceUri},
+      );
     }
   }
 
@@ -203,9 +243,10 @@ class VmJitTarget implements LivePatchTarget {
     }
     final loc = await wire.findLibrary(fragment);
     return wire.evaluate(
-        isolateId: loc.isolateId,
-        libraryId: loc.libraryId,
-        expression: probe.expression);
+      isolateId: loc.isolateId,
+      libraryId: loc.libraryId,
+      expression: probe.expression,
+    );
   }
 
   @override
@@ -218,10 +259,12 @@ class VmJitTarget implements LivePatchTarget {
     final target = File('$flutterAssetsDir/$assetKey');
     if (!target.parent.existsSync()) {
       return ApplyOutcome(
-          ok: false,
-          mode: 'assets-sync',
-          error: 'asset dir missing: ${target.parent} — build the app '
-              'first (flutter run owns that)');
+        ok: false,
+        mode: 'assets-sync',
+        error:
+            'asset dir missing: ${target.parent} — build the app '
+            'first (flutter run owns that)',
+      );
     }
     await target.writeAsBytes(bytes, flush: true);
     final isolate = await _isolateForApply();
@@ -235,21 +278,24 @@ class VmJitTarget implements LivePatchTarget {
         await _wire.flutterEvict(isolateId: isolate, assetKey: assetKey);
       }
       return ApplyOutcome(
-          ok: true,
-          mode: 'assets-sync',
-          wire: {
-            'assetKey': assetKey,
-            'bytes': bytes.length,
-            'dir': flutterAssetsDir,
-            'evict': shader ? 'reinitializeShader' : 'ok',
-          });
+        ok: true,
+        mode: 'assets-sync',
+        wire: {
+          'assetKey': assetKey,
+          'bytes': bytes.length,
+          'dir': flutterAssetsDir,
+          'evict': shader ? 'reinitializeShader' : 'ok',
+        },
+      );
     } on LiveWireException catch (e) {
       return ApplyOutcome(
-          ok: false,
-          mode: 'assets-sync',
-          error: 'evict failed: ${e.message} — is the target a Flutter '
-              'app with a standard binding bootstrap?',
-          wire: {'assetKey': assetKey, 'bytes': bytes.length});
+        ok: false,
+        mode: 'assets-sync',
+        error:
+            'evict failed: ${e.message} — is the target a Flutter '
+            'app with a standard binding bootstrap?',
+        wire: {'assetKey': assetKey, 'bytes': bytes.length},
+      );
     }
   }
 

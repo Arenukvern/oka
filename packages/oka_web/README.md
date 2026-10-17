@@ -90,3 +90,61 @@ Targets stay independently composable: point `sourceDir` at any directory,
 or compose a custom one-chain build+deploy `Target` from the exported
 steps (`FlutterWebBuildStep` → `GhPagesDeployTarget(...).uploadStep(ctx)`)
 — nothing auto-couples.
+
+## Browser page attachments
+
+`startBrowserPageSession` composes Chrome lifecycle and HTTP page discovery. It
+defaults to headless and dispatches no activation command. Headed browser focus
+behavior requires separate platform verification. The returned `browserHttpUrl`
+lets another consumer use `BrowserSessionSpec(debugPort: endpoint.port)` to borrow
+the running browser. Retain the owner session until all borrower pages are closed.
+Borrowing preserves its process lease; borrower stop closes only its created page.
+Stop sends one close request and observes target removal within its bounded
+observation budget. An unobserved effect returns an error; repeated stop shares
+the same outcome rather than replaying the mutation. Process ownership remains
+separate from page ownership and application/Flutter focus.
+
+## Built bundle identity
+
+`WebBundleManifest.capture(directory)` inventories all regular output files in
+canonical relative-path order with byte sizes and SHA-256 identities. Its JSON
+representation validates its digest on restore. `matches(directory)` detects
+changed/added/removed output, and `readVerified(directory, path)` returns only
+bytes matching the recorded identity. Unknown paths, traversal and symlinks are
+refused. This is an output artifact contract, not an input-cache key, atomic
+filesystem snapshot, compiler reproducibility proof or browser cache policy.
+The ecsly supervised preview consumes it before launching a browser and verifies
+asset bytes before serving. Controlled negative response transformations have
+separate source/served identities.
+
+`WebBundleCachePolicy` separates HTTP reuse from artifact verification. The
+noStore policy preserves baseline behavior. Revalidate emits the verified file's
+strong ETag and private/max-age=0/must-revalidate headers; matching (including
+weak/listed) If-None-Match can return 304 only after current bytes are verified.
+A stale tag returns the verified current body. Mutable unversioned paths are not
+declared immutable. The ecsly browser-cache supervisor scenario records server
+requests, 304s, browser responses and a fresh-engine frame after reload.
+
+`WebBundleSnapshot.load(directory: ..., manifest: ..., maxBytes: ...)` verifies
+and retains immutable output bytes under an explicit payload budget. Subsequent
+filesystem edits cannot change them; returned typed-byte views and their buffer
+views refuse writes. Budget refers to asset payload, not VM/container overhead.
+Verified file reads stop if their recorded byte limit is exceeded.
+
+`assetUri(path)` and `readAssetUri(uri)` provide `/bundles/<digest>/<path>` routes
+with exact bundle identity. The immutable cache policy may be used on those
+routes; ordinary mutable entry URLs keep their own policy. Snapshot APIs do not
+rewrite Flutter base href or loader URLs: composing an entire entry page under
+the digest namespace requires a separate loader/base-URL integration. This is
+immutable output serving, not a compiler input cache or reproducible-build claim.
+
+For an explicit Flutter Wasm build, compose `WebBuildTarget(extraArgs: ['--wasm'])`
+with your normal build arguments. Flutter also emits a JavaScript fallback; verify
+the app's `const bool.fromEnvironment('dart.tool.dart2wasm')` at runtime rather
+than inferring execution from output files. `WebIsolationPolicy.requireCorp` or
+`credentialless` exposes opt-in COOP/COEP response headers independent of cache
+policy; none is the default. Apply in the owning HTTP server and verify browser
+`crossOriginIsolated` and actual resource loading. Configure JavaScript MIME types
+for `.mjs` modules and application/wasm for Wasm binaries. Isolation/header
+configuration alone does not establish renderer thread count or faster rendering.
+See [Flutter's Wasm guide](https://docs.flutter.dev/platform-integration/web/wasm).

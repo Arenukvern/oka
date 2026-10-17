@@ -107,7 +107,7 @@ List<String> chromeLaunchArgs({
   '--no-first-run',
   '--no-default-browser-check',
   if (windowSize != null)
-    '--window-size=${windowSize.width}x${windowSize.height}',
+    '--window-size=${windowSize.width},${windowSize.height}',
   ...flags,
 ];
 
@@ -177,15 +177,21 @@ typedef CdpProbe = Future<String?> Function(Uri url);
 /// Default [CdpProbe]: plain `dart:io` HttpClient GET. This is a readiness
 /// probe only — no websocket upgrade, no CDP commands, no protocol logic
 /// (ADR-0017 out-of-scope line).
-Future<String?> httpCdpProbe(final Uri url) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
+Future<String?> httpCdpProbe(
+  final Uri url, {
+  final Duration timeout = const Duration(seconds: 2),
+}) async {
+  if (timeout <= Duration.zero) throw ArgumentError.value(timeout, 'timeout');
+  final client = HttpClient()..connectionTimeout = timeout;
   try {
-    final request = await client
-        .getUrl(url)
-        .timeout(const Duration(seconds: 2));
-    final response = await request.close().timeout(const Duration(seconds: 2));
-    if (response.statusCode != HttpStatus.ok) return null;
-    return await utf8.decoder.bind(response).join();
+    // One deadline includes connection, headers AND body. A peer that sends
+    // headers but never completes the body must not stall the boot owner.
+    return await (() async {
+      final request = await client.getUrl(url);
+      final response = await request.close();
+      if (response.statusCode != HttpStatus.ok) return null;
+      return utf8.decoder.bind(response).join();
+    })().timeout(timeout);
   } on Exception {
     return null;
   } finally {
@@ -633,9 +639,9 @@ class EnsureChromeSessionStep extends BuildStep {
     try {
       binary =
           await (provisioner ?? ChromeForTestingProvisioner()).resolveBinary(
-                explicitPath: spec.binaryPath,
-              ) ??
-              '';
+            explicitPath: spec.binaryPath,
+          ) ??
+          '';
     } on Object catch (e) {
       return StepResult.failure(
         'Browser binary provisioning failed: $e\n'
@@ -816,22 +822,15 @@ class EnsureChromeSessionStep extends BuildStep {
     stopHint: LeaseStopHint(tool: 'kill', args: ['$pid']),
   );
 
-  /// Adopt path (ADR-0018 §3): flip any existing lease for this session to
-  /// ownership `borrowed`; if none exists, record one as borrowed (pid 0 —
-  /// adopted by semantic discovery, the CDP port). Never kills anything.
+  /// Reuse never downgrades an existing owner's stop authority (ADR-0044).
+  /// If no lease exists, record discovery as borrowed (pid 0). The caller
+  /// receives no PID artifact and therefore no process teardown ownership.
   Future<void> _adoptLease(final int port, final BuildContext ctx) async {
     try {
       final registry = _registryFor(ctx);
       for (final lease in await registry.list()) {
         if (lease.kind == 'chrome-session' &&
             lease.identity['cdp_port'] == '$port') {
-          if (lease.ownership == LeaseOwnership.borrowed) return;
-          await registry.upsert(
-            lease.copyWith(
-              identity: {...lease.identity, 'cdp_port': '$port'},
-              ownership: LeaseOwnership.borrowed,
-            ),
-          );
           return;
         }
       }

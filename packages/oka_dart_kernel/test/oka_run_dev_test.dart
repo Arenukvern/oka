@@ -9,6 +9,8 @@ import '../tool/oka_run_dev.dart' show DevApp, runRunDevCli;
 /// A fake owning `flutter run` session: records stdin writes, answers the
 /// restart wait, and feeds the exit path.
 class _FakeApp implements DevApp {
+  int stops = 0;
+  bool failStop = false;
   final written = <String>[];
   final _lines = <String>[];
   final _waiters = <(Pattern, Completer<String>)>[];
@@ -32,8 +34,10 @@ class _FakeApp implements DevApp {
   }
 
   @override
-  Future<String> waitFor(Pattern pattern,
-      {Duration timeout = const Duration(seconds: 90)}) {
+  Future<String> waitFor(
+    Pattern pattern, {
+    Duration timeout = const Duration(seconds: 90),
+  }) {
     for (final line in _lines) {
       if (line.contains(pattern)) return Future.value(line);
     }
@@ -43,13 +47,18 @@ class _FakeApp implements DevApp {
   }
 
   @override
-  Future<int> stop() async => 0;
+  Future<int> stop() async {
+    stops++;
+    if (failStop) throw StateError('unknown teardown effect');
+    return 0;
+  }
 }
 
 /// A fake target: applies succeed, nothing touches a wire. Records
 /// asset syncs so the dev session's asset lane is testable.
 class _FakeTarget implements LivePatchTarget {
   int applies = 0;
+  int closes = 0;
   final assetSyncs = <({String assetKey, int bytes, String dir})>[];
 
   @override
@@ -62,36 +71,41 @@ class _FakeTarget implements LivePatchTarget {
   Future<void> connect() async {}
 
   @override
-  Future<ApplyOutcome> apply(
-      {required String unit,
-      required String deltaPath,
-      required int deltaBytes}) async {
+  Future<ApplyOutcome> apply({
+    required String unit,
+    required String deltaPath,
+    required int deltaBytes,
+  }) async {
     applies++;
     return const ApplyOutcome(ok: true, mode: 'fake');
   }
 
   @override
-  Future<ApplyOutcome> syncAsset(
-      {required String assetKey,
-      required List<int> bytes,
-      required String flutterAssetsDir,
-      bool shader = false}) async {
+  Future<ApplyOutcome> syncAsset({
+    required String assetKey,
+    required List<int> bytes,
+    required String flutterAssetsDir,
+    bool shader = false,
+  }) async {
     assetSyncs.add((
       assetKey: assetKey,
       bytes: bytes.length,
       dir: flutterAssetsDir,
     ));
     return ApplyOutcome(
-        ok: true,
-        mode: 'assets-sync',
-        wire: {'evict': 'ok', 'dir': flutterAssetsDir});
+      ok: true,
+      mode: 'assets-sync',
+      wire: {'evict': 'ok', 'dir': flutterAssetsDir},
+    );
   }
 
   @override
   Future<String> evaluate(ProbeSpec probe) => Future.value('');
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    closes++;
+  }
 }
 
 void main() {
@@ -107,8 +121,9 @@ void main() {
     tmp = Directory.systemTemp.createTempSync('oka-run-dev-test-');
     root = '${tmp.path}/app';
     Directory('$root/lib').createSync(recursive: true);
-    File('$root/lib/main.dart')
-        .writeAsStringSync('void main() {}\nint seed() => 1;\n');
+    File(
+      '$root/lib/main.dart',
+    ).writeAsStringSync('void main() {}\nint seed() => 1;\n');
     app = _FakeApp();
     target = _FakeTarget();
     compiled = [];
@@ -138,15 +153,29 @@ void main() {
     return done;
   }
 
-  test('r <file> compiles the changed file and applies over the lane',
-      () async {
-    await dev([], ['r lib/main.dart', 'q']);
-    expect(exit, 0);
-    expect(compiled.single, endsWith('lib/main.dart'));
-    expect(target.applies, 1);
-    expect(out.join('\n'), contains('reload 1: OK'));
-    expect(app.written, contains('q'));
-  });
+  test(
+    'r <file> compiles the changed file and applies over the lane',
+    () async {
+      await dev([], ['r lib/main.dart', 'q']);
+      expect(exit, 0);
+      expect(compiled.single, endsWith('lib/main.dart'));
+      expect(target.applies, 1);
+      expect(out.join('\n'), contains('reload 1: OK'));
+      expect(app.written, isNot(contains('q')));
+      expect(app.stops, 1);
+      expect(target.closes, 0, reason: 'Injected target remains caller-owned');
+    },
+  );
+
+  test(
+    'quit delegates teardown once and does not replay an unknown failure',
+    () async {
+      app.failStop = true;
+      await expectLater(dev([], ['q']), throwsStateError);
+      expect(app.stops, 1);
+      expect(app.written, isEmpty);
+    },
+  );
 
   test('R restarts through the platform lane', () async {
     await dev([], ['R', 'q']);
@@ -155,8 +184,7 @@ void main() {
     expect(out.join('\n'), contains('restart: OK (platform lane'));
   });
 
-  test('bare r without a changed file hints instead of compiling',
-      () async {
+  test('bare r without a changed file hints instead of compiling', () async {
     await dev([], ['r', 'q']);
     expect(exit, 0);
     expect(compiled, isEmpty);
@@ -171,12 +199,12 @@ void main() {
 
   test('r <asset> rides the sync lane, not the delta lane', () async {
     Directory('$root/assets').createSync();
-    final asset = File('$root/assets/hello.txt')
-      ..writeAsStringSync('hello');
-    Directory('$root/build/macos/Build/Products/Debug'
-            '/app.app/Contents/Frameworks/App.framework/Versions/A'
-            '/Resources/flutter_assets')
-        .createSync(recursive: true);
+    final asset = File('$root/assets/hello.txt')..writeAsStringSync('hello');
+    Directory(
+      '$root/build/macos/Build/Products/Debug'
+      '/app.app/Contents/Frameworks/App.framework/Versions/A'
+      '/Resources/flutter_assets',
+    ).createSync(recursive: true);
     await dev([], ['r assets/hello.txt', 'q']);
     expect(exit, 0);
     expect(target.applies, 0, reason: 'assets never compile as deltas');

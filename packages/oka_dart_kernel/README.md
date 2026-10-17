@@ -125,3 +125,32 @@ arm64 / dart 3.13.2 (2026-10-03) — compare only against similar setups.
 command: the running program's unit flips live (no restart) in ~30 s.
 The cross-platform gate is `tool/gate_live_e2e.sh` (macOS VM, linux,
 android, web — see `skills/oka-kernel/references/gates.md` LIVE-E2E).
+
+## Retained frontend and code-edit qualification
+
+`tool/frontend_session_cohort.dart FLUTTER_SDK NEW_EVIDENCE` is a portable,
+owned compiler-only probe: compile, accept, method/signature/import invalidations,
+error/reject/recovery and reset. It refuses an existing evidence directory and
+retains protocol/artifact receipts. It uses stock backends and validates expected
+terminal error counts, but does not apply a dill to a native VM. A new retained
+frontend integration must tie accepted compiler baseline to known application
+effects; library-root compilation does not check excluded app callers.
+
+`tool/frontend_protocol.dart` parses complete result terminals, including output
+paths with spaces. `tool/flutter_delta.dart` rejects nonzero exit, compiler errors,
+incomplete/mismatched terminals and empty artifacts; the real invalid-source test
+requires `FLUTTER_BIN` and proves a written dill can still be rejected.
+
+The reusable resident web code cohort lives with its consumer in ecsly's
+`tool/visualization_dev_cohort`; Oka's dev runner supplies the owning retained
+Flutter/DDC session. `WebDwdsTarget.platformReload` composes that acknowledged
+compile/apply operation exactly once. Former signal-plus-DWDS application emitted
+duplicate library errors and is no longer used by this runner.
+
+The experimental `flutter_attach_session.dart` library composes one stock Flutter
+compiler attachment to an externally owned native app. It uses an explicit VM
+URI, retains startup diagnostics, scopes reload acknowledgements to the current
+command and detaches without taking app teardown ownership. The supervised ecsly
+Canvas consumer qualifies one real path-package method edit with world continuity
+and unchanged macOS focus. Arbitrary edit/restart/crash parity and default native
+dev-runner integration remain separate gates.

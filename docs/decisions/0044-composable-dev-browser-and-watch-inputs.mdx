@@ -1,0 +1,86 @@
+---
+title: "ADR 0044: Composable dev browser and watch inputs"
+---
+
+Status: Accepted for the experimental `oka_dart_kernel` dev runner.
+Date: 2026-10-13
+
+The runner duplicated Chromium launch, used a shared fixed CDP port, and
+missed external path packages. Preserve its existing CLI and injected app,
+compiler and target seams. Add an injectable browser launcher returning an
+owned attachment, and default it to `ChromeSessionTarget` lifecycle steps.
+Browser configuration remains a `BrowserSessionSpec`. No browser compiler or
+CDP automation framework is introduced. Emit a typed session-ready callback
+for consumers instead of requiring them to parse terminal output.
+
+Resolve watch inputs from the actual package configuration. Project-only,
+local path-package and all-package scopes are explicit choices; local is the
+default. The lockfile's source classification excludes hosted/SDK packages
+from the local scope. Missing classification excludes external packages
+unless the caller explicitly selects all. Preserve declared project assets.
+
+This is a compositional extension of ADRs 0017 and 0037. Native/web runtime
+compatibility still requires measured trials. Existing live-watcher ownership
+and production-update contracts remain unchanged.
+
+Dependency resolution is injectable and drains process streams through completion
+handlers registered before exit. The real consuming viewer exposed the former
+late-asFuture hang. Arguments after `--` pass through to the owning Flutter tool,
+including its local-resource configuration. This keeps SDK choices declarative
+without rebuilding their meaning in Oka.
+
+2026-10-13 consumer evidence: resident viewer web reload changed an external path
+package's method and preserved the custom document/runtime; hot restart created a
+fresh runtime. Focused runner/composition/dependency tests: 11 passed. Multi-directory
+watcher teardown: 1 passed. The consumer's JSON and session log live in
+`ecsly_visualization_preview/output/evidence/oka-dev/` under the task's scratch root.
+This does not qualify the Android runner, browser families or production OTA.
+
+2026-10-13 focus checkpoint: the consumer reported visible browser/native launches
+interrupting macOS focus. Background process ownership is independent of activation.
+The experimental web runner now defaults its browser specification to headless;
+`--browser-visible` explicitly requests the prior visible posture. The existing
+`--browser-headless` and injected `BrowserSessionSpec` remain supported. Consumers
+must not implicitly call `Page.bringToFront`. Native nonactivating launch belongs to
+the AppKit launcher seam, separately from toolkit widget focus. No browser engine or
+macOS bridge implementation changes follow from this checkpoint.
+
+## 2026-10-13 reload-owner checkpoint
+
+A real retained DDC cohort changed all three code probes but emitted duplicate
+library-definition exceptions. Source inspection confirms Flutter SIGUSR1 owns
+compile and apply, while the previous WebDwdsTarget also dispatched reloadSources.
+The chosen seam is one injected serving-tool reload operation, acknowledged by its
+own new output. Oka's web dev runner supplies that owner; direct DWDS remains the
+separate already-compiled lane. A signal-only serialized target cannot manufacture
+a completion acknowledgement and must refuse before dispatch until an owner is
+composed. No second reload is used to recover an unknown first effect.
+
+## Retained browser ownership checkpoint
+
+A borrowed page attachment must not transfer or downgrade a live process owner's
+lease. The former Chrome reuse path changed any matching owned lease to borrowed,
+which removes the original owner's ordinary stop authority and can leak a retained
+browser. For Chrome reuse this supersedes ADR 0018's historical adoption-flips-
+ownership sentence: preserve an existing process lease unchanged. When discovery
+finds a process with no matching record, retain the existing borrowed-record path.
+The borrower records no PID artifact and its page stop closes only its own tab;
+the owner continues to use identity-verified teardown. Expose the HTTP discovery
+endpoint on BrowserPageSession so callers can compose reuse through the existing
+BrowserSessionSpec.debugPort rather than introduce a second process manager.
+
+Chromium HTTP page close acknowledges initiation. BrowserPageSession stop now
+observes target removal through HTTP discovery without replaying the close request.
+Observation has a deadline and terminates on timeout. Stop continues owned-process
+teardown after a page-close error, while preserving its reported unknown effect.
+
+## Native serving-tool attachment checkpoint
+
+The verified AppKit launch owner can remain separate from compilation. Qualify
+stock Flutter attach with an explicit authenticated VM URI against the already
+running app. One attachment owns compilation/reload only; detach must leave app
+state and process alive, while AppKit retains app teardown. Test a real copied
+path-package source edit and observed code-revision change before wiring this
+option into the dev runner. A VM reload acknowledgement alone is insufficient.
+The native launcher remains replaceable; no second app launch or compiler owner
+is introduced.
