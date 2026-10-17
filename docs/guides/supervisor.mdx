@@ -1,129 +1,250 @@
+---
+title: Supervisor guide
+---
+
 # Supervisor — govern processes declaratively
 
-**TL;DR**: declare what should run; `converge` makes reality match the
-declaration once and exits. ADRs:
-[0040](../decisions/0040-declarative-supervisor) (engine),
-[0041](../decisions/0041-supervisor-adoption-ladder) (adoption ladder).
-Package: `packages/oka_supervisor`.
+**TL;DR:** Declare what should run (services that stay up, jobs that run once).
+Run **`oka supervisor apply plan.json`** for one converge pass — observe, diff,
+act, write records, exit. No resident daemon in the shipped rung.
 
-## The 60-second version
+Package: [`packages/oka_supervisor`](https://github.com/arenukvern/oka/tree/main/packages/oka_supervisor).
+ADRs:
+[0040](../decisions/0040-declarative-supervisor) (engine),
+[0041](../decisions/0041-supervisor-adoption-ladder) (L0 CLI + plan codec),
+[0042](../decisions/0042-resident-supervisor-ota-runtime-owner) (proposed R2 —
+not implemented).
+
+Related: [Process lifecycle](../guides/process_lifecycle) (leases, `oka
+processes`, `oka stop`) — the supervisor composes the same lease substrate for
+the `process` provider.
+
+## Who uses this and why
+
+The supervisor targets **long-lived or repeatedly-run local processes** that
+today are started by hand, shell scripts, or README conventions — and fail
+silently when they die.
+
+| Scenario | What you declare | What converge gives you |
+| --- | --- | --- |
+| **Local API or MCP server** for dev | `shape: service`, readiness probe, restart budget | Start once per pass; restart within `maxRestarts` after crash; `giveUp` when budget exhausted |
+| **One-shot or periodic job** | `shape: job`, optional `interval` trigger | Run to success (or fail visibly); records last outcome |
+| **Repo-governed automation (L2 direction)** | `supervisor/plans/*.json` in git | `oka supervisor check` in CI — plan vs machine records, no side effects |
+| **Embedding in Dart** (tools, tests, apps) | `DesiredState` + your `ProviderFactory` | Same planner/registry as the CLI; see `example/supervise_demo.dart` |
+
+It is **not** a cron parser, port allocator, log analyzer, or multi-host
+orchestrator. Command-lane watchers (ADR-0038) stay separate; the supervisor
+does not add a second file watcher in v1 (ADR-0040).
+
+## What ships today (evidence in this repo)
+
+| Piece | Status | Where |
+| --- | --- | --- |
+| Planner + `Supervisor.converge` | Shipped (R1) | `packages/oka_supervisor/lib/src/planner.dart`, `converge.dart` |
+| Plan JSON v1 (`SpecCodec`) | Shipped (L0) | `packages/oka_supervisor/lib/src/codec.dart`, `test/codec_test.dart` |
+| Advisory registry `~/.oka/supervisor/records/` | Shipped | `registry.dart`; scoped per project root hash |
+| `oka supervisor status \| apply \| check` | Shipped | `packages/oka/lib/src/cli/supervisor_command.dart`, `test/supervisor_command_test.dart` |
+| Device-local plan store (`SpecStore`) | Shipped | `packages/oka_supervisor/lib/src/spec_store.dart` |
+| Codemap lane **read-only** projection | Shipped (tool) | `packages/oka_supervisor/tool/codemap_projection.dart` |
+| Resident reconciler (R2) | **Not shipped** — ADR-0042 proposed | Would supersede no-daemon posture only when accepted + evidenced |
+| L1 mesh / L3 server rungs | **Gated** per ADR-0041 | Not implemented in `oka` |
+
+## CLI quick start
+
+From any project directory (records are scoped to that project root):
+
+```bash
+# 1. See what this machine already recorded for the current project
+oka supervisor status
+oka supervisor status --json    # agents / CI parsers
+
+# 2. Dry-run a plan (validation + planned actions, no processes touched)
+oka supervisor apply plan.json --dry-run
+
+# 3. One converge pass (start/stop/restart per plan + policy)
+oka supervisor apply plan.json
+
+# 4. Optional: append JSONL lifecycle facts
+oka supervisor apply plan.json --evidence /tmp/supervisor-facts.jsonl
+
+# 5. Drift gate: committed plan vs records (read-only; exit 1 on mismatch)
+oka supervisor check plan.json
+oka supervisor check plan.json --json
+```
+
+**Provider seam:** `oka supervisor apply` only implements the **`process`**
+provider. Each spec must include `env.command` (executable) and optional
+`env.args` (space-separated). Any other `provider` name is rejected before
+spawn (`supervisor_command.dart` preflight).
+
+### Minimal plan (job)
+
+This matches the contract tests in `packages/oka/test/supervisor_command_test.dart`:
+
+```json
+{
+  "version": 1,
+  "specs": [
+    {
+      "id": "true-job",
+      "provider": "process",
+      "shape": "job",
+      "env": { "command": "/usr/bin/true" }
+    }
+  ]
+}
+```
+
+```bash
+oka supervisor apply plan.json --project .
+```
+
+### Service-shaped plan (long-running process)
+
+Schema reference and field kinds: `SpecCodec` doc comment in
+`packages/oka_supervisor/lib/src/codec.dart`.
+
+```json
+{
+  "version": 1,
+  "readinessBudgetMs": 30000,
+  "specs": [
+    {
+      "id": "demo-api",
+      "provider": "process",
+      "shape": "service",
+      "policy": { "maxRestarts": 3, "restartWindowS": 120, "revision": 1 },
+      "readiness": { "kind": "handshakeLine", "pattern": "listening on" },
+      "env": {
+        "command": "/usr/bin/python3",
+        "args": "-m http.server 8080"
+      }
+    }
+  ]
+}
+```
+
+After a successful apply, records live under
+`~/.oka/supervisor/records/<scope>/<id>.json` where `<scope>` is derived from
+the project root (`MachineRegistry.scopeFor`).
+
+## Library quick start (Dart)
+
+For custom providers (not limited to `process`), compose in Dart and call
+`Supervisor.converge` directly:
+
+```bash
+cd packages/oka_supervisor && dart run example/supervise_demo.dart
+```
+
+That demo: start a real `/bin/sh` service → readiness → kill → budgeted restart
+→ JSONL facts. Provider mechanics use `LeasedProcessProvider` from `oka_core`;
+policy stays in `oka_supervisor`.
+
+Typed authoring (no JSON file):
 
 ```dart
 const desired = DesiredState(specs: [
-  ComponentSpec(id: 'api', providerName: 'leased'),            // service: desired running
-  ComponentSpec(                                               // job: desired succeeded once
-    id: 'nightly-sync', providerName: 'sync',
-    policy: SupervisionPolicy(shape: SupervisionShape.job),
-    trigger: IntervalTrigger(period: Duration(hours: 6)),
+  ComponentSpec(
+    id: 'api',
+    providerName: 'leased',
+    policy: SupervisionPolicy(shape: SupervisionShape.service, maxRestarts: 3),
   ),
 ]);
 
-final report = await Supervisor(projectRoot: Directory.current.path)
-    .converge(desired: desired, factory: myProviders);
-print(report.describe()); // actions + findings, human-readable
+final report = await Supervisor(projectRoot: projectRoot).converge(
+  desired: desired,
+  factory: myProviders,
+  apply: true,
+);
+print(report.describe());
 ```
 
-Pass `apply: false` for a dry run. Pass an `EvidenceSink` (e.g.
-`JsonlEvidenceSink`) to keep facts. Prefer authoring in JSON when the
-plan must cross a process boundary (CLI, app, git): `const SpecCodec()
-.decode(File('plan.json').readAsStringSync())` — versioned format,
-round-trip-tested against `revisionHash` (ADR-0041).
+Pass `apply: false` for dry-run. Round-trip a plan file with `const SpecCodec()`.
 
-## The five laws (memorize these, skip the rest)
+## Common workflows
 
-1. **Converge is explicit.** Observe → diff → act once → exit. No
-   daemon exists in this rung.
-2. **Restarts are budgeted.** `maxRestarts` per `restartWindow`, then a
-   terminal `giveUp`. Reset = bump `SupervisionPolicy(revision:)`.
-   Never implicit.
-3. **Kill rights = spawn lineage or cession.** `killPolicy: none`
-   records (hand-started processes) are findings, never targets.
-4. **The registry is advisory.** `~/.oka/supervisor/records/` — written
-   before spawn, scoped per project, never kill authority.
-5. **One fact envelope.** Findings are `supervisorFinding` events in the
-   substrate's JSONL evidence — same stream as starts/stops/deaths.
-
-## What you get from one converge
-
-| Artifact | Where | Answers |
-|---|---|---|
-| Actions | `report.plan.actions` | what changed now |
-| Findings | `report.plan.findings` | `ready` / `waiting` / `succeeded` / `unknown` / `orphan` / `unowned` / `giveUp` |
-| Records | `~/.oka/supervisor/records/<scope>/<id>.json` | who runs, since when, which epoch, who may stop it |
-| Facts | your evidence sink | the full story as JSONL events |
-
-## Status ladder
-
-| Rung | State |
-|---|---|
-| R1: specs + planner + registry + converge + facts | **shipped** (this package, fake + real-process tested) |
-| L0: plan codec + `SpecStore` + status projection + `oka supervisor` verbs | **shipped** (ADR-0041) |
-| R2: resident reconciler | gated — needs ≥2 recording consumers + an ADR superseding the no-daemon posture (ADR-0001, ADR-0030 §5) |
-| L1 mesh frames / L2 git plans / L3 server | gated (ADR-0041 ladder; L3 undesigned) |
-
-## CLI
+### 1. “Is my declared server still what the machine thinks?”
 
 ```bash
-oka supervisor status [--project <dir>] [--json]   # read records for this project's scope
-oka supervisor apply plan.json [--dry-run]         # converge a plan file (provider: process)
-oka supervisor check plan.json [--json]            # drift gate: plan vs records, read-only
+oka supervisor status --json | jq .
 ```
 
-The documents the CLI reads — plan JSON and status JSON — are the same
-documents an embedding app (Last Answer) authors and renders. One
-ladder, two artifacts, no per-surface formats (ADR-0041 decision 1).
-The CLI's `process` provider reads each spec's `env`: `"command"`
-(the executable, required) and optional `"args"` (space-split); any
-other provider name is rejected before anything starts. `check` is the
-CI hook for repo-governed plans (the L2 mechanism): it fails on corrupt
-records, revision drift, absent services, or failed jobs — and never
-converges itself.
+Status is **records-only** — it does not converge. Corrupt record files are
+listed explicitly (human output and `--json`).
 
-## Roadmap (concise)
+### 2. “Apply this plan once after deploy”
 
-1. **Next consumers** (each proves the core on a real user): harness
-   observe-only converge via its beat carrier (`tool/supervisor_beat/`
-   in ecsai_harness) · dfp model composition on the shipped substrate
-   (`tool/supervisor_composition/` in dart_flutter_packages) · codemap
-   lanes read-only projection (`packages/oka_supervisor/tool/`,
-   schema-not-language, ADR-0041 law 7) · **Last Answer supervisor
-   panel** (last_answer `lib/settings/features/supervisor_*` — the
-   on-device status surface: device plans + records rendered from the
-   status projection). All landed.
-2. **L1 mesh frames** in Last Answer: `statusJson` snapshot frames
-   over LiveMeshService; newest-wins + epoch arbitration, no CRDT.
-   The L0 status consumer is landed (the supervisor panel); frames
-   remain gated on the paired-peer + privacy law at the source.
-3. **L2 git plans**: `supervisor/plans/*.json` convention + CI drift
-   gate — the gate mechanism (`oka supervisor check`) is shipped and
-   the LA consumer exists; rung adoption is now unblocked for repos
-   that opt in.
-4. **R2 resident** (blocks L3): drafted as ADR-0042 (proposed,
-   gated) — one resident, two powers (converge loop + OTA runtime
-   owner), supersedes ADR-0001 + ADR-0030 §5 together; entered only
-   when its evidence criteria hold.
-5. **LA adoption target** (the written shape): on-device supervisor on
-   six platforms, OS background tasks bootstrap it, two-tier authoring
-   (SpecStore device-local / git read-only), agents under the cession
-   ladder — ADR-0041 decision 6.
+```bash
+oka supervisor apply deploy/plan.json --evidence .oka_cache/supervisor.jsonl
+```
 
-## Deliberately NOT here
+Each invocation is **one pass** (ADR-0040). For steady state you re-invoke
+converge (script, CI job, or a future resident rung — not shipped).
 
-Cron parsing · a second file watcher · port allocation · output
-interpretation · a UI · remote/multi-machine supervision. Triggers are
-properties (`WatchTrigger` is declared+recorded; existing watchers
-enforce), never a component-kind taxonomy.
+### 3. “CI: repo plan matches reality”
 
-## Where to look
+Commit a plan (ADR-0041 L2 convention: `supervisor/plans/*.json` is the
+documented shape; adoption is per-repo). In CI, after a machine has converged:
 
-- Runnable demo (real process, start → ready → crash → restart → facts):
-  `cd packages/oka_supervisor && dart run example/supervise_demo.dart`
-- Planner semantics (pure, fully table-tested):
-  `packages/oka_supervisor/lib/src/planner.dart`
-- Convergence discipline (budgeted cancellation, pre-spawn record):
-  `packages/oka_supervisor/lib/src/converge.dart`
-- Plan format v1 (decode/encode, round-trip law):
-  `packages/oka_supervisor/lib/src/codec.dart`
-- Status projection (the CLI/app/mesh read surface):
-  `packages/oka_supervisor/lib/src/status.dart`
-- Real-process proof: `packages/oka_supervisor/test/converge_real_process_test.dart`
+```bash
+oka supervisor check supervisor/plans/dev-stack.json --json
+```
+
+`check` never starts or stops processes. It fails on corrupt records, revision
+drift (`revision` bump in plan without re-converge), absent **service** specs,
+or jobs whose last run failed (`supervisor_command_test.dart`).
+
+### 4. Codemap lanes (read-only projection)
+
+Foreign runners can project lane receipts into supervisor findings without
+executing oka plans:
+
+```bash
+cd packages/oka_supervisor
+dart run tool/codemap_projection.dart --snapshot lanes.json --receipts receipts/ --check
+```
+
+`--check` exits non-zero on `overdue`, `unrun`, or `corruptReceipt` (see package
+README). This is a **projection**, not `apply`.
+
+## The five laws (operating rules)
+
+1. **Converge is explicit** — one pass per call; no background reconciler in R1/L0.
+2. **Restarts are budgeted** — `maxRestarts` within `restartWindow`; then `giveUp`
+   until `policy.revision` changes.
+3. **Kill rights = spawn lineage or cession** — `killPolicy: none` → findings only.
+4. **Registry is advisory** — records written before spawn; not kill authority.
+5. **One fact envelope** — `supervisorFinding` + substrate lifecycle events in JSONL.
+
+## Roadmap (derived from ADRs — not a commitment schedule)
+
+| Rung | Intent | In this repo today |
+| --- | --- | --- |
+| **R1 + L0** | Specs, planner, registry, `SpecCodec`, `oka supervisor *` | **Yes** — tests above |
+| **L1 mesh** | `statusJson` snapshots over a mesh transport | **No** — gated (ADR-0041); external consumer designs only |
+| **L2 git** | Committed plans + `check` in CI | **Mechanism shipped** (`check`); folder convention is opt-in per repo |
+| **L3 server** | Multi-host, signed cession | **Undesigned** — needs new ADR superseding ADR-0001 + ADR-0030 §5 |
+| **R2 resident** | Always-on converge loop + OTA runtime owner | **Proposed only** — [ADR-0042](../decisions/0042-resident-supervisor-ota-runtime-owner); entry criteria listed there |
+
+ADR-0041 names external product integrations (for example embedding apps on
+device). Those are **not** validated in the `oka` repository; treat them as
+downstream consumers of the same plan/record artifacts, not as shipped oka
+features.
+
+## Deliberately out of scope (v1)
+
+Cron expression parsing · second file watcher · port allocation · interpreting
+stdout/stderr for policy · remote multi-machine actuation without ADR-0042.
+
+## Where to read the code
+
+| Topic | File |
+| --- | --- |
+| CLI verbs | `packages/oka/lib/src/cli/supervisor_command.dart` |
+| Converge driver | `packages/oka_supervisor/lib/src/converge.dart` |
+| Pure planner | `packages/oka_supervisor/lib/src/planner.dart` |
+| Plan JSON | `packages/oka_supervisor/lib/src/codec.dart` |
+| Status projection | `packages/oka_supervisor/lib/src/status.dart` |
+| Real-process test | `packages/oka_supervisor/test/converge_real_process_test.dart` |
+| Agent skill (maintenance) | `skills/oka-supervisor/SKILL.md` |

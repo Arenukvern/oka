@@ -106,6 +106,18 @@ programs and shipping store-free updates. It is **not** published on pub.dev;
 it runs from an oka repo checkout. Start with
 [Live update guide](guides/live_update.mdx) and ADR-0037.
 
+## What is `oka supervisor`?
+
+Declarative **local process** supervision: you author a versioned plan JSON
+(`SpecCodec`), run **`oka supervisor apply`** for one converge pass (no
+resident daemon in the shipped rung), and inspect **`oka supervisor status`**
+or gate CI with **`oka supervisor check`**. It complements
+[`oka processes` / `oka stop`](guides/process_lifecycle.mdx) (leases), not
+Gradle or `oka build`.
+
+Guide: [Supervisor](guides/supervisor.mdx). ADRs: 0040 (engine), 0041 (L0 CLI),
+0042 (proposed resident — not implemented).
+
 ## How do I contribute or report bugs?
 
 - **Contributing:** [Contribution guide](contributing/contribution_guide.mdx) ·

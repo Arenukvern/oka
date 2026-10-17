@@ -81,6 +81,14 @@ dry-run. [Publishing](/guides/publishing) ·
 - `oka run device` — install, launch, log scan (one shot)  
 - `oka dev` — hot reload session (Dart-only changes without rebuild)
 
+## Supervisor (`oka supervisor`)
+
+Declare local services/jobs in plan JSON; **`oka supervisor apply`** runs one
+converge pass; **`check`** compares a committed plan to machine records for CI.
+No background daemon in the shipped rung.
+
+[Supervisor guide](/guides/supervisor)
+
 ## Live update (experimental)
 
 Requires an oka checkout; not on pub.dev. [Live update](/guides/live_update)
