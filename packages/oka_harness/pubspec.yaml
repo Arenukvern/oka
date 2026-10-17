@@ -25,7 +25,7 @@ dependencies:
   oka_android: ^0.7.0 # x-release-please-version
   path: ^1.9.0
   resource_composition: ^0.7.0 # x-release-please-version
-  universal_automation_interface: ^0.2.0
+  universal_automation_interface: ^0.3.0
 dev_dependencies:
   lints: ^6.1.0
   test: ^1.25.0
