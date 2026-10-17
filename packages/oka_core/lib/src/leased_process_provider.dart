@@ -54,6 +54,7 @@ final class LeasedProcessProvider implements ResourceProvider {
     required this.command,
     required this.registry,
     this.kind = 'process',
+    this.runToExit = false,
     this.liveness = const HostProcessLiveness(),
     this.treeProbe = const HostProcessTreeProbe(),
   });
@@ -63,14 +64,16 @@ final class LeasedProcessProvider implements ResourceProvider {
   final ProcessCommand command;
   final ProcessLeaseRegistry registry;
   final String kind;
+
+  /// Jobs complete only after exit zero; cancellation stops the owned tree.
+  /// Services retain the default readiness-return behavior.
+  final bool runToExit;
   final ProcessLiveness liveness;
   final ProcessTreeProbe treeProbe;
 
   @override
-  ProviderCapabilities get capabilities => const ProviderCapabilities(
-        readinessProbe: true,
-        durableIdentity: true,
-      );
+  ProviderCapabilities get capabilities =>
+      const ProviderCapabilities(readinessProbe: true, durableIdentity: true);
 
   @override
   Future<StartReport> start(final StartRequest request) async {
@@ -96,19 +99,36 @@ final class LeasedProcessProvider implements ResourceProvider {
 
     // Record the owned lease immediately (ADR-0018 §1): a crash after this
     // point leaves a reconcilable record, not an invisible orphan.
-    await registry.upsert(
-      ProcessLease(
-        id: leaseId,
-        pid: process.pid,
-        kind: kind,
-        scope: LeaseScope.fromLabel(request.component.lifecycle.scope.name),
-        ownership: LeaseOwnership.owned,
-        ownerCmd: 'resource_composition:${request.component.id}',
-        startedAt: DateTime.now().toUtc(),
-        stopHint: LeaseStopHint(tool: 'kill', args: ['${process.pid}']),
-        identity: {processLeasePidTokenKey: ?identityToken},
-      ),
-    );
+    try {
+      await registry.upsert(
+        ProcessLease(
+          id: leaseId,
+          pid: process.pid,
+          kind: kind,
+          scope: LeaseScope.fromLabel(request.component.lifecycle.scope.name),
+          ownership: LeaseOwnership.owned,
+          ownerCmd: 'resource_composition:${request.component.id}',
+          startedAt: DateTime.now().toUtc(),
+          stopHint: LeaseStopHint(tool: 'kill', args: ['${process.pid}']),
+          identity: {processLeasePidTokenKey: ?identityToken},
+        ),
+      );
+    } on Object catch (error) {
+      // Persistence is part of acquiring a durable managed component. A
+      // failed acquisition must not abandon its already-spawned process.
+      String cleanup;
+      try {
+        cleanup = await _killSpawned(process, identityToken)
+            ? 'owned process teardown verified'
+            : 'owned process teardown unverified; process may remain alive';
+      } on Object catch (cleanupError) {
+        cleanup = 'owned process teardown unverified: $cleanupError';
+      }
+      throw StateError(
+        'lease persistence failed for "$leaseId" (pid ${process.pid}): '
+        '$error; $cleanup',
+      );
+    }
 
     final stdout = _LineBuffer();
     final stderr = _BoundedLog();
@@ -121,6 +141,7 @@ final class LeasedProcessProvider implements ResourceProvider {
     );
     final pumps = _pump(process, request.log, stdout, stderr);
 
+    var serviceReady = false;
     Map<String, Object?> resolved;
     try {
       final readiness = request.component.readiness;
@@ -133,20 +154,43 @@ final class LeasedProcessProvider implements ResourceProvider {
               earlyExit,
               request.cancellation,
             );
+      if (runToExit) {
+        final code = await Future.any<int?>([
+          earlyExit.future,
+          request.cancellation.future.then((_) => null),
+        ]);
+        if (code == null) throw const StartCancelled('leased process job');
+        if (code != 0) throw StateError('job exited with code $code');
+        await _deleteMatchingLease(process.pid, identityToken);
+      } else {
+        serviceReady = true;
+      }
     } on StartCancelled {
-      await _killSpawned(process, identityToken);
-      await registry.delete(leaseId);
+      if (await _killSpawned(process, identityToken)) {
+        await _deleteMatchingLease(process.pid, identityToken);
+      }
       rethrow;
     } on Object catch (error) {
-      await _killSpawned(process, identityToken);
-      await registry.delete(leaseId);
+      if (await _killSpawned(process, identityToken)) {
+        await _deleteMatchingLease(process.pid, identityToken);
+      }
       throw StateError(
         'start of "$leaseId" failed before ready: $error\n'
         'stderr tail:\n${stderr.text}',
       );
     } finally {
-      for (final sub in pumps) {
-        unawaited(sub.cancel());
+      Future<void> closePumps() async {
+        for (final sub in pumps) {
+          await sub.cancel();
+        }
+        await stdout.close();
+      }
+
+      if (serviceReady) {
+        // Readiness ends startup, not the lifetime of a service's pipes.
+        unawaited(earlyExit.future.then((_) => closePumps()));
+      } else {
+        await closePumps();
       }
     }
 
@@ -171,12 +215,30 @@ final class LeasedProcessProvider implements ResourceProvider {
       );
     }
     try {
-      return await liveness.isAlive(ref.pid!)
-          ? const Observation(state: ResourceState.ready)
-          : const Observation(
-              state: ResourceState.stopped,
-              cause: TerminalCause.unknown,
-            );
+      if (!await liveness.isAlive(ref.pid!)) {
+        return const Observation(
+          state: ResourceState.stopped,
+          cause: TerminalCause.unknown,
+        );
+      }
+      final identity = await verifyKillIdentity(
+        liveness,
+        ref.pid!,
+        ref.identityToken,
+      );
+      return switch (identity) {
+        KillIdentity.verified => const Observation(state: ResourceState.ready),
+        KillIdentity.recycled => const Observation(
+          state: ResourceState.stopped,
+          cause: TerminalCause.unknown,
+          message: 'recorded process identity is stale',
+        ),
+        KillIdentity.unknown => const Observation(
+          state: ResourceState.unknown,
+          cause: TerminalCause.unknown,
+          message: 'live PID identity is unverified',
+        ),
+      };
     } on Object {
       return const Observation(
         state: ResourceState.unknown,
@@ -212,7 +274,9 @@ final class LeasedProcessProvider implements ResourceProvider {
       rootIdentityToken: ref.identityToken,
       grace: grace,
     );
-    await registry.delete(leaseId);
+    if (result.stopped) {
+      await _deleteMatchingLease(ref.pid!, ref.identityToken);
+    }
     return StopReport(
       disposition: result.stopped
           ? StopDisposition.stopped
@@ -221,7 +285,7 @@ final class LeasedProcessProvider implements ResourceProvider {
       message: result.stopped
           ? null
           : 'survivors after the ladder: ${result.survivors}; '
-              '${result.notes.join('; ')}',
+                '${result.notes.join('; ')}',
     );
   }
 
@@ -254,29 +318,46 @@ final class LeasedProcessProvider implements ResourceProvider {
     final verdict = await registry.checkLiveness(lease);
     return switch (verdict) {
       LeaseLiveness.live => const Observation(state: ResourceState.ready),
-      LeaseLiveness.deadPid ||
-      LeaseLiveness.reusedPid =>
-        Observation(
-          state: ResourceState.stopped,
-          cause: TerminalCause.unknown,
-          message: 'lease verdict ${verdict.name}; record is stale',
-        ),
-      LeaseLiveness.unknown =>
-        const Observation(
-          state: ResourceState.unknown,
-          cause: TerminalCause.unknown,
-          message: 'identity could not be verified; retained, never signaled',
-        ),
+      LeaseLiveness.deadPid || LeaseLiveness.reusedPid => Observation(
+        state: ResourceState.stopped,
+        cause: TerminalCause.unknown,
+        message: 'lease verdict ${verdict.name}; record is stale',
+      ),
+      LeaseLiveness.unknown => const Observation(
+        state: ResourceState.unknown,
+        cause: TerminalCause.unknown,
+        message: 'identity could not be verified; retained, never signaled',
+      ),
     };
   }
 
-  Future<void> _killSpawned(final Process process, final String? token) async {
-    await stopProcessTree(
+  Future<bool> _killSpawned(final Process process, final String? token) async {
+    if (token == null) {
+      // Never signal a live root without its spawn identity. A dead root
+      // and empty observed subtree need no signals; an unavailable tree
+      // is not proof of teardown.
+      final tree = await treeProbe.enumerate(process.pid);
+      return tree != null &&
+          tree.descendants().isEmpty &&
+          !await liveness.isAlive(process.pid);
+    }
+    final result = await stopProcessTree(
       probe: treeProbe,
       liveness: liveness,
       rootPid: process.pid,
       rootIdentityToken: token,
     );
+    return result.stopped;
+  }
+
+  Future<void> _deleteMatchingLease(int pid, String? token) async {
+    final current = await registry.read(leaseId);
+    if (current != null &&
+        current.ownership == LeaseOwnership.owned &&
+        current.pid == pid &&
+        current.identity[processLeasePidTokenKey] == token) {
+      await registry.delete(leaseId);
+    }
   }
 
   /// Resolves the component's declared readiness (provider-owned probe
@@ -338,17 +419,22 @@ final class LeasedProcessProvider implements ResourceProvider {
           describe: 'tcp ${tcp.host}:${tcp.port}',
         );
         return const <String, Object?>{};
+      case final ArtifactFresh artifact:
+        // Presence is the start-time probe; source-vs-artifact staleness is
+        // an observe/apply concern (rebuild), not a hang on spawn.
+        await _waitFor(
+          earlyExit,
+          cancellation,
+          stderr,
+          until: () async => File(artifact.artifactPath).existsSync(),
+          describe: 'artifact ${artifact.artifactPath}',
+        );
+        return const <String, Object?>{};
       case ReadinessAll(:final conditions):
         final merged = <String, Object?>{};
         for (final condition in conditions) {
           merged.addAll(
-            await _resolve(
-              condition,
-              stdout,
-              stderr,
-              earlyExit,
-              cancellation,
-            ),
+            await _resolve(condition, stdout, stderr, earlyExit, cancellation),
           );
         }
         return merged;
@@ -392,8 +478,9 @@ final class LeasedProcessProvider implements ResourceProvider {
     while (true) {
       if (await until()) return;
       final result = await Future.any<Object?>([
-        Future<void>.delayed(const Duration(milliseconds: 100))
-            .then((_) => 'tick'),
+        Future<void>.delayed(
+          const Duration(milliseconds: 100),
+        ).then((_) => 'tick'),
         earlyExit.future,
         cancellation.future,
       ]);
@@ -416,23 +503,23 @@ List<StreamSubscription<String>> _pump(
   final _LineBuffer stdout,
   final _BoundedLog stderr,
 ) {
-  // Cancelled by the caller once readiness resolved (or failed).
+  // Startup failures/jobs close these; ready services drain until exit.
   // ignore: cancel_subscriptions
   final stdoutSub = process.stdout
       .transform(utf8.decoder)
       .transform(const LineSplitter())
       .listen((final line) {
-    stdout.add(line);
-    log?.add(line);
-  });
+        stdout.add(line);
+        log?.add(line);
+      });
   // ignore: cancel_subscriptions
   final stderrSub = process.stderr
       .transform(utf8.decoder)
       .transform(const LineSplitter())
       .listen((final line) {
-    stderr.add(line);
-    log?.add(line);
-  });
+        stderr.add(line);
+        log?.add(line);
+      });
   return <StreamSubscription<String>>[stdoutSub, stderrSub];
 }
 
@@ -443,6 +530,7 @@ final class _LineBuffer {
   final _stream = StreamController<String>.broadcast();
 
   Stream<String> get stream => _stream.stream;
+  Future<void> close() => _stream.close();
 
   void add(final String line) {
     _buffer.add(line);

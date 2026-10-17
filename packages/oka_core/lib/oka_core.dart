@@ -85,6 +85,7 @@ export 'src/credentials/credential_ref.dart';
 export 'src/credentials/repo_hygiene.dart';
 export 'src/credentials/secret_audit.dart';
 export 'src/delivery_verification.dart';
+export 'src/directory_process_lock.dart';
 export 'src/leased_process_provider.dart';
 export 'src/oka_run.dart';
 export 'src/pipeline/pipeline.dart';

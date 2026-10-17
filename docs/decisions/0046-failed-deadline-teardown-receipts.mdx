@@ -1,0 +1,56 @@
+---
+title: "ADR 0046: Failed deadline teardown receipts"
+---
+
+Status: Accepted for the `oka_core` command-scoped process seam.
+Date: 2026-10-14
+North Star impact: applies; failure completion within ADRs 0018 and 0026,
+without changing signal authority or managed lease retention.
+
+A real owned `sleep` reproduction with unavailable process-tree discovery
+returned `TreeStopResult(stopped: false)` but `runBoundedProcess` still waited
+for root exit. The caller never received the known failure. Killing without
+discovery would violate ownership policy; waiting forever conceals the failure.
+
+When deadline teardown completes unsuccessfully, finish the bounded-run result
+even if root exit is not observed. Preserve the legacy deadline cause (a stop
+request, not verified death), expose `rootExitObserved` and `rootIdentityToken`,
+use exitCode -1 when no exit was observed, and include the unresolved root in
+survivors. `teardownVerified: false` and failure detail remain mandatory.
+Successful teardown still awaits root exit; root exit alone still awaits tree
+checking.
+
+Keep bounded output draining until an unresolved root exits. Canceling its
+output subscriptions at refusal made a real writing fixture exit; closing a
+live pipe is an unintended effect, not an authorized tree stop. The returned
+capture remains bounded. Keeping this drainage may keep a standalone Dart
+runner alive while recovery remains unresolved; no detached-runtime claim is
+made.
+
+The high-level runner preserves TimeoutException but reports unverified cleanup,
+root identity and known survivors instead of claiming a kill or empty tree.
+Callers needing recovery must retain the result/diagnostic and use existing
+identity-gated cleanup or managed leases. This receipt grants no extra signal
+authority and is not crash-safe managed recovery.
+
+This bounds completion after a returned teardown failure. It does not establish
+a hard bound for a platform probe that never completes, spawn/lease atomic
+recovery, or discovery of descendants detached before the initial snapshot.
+The regression owns and separately reaps its real fixture child; production
+does not bypass the discovery refusal.
+
+2026-10-14 follow-up: two real owned-child regressions also stalled initial
+identity and subtree reads indefinitely. Add a configurable `observationBudget`
+(default two seconds) shared by direct read-only observations in each tree stop.
+Spend it only while awaiting reads, excluding grace waits and mutating adapter
+calls. Budget exhaustion returns unverified survivors, never a delayed signal.
+Startup identity capture uses the lesser of that budget and the remaining run
+deadline; its elapsed time is subtracted before scheduling deadline teardown.
+Without a captured startup identity, refuse deadline signals rather than
+recapturing a possibly different root at stop time.
+
+Timeout does not cancel an injected future or its resources. A late read can
+complete but cannot resume the timed-out stop or confer authority. Mutating
+`kill` adapters remain awaited: timing them out would allow effects after a
+returned receipt. Platform spawn, kill-adapter completion and adapter-owned
+probe subprocess cleanup do not acquire a hard completion guarantee here.

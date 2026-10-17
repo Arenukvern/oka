@@ -19,6 +19,7 @@ library;
 import 'dart:io';
 
 import 'process_liveness.dart';
+import 'process_observation_budget.dart';
 
 /// One discovered process: pid, parent pid, and an optional command
 /// fragment kept for diagnostics only.
@@ -166,7 +167,8 @@ Get-CimInstance -ClassName Win32_Process | ForEach-Object {
 ''';
 
 /// Result of a tree stop. [survivors] lists pids still alive after the
-/// ladder — empty means verified dead, never assumed.
+/// ladder or whose liveness is unverified. Only [stopped] establishes
+/// verified teardown; an empty list can accompany unknown discovery.
 final class TreeStopResult {
   const TreeStopResult({
     required this.stopped,
@@ -174,7 +176,7 @@ final class TreeStopResult {
     this.notes = const <String>[],
   });
 
-  /// True when [survivors] is empty after the final verification round.
+  /// True only when discovery and liveness verify no remaining processes.
   final bool stopped;
   final List<int> survivors;
   final List<String> notes;
@@ -189,7 +191,42 @@ final class TreeStopResult {
 /// signal (see the library docs), signaled SIGTERM in one pass, then
 /// re-enumerated after [grace]; survivors get the full [ProcessLiveness.kill]
 /// ladder for [forceRounds] rounds, then a final verification.
+/// [observationBudget] bounds aggregate direct read awaits; it excludes grace
+/// waits and mutating kill adapters. Late read completion cannot resume a stop.
 Future<TreeStopResult> stopProcessTree({
+  required final ProcessTreeProbe probe,
+  required final ProcessLiveness liveness,
+  required final int rootPid,
+  final String? rootIdentityToken,
+  final Duration grace = const Duration(seconds: 3),
+  final Duration settle = const Duration(milliseconds: 250),
+  final int forceRounds = 2,
+  final Duration observationBudget = const Duration(seconds: 2),
+}) async {
+  final budget = ProcessObservationBudget(observationBudget);
+  final tracked = <int>{if (rootPid > 0) rootPid};
+  try {
+    return await _stopProcessTree(
+      probe: _ObservedTreeProbe(probe, budget, tracked),
+      liveness: _ObservedLiveness(liveness, budget),
+      rootPid: rootPid,
+      rootIdentityToken: rootIdentityToken,
+      grace: grace,
+      settle: settle,
+      forceRounds: forceRounds,
+    );
+  } on ProcessObservationTimeout catch (error) {
+    return TreeStopResult(
+      stopped: false,
+      survivors: tracked.toList(),
+      notes: [
+        'process observation budget exhausted; survivors unknown: $error',
+      ],
+    );
+  }
+}
+
+Future<TreeStopResult> _stopProcessTree({
   required final ProcessTreeProbe probe,
   required final ProcessLiveness liveness,
   required final int rootPid,
@@ -212,48 +249,76 @@ Future<TreeStopResult> stopProcessTree({
   final tree = await probe.enumerate(rootPid);
   if (tree == null) {
     notes.add('process table unavailable; survivors unknown');
-    return TreeStopResult(stopped: false, survivors: const <int>[], notes: notes);
+    return TreeStopResult(
+      stopped: false,
+      survivors: const <int>[],
+      notes: notes,
+    );
   }
   final descendants = tree.descendants();
 
-  // Root first so it cannot spawn more children while we work downward.
-  if (await liveness.isAlive(rootPid)) {
-    if (rootIdentityToken != null) {
-      final verdict = await verifyKillIdentity(
-        liveness,
-        rootPid,
-        rootIdentityToken,
-      );
-      if (verdict != KillIdentity.verified) {
-        notes.add(
-          'root identity $verdict; refused to signal (report-never-guess)',
-        );
-        return TreeStopResult(
-          stopped: false,
-          survivors: <int>[rootPid, ...descendants],
-          notes: notes,
-        );
-      }
+  // Freeze identity before parents die and descendants reparent. The
+  // original set remains part of every verification sweep.
+  final identities = <int, String?>{};
+  for (final pid in [rootPid, ...descendants]) {
+    try {
+      identities[pid] = pid == rootPid && rootIdentityToken != null
+          ? rootIdentityToken
+          : await liveness.identityToken(pid);
+    } on Object {
+      identities[pid] = null;
     }
-    await liveness.kill(rootPid, grace: grace);
+  }
+  if (await liveness.isAlive(rootPid)) {
+    final verdict = await verifyKillIdentity(
+      liveness,
+      rootPid,
+      identities[rootPid],
+    );
+    if (verdict != KillIdentity.verified) {
+      notes.add(
+        'root identity $verdict; refused to signal (report-never-guess)',
+      );
+      return TreeStopResult(
+        stopped: false,
+        survivors: [rootPid, ...descendants],
+        notes: notes,
+      );
+    }
   }
 
-  // One SIGTERM pass over the discovered descendants, shallowest-first.
-  for (final pid in descendants) {
-    if (await liveness.isAlive(pid)) {
-      Process.killPid(pid);
+  Future<void> signal(int pid) async {
+    if (!await liveness.isAlive(pid)) return;
+    final verdict = await verifyKillIdentity(liveness, pid, identities[pid]);
+    if (verdict != KillIdentity.verified) {
+      notes.add('pid $pid identity $verdict; refused to signal');
+      return;
     }
+    await liveness.kill(pid, grace: grace);
+  }
+
+  // Stop only the identity-bound processes from the pre-signal snapshot.
+  await signal(rootPid);
+  for (final pid in descendants) {
+    await signal(pid);
   }
   await Future<void>.delayed(grace);
 
-  var survivors = await _remaining(probe, liveness, rootPid);
-  for (var round = 0; round < forceRounds && survivors.isNotEmpty; round++) {
+  var survivors = await _remaining(probe, liveness, rootPid, identities.keys);
+  for (
+    var round = 0;
+    round < forceRounds && survivors != null && survivors.isNotEmpty;
+    round++
+  ) {
     for (final pid in survivors) {
-      // Full ladder per survivor: SIGTERM → grace → SIGKILL internally.
-      await liveness.kill(pid, grace: grace);
+      await signal(pid);
     }
     await Future<void>.delayed(settle);
-    survivors = await _remaining(probe, liveness, rootPid);
+    survivors = await _remaining(probe, liveness, rootPid, identities.keys);
+  }
+  if (survivors == null) {
+    notes.add('process table unavailable after signals; survivors unknown');
+    return TreeStopResult(stopped: false, survivors: const [], notes: notes);
   }
   if (survivors.isNotEmpty) {
     notes.add('${survivors.length} survivor(s) after the force ladder');
@@ -265,17 +330,45 @@ Future<TreeStopResult> stopProcessTree({
   );
 }
 
+final class _ObservedTreeProbe implements ProcessTreeProbe {
+  _ObservedTreeProbe(this.delegate, this.budget, this.tracked);
+  final ProcessTreeProbe delegate;
+  final ProcessObservationBudget budget;
+  final Set<int> tracked;
+  @override
+  Future<ProcessTree?> enumerate(int rootPid) async {
+    final tree = await budget.read(() => delegate.enumerate(rootPid));
+    if (tree != null) tracked.addAll(tree.descendants());
+    return tree;
+  }
+}
+
+final class _ObservedLiveness implements ProcessLiveness {
+  _ObservedLiveness(this.delegate, this.budget);
+  final ProcessLiveness delegate;
+  final ProcessObservationBudget budget;
+  @override
+  Future<bool> isAlive(int pid) => budget.read(() => delegate.isAlive(pid));
+  @override
+  Future<String?> identityToken(int pid) =>
+      budget.read(() => delegate.identityToken(pid));
+  @override
+  Future<bool> kill(int pid, {Duration grace = const Duration(seconds: 3)}) =>
+      delegate.kill(pid, grace: grace); // Mutations are never timed out.
+}
+
 /// Liveness sweep over the root and its currently-discoverable subtree. An
 /// unprobeable pid counts as a survivor: report-never-guess (ADR-0018).
-Future<List<int>> _remaining(
+Future<List<int>?> _remaining(
   ProcessTreeProbe probe,
   ProcessLiveness liveness,
   int rootPid,
+  Iterable<int> trackedPids,
 ) async {
   final tree = await probe.enumerate(rootPid);
-  if (tree == null) return const <int>[];
+  if (tree == null) return null;
   final alive = <int>[];
-  for (final pid in <int>[rootPid, ...tree.descendants()]) {
+  for (final pid in <int>{rootPid, ...trackedPids, ...tree.descendants()}) {
     try {
       if (await liveness.isAlive(pid)) alive.add(pid);
     } on Object {

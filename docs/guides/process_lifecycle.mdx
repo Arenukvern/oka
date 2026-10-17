@@ -25,7 +25,8 @@ reality.
 - **Ownership** — `owned` (the last run spawned it) vs `borrowed`
   (idempotent reuse found it running). **Teardown stops only owned
   leases.** Killing a borrowed session would break whatever terminal
-  owns it.
+  owns it. Chrome page reuse preserves any existing owner lease unchanged;
+  the borrower receives no PID artifact and closes only its created page.
 - **Identity over pid** — every stop verifies the process is still the
   one the lease recorded (start-time token). A recycled pid is never
   signaled — that pid belongs to an innocent process now.
@@ -99,6 +100,35 @@ Rules for teardown steps:
   are forbidden (pid recycling).
 
 ## For agents: inspect and control from the CLI
+
+`LeasedProcessProvider` keeps a ready service's output pipes drained until exit.
+It removes a lease only after verified termination and only while the lease still
+matches that process's PID and identity token. Successful job completion uses the
+same check, so an older job cannot remove a replacement lease. Inspection reports
+an unverifiable live PID as unknown rather than ready.
+
+For a reproducible supervisor service lifecycle run with retained JSONL facts:
+
+```bash
+cd packages/oka_supervisor
+dart run tool/service_lifecycle_dogfood.dart output/new-service-trial
+```
+
+The directory must be new. The run verifies read-only observation, one restart
+after a real service failure, owned teardown and restart-budget exhaustion. It
+does not test recovery after the supervisor runner itself crashes.
+
+The separate POSIX host-crash trial kills an identity-verified runner and starts
+a fresh runner against its retained registry. It checks that the service survives,
+is first observed without replacement, then follows the same failure/restart/stop
+sequence:
+
+```bash
+dart run tool/host_crash_dogfood.dart output/new-host-crash-trial
+```
+
+This qualifies one single-process Dart service. Detached browser children, profile
+cleanup and crashes during spawn or readiness require separate evidence.
 
 No new protocol — the CLI verbs are the intent surface, and `--json`
 emits the standard pipeline-events envelope.
@@ -260,3 +290,51 @@ Everything else — discovery (`oka processes`), stopping
 - Emulator wiring: `packages/oka_android/lib/src/dev/emulator_target.dart`
 - Browser wiring: `packages/oka_web/lib/src/session/chrome_session_target.dart`
 - Design law: [ADR-0018](/decisions/0018-process-lifecycle-leases)
+
+`LeasedProcessProvider` treats lease persistence as part of acquiring a durable
+managed component. If persistence fails after spawn, it uses the existing
+identity-checked process-tree teardown and reports both the persistence failure
+and the cleanup outcome. A live process without a captured identity is retained
+and reported as unverified. This differs from advisory build-step lease logging;
+it does not establish recovery from a runner killed before the lease is written.
+
+Tree teardown retains the descendants and identities observed before signaling,
+so parent exit does not erase reparented children from later checks. Each further
+signal is identity-checked; replacement PIDs are refused. If the process table
+becomes unavailable after signaling, teardown remains unknown and managed leases
+are retained. `runBoundedProcess` awaits this verification independently of root
+exit. For deadline runs, inspect `teardownVerified` and `errorMessage`; an empty
+`survivors` list alone is not proof of cleanup.
+
+If deadline teardown returns failure while the root remains unresolved,
+`runBoundedProcess` returns that failure instead of waiting for the live root.
+Retain `rootPid`, `rootIdentityToken`, `rootExitObserved` and cleanup details for
+identity-gated recovery. When `rootExitObserved` is false, exitCode -1 is a
+sentinel, not an observed signal. `SystemProcessRunner` preserves TimeoutException
+and includes this diagnostic rather than claiming a kill or zero survivors.
+Output keeps draining within its capture bound until the unresolved root exits;
+closing a live writer's pipe must not substitute for an authorized stop. This may
+keep a standalone runner alive until recovery completes.
+The receipt alone does not provide crash-safe lease recovery. Direct readonly
+waits now use the budget below; see
+[ADR-0046](/decisions/0046-failed-deadline-teardown-receipts).
+
+Direct readonly observations now share a configurable `observationBudget` in
+each `stopProcessTree` call (default two seconds). `runBoundedProcess` and
+`SystemProcessRunner` expose the same option. The budget counts waiting for
+discovery/liveness/identity reads, excluding grace and mutating adapter time.
+Startup identity capture is bounded by the lesser of that budget and the
+remaining run deadline; elapsed capture time is subtracted from deadline setup.
+Without a startup identity, deadline signals refuse instead of adopting a new
+identity at stop time. Exhaustion retains unverified root/descendant evidence.
+
+```dart
+const runner = SystemProcessRunner(
+  observationBudget: Duration(seconds: 5),
+);
+```
+
+Timing out an await does not cancel an injected read or its resources; the
+adapter owns those. A late result cannot resume the expired stop. Kill adapters
+remain awaited to avoid effects after a returned receipt. Platform spawn and
+mutating-adapter completion remain outside a total runtime guarantee.

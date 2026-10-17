@@ -1,3 +1,34 @@
+## Unreleased
+
+- Bound aggregate direct process observations with configurable
+  `observationBudget` (default two seconds); count startup identity time against
+  the run deadline and refuse signals when startup identity is unavailable.
+  Late readonly results cannot resume an expired stop; kill adapters remain
+  awaited and adapter resource cleanup remains their responsibility.
+
+- Return failed deadline teardown receipts while a root remains unresolved,
+  preserving its captured identity and explicit `rootExitObserved`; avoid
+  waiting indefinitely after returned discovery failure. Timeout diagnostics
+  distinguish verified cleanup from unverified survivors (ADR-0046).
+  Keep bounded output draining until unresolved root exit so closing a live
+  writer's pipe cannot become an accidental termination path. Expose the
+  existing process platform seams on `SystemProcessRunner` for composition.
+
+- Retain pre-signal descendants across reparenting; bind each teardown signal
+  to its captured identity, and report post-signal discovery loss as unknown.
+- Await deadline tree teardown in `runBoundedProcess` after root exit; expose
+  `teardownVerified` and unverified cleanup details instead of a premature
+  empty-survivor result.
+
+- Stop a newly spawned managed process when its lease cannot be persisted;
+  report the original persistence error and whether teardown was verified.
+  Refuse startup-failure signals when the live root has no captured identity.
+
+- Add explicit `LeasedProcessProvider.runToExit` for job completion: await exit zero,
+  fail nonzero exits, and stop the owned tree on cancellation.
+- Keep ready service output drained until process exit; retain leases after an
+  unverified stop and protect replacement leases from stale cleanup. Inspection
+  now distinguishes matching, recycled and unverifiable process identities.
 ## 0.7.0
 
 ### Changed
