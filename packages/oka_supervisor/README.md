@@ -82,3 +82,39 @@ cd packages/oka_supervisor && dart run example/supervise_demo.dart
 Dev tip: the test suite contains a real-process end-to-end
 (`converge_real_process_test.dart`) — a `/bin/sh` service converging to
 ready and a crashing command climbing the ladder to `giveUp`.
+
+Codemap index lifecycle ([ADR-0045](../../docs/decisions/0045-codemap-index-worker-supervision.mdx))
+is an explicit native worker recipe, separate from read-only lane projection:
+
+```dart
+final recipe = CodemapIndexRecipe(
+  executable: '/path/to/codemap-mcp',
+  projectRoot: '/path/to/project',
+  scope: {'exts': ['.py', '.dart'], 'ignore_prefixes': ['build/']},
+);
+final provider = recipe.provider();
+final report = await Supervisor(projectRoot: recipe.projectRoot).converge(
+  desired: recipe.desired,
+  factory: (_) => provider,
+);
+```
+
+The handshake means observation established. Inspect `provider.health(ref)`
+for semantic `ready | pending | blocked | unknown`; pending/blocked inputs never
+request process restarts. Receipt identity and heartbeat are checked before
+trusting revision claims. Native Codemap owns scope, invalidation and refresh;
+Oka owns process leases and existing restart budgets. Desired state includes the
+resolved executable target and SHA-256 of its bytes; evaluate `recipe.desired`
+on every convergence pass. Atomic replacement causes an owned revision restart
+using existing budget-reset policy; it grants no rights over foreign processes.
+The finite runner reevaluates both desired identity and provider every pass.
+
+Explicit finite convergence runner:
+
+```bash
+dart run tool/codemap_index.dart --root /path/to/project \
+  --executable /path/to/codemap-mcp --passes 30 --interval-ms 1000
+```
+
+`--stop` requests teardown through the recorded owned lease. Scheduling another
+finite run is caller-owned; this tool does not authorize the resident rung.

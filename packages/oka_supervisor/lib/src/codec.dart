@@ -277,6 +277,34 @@ final class SpecCodec {
           );
         }
         return TcpConnect(host, port, budget: budget);
+      case 'artifactFresh':
+        final artifactPath = value['artifactPath'];
+        final sourceRoots = value['sourceRoots'];
+        final extensions = value['extensions'];
+        if (artifactPath is! String || artifactPath.isEmpty) {
+          throw SpecFormatException(
+            '$at: artifactFresh needs a non-empty "artifactPath" string',
+          );
+        }
+        if (sourceRoots is! List || sourceRoots.isEmpty) {
+          throw SpecFormatException(
+            '$at: artifactFresh needs a non-empty "sourceRoots" array',
+          );
+        }
+        return ArtifactFresh(
+          artifactPath: artifactPath,
+          sourceRoots: [
+            for (final root in sourceRoots)
+              if (root is String) root,
+          ],
+          extensions: extensions is List
+              ? [
+                  for (final ext in extensions)
+                    if (ext is String) ext,
+                ]
+              : const <String>['dart'],
+          budget: budget,
+        );
       case 'readinessAll':
         final conditions = value['all'];
         if (conditions is! List<Object?> || conditions.isEmpty) {
@@ -432,6 +460,18 @@ final class SpecCodec {
           'kind': 'tcpConnect',
           'host': host,
           'port': port,
+          if (budget != null) 'budgetMs': budget.inMilliseconds,
+        },
+        ArtifactFresh(
+          :final artifactPath,
+          :final sourceRoots,
+          :final extensions,
+          :final budget,
+        ) => {
+          'kind': 'artifactFresh',
+          'artifactPath': artifactPath,
+          'sourceRoots': List<String>.of(sourceRoots),
+          'extensions': List<String>.of(extensions),
           if (budget != null) 'budgetMs': budget.inMilliseconds,
         },
         ReadinessAll(:final conditions, :final budget) => {

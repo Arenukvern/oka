@@ -128,7 +128,7 @@ final class SupervisorCommand {
         'oka supervisor apply <plan.json> [--dry-run] [--project <dir>] '
         '[--registry-root <dir>] [--evidence <file>]\n'
         'The process provider reads each spec env: "command" (executable) '
-        'and optional "args" (space-split).\n'
+        'and optional "args-json" (JSON string array) or legacy "args" (space-split).\n'
         '${parser.usage}',
       );
       return;
@@ -216,6 +216,11 @@ final class SupervisorCommand {
       if ((spec.env['command'] ?? '').isEmpty) {
         return 'spec "${spec.id}": provider "$_processProviderName" needs '
             'env["command"] (the executable to run)';
+      }
+      try {
+        _ProcessProviderRouter._commandArgs(spec.env);
+      } on FormatException catch (error) {
+        return 'spec "${spec.id}": ${error.message}';
       }
     }
     return null;
@@ -385,13 +390,32 @@ final class _ProcessProviderRouter implements ResourceProvider {
          for (final spec in desired.specs)
            spec.id: LeasedProcessProvider(
              leaseId: spec.id,
+             runToExit: spec.policy.shape == SupervisionShape.job,
              command: ProcessCommand(
                spec.env[_commandEnvKey]!,
-               _splitArgs(spec.env[_argsEnvKey]),
+               _commandArgs(spec.env),
              ),
              registry: ProcessLeaseRegistry.forProject(projectRoot),
            ),
        };
+
+  static List<String> _commandArgs(Map<String, String> env) {
+    final encoded = env['args-json'];
+    if (encoded == null) return _splitArgs(env[_argsEnvKey]);
+    if (env.containsKey(_argsEnvKey)) {
+      throw const FormatException('use args-json or args, not both');
+    }
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(encoded);
+    } on FormatException {
+      throw const FormatException('args-json must be a JSON array of strings');
+    }
+    if (decoded is! List || decoded.any((value) => value is! String)) {
+      throw const FormatException('args-json must be a JSON array of strings');
+    }
+    return decoded.cast<String>();
+  }
 
   static const _commandEnvKey = 'command';
   static const _argsEnvKey = 'args';

@@ -1,0 +1,50 @@
+# 0045 — Codemap index worker supervision
+
+**Status**: accepted · **Date**: 2026-10-13 · **Related**: ADR-0040, ADR-0041, ADR-0042
+
+## Context
+
+Read-only lane projection does not own a Codemap index worker. Codemap owns
+source observation, revision reconciliation and graph publication. Oka already
+owns leased processes and budgeted convergence; duplicating either mechanism
+would introduce competing authorities.
+
+## Decision
+
+`CodemapIndexRecipe` declares one explicitly requested native Codemap worker.
+`CodemapIndexProvider` delegates spawn, identity and stop to
+`LeasedProcessProvider`; it consumes Codemap's atomic structured receipt for
+semantic health. The provider's handshake proves observation established, not
+index currentness. Pending and blocked indexing remain live and visible and
+never become restart requests. Missing, stale, malformed or foreign receipts
+are unknown observations and grant no signal authority. Process death follows
+the existing bounded restart policy.
+
+The receipt binds canonical root and worker PID, reports UTC heartbeat,
+observed/published revisions and sequences, generation, pending age, coverage,
+watcher continuity and blockers. A ready assertion requires matching nonempty
+revisions and no dirty paths. Oka does not interpret graph semantics or widen
+Codemap's declared support profile.
+
+An explicit finite-pass runner offers recurring convergence for a caller-chosen
+number of passes. It does not authorize a resident Oka daemon or supersede
+ADR-0042. Leased workers can outlive the runner; `--stop` performs owned teardown.
+Read-only lane projection retains its existing contract.
+
+The desired revision binds the resolved executable target and SHA-256 of its
+current bytes as well as arguments and scope. Each convergence pass rereads this
+identity; an atomic binary replacement or symlink retarget is declaration drift
+and follows existing budget-reset/restart policy. This adds no process authority:
+foreign records remain observe-only. Missing executable bytes refuse desired
+state construction; teardown through an explicit recorded executable path can
+still proceed. The read-to-spawn window can race a deployment, so the next pass
+reconciles again rather than claiming atomic deployment or loaded-version proof.
+
+## Evidence
+
+Behavior owner: `packages/oka_supervisor/lib/src/codemap_index.dart`.
+Tests: `packages/oka_supervisor/test/codemap_index_test.dart` include a genuine
+spawned receipt-producing process, semantic blocked/pending observations,
+corrupt/foreign/stale receipts, death, restart and owned teardown. Actual native
+Codemap integration must additionally be run against its built worker; a
+fixture process does not prove Codemap reconciliation behavior.

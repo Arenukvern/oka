@@ -26,8 +26,8 @@ dependencies:
   crypto: ^3.0.3
   path: ^1.9.0
   resource_composition: ^0.7.0 # x-release-please-version
+  oka_core: ^0.7.0 # x-release-please-version
 
 dev_dependencies:
   lints: ^6.1.0
-  oka_core: ^0.7.0 # x-release-please-version
   test: ^1.25.0

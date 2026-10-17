@@ -248,3 +248,26 @@ stdout/stderr for policy · remote multi-machine actuation without ADR-0042.
 | Status projection | `packages/oka_supervisor/lib/src/status.dart` |
 | Real-process test | `packages/oka_supervisor/test/converge_real_process_test.dart` |
 | Agent skill (maintenance) | `skills/oka-supervisor/SKILL.md` |
+
+## Codemap index worker
+
+[ADR-0045](../decisions/0045-codemap-index-worker-supervision.mdx) adds an explicit
+native worker recipe, independent of read-only command-lane projection.
+`CodemapIndexRecipe` and `CodemapIndexProvider` compose leased process mechanics
+with Codemap's revision receipt. The [package manual](../../packages/oka_supervisor/README.md)
+contains the API and finite-pass recipe.
+
+A live worker may report pending or blocked index health. These states retain
+the worker and expose the blocker; they do not consume restart budget.
+Unverifiable receipts stay unknown. Verified process death or explicit
+configuration change follows normal lifecycle convergence. This does not
+supersede the gated resident-supervisor decision.
+
+### Argument and job-completion qualification
+
+Use `env["args-json"]` with a JSON string array for exact argv, including paths with
+spaces and literal quotes or dollar signs. Legacy `args` remains space-split; declaring
+both is refused before effects. No shell expansion is performed. CLI job providers
+now use `LeasedProcessProvider(runToExit: true)`: returned start means exit zero,
+not merely a spawned or ready child. Nonzero exit and cancellation fail the job.
+Typed consumers must select run-to-exit behavior for jobs as well.

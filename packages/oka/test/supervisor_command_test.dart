@@ -55,6 +55,121 @@ void main() {
     ],
   };
 
+  test('real nonzero job must never be recorded as succeeded', () async {
+    final plan = writePlan({
+      'version': 1,
+      'specs': [
+        {
+          'id': 'failure-job',
+          'provider': 'process',
+          'shape': 'job',
+          'env': {'command': '/usr/bin/false'},
+        },
+      ],
+    });
+    await command().run([
+      'apply',
+      plan.path,
+      '--project',
+      project,
+      '--registry-root',
+      registryRoot,
+    ]);
+    expect(exitCodes, [1]);
+    final registry = MachineRegistry(root: registryRoot);
+    expect(
+      registry.read(registry.scopeFor(project), 'failure-job')!.lastRun,
+      'failed',
+    );
+  });
+
+  test(
+    'process args-json preserves a real path with spaces and literal syntax',
+    () async {
+      final target = p.join(project, r'argv with spaces $literal "quote".txt');
+      final plan = writePlan({
+        'version': 1,
+        'specs': [
+          {
+            'id': 'argv-job',
+            'provider': 'process',
+            'shape': 'job',
+            'env': {
+              'command': '/usr/bin/touch',
+              'args-json': jsonEncode([target]),
+            },
+          },
+        ],
+      });
+      await command().run([
+        'apply',
+        plan.path,
+        '--project',
+        project,
+        '--registry-root',
+        registryRoot,
+      ]);
+      expect(errors, isEmpty);
+      expect(exitCodes, isEmpty);
+      expect(File(target).existsSync(), isTrue);
+    },
+  );
+
+  for (final encoded in ['{', '{}', '[1]', '["ok",null]']) {
+    test('malformed args-json $encoded refuses before effects', () async {
+      final plan = writePlan({
+        'version': 1,
+        'specs': [
+          {
+            'id': 'bad-argv',
+            'provider': 'process',
+            'shape': 'job',
+            'env': {'command': '/usr/bin/true', 'args-json': encoded},
+          },
+        ],
+      });
+      await command().run([
+        'apply',
+        plan.path,
+        '--project',
+        project,
+        '--registry-root',
+        registryRoot,
+      ]);
+      expect(exitCodes, [1]);
+      expect(
+        errors.join(' '),
+        contains('args-json must be a JSON array of strings'),
+      );
+      expect(Directory(registryRoot).existsSync(), isFalse);
+    });
+  }
+
+  test('ambiguous legacy and JSON args refuse before effects', () async {
+    final plan = writePlan({
+      'version': 1,
+      'specs': [
+        {
+          'id': 'bad-argv',
+          'provider': 'process',
+          'shape': 'job',
+          'env': {'command': '/usr/bin/true', 'args': 'x', 'args-json': '[]'},
+        },
+      ],
+    });
+    await command().run([
+      'apply',
+      plan.path,
+      '--project',
+      project,
+      '--registry-root',
+      registryRoot,
+    ]);
+    expect(exitCodes, [1]);
+    expect(errors.join(' '), contains('use args-json or args, not both'));
+    expect(Directory(registryRoot).existsSync(), isFalse);
+  });
+
   test(
     'status with no records prints the no-records line and exits 0',
     () async {

@@ -273,31 +273,36 @@ void _planOne({
     return;
   }
 
+  // Declaration drift also supersedes a still-starting/blocked service;
+  // the old computer may never become ready without its deployed fix.
+  if (drift &&
+      (obs.state == ResourceState.ready ||
+          obs.state == ResourceState.starting)) {
+    if (owned) {
+      actions.add(SupervisorAction(
+        kind: SupervisorActionKind.restart,
+        componentId: spec.id,
+        reason: 'declaration changed',
+      ));
+    } else {
+      findings.add(SupervisorFinding(
+        code: 'driftedUnowned',
+        componentId: spec.id,
+        message: 'declaration changed but the process is unowned; '
+            'observe-only',
+      ));
+    }
+    return;
+  }
+
   switch (obs.state) {
     case ResourceState.starting:
       findings.add(SupervisorFinding(
         code: 'waiting',
         componentId: spec.id,
-        message: 'still starting',
+        message: obs.message ?? 'still starting',
       ));
     case ResourceState.ready:
-      if (drift) {
-        if (owned) {
-          actions.add(SupervisorAction(
-            kind: SupervisorActionKind.restart,
-            componentId: spec.id,
-            reason: 'declaration changed',
-          ));
-        } else {
-          findings.add(SupervisorFinding(
-            code: 'driftedUnowned',
-            componentId: spec.id,
-            message: 'declaration changed but the process is unowned; '
-                'observe-only',
-          ));
-        }
-        return;
-      }
       findings.add(SupervisorFinding(
         code: 'ready',
         componentId: spec.id,
