@@ -4,6 +4,30 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.8.0](https://github.com/Arenukvern/oka/compare/v0.7.0...v0.8.0) (2026-10-17)
+
+
+### Features
+
+* **dev:** composable dev browser and watch inputs (ADR 0044) ([929bc02](https://github.com/Arenukvern/oka/commit/929bc026992dc203dc45126678cd18dbd6f6d24f))
+* **oka_core:** failed deadline teardown receipts + process observation budget (ADR 0046) ([d95cf89](https://github.com/Arenukvern/oka/commit/d95cf892e2826be36ed96964e8d21a42cb2ba2af))
+* **resource_composition:** ArtifactFresh readiness — artifact-vs-sources freshness ([fc0337f](https://github.com/Arenukvern/oka/commit/fc0337fcf96315a3e22ecd49fcac28740960e5d5))
+* **supervisor:** codemap index worker supervision (ADR 0045) ([268eeb2](https://github.com/Arenukvern/oka/commit/268eeb2be415bf87f6c6f0fdd1956abc1b482cea))
+* **tool:** native preview probes — native launch + window capture (Swift) ([45dd283](https://github.com/Arenukvern/oka/commit/45dd283fc9a6aa6e7eced5c781e90051c9285ff0))
+
+
+### Bug Fixes
+
+* Dart 3.13 — SDK floors ^3.13.0, drop extraneous final parameter modifiers ([3f06123](https://github.com/Arenukvern/oka/commit/3f0612310478c288cd8f9f7396538359746486e6))
+* **dev:** align oka_dart_kernel workspace constraints with the 0.7.0 train ([d06ded0](https://github.com/Arenukvern/oka/commit/d06ded071d6726d956d1afa8005e867585093672))
+* green local gates — analyzer infos and maintainer paths ([adc248a](https://github.com/Arenukvern/oka/commit/adc248a170ab50d1df7226bd1ed73baac0282a7c))
+* widen universal_automation_interface to ^0.3.0 in oka_harness/oka_update ([d54d123](https://github.com/Arenukvern/oka/commit/d54d123ee750bda1bf2e9cb03422c491d441705c))
+
+
+### Documentation
+
+* **skills:** oka-maintenance 1.7.0 — pub.dev publishing runbook ([f857426](https://github.com/Arenukvern/oka/commit/f857426e5386e34a05afc798e43d275c8ddd56e1))
+
 ## 0.7.0
 
 ### Added
