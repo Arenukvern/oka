@@ -56,10 +56,10 @@ List<_LinkAttempt> defaultLinkAttempts() => [
 /// (clonefile does this inherently); the default sets `0644` — skipped for
 /// hardlinks, whose mode is shared with the source inode.
 Future<FileMaterialization> materializeFile({
-  required final String source,
-  required final String destination,
-  final bool keepSourcePermissions = false,
-  final List<_LinkAttempt>? linkAttempts,
+  required String source,
+  required String destination,
+  bool keepSourcePermissions = false,
+  List<_LinkAttempt>? linkAttempts,
 }) async {
   final src = File(source);
   final size = await src.length();
@@ -102,7 +102,7 @@ Future<FileMaterialization> materializeFile({
 
 // --- POSIX chmod (dart:io has no chmod; best-effort, never fatal). -------
 
-void _chmod(final String path, final int mode) {
+void _chmod(String path, int mode) {
   if (!Platform.isWindows) {
     try {
       _libcChmod(path, mode);
@@ -112,7 +112,7 @@ void _chmod(final String path, final int mode) {
   }
 }
 
-void _libcChmod(final String path, final int mode) {
+void _libcChmod(String path, int mode) {
   final libc = ffi.DynamicLibrary.process();
   final chmod = libc
       .lookupFunction<
@@ -130,7 +130,7 @@ void _libcChmod(final String path, final int mode) {
 /// dart:ffi exposes no allocator; libc's malloc/free do the job on every
 /// platform the FFI strategies run on (macOS, Linux).
 final class _CString {
-  factory _CString.allocate(final String value) {
+  factory _CString.allocate(String value) {
     final libc = ffi.DynamicLibrary.process();
     final mallocFn = libc
         .lookupFunction<
@@ -165,8 +165,8 @@ final class _CString {
 // --- Strategy 1: APFS clonefile (macOS). ----------------------------------
 
 MaterializationStrategy? _clonefileAttempt(
-  final String source,
-  final String destination,
+  String source,
+  String destination,
 ) {
   if (!Platform.isMacOS) return null;
   try {
@@ -202,8 +202,8 @@ MaterializationStrategy? _clonefileAttempt(
 const _kFiclone = 0x40049409;
 
 MaterializationStrategy? _reflinkAttempt(
-  final String source,
-  final String destination,
+  String source,
+  String destination,
 ) {
   if (!Platform.isLinux) return null;
   var srcFd = -1;
@@ -253,8 +253,8 @@ MaterializationStrategy? _reflinkAttempt(
 // --- Strategy 3: hardlink (POSIX). -----------------------------------------
 
 MaterializationStrategy? _hardlinkAttempt(
-  final String source,
-  final String destination,
+  String source,
+  String destination,
 ) {
   if (Platform.isWindows) return null;
   try {

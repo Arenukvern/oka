@@ -36,7 +36,7 @@ class StageAabStep extends BuildStep {
   /// Resolves the AAB path (typed override → state → default AAB output)
   /// and records it in [PipelineState]; never touches the filesystem.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     final path = artifactPath ?? _resolveStaged(ctx, state);
     if (path.isNotEmpty) state[aab.id] = path;
     return Future<StepResult>.value(StepResult.success());
@@ -45,7 +45,7 @@ class StageAabStep extends BuildStep {
   /// State resolution (typed override already handled): an upstream
   /// `aab-path` wins over the Android build's shared `apk_path` slot;
   /// the fallback is oka's real AAB output path.
-  String _resolveStaged(final BuildContext ctx, final PipelineState state) {
+  String _resolveStaged(BuildContext ctx, PipelineState state) {
     final existing = state[aab.id];
     if (existing is String && existing.isNotEmpty) return existing;
     final androidAab = state['apk_path'];
@@ -55,6 +55,6 @@ class StageAabStep extends BuildStep {
 
   /// oka's default AAB output location: `<buildDir>/aab/app-<mode>.aab`
   /// (matches `packageAndSignAab` in oka_android — keep in sync).
-  static String defaultAabPath(final BuildContext ctx) =>
+  static String defaultAabPath(BuildContext ctx) =>
       '${ctx.buildDir}/aab/app-${ctx.mode.name}.aab';
 }

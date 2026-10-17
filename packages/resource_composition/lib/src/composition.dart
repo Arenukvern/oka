@@ -38,7 +38,7 @@ final class CompositionReport {
   /// Deterministic rendering for `oka explain`-style surfaces.
   String render() => issues.isEmpty
       ? 'composition valid'
-      : issues.map((final issue) => issue.toString()).join('\n');
+      : issues.map((issue) => issue.toString()).join('\n');
 }
 
 /// An immutable graph of named components plus the defaults the runner and
@@ -157,7 +157,7 @@ final class Composition {
         if (!seen.add(id)) continue;
         final dep = byId[id];
         if (dep == null) continue;
-        provided.addAll(dep.provides.map((final ref) => ref.id));
+        provided.addAll(dep.provides.map((ref) => ref.id));
         stack.addAll(dep.dependsOn);
       }
       for (final ref in component.requires) {
@@ -176,7 +176,7 @@ final class Composition {
     // Cycles: DFS with a coloring pass (only when ids resolved cleanly).
     if (byId.length == components.length) {
       final state = <String, int>{}; // 1 = open, 2 = done
-      void visit(final String id, final List<String> stack) {
+      void visit(String id, List<String> stack) {
         final current = state[id];
         if (current == 2) return;
         if (current == 1) {
@@ -202,7 +202,7 @@ final class Composition {
       }
     }
 
-    issues.sort((final a, final b) {
+    issues.sort((a, b) {
       final byComponent = (a.componentId ?? '').compareTo(b.componentId ?? '');
       return byComponent != 0 ? byComponent : a.code.compareTo(b.code);
     });
@@ -238,11 +238,11 @@ final class Composition {
         );
       }
       if (component.requires.isNotEmpty) {
-        final ids = component.requires.map((final r) => r.id).join(', ');
+        final ids = component.requires.map((r) => r.id).join(', ');
         buffer.writeln('    requires: $ids');
       }
       if (component.provides.isNotEmpty) {
-        final ids = component.provides.map((final r) => r.id).join(', ');
+        final ids = component.provides.map((r) => r.id).join(', ');
         buffer.writeln('    provides: $ids');
       }
     }
@@ -252,9 +252,9 @@ final class Composition {
   /// Rebuilds the graph. Variants are new values assembled from named
   /// parts — never string-keyed plan surgery.
   Composition copyWith({
-    final List<Component>? components,
-    final Duration? readinessBudget,
-    final Object? evidence,
+    List<Component>? components,
+    Duration? readinessBudget,
+    Object? evidence,
   }) =>
       Composition(
         components: components ?? this.components,
@@ -263,15 +263,15 @@ final class Composition {
       );
 }
 
-int _scopeRank(final ResourceScope scope) => switch (scope) {
+int _scopeRank(ResourceScope scope) => switch (scope) {
       ResourceScope.ephemeral => 0,
       ResourceScope.session => 1,
       ResourceScope.persistent => 2,
     };
 
 List<CompositionIssue> _readinessIssues(
-  final String componentId,
-  final Readiness readiness,
+  String componentId,
+  Readiness readiness,
 ) {
   final issues = <CompositionIssue>[];
   switch (readiness) {

@@ -10,7 +10,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
-  Future<ProcessResult> runFixture(final List<String> args) =>
+  Future<ProcessResult> runFixture(List<String> args) =>
       Process.run(
         'dart',
         ['run', 'test/fixtures/adr0014_plan_print_entrypoint.dart', ...args],

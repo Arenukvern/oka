@@ -22,7 +22,7 @@ final class SpecStore {
 
   /// The default on-device store for [appId]:
   /// `~/.oka/supervisor/plans/<appId>`.
-  factory SpecStore.forAppId(final String appId) {
+  factory SpecStore.forAppId(String appId) {
     final home = Platform.environment['HOME'];
     if (home == null || home.isEmpty) {
       throw StateError(
@@ -41,14 +41,14 @@ final class SpecStore {
 
   /// Loads [name]; `null` when absent. Throws [SpecFormatException] on an
   /// unparseable document — corrupt plans are surfaced, never ignored.
-  DesiredState? load(final String name) {
+  DesiredState? load(String name) {
     final file = _file(name);
     if (!file.existsSync()) return null;
     return const SpecCodec().decode(file.readAsStringSync());
   }
 
   /// Saves [desired] atomically (temp + rename), creating parents.
-  void save(final String name, final DesiredState desired) {
+  void save(String name, DesiredState desired) {
     final file = _file(name);
     file.parent.createSync(recursive: true);
     File('${file.path}.${DateTime.now().microsecondsSinceEpoch}.$pid.tmp')
@@ -68,12 +68,12 @@ final class SpecStore {
   }
 
   /// Deletes [name]; a missing plan is not an error.
-  void delete(final String name) {
+  void delete(String name) {
     final file = _file(name);
     if (file.existsSync()) file.deleteSync();
   }
 
-  File _file(final String name) {
+  File _file(String name) {
     if (name.isEmpty || name.contains('/') || name.contains('..')) {
       throw ArgumentError('invalid plan name: "$name"');
     }

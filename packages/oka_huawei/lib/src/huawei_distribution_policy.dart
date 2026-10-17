@@ -21,12 +21,12 @@ class HuaweiDistributionPolicy {
   final HuaweiBundleMode bundleMode;
   final List<String> forbiddenDependencies;
 
-  List<String> validateDependencies(final Iterable<String> coordinates) {
+  List<String> validateDependencies(Iterable<String> coordinates) {
     final issues = <String>[];
     for (final coordinate in coordinates) {
       if (isGmsCoordinate(coordinate) ||
           forbiddenDependencies.any(
-            (final prefix) =>
+            (prefix) =>
                 coordinate == prefix || coordinate.startsWith('$prefix:'),
           )) {
         issues.add(
@@ -37,14 +37,14 @@ class HuaweiDistributionPolicy {
     return issues;
   }
 
-  List<String> validateEntries(final Iterable<String> entries) {
+  List<String> validateEntries(Iterable<String> entries) {
     final values = entries.toSet();
     final issues = <String>[];
-    if (!values.any((final e) => e == 'base/manifest/AndroidManifest.xml')) {
+    if (!values.any((e) => e == 'base/manifest/AndroidManifest.xml')) {
       issues.add('AAB is missing base/manifest/AndroidManifest.xml');
     }
     final hasSplit = values.any(
-      (final e) => e.startsWith('BUNDLE-METADATA/') || e.startsWith('base/'),
+      (e) => e.startsWith('BUNDLE-METADATA/') || e.startsWith('base/'),
     );
     if (bundleMode == HuaweiBundleMode.universal && !hasSplit) {
       issues.add('Huawei universal bundle must contain the base module');
@@ -99,8 +99,8 @@ class HuaweiArtifactVerificationStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final path = state[HuaweiStageAabStep.aabPath.id];
     if (path is! String || path.isEmpty) {

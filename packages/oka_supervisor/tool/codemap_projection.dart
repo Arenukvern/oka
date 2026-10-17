@@ -31,7 +31,7 @@ import 'dart:io';
 import 'package:oka_supervisor/oka_supervisor.dart';
 import 'package:path/path.dart' as p;
 
-Future<void> main(final List<String> arguments) async {
+Future<void> main(List<String> arguments) async {
   String? snapshotPath;
   String? receiptsPath;
   var root = Directory.current.path;
@@ -96,9 +96,9 @@ Future<void> main(final List<String> arguments) async {
 }
 
 String _value(
-  final List<String> arguments,
-  final int index,
-  final String flag,
+  List<String> arguments,
+  int index,
+  String flag,
 ) {
   if (index >= arguments.length) {
     stderr.writeln('codemap_projection: $flag needs a value');
@@ -107,7 +107,7 @@ String _value(
   return arguments[index];
 }
 
-String _resolve(final String root, final String target) =>
+String _resolve(String root, String target) =>
     p.isAbsolute(target) ? target : p.normalize(p.join(root, target));
 
 const _usage =

@@ -51,7 +51,7 @@ void main() {
       );
       Object? caught;
       try {
-        desired.composition((final name) => throw StateError(name));
+        desired.composition((name) => throw StateError(name));
         // ignore: avoid_catching_errors
       } on ArgumentError catch (error) {
         caught = error;
@@ -67,9 +67,9 @@ void main() {
           ComponentSpec(id: 'api', providerName: 'fake'),
         ],
       );
-      final report = desired.validate((final name) => FakeProvider());
+      final report = desired.validate((name) => FakeProvider());
       expect(report.ok, isFalse);
-      final codes = report.issues.map((final issue) => issue.code);
+      final codes = report.issues.map((issue) => issue.code);
       expect(codes, contains('duplicateComponentId'));
     });
 
@@ -85,7 +85,7 @@ void main() {
           ),
         ],
       );
-      final report = desired.validate((final name) => FakeProvider());
+      final report = desired.validate((name) => FakeProvider());
       expect(report.ok, isTrue);
     });
   });

@@ -339,7 +339,7 @@ void main() {
     expect(exitCodes, isEmpty);
     final lines = File(
       factsPath,
-    ).readAsLinesSync().where((final line) => line.isNotEmpty).toList();
+    ).readAsLinesSync().where((line) => line.isNotEmpty).toList();
     expect(lines, isNotEmpty);
     expect(jsonDecode(lines.first), isA<Map<String, Object?>>());
   });

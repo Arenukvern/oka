@@ -14,15 +14,15 @@ final class _Liveness implements ProcessLiveness {
   const _Liveness();
 
   @override
-  Future<bool> isAlive(final int pid) async => false;
+  Future<bool> isAlive(int pid) async => false;
 
   @override
-  Future<String?> identityToken(final int pid) async => 'token-$pid';
+  Future<String?> identityToken(int pid) async => 'token-$pid';
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async => false;
 }
 
@@ -35,7 +35,7 @@ final class _Planner implements SessionStatePlanner<_Handle> {
   String get id => 'snapshot-planner';
 
   @override
-  SessionStatePlan<_Handle> plan(final SessionStateRequest request) =>
+  SessionStatePlan<_Handle> plan(SessionStateRequest request) =>
       SessionStatePlan(
         logicalResourceKey: 'snapshot:${request.sessionName}',
         namespace: SessionStateNamespace.project,
@@ -57,7 +57,7 @@ final class _Source implements SessionStateSource<_Handle> {
   String get id => 'snapshot-source';
 
   @override
-  Future<_Handle> restore(final SessionStateLease lease) async =>
+  Future<_Handle> restore(SessionStateLease lease) async =>
       _Handle(p.join(lease.rootPath, lease.relativePath));
 }
 
@@ -74,7 +74,7 @@ final class _CreateDirectory implements SessionStateProvisionStep<_Handle> {
   Set<Artifact<Object>> get provides => const {};
 
   @override
-  Future<void> run(final SessionStateContext<_Handle> context) async {
+  Future<void> run(SessionStateContext<_Handle> context) async {
     await Directory(context.handle.path).create(recursive: true);
   }
 }
@@ -87,7 +87,7 @@ final class _Unused implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) async => const SessionStateFinding(
     inspectorId: 'snapshot-unused',
     use: SessionStateUse.unused,
@@ -95,7 +95,7 @@ final class _Unused implements SessionStateInspector<_Handle> {
   );
 }
 
-SessionStateWorkflow<_Handle> _workflow(final String root) =>
+SessionStateWorkflow<_Handle> _workflow(String root) =>
     SessionStateWorkflow(
       id: 'test.process-snapshot',
       version: 1,
@@ -154,7 +154,7 @@ void main() {
       );
       final inspection = await reconciler.inspectLease(leaseId: linked.id);
       final associatedFinding = inspection.entries.single.findings.singleWhere(
-        (final finding) => finding.inspectorId == 'oka.associated-process',
+        (finding) => finding.inspectorId == 'oka.associated-process',
       );
       expect(associatedFinding.use, SessionStateUse.unknown);
 

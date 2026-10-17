@@ -15,14 +15,14 @@ import 'spec/head_entry.dart';
 
 /// Valid base href: empty is allowed (emitter skips the tag only when the
 /// spec default is changed), otherwise must start and end with `/`.
-bool isValidBaseHref(final String baseHref) =>
+bool isValidBaseHref(String baseHref) =>
     baseHref.startsWith('/') &&
     baseHref.endsWith('/') &&
     !baseHref.contains('//');
 
 /// Pure composition issues (no filesystem): identity, base-href format,
 /// duplicate entries, phase sanity.
-List<String> shellIssues(final WebShell shell) {
+List<String> shellIssues(WebShell shell) {
   final issues = <String>[];
 
   if (shell.title.trim().isEmpty) {
@@ -62,7 +62,7 @@ List<String> shellIssues(final WebShell shell) {
 
   // Phase sanity inside the composed order: preconnects may not follow a
   // storeSdk entry (would defeat the preconnect for the SDK origin).
-  final phases = shell.head.map((final e) => e.phase.order).toList();
+  final phases = shell.head.map((e) => e.phase.order).toList();
   for (var i = 1; i < phases.length; i++) {
     if (phases[i - 1] > phases[i]) {
       issues.add(
@@ -81,7 +81,7 @@ List<String> shellIssues(final WebShell shell) {
 /// validation performs (existence checks, no content, no image
 /// processing).
 @visibleForTesting
-List<String> iconIssues(final WebShell shell, {required final String webDir}) {
+List<String> iconIssues(WebShell shell, {required String webDir}) {
   final issues = <String>[];
   final icons = shell.manifest.icons;
   for (final entry in icons.declared.entries) {
@@ -99,6 +99,6 @@ List<String> iconIssues(final WebShell shell, {required final String webDir}) {
 
 /// Full validation: pure issues + icon existence. Empty list = valid.
 List<String> validateWebShell(
-  final WebShell shell, {
-  required final String webDir,
+  WebShell shell, {
+  required String webDir,
 }) => [...shellIssues(shell), ...iconIssues(shell, webDir: webDir)];

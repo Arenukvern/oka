@@ -10,7 +10,7 @@ import 'dart:io';
 import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
-BuildContext _ctx(final Directory temp) => BuildContext(
+BuildContext _ctx(Directory temp) => BuildContext(
   projectPath: temp.path,
   buildDir: '${temp.path}/.oka_cache/build',
   mode: BuildMode.debug,
@@ -25,7 +25,7 @@ class FakeRunner {
   final sent = <String>[];
   ScriptedReply reply = (_, _) => ProcessResult(0, 0, '', '');
 
-  Future<ProcessResult> call(final String exe, final List<String> args) async {
+  Future<ProcessResult> call(String exe, List<String> args) async {
     sent.add([exe, ...args].join(' '));
     return reply(exe, args);
   }
@@ -41,7 +41,7 @@ class FakeIoProcess implements Process {
   bool killed = false;
 
   @override
-  bool kill([final ProcessSignal signal = ProcessSignal.sigterm]) {
+  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) {
     killed = true;
     return true;
   }
@@ -69,15 +69,15 @@ class FakeLiveness implements ProcessLiveness {
   final killed = <int>[];
 
   @override
-  Future<bool> isAlive(final int pid) async => alive;
+  Future<bool> isAlive(int pid) async => alive;
 
   @override
-  Future<String?> identityToken(final int pid) async => token;
+  Future<String?> identityToken(int pid) async => token;
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async {
     killed.add(pid);
     alive = false;
@@ -89,8 +89,8 @@ bool _adbAndEmulatorOnPath() {
   final dirs =
       Platform.environment['PATH']?.split(Platform.isWindows ? ';' : ':') ??
       const [];
-  bool has(final String cmd) => dirs.any(
-    (final d) =>
+  bool has(String cmd) => dirs.any(
+    (d) =>
         File('$d/$cmd').existsSync() || File('$d/$cmd.exe').existsSync(),
   );
   return has('adb') && has('emulator');

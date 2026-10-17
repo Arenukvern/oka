@@ -10,7 +10,7 @@ import 'package:universal_automation_interface/universal_automation_interface.da
 ///
 /// The app must embed `mcp_toolkit` (`MCPToolkitBinding` in `main`) so the
 /// snapshot/tap extensions are registered.
-Future<void> main(final List<String> args) async {
+Future<void> main(List<String> args) async {
   final projectDir = args.first;
   final app = await AndroidAppTarget(
     projectDir: projectDir,
@@ -25,7 +25,7 @@ Future<void> main(final List<String> args) async {
     final snap = await driver.snapshot();
     final start = snap.nodes
         .where(
-          (final node) =>
+          (node) =>
               (node.name ?? '').toLowerCase().contains('start'),
         )
         .toList();

@@ -37,7 +37,7 @@ class ManifestSpec {
   ///       - name: flutter_deeplinking_enabled
   ///         value: "true"
   /// ```
-  factory ManifestSpec.fromYamlMap(final Map<dynamic, dynamic> map) {
+  factory ManifestSpec.fromYamlMap(Map<dynamic, dynamic> map) {
     final perms = map['permissions'];
     final appAttrs = map['application_attributes'];
     final actAttrs = map['activity_attributes'];
@@ -48,16 +48,16 @@ class ManifestSpec {
     final rawAppElements = map['application_elements'];
     return ManifestSpec(
       permissions: perms is List
-          ? perms.map((final e) => e.toString()).toList(growable: false)
+          ? perms.map((e) => e.toString()).toList(growable: false)
           : const [],
       applicationAttributes: appAttrs is Map<dynamic, dynamic>
           ? appAttrs.map(
-              (final k, final v) => MapEntry(k.toString(), v.toString()),
+              (k, v) => MapEntry(k.toString(), v.toString()),
             )
           : const {},
       activityAttributes: actAttrs is Map<dynamic, dynamic>
           ? actAttrs.map(
-              (final k, final v) => MapEntry(k.toString(), v.toString()),
+              (k, v) => MapEntry(k.toString(), v.toString()),
             )
           : const {},
       applicationMetaData: metaData is List
@@ -73,11 +73,11 @@ class ManifestSpec {
                 .toList(growable: false)
           : const [],
       manifestElements: rawElements is List
-          ? rawElements.map((final e) => e.toString()).toList(growable: false)
+          ? rawElements.map((e) => e.toString()).toList(growable: false)
           : const [],
       applicationElements: rawAppElements is List
           ? rawAppElements
-                .map((final e) => e.toString())
+                .map((e) => e.toString())
                 .toList(growable: false)
           : const [],
       deeplinks: links is List ? DeeplinkConfig.parse(links) : const [],
@@ -137,17 +137,17 @@ class ManifestSpec {
   final bool? cleartextTraffic;
 
   ManifestSpec copyWith({
-    final List<String>? permissions,
-    final Map<String, String>? applicationAttributes,
-    final List<MetaDataSpec>? applicationMetaData,
-    final Map<String, String>? activityAttributes,
-    final List<MetaDataSpec>? activityMetaData,
-    final List<DeeplinkConfig>? deeplinks,
-    final bool? debuggable,
-    final bool? extractNativeLibs,
-    final bool? flutterDeeplinking,
-    final bool? cleartextTraffic,
-    final List<String>? manifestElements,
+    List<String>? permissions,
+    Map<String, String>? applicationAttributes,
+    List<MetaDataSpec>? applicationMetaData,
+    Map<String, String>? activityAttributes,
+    List<MetaDataSpec>? activityMetaData,
+    List<DeeplinkConfig>? deeplinks,
+    bool? debuggable,
+    bool? extractNativeLibs,
+    bool? flutterDeeplinking,
+    bool? cleartextTraffic,
+    List<String>? manifestElements,
   }) => ManifestSpec(
     permissions: permissions ?? this.permissions,
     applicationAttributes: applicationAttributes ?? this.applicationAttributes,
@@ -168,7 +168,7 @@ class ManifestSpec {
 class MetaDataSpec {
   const MetaDataSpec({required this.name, this.value, this.resource});
 
-  factory MetaDataSpec.fromMap(final Map<dynamic, dynamic> map) => MetaDataSpec(
+  factory MetaDataSpec.fromMap(Map<dynamic, dynamic> map) => MetaDataSpec(
     name: map['name'].toString(),
     value: map['value']?.toString(),
     resource: map['resource']?.toString(),

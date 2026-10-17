@@ -25,8 +25,8 @@ class AgcEndpoints {
 
   /// Upload-URL endpoint for an [appId] and file [suffix] (e.g. `aab`).
   Uri uploadUrlUrl({
-    required final String appId,
-    required final String suffix,
+    required String appId,
+    required String suffix,
   }) => Uri.parse(
     '$baseUrl/api/publish/v2/upload-url',
   ).replace(queryParameters: {'appId': appId, 'suffix': suffix});
@@ -60,7 +60,7 @@ class AgcToken {
 
   /// Identity equality — tokens never compare by value (secret hygiene).
   @override
-  bool operator ==(final Object other) => identical(this, other);
+  bool operator ==(Object other) => identical(this, other);
 
   /// Identity hash (pairs with the identity equality).
   @override
@@ -85,7 +85,7 @@ class AgcUploadSession {
 
   /// Field-wise equality (neither field is a secret).
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is AgcUploadSession &&
       other.uploadUrl == uploadUrl &&
       other.session == session;
@@ -113,7 +113,7 @@ class AgcSubmitReceipt {
 
   /// Field-wise equality.
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is AgcSubmitReceipt &&
       other.version == version &&
       other.submitId == submitId;
@@ -194,7 +194,7 @@ class AgcClient {
   final AgcEndpoints endpoints;
 
   /// Step 1 — exchange API-client credentials for an access token.
-  Future<AgcToken> fetchToken(final AgcCredentials credentials) async {
+  Future<AgcToken> fetchToken(AgcCredentials credentials) async {
     final response = await client.post(
       endpoints.tokenUrl(),
       headers: {'content-type': 'application/x-www-form-urlencoded'},
@@ -228,9 +228,9 @@ class AgcClient {
 
   /// Step 2 — request an upload session for the artifact.
   Future<AgcUploadSession> requestUploadSession({
-    required final AgcToken token,
-    required final String appId,
-    required final String suffix,
+    required AgcToken token,
+    required String appId,
+    required String suffix,
   }) async {
     final response = await client.post(
       endpoints.uploadUrlUrl(appId: appId, suffix: suffix),
@@ -258,9 +258,9 @@ class AgcClient {
 
   /// Step 3 — upload the artifact bytes to the session's upload URL.
   Future<void> uploadArtifact({
-    required final AgcUploadSession session,
-    required final List<int> bytes,
-    final String contentType = 'application/octet-stream',
+    required AgcUploadSession session,
+    required List<int> bytes,
+    String contentType = 'application/octet-stream',
   }) async {
     final response = await client.put(
       Uri.parse(session.uploadUrl),
@@ -280,9 +280,9 @@ class AgcClient {
   /// rendered by the publish step (track, release notes, phase); it must
   /// contain no secret values.
   Future<AgcSubmitReceipt> submit({
-    required final AgcToken token,
-    required final String appId,
-    required final Map<String, dynamic> payload,
+    required AgcToken token,
+    required String appId,
+    required Map<String, dynamic> payload,
   }) async {
     final response = await client.post(
       endpoints.submitUrl(),
@@ -313,13 +313,13 @@ class AgcClient {
     );
   }
 
-  Map<String, String> _auth(final AgcToken token) => {
+  Map<String, String> _auth(AgcToken token) => {
     'authorization': 'Bearer ${token.value}',
   };
 
   static Map<String, dynamic> _decode(
-    final String body, {
-    required final String operation,
+    String body, {
+    required String operation,
   }) {
     try {
       final decoded = jsonDecode(body);
@@ -337,7 +337,7 @@ class AgcClient {
 
   /// Extracts `ret.msg` from an AGC error body when present (AGC errors
   /// carry `{"ret": {"code": ..., "msg": ...}}`).
-  static String? _retMessage(final String body) {
+  static String? _retMessage(String body) {
     try {
       final decoded = jsonDecode(body);
       if (decoded is Map && decoded['ret'] is Map) {

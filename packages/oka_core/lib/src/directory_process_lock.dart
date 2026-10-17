@@ -70,7 +70,7 @@ final class DirectoryProcessLock {
     final f = File('${directory.path}/pid');
     if (!f.existsSync()) return 0;
     final line = f.readAsStringSync().split('\n').firstWhere(
-          (final l) => l.startsWith('pid='),
+          (l) => l.startsWith('pid='),
           orElse: () => 'pid=0',
         );
     return int.tryParse(line.substring(4)) ?? 0;

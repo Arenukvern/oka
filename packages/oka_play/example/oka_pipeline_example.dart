@@ -28,7 +28,7 @@ library;
 import 'package:oka_android/oka_android.dart';
 import 'package:oka_play/oka_play.dart';
 
-Future<void> main(final List<String> args) => okaRun(
+Future<void> main(List<String> args) => okaRun(
       args,
       oka: const Oka(
         pipelines: [

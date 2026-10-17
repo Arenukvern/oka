@@ -24,7 +24,7 @@ bool get autoInstallEnabled => Platform.environment[noAutoInstallEnv] != '1';
 ///
 /// (Logic relocated from the CLI `oka get kotlin` so builds can self-heal;
 /// the CLI command delegates here.)
-Future<bool> ensureKotlinc({final bool verbose = false}) async {
+Future<bool> ensureKotlinc({bool verbose = false}) async {
   final existing = await ResolvedToolchain().findKotlinc();
   if (existing != null) return true;
   if (!autoInstallEnabled) {
@@ -48,10 +48,10 @@ Future<bool> ensureKotlinc({final bool verbose = false}) async {
 
 /// Installs the Kotlin compiler under `~/.oka/tools` (ADR-0007 shared
 /// installer used by both the build self-heal and `oka get kotlin`).
-Future<void> installKotlinCompiler({final bool verbose = false}) =>
+Future<void> installKotlinCompiler({bool verbose = false}) =>
     _installKotlinCompiler(verbose: verbose);
 
-Future<void> _installKotlinCompiler({final bool verbose = false}) async {
+Future<void> _installKotlinCompiler({bool verbose = false}) async {
   final homeDir =
       Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
   if (homeDir.isEmpty) throw Exception('Could not determine home directory');
@@ -120,7 +120,7 @@ Future<void> _installKotlinCompiler({final bool verbose = false}) async {
 /// release into `~/.oka/tools/r8` when missing (ADR-0007 self-heal, shared
 /// with `oka get r8`). Returns the jar path, or null when unavailable and
 /// auto-install is disabled/failed.
-Future<String?> ensureR8({final bool verbose = false}) async {
+Future<String?> ensureR8({bool verbose = false}) async {
   final existing = await findR8Jar();
   if (existing != null) return existing;
   if (!autoInstallEnabled) {
@@ -142,7 +142,7 @@ Future<String?> ensureR8({final bool verbose = false}) async {
 
 /// `sourceCompatibility "NN"`) declared in any of [gradleFiles]; null when
 /// nothing declares one.
-int? detectRequiredJavaLevel(final Iterable<String> gradleFiles) {
+int? detectRequiredJavaLevel(Iterable<String> gradleFiles) {
   var maxLevel = 0;
   for (final file in gradleFiles) {
     if (!File(file).existsSync()) continue;
@@ -169,9 +169,9 @@ int? detectRequiredJavaLevel(final Iterable<String> gradleFiles) {
 /// Effective javac source/target: config version raised to the detected
 /// plugin maximum, with a printed notice when bumped.
 int effectiveJavaLevel({
-  required final int configVersion,
-  final Iterable<String> pluginGradleFiles = const [],
-  final void Function(String message)? onBump,
+  required int configVersion,
+  Iterable<String> pluginGradleFiles = const [],
+  void Function(String message)? onBump,
 }) {
   final detected = detectRequiredJavaLevel(pluginGradleFiles);
   if (detected != null && detected > configVersion) {
@@ -188,9 +188,9 @@ int effectiveJavaLevel({
 /// `version_code`/`version_name` wins, otherwise the app `pubspec.yaml`
 /// `version: x.y.z+nn`.
 ({int versionCode, String versionName}) resolveAndroidVersion(
-  final String projectPath, {
-  required final int configVersionCode,
-  required final String configVersionName,
+  String projectPath, {
+  required int configVersionCode,
+  required String configVersionName,
 }) {
   if (configVersionCode != 0 && configVersionName.isNotEmpty) {
     return (versionCode: configVersionCode, versionName: configVersionName);
@@ -214,14 +214,14 @@ int effectiveJavaLevel({
 }
 
 /// Names declared under `dev_dependencies` in [projectPath]/pubspec.yaml.
-Set<String> devDependencyNames(final String projectPath) {
+Set<String> devDependencyNames(String projectPath) {
   final file = File(p.join(projectPath, 'pubspec.yaml'));
   if (!file.existsSync()) return const {};
   try {
     final doc = loadYaml(file.readAsStringSync());
     final dev = doc is Map ? doc['dev_dependencies'] : null;
     if (dev is! Map) return const {};
-    return dev.keys.map((final k) => k.toString()).toSet();
+    return dev.keys.map((k) => k.toString()).toSet();
   } on YamlException {
     return const {};
   }

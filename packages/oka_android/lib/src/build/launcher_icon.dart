@@ -26,7 +26,7 @@ class IconConfig {
     this.manifestRef = '',
   });
 
-  factory IconConfig.fromMap(final Map<dynamic, dynamic> map) => IconConfig(
+  factory IconConfig.fromMap(Map<dynamic, dynamic> map) => IconConfig(
       backgroundColor: map['background_color']?.toString() ?? '#FFFFFF',
       vector: map['vector']?.toString() ?? '',
       monochrome: map['monochrome']?.toString() ?? '',
@@ -85,9 +85,9 @@ class IconResources {
 /// - Optionally uses user-supplied VectorDrawable XML for the foreground and
 ///   monochrome layer instead of the generated glyph.
 Future<IconResources> stageLauncherIcons(
-  final String resDir,
-  final IconConfig config, {
-  required final String projectPath,
+  String resDir,
+  IconConfig config, {
+  required String projectPath,
 }) async {
   final written = <String>[];
   final name = config.name;
@@ -173,7 +173,7 @@ String defaultForegroundVector() => '''
 ''';
 
 /// Validates/normalizes a color literal; passes through resource refs (@...).
-String _escapeColor(final String raw) {
+String _escapeColor(String raw) {
   final v = raw.trim();
   if (v.startsWith('@')) return v;
   if (!RegExp(r'^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$').hasMatch(v)) {

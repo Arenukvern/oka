@@ -42,8 +42,8 @@ final RegExp _targetNamePattern = RegExp(r'^[a-z][a-z0-9_-]*$');
 /// does not shadow a [reservedCliVerbs] core verb. Returns an actionable
 /// error message, or null when the name is valid.
 String? validateTargetName(
-  final String name, {
-  final Set<String> reserved = reservedCliVerbs,
+  String name, {
+  Set<String> reserved = reservedCliVerbs,
 }) {
   if (!_targetNamePattern.hasMatch(name)) {
     return 'invalid target name "$name": targets are lowercase identifiers '
@@ -123,7 +123,7 @@ abstract class Target {
   /// A pure function of the target value + [ctx] — no tool invocations, no
   /// I/O. The runner wraps the result in a [Pipeline] and validates the
   /// artifact chain before executing anything.
-  List<BuildStep> compile(final BuildContext ctx);
+  List<BuildStep> compile(BuildContext ctx);
 
   /// Compiles this target's teardown steps (ADR-0018 §2) — same contract
   /// as [compile], executed by the best-effort [runTeardownSteps] runner
@@ -163,7 +163,7 @@ abstract class Target {
   ///
   /// The returned steps run after the forward pipeline (success OR
   /// failure) under [runTeardownSteps] — and again on SIGINT/SIGTERM.
-  List<BuildStep> compileTeardown(final BuildContext ctx) => const [];
+  List<BuildStep> compileTeardown(BuildContext ctx) => const [];
 
   /// Generic, platform-agnostic explain hook (ADR-0016 W1): extra pure
   /// detail lines `oka explain --targets` prints for this target, in
@@ -175,7 +175,7 @@ abstract class Target {
   /// composition, never execution). Default: no details. The CLI prints
   /// these lines verbatim without knowing what platform or store a target
   /// serves — the verb never learns platforms (ADR-0015).
-  List<String> explainDetails(final BuildContext ctx) => const [];
+  List<String> explainDetails(BuildContext ctx) => const [];
 
   /// Invocation-arg keys this target accepts via `oka run <target>`
   /// --oka-target-arg key=value` (and verb shims that forward, e.g.
@@ -188,7 +188,7 @@ abstract class Target {
   /// dispatcher before [compile] only when invocation args are present; the
   /// default rejects everything with an actionable error listing the
   /// accepted keys, so a target that accepts nothing needs no override.
-  Target applyInvocationArgs(final Map<String, String> args) {
+  Target applyInvocationArgs(Map<String, String> args) {
     throw ArgumentError(
       'target "$name" accepts no invocation args — got: '
       '${args.keys.join(', ')}.',

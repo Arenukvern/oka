@@ -12,7 +12,7 @@ final class BrowserCacheDiagnosticProvider implements CacheDiagnosticProvider {
 
   @override
   Future<CacheDiagnosticContribution> inspect(
-    final CacheDiagnosticContext context,
+    CacheDiagnosticContext context,
   ) async {
     final records = <CacheDiagnosticRecord>[];
     final issues = <CacheDiagnosticIssue>[];
@@ -23,7 +23,7 @@ final class BrowserCacheDiagnosticProvider implements CacheDiagnosticProvider {
     final profilePaths = <String, _ProfileInfo>{};
     final excludedPaths = <String>{};
 
-    for (final measurement in context.storage.locations.where((final value) {
+    for (final measurement in context.storage.locations.where((value) {
       final location = value.location;
       return location.category == 'browser-profiles' ||
           (location.category == 'managed-session-state' &&
@@ -103,7 +103,7 @@ final class BrowserCacheDiagnosticProvider implements CacheDiagnosticProvider {
         );
       }
       for (final lease in snapshot.leases.where(
-        (final value) => value.kind == 'chrome-session',
+        (value) => value.kind == 'chrome-session',
       )) {
         final sessionId = CacheDiagnosticIds.session(project, lease.id);
         final profilePath = lease.identity['profile_dir'];
@@ -219,10 +219,10 @@ final class BrowserCacheDiagnosticProvider implements CacheDiagnosticProvider {
   }
 
   CacheDiagnosticRecord _record({
-    required final String? project,
-    required final String? path,
-    required final _ProfileInfo profile,
-    required final DateTime observedAt,
+    required String? project,
+    required String? path,
+    required _ProfileInfo profile,
+    required DateTime observedAt,
     ProcessLease? lease,
     StorageMeasurement? measurement,
     bool excluded = false,
@@ -284,7 +284,7 @@ final class BrowserCacheDiagnosticProvider implements CacheDiagnosticProvider {
   }
 }
 
-Future<bool> _hasSymlinkAncestor(final String path) async {
+Future<bool> _hasSymlinkAncestor(String path) async {
   var current = p.normalize(p.absolute(path));
   while (true) {
     if (await FileSystemEntity.type(current, followLinks: false) ==
@@ -297,7 +297,7 @@ Future<bool> _hasSymlinkAncestor(final String path) async {
   }
 }
 
-String? _projectFor(final String? path, final List<String> projects) {
+String? _projectFor(String? path, List<String> projects) {
   if (path == null) return null;
   for (final project in projects) {
     final cache = p.normalize(p.join(project, '.oka_cache'));

@@ -59,11 +59,11 @@ final class TeardownOutcome {
 /// runner never validates the artifact chain up front, because a teardown
 /// chain runs against whatever the forward run actually produced.
 Future<TeardownOutcome> runTeardownSteps(
-  final List<BuildStep> steps, {
-  required final BuildContext ctx,
-  final PipelineState? state,
-  final Duration perStepTimeout = const Duration(seconds: 30),
-  final void Function(String line)? write,
+  List<BuildStep> steps, {
+  required BuildContext ctx,
+  PipelineState? state,
+  Duration perStepTimeout = const Duration(seconds: 30),
+  void Function(String line)? write,
 }) async {
   final failures = <({String step, String error})>[];
   for (final step in steps) {

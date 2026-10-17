@@ -43,10 +43,10 @@ export '../maven_resolver.dart'
 /// ```
 class DependencyCache {
   DependencyCache({
-    final String? cacheRoot,
-    final bool verbose = false,
-    final bool allowNetwork = true,
-    final List<String> userRepos = const [],
+    String? cacheRoot,
+    bool verbose = false,
+    bool allowNetwork = true,
+    List<String> userRepos = const [],
   }) : resolver = MavenResolver(
           cacheRoot: cacheRoot,
           verbose: verbose,
@@ -58,13 +58,13 @@ class DependencyCache {
   String get cacheRoot => resolver.cacheRoot;
   bool get verbose => resolver.verbose;
 
-  String localPathFor(final MavenCoordinate coord) => resolver.localPathFor(coord);
-  String jarPathFor(final MavenCoordinate coord) => resolver.jarPathFor(coord);
+  String localPathFor(MavenCoordinate coord) => resolver.localPathFor(coord);
+  String jarPathFor(MavenCoordinate coord) => resolver.jarPathFor(coord);
 
   Future<ResolvedJar> resolve(
-    final MavenCoordinate coord, {
-    final List<int>? fixtureBytes,
-    final List<String> extraRepos = const [],
+    MavenCoordinate coord, {
+    List<int>? fixtureBytes,
+    List<String> extraRepos = const [],
   }) =>
       resolver.resolve(
         coord,
@@ -73,16 +73,16 @@ class DependencyCache {
       );
 
   Future<List<ResolvedJar>> resolveFlutterAndroidX({
-    final Map<String, List<int>> fixtures = const {},
+    Map<String, List<int>> fixtures = const {},
   }) =>
       resolver.resolveFlutterAndroidX(fixtures: fixtures);
 
   Future<List<ResolvedJar>> resolveWithTransitives(
-    final List<MavenCoordinate> roots, {
-    final List<String> extraRepos = const [],
-    final int maxDepth = 2,
-    final int maxArtifacts = 250,
-    final void Function(MavenCoordinate coord, Object error)? onFailure,
+    List<MavenCoordinate> roots, {
+    List<String> extraRepos = const [],
+    int maxDepth = 2,
+    int maxArtifacts = 250,
+    void Function(MavenCoordinate coord, Object error)? onFailure,
   }) =>
       resolver.resolveWithTransitives(
         roots,

@@ -53,8 +53,8 @@ final class ConvergenceReport {
 final class Supervisor {
   Supervisor({
     required this.projectRoot,
-    final MachineRegistry? registry,
-    final DateTime Function()? clock,
+    MachineRegistry? registry,
+    DateTime Function()? clock,
   })  : registry = registry ?? MachineRegistry.forMachine(),
         clock = clock ?? (() => DateTime.now().toUtc());
 
@@ -71,10 +71,10 @@ final class Supervisor {
   /// One convergence pass. With [apply] false this is a pure dry run:
   /// read-only observation, plan returned, nothing mutated anywhere.
   Future<ConvergenceReport> converge({
-    required final DesiredState desired,
-    required final ProviderFactory factory,
-    final EvidenceSink? evidence,
-    final bool apply = true,
+    required DesiredState desired,
+    required ProviderFactory factory,
+    EvidenceSink? evidence,
+    bool apply = true,
   }) async {
     final now = clock();
     final sink = evidence ?? _NullSink();
@@ -252,16 +252,16 @@ final class Supervisor {
   }
 
   Future<_StartOutcome> _start({
-    required final ComponentSpec spec,
-    required final Component component,
-    required final ResourceProvider provider,
-    required final EvidenceSink evidence,
-    required final DateTime now,
-    required final int epoch,
-    required final int restartCount,
-    required final DateTime windowStartedAt,
-    required final RegistrySnapshot snapshot,
-    required final Duration defaultBudget,
+    required ComponentSpec spec,
+    required Component component,
+    required ResourceProvider provider,
+    required EvidenceSink evidence,
+    required DateTime now,
+    required int epoch,
+    required int restartCount,
+    required DateTime windowStartedAt,
+    required RegistrySnapshot snapshot,
+    required Duration defaultBudget,
   }) async {
     final isJob = spec.policy.shape == SupervisionShape.job;
 
@@ -326,7 +326,7 @@ final class Supervisor {
     }
 
     final unresolved = component.provides
-        .where((final ref) => !startReport.outputs.contains(ref))
+        .where((ref) => !startReport.outputs.contains(ref))
         .toList();
     if (unresolved.isNotEmpty) {
       await provider.stop(
@@ -337,7 +337,7 @@ final class Supervisor {
         componentId: spec.id,
         cause: TerminalCause.providerFault,
         message: 'did not resolve declared outputs: '
-            '${unresolved.map((final r) => r.id).join(', ')}',
+            '${unresolved.map((r) => r.id).join(', ')}',
       ));
       record = record.copyWith(clearProcess: true, lastRun: 'failed');
       registry.upsert(record, scope: scope);
@@ -367,8 +367,8 @@ final class Supervisor {
   }
 
   ResolvedOutputs _resolvedDependencies(
-    final ComponentSpec spec,
-    final RegistrySnapshot snapshot,
+    ComponentSpec spec,
+    RegistrySnapshot snapshot,
   ) {
     final values = <String, Object?>{};
     for (final refId in spec.requires) {
@@ -382,8 +382,8 @@ final class Supervisor {
   }
 
   Map<String, Object?> _outputsById(
-    final Component component,
-    final ResolvedOutputs outputs,
+    Component component,
+    ResolvedOutputs outputs,
   ) => {
         for (final ref in component.provides)
           if (outputs.contains(ref)) ref.id: outputs.require(ref),
@@ -399,5 +399,5 @@ final class _StartOutcome {
 
 final class _NullSink implements EvidenceSink {
   @override
-  void add(final LifecycleEvent event) {}
+  void add(LifecycleEvent event) {}
 }

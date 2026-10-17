@@ -11,9 +11,9 @@ import 'package:oka_artifacts/oka_artifacts.dart';
 /// should be shared.
 final class ArtifactsCommand {
   ArtifactsCommand({
-    final void Function(String)? output,
-    final void Function(String)? errorOutput,
-    final void Function(int)? setExitCode,
+    void Function(String)? output,
+    void Function(String)? errorOutput,
+    void Function(int)? setExitCode,
     ArtifactStore? store,
   }) : _output = output ?? stdout.writeln,
        _errorOutput = errorOutput ?? stderr.writeln,
@@ -25,9 +25,9 @@ final class ArtifactsCommand {
   final void Function(int) _setExitCode;
   final ArtifactStore? _storeOverride;
 
-  static void _setProcessExitCode(final int value) => exitCode = value;
+  static void _setProcessExitCode(int value) => exitCode = value;
 
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     if (args.isEmpty) {
       _output(_usage);
       return;
@@ -93,14 +93,14 @@ final class ArtifactsCommand {
     }
   }
 
-  ArtifactStore _resolveStore(final String? root) => root == null
+  ArtifactStore _resolveStore(String? root) => root == null
       ? ArtifactStore.forMachine()
       : ArtifactStore(root: Directory(root));
 
   void _put(
-    final ArtifactStore store,
-    final DeltaCodec? codec,
-    final ArgResults results,
+    ArtifactStore store,
+    DeltaCodec? codec,
+    ArgResults results,
   ) {
     final name = results['name'] as String?;
     final path = results.rest.isNotEmpty ? results.rest.first : null;
@@ -142,9 +142,9 @@ final class ArtifactsCommand {
   }
 
   void _materialize(
-    final ArtifactStore store,
-    final DeltaCodec? codec,
-    final ArgResults results,
+    ArtifactStore store,
+    DeltaCodec? codec,
+    ArgResults results,
   ) {
     final name = _nameOr(results);
     if (name == null) {
@@ -176,9 +176,9 @@ final class ArtifactsCommand {
   }
 
   void _verify(
-    final ArtifactStore store,
-    final DeltaCodec? codec,
-    final ArgResults results,
+    ArtifactStore store,
+    DeltaCodec? codec,
+    ArgResults results,
   ) {
     final name = _nameOr(results);
     if (name == null) {
@@ -203,12 +203,12 @@ final class ArtifactsCommand {
           : report.ok
           ? 'ok: $name'
           : 'corrupt: $name\n'
-                '${report.problems.map((final problem) => '  - $problem').join('\n')}',
+                '${report.problems.map((problem) => '  - $problem').join('\n')}',
     );
     if (!report.ok) _setExitCode(1);
   }
 
-  void _status(final ArtifactStore store, final ArgResults results) {
+  void _status(ArtifactStore store, ArgResults results) {
     final name = _nameOr(results);
     if (name != null) {
       final status = store.status(name: name);
@@ -219,18 +219,18 @@ final class ArtifactsCommand {
     _output(names.isEmpty ? 'store is empty' : names.join('\n'));
   }
 
-  String? _nameOr(final ArgResults results) =>
+  String? _nameOr(ArgResults results) =>
       (results['name'] as String?) ??
       (results.rest.isNotEmpty ? results.rest.first : null);
 
-  void _emit(final Map<String, Object?> value, final ArgResults results) =>
+  void _emit(Map<String, Object?> value, ArgResults results) =>
       _output((results['json'] as bool) ? _pretty(value) : _compact(value));
 
-  String _pretty(final Map<String, Object?> value) =>
+  String _pretty(Map<String, Object?> value) =>
       const JsonEncoder.withIndent('  ').convert(value);
 
-  String _compact(final Map<String, Object?> value) =>
-      value.entries.map((final e) => '${e.key}: ${e.value}').join('\n');
+  String _compact(Map<String, Object?> value) =>
+      value.entries.map((e) => '${e.key}: ${e.value}').join('\n');
 
   static const _usage =
       'oka artifacts [put <file> | materialize <name> | verify <name> | '

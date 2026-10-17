@@ -30,8 +30,8 @@ class JavaEnvironment {
   /// [requiredVersion] is the major Java version (e.g., "21", "17")
   /// [autoInstall] whether to automatically install missing versions
   Future<Map<String, String>?> resolveJavaEnvironment(
-    final String? requiredVersion, {
-    final bool autoInstall = true,
+    String? requiredVersion, {
+    bool autoInstall = true,
   }) async {
     // Check current Java version first
     final currentVersion = await _getCurrentJavaVersion();
@@ -194,7 +194,7 @@ class JavaEnvironment {
   }
 
   /// Check if current version is compatible with required version
-  bool _isVersionCompatible(final String current, final String required) {
+  bool _isVersionCompatible(String current, String required) {
     try {
       final currentMajor = int.parse(current);
       final requiredMajor = int.parse(required);
@@ -218,7 +218,7 @@ class JavaEnvironment {
   }
 
   /// Find a compatible version from installed versions
-  String? _findCompatibleVersion(final List<String> installed, final String required) {
+  String? _findCompatibleVersion(List<String> installed, String required) {
     // First try exact match on major version
     for (final version in installed) {
       if (version.startsWith('$required.') ||
@@ -240,7 +240,7 @@ class JavaEnvironment {
   }
 
   /// Build environment map with JAVA_HOME and PATH
-  Map<String, String> _buildEnvironment(final String javaHome) {
+  Map<String, String> _buildEnvironment(String javaHome) {
     final env = Map<String, String>.from(Platform.environment);
 
     env['JAVA_HOME'] = javaHome;
@@ -265,7 +265,7 @@ class JavaEnvironment {
   }
 
   /// Print manual installation instructions
-  void _printManualInstructions(final String version) {
+  void _printManualInstructions(String version) {
     print('');
     print('═══════════════════════════════════════════════════════════');
     print('📋 Manual Java Installation Instructions');
@@ -312,7 +312,7 @@ class JavaEnvironment {
   }
 
   /// Validate that a Java installation is working
-  Future<bool> validateJavaInstallation(final String javaHome) async {
+  Future<bool> validateJavaInstallation(String javaHome) async {
     final javac = Platform.isWindows
         ? p.join(javaHome, 'bin', 'javac.exe')
         : p.join(javaHome, 'bin', 'javac');

@@ -65,16 +65,16 @@ class DependencyPlanReport {
   /// POM transitives are not expanded offline.
   final bool cacheOnly;
 
-  bool get hasFatal => findings.any((final f) => f.fatal);
+  bool get hasFatal => findings.any((f) => f.fatal);
 
   int get rootCount =>
-      entries.fold(0, (final sum, final e) => sum + e.rootCoords.length);
+      entries.fold(0, (sum, e) => sum + e.rootCoords.length);
 
   /// Multi-line printable summary (without the section header).
   String summary() {
     final b = StringBuffer();
     b.writeln(
-      '  sources: ${entries.map((final e) => '${e.source} (${e.rootCoords.length})').join(', ')}',
+      '  sources: ${entries.map((e) => '${e.source} (${e.rootCoords.length})').join(', ')}',
     );
     b.writeln(
       '  roots: $rootCount, resolved: ${resolved.length}'
@@ -86,7 +86,7 @@ class DependencyPlanReport {
     for (final f in findings) {
       b.writeln('  $f');
     }
-    if (cacheOnly && findings.any((final f) => !f.fatal)) {
+    if (cacheOnly && findings.any((f) => !f.fatal)) {
       b.writeln(
         '  ℹ️  cache-only run: re-run with `oka explain --deps --network` '
         'to fetch missing artifacts and expand transitives',
@@ -102,8 +102,8 @@ class DependencyPlanReport {
 /// path so plan and packaging cannot disagree); [cache] performs resolution
 /// with `allowNetwork` set by the caller (cache-only default, ADR-0008).
 Future<DependencyPlanReport> buildDependencyPlan({
-  required final List<DiscoveredPlugin> plugins,
-  required final PluginPackager packager, required final DependencyCache cache, required final bool allowNetwork, final List<String> extraDeps = const [],
+  required List<DiscoveredPlugin> plugins,
+  required PluginPackager packager, required DependencyCache cache, required bool allowNetwork, List<String> extraDeps = const [],
 }) async {
   final entries = <DependencyPlanEntry>[];
   final collectionFindings = <DependencyPlanFinding>[];
@@ -173,9 +173,9 @@ Future<DependencyPlanReport> buildDependencyPlan({
     for (final e in entries) ...e.extraRepos,
   }.toList();
 
-  String sourceFor(final MavenCoordinate c) {
+  String sourceFor(MavenCoordinate c) {
     for (final e in entries) {
-      if (e.rootCoords.any((final r) => r.cacheKey == c.cacheKey)) return e.source;
+      if (e.rootCoords.any((r) => r.cacheKey == c.cacheKey)) return e.source;
     }
     return 'plan';
   }
@@ -186,7 +186,7 @@ Future<DependencyPlanReport> buildDependencyPlan({
       : await cache.resolveWithTransitives(
           allRoots,
           extraRepos: extraRepos,
-          onFailure: (final coord, final error) => failures.add((coord, error)),
+          onFailure: (coord, error) => failures.add((coord, error)),
         );
 
   final findings = [...collectionFindings];

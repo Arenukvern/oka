@@ -39,4 +39,4 @@ const List<String> syntheticSecretMarkers = [
 
 /// A minimal fake AAB payload (bytes, not a real bundle — the upload tests
 /// only assert the bytes travel verbatim).
-final List<int> syntheticAabBytes = List<int>.generate(64, (final i) => i);
+final List<int> syntheticAabBytes = List<int>.generate(64, (i) => i);

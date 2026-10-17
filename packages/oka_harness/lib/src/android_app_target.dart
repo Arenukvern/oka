@@ -54,7 +54,7 @@ final class AndroidAppTarget implements AppTarget {
   final Duration sessionTimeout;
 
   @override
-  Future<LaunchedApp> launch({final bool build = true}) async {
+  Future<LaunchedApp> launch({bool build = true}) async {
     // A stale file would look like a live session; the runner deletes it on
     // exit, so anything left is debris (crash, SIGKILL).
     await clearRunnerSessionFile(projectDir);
@@ -133,8 +133,8 @@ final class AndroidAppTarget implements AppTarget {
   }
 
   Future<DevSessionDiscovery> _waitForSession(
-    final Process process,
-    final LogTap tap,
+    Process process,
+    LogTap tap,
   ) async {
     final deadline = DateTime.now().add(sessionTimeout);
     while (DateTime.now().isBefore(deadline)) {
@@ -157,7 +157,7 @@ final class AndroidAppTarget implements AppTarget {
     );
   }
 
-  Future<Process?> _startLogcat(final String deviceId, final LogTap tap) async {
+  Future<Process?> _startLogcat(String deviceId, LogTap tap) async {
     try {
       final process = await Process.start('adb', [
         '-s',
@@ -176,15 +176,15 @@ final class AndroidAppTarget implements AppTarget {
   }
 
   void _pump(
-    final Stream<List<int>> stream,
-    final LogTap tap, {
-    final String prefix = '',
+    Stream<List<int>> stream,
+    LogTap tap, {
+    String prefix = '',
   }) {
     stream
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen(
-          prefix.isEmpty ? tap.add : (final line) => tap.add('$prefix$line'),
+          prefix.isEmpty ? tap.add : (line) => tap.add('$prefix$line'),
           onDone: tap.close,
         );
   }
@@ -195,7 +195,7 @@ final class AndroidAppTarget implements AppTarget {
 /// Refuses to launch anything — the runner owns the session; this only
 /// reads its published endpoint, through the contract-typed path
 /// ([resolveLiveSessionOutputs]).
-Future<ToolkitDriver> driverForLiveSession(final String projectDir) async {
+Future<ToolkitDriver> driverForLiveSession(String projectDir) async {
   final outputs = await resolveLiveSessionOutputs(projectDir);
   return ToolkitDriver(
     await VmClient.connect(Uri.parse(outputs.require(runnerSessionVmUri))),

@@ -59,13 +59,13 @@ class DevDeviceSelection {
 ///   refusal naming the fix; multiple → refusal listing them.
 /// * adb itself fails → classified refusal.
 Future<DevDeviceSelection> selectDevDevice({
-  final String? deviceId,
-  final String? adbPath,
-  final ResolvedToolchain? toolchain,
+  String? deviceId,
+  String? adbPath,
+  ResolvedToolchain? toolchain,
 
   /// Injectable [AdbTool] (tests point it at an injectable process
   /// runner; production resolves from [adbPath] → [toolchain]).
-  final AdbTool? tool,
+  AdbTool? tool,
 }) async {
   final adb =
       tool ??
@@ -80,7 +80,7 @@ Future<DevDeviceSelection> selectDevDevice({
   }
   if (deviceId != null && deviceId.trim().isNotEmpty) {
     final id = deviceId.trim();
-    final match = devices.where((final d) => d.id == id).toList();
+    final match = devices.where((d) => d.id == id).toList();
     if (match.isEmpty) {
       return DevDeviceSelection.refused(
         '❌ No device with id "$id" attached.\n'
@@ -97,7 +97,7 @@ Future<DevDeviceSelection> selectDevDevice({
     }
     return DevDeviceSelection._(d);
   }
-  final ready = devices.where((final d) => d.ready).toList();
+  final ready = devices.where((d) => d.ready).toList();
   if (ready.isEmpty) {
     final attached = devices.isNotEmpty;
     return DevDeviceSelection.refused(
@@ -110,7 +110,7 @@ Future<DevDeviceSelection> selectDevDevice({
   if (ready.length > 1) {
     return DevDeviceSelection.refused(
       '❌ Multiple devices attached — pass `-d <device-id>`:\n'
-      '${ready.map((final d) => '   - $d').join('\n')}',
+      '${ready.map((d) => '   - $d').join('\n')}',
     );
   }
   return DevDeviceSelection._(ready.single);
@@ -120,7 +120,7 @@ Future<DevDeviceSelection> selectDevDevice({
 /// typed refusal (oka-branded fix) instead of throwing — the CLI prints it
 /// verbatim (parse-and-delegate, ADR-0015).
 Future<({String? path, String? refusal})> resolveDevToolPath(
-  final ResolvedToolchain? toolchain,
+  ResolvedToolchain? toolchain,
 ) async {
   try {
     return (
@@ -177,23 +177,23 @@ class DevLaunchException implements Exception {
 /// `ws://127.0.0.1:<port>/<auth>/ws` endpoint. Verification/inspection
 /// tools (e.g. `flutter_mcp_cli --vm-service-uri`) read this instead of
 /// scraping the `oka dev --json` stream. Absent = no live session.
-String vmUriFilePath(final String projectPath) =>
+String vmUriFilePath(String projectPath) =>
     const FileDevDiscoveryStore().vmUriPath(projectPath);
 
 /// Writes the discovery file (best-effort: a failed write must never break
 /// the dev session).
 Future<void> writeVmUriFile(
-  final String projectPath,
-  final String vmServiceUri,
-  {final DevDiscoveryStore store = const FileDevDiscoveryStore()}
+  String projectPath,
+  String vmServiceUri,
+  {DevDiscoveryStore store = const FileDevDiscoveryStore()}
 ) async {
   await store.writeVmUri(projectPath, vmServiceUri);
 }
 
 /// Removes the discovery file (session over → no live endpoint).
 Future<void> clearVmUriFile(
-  final String projectPath, {
-  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
+  String projectPath, {
+  DevDiscoveryStore store = const FileDevDiscoveryStore(),
 }) async {
   await store.clearVmUri(projectPath);
 }
@@ -206,7 +206,7 @@ Future<void> clearVmUriFile(
 /// is the first conforming runner) at each `session.ready` and deleted on
 /// session exit. Readers reject unknown `schema` values; absent file = no
 /// live delegable session. The `runner` field is display metadata only.
-String runnerSessionFilePath(final String projectPath) =>
+String runnerSessionFilePath(String projectPath) =>
     const FileDevDiscoveryStore().runnerSessionPath(projectPath);
 
 /// Writes the runner-session discovery file per spec v2 (best-effort,
@@ -217,13 +217,13 @@ String runnerSessionFilePath(final String projectPath) =>
 /// discoverable here). Creating `.flutter_mcp/` never touches an existing
 /// sibling `state.json`.
 Future<void> writeRunnerSessionFile(
-  final String projectPath, {
-  required final String vmServiceUri,
-  required final int controlPort,
-  required final String deviceId,
-  final int? processPid,
-  final DateTime? startedAt,
-  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
+  String projectPath, {
+  required String vmServiceUri,
+  required int controlPort,
+  required String deviceId,
+  int? processPid,
+  DateTime? startedAt,
+  DevDiscoveryStore store = const FileDevDiscoveryStore(),
 }) async {
   await store.writeRunnerSession(
     projectPath,
@@ -239,8 +239,8 @@ Future<void> writeRunnerSessionFile(
 /// channel). Only the file is deleted — never the `.flutter_mcp/`
 /// directory or any sibling file (e.g. the toolkit's `state.json`).
 Future<void> clearRunnerSessionFile(
-  final String projectPath, {
-  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
+  String projectPath, {
+  DevDiscoveryStore store = const FileDevDiscoveryStore(),
 }) async {
   await store.clearRunnerSession(projectPath);
 }
@@ -272,8 +272,8 @@ class DevSessionDiscovery {
 /// session); [FormatException] when the file exists but is unreadable or
 /// carries an unknown `schema` (readers reject unknown schema values).
 DevSessionDiscovery? readRunnerSessionFile(
-  final String projectPath, {
-  final DevDiscoveryStore store = const FileDevDiscoveryStore(),
+  String projectPath, {
+  DevDiscoveryStore store = const FileDevDiscoveryStore(),
 }) {
   final record = store.readRunnerSession(projectPath);
   if (record == null) return null;
@@ -292,20 +292,20 @@ DevSessionDiscovery? readRunnerSessionFile(
 /// session steps (await VM service announcement → adb forward), consuming
 /// the `vm_service_uri` / `vm_service_local_port` artifacts as-is.
 Future<DevLaunchPrepared> prepareDevLaunch({
-  required final String projectPath,
-  final ResolvedToolchain? toolchain,
+  required String projectPath,
+  ResolvedToolchain? toolchain,
 
   /// Device serial — required on multi-device hosts (phone + emulator);
   /// threaded to every device step and the AdbTool VM-service operations.
-  final String? deviceId,
+  String? deviceId,
 
   /// Injectable tool paths (tests / explicit config); null → [toolchain].
   /// Forwarded to the device steps and to the attach spawn (the flutter
   /// tool discovers devices through the platform-tools dir on PATH).
-  final String? adbPath,
-  final int waitSeconds = 3,
-  final bool verbose = false,
-  final DevDiscoveryStore discoveryStore = const FileDevDiscoveryStore(),
+  String? adbPath,
+  int waitSeconds = 3,
+  bool verbose = false,
+  DevDiscoveryStore discoveryStore = const FileDevDiscoveryStore(),
 }) async {
   final ctx = BuildContext(
     projectPath: projectPath,
@@ -396,7 +396,7 @@ enum DevControlCommand {
 
 /// Maps the human TTY keyboard loop to commands (`r` reload, `R` hot
 /// restart, `q` quit, `d` detach). Returns null for unrecognized keys.
-DevControlCommand? devCommandFromKey(final String key) => switch (key) {
+DevControlCommand? devCommandFromKey(String key) => switch (key) {
   'r' => DevControlCommand.reload,
   'R' => DevControlCommand.restart,
   'q' => DevControlCommand.quit,
@@ -406,7 +406,7 @@ DevControlCommand? devCommandFromKey(final String key) => switch (key) {
 
 /// Maps a `--json` stdin control line to a command. Returns null for
 /// blank/unknown lines (unknown lines are answered with the key list).
-DevControlCommand? devCommandFromLine(final String line) =>
+DevControlCommand? devCommandFromLine(String line) =>
     switch (line.trim().toLowerCase()) {
       'reload' || 'r' => DevControlCommand.reload,
       'restart' => DevControlCommand.restart,
@@ -519,7 +519,7 @@ class DevSession {
 
     // A daemon exit must end the session even with no commands flowing.
     final exitSub = adapter.exitCode
-        .then((final code) {
+        .then((code) {
           if (!_commandGate.isCompleted) {
             _commandGate.complete(DevSessionOutcome.daemonExited);
           }
@@ -565,13 +565,13 @@ class DevSession {
   }
 
   Future<bool> _waitForEvent(
-    final String name, {
-    required final Duration timeout,
+    String name, {
+    required Duration timeout,
   }) async {
     if (adapter.lastEvent(name) != null) return true;
     final completer = Completer<bool>();
     late final StreamSubscription<DaemonEvent> sub;
-    sub = adapter.events.listen((final e) {
+    sub = adapter.events.listen((e) {
       if (e.event == name && !completer.isCompleted) {
         completer.complete(true);
       }
@@ -614,7 +614,7 @@ class DevSession {
     return outcome;
   }
 
-  void _handleCommand(final DevControlCommand c) {
+  void _handleCommand(DevControlCommand c) {
     if (_commandGate.isCompleted) return;
     _queued.add(c);
     unawaited(_drainQueued());
@@ -630,7 +630,7 @@ class DevSession {
     _draining = false;
   }
 
-  Future<void> _applyCommand(final DevControlCommand c) async {
+  Future<void> _applyCommand(DevControlCommand c) async {
     switch (c) {
       case DevControlCommand.reload:
         final ok = await _dispatch(adapter.reload, label: 'Reload');
@@ -643,7 +643,7 @@ class DevSession {
         // rebuild) and re-attach.
         final stopped = Completer<void>();
         late final StreamSubscription<DaemonEvent> stopSub;
-        stopSub = adapter.events.listen((final e) {
+        stopSub = adapter.events.listen((e) {
           if (e.event == 'app.stop' && !stopped.isCompleted) {
             stopped.complete();
           }
@@ -699,8 +699,8 @@ class DevSession {
   /// through the adapter's typed methods (never a raw method string) —
   /// the adapter owns the wire details.
   Future<bool> _dispatch(
-    final Future<DaemonResponse> Function() operation, {
-    required final String label,
+    Future<DaemonResponse> Function() operation, {
+    required String label,
   }) async {
     _render(DevEvent('operation.start', {'label': label}));
     try {
@@ -731,7 +731,7 @@ class DevSession {
     }
   }
 
-  Future<void> _trySend(final Future<DaemonResponse> Function() send) async {
+  Future<void> _trySend(Future<DaemonResponse> Function() send) async {
     try {
       await send().timeout(const Duration(seconds: 10));
     } on Exception {
@@ -739,11 +739,11 @@ class DevSession {
     }
   }
 
-  void _renderEvent(final DaemonEvent e) {
+  void _renderEvent(DaemonEvent e) {
     _render(DevEvent('daemon.${e.event}', e.params));
   }
 
-  void _emit(final String event, final Map<String, Object?> data) {
+  void _emit(String event, Map<String, Object?> data) {
     // Additive hooks (delegation channel) — never affect rendering.
     switch (event) {
       case 'session.ready':

@@ -51,8 +51,8 @@ class InjectShellEmitter extends ShellEmitter {
   /// is missing or its markers are absent/unbalanced.
   @override
   ShellOutput emit(
-    final WebShell shell, {
-    final String? existingIndexHtml,
+    WebShell shell, {
+    String? existingIndexHtml,
   }) {
     if (existingIndexHtml == null) {
       throw const ShellInjectionException(
@@ -109,11 +109,11 @@ class InjectShellEmitter extends ShellEmitter {
     );
   }
 
-  String _renderHeadBlock(final WebShell shell) => [
+  String _renderHeadBlock(WebShell shell) => [
         for (final entry in shell.head) renderHeadEntry(entry),
       ].join('\n');
 
-  String _renderBodyBlock(final WebShell shell) => [
+  String _renderBodyBlock(WebShell shell) => [
         for (final entry in shell.body) ...renderBodyEntry(entry),
       ].join('\n');
 
@@ -122,12 +122,12 @@ class InjectShellEmitter extends ShellEmitter {
   /// actionable [ShellInjectionException] when markers are missing or
   /// unbalanced.
   String _injectRegion({
-    required final String html,
-    required final String beginMarker,
-    required final String endMarker,
-    required final String content,
-    required final String region,
-    required final List<String> notes,
+    required String html,
+    required String beginMarker,
+    required String endMarker,
+    required String content,
+    required String region,
+    required List<String> notes,
   }) {
     final hasBegin = html.contains(beginMarker);
     final hasEnd = html.contains(endMarker);
@@ -178,7 +178,7 @@ class InjectShellEmitter extends ShellEmitter {
   }
 }
 
-String _missingMarkersMessage(final String region) {
+String _missingMarkersMessage(String region) {
   final isHead = region == 'head';
   return 'index.html has no $region markers '
       '(${isHead ? headBeginMarker : bodyBeginMarker} / '

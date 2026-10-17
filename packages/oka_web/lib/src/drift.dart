@@ -72,7 +72,7 @@ class ShellDriftReport {
       header,
       for (final drift in drifts) ...[
         '  ${drift.path}:',
-        ...drift.message.split('\n').map((final l) => '    $l'),
+        ...drift.message.split('\n').map((l) => '    $l'),
       ],
       runHint,
     ];
@@ -104,9 +104,9 @@ class ShellDriftReport {
 /// or unbalanced) are all reported as drift with the emitter's actionable
 /// message.
 ShellDriftReport checkShellDrift({
-  required final WebShell shell,
-  required final ShellEmitter emitter,
-  required final Map<String, String?> currentFiles,
+  required WebShell shell,
+  required ShellEmitter emitter,
+  required Map<String, String?> currentFiles,
 }) {
   final ShellOutput output;
   try {
@@ -171,9 +171,9 @@ ShellDriftReport checkShellDrift({
 /// Actionable drift detail: what's owned, what differs (lengths + first
 /// differing line), what to run.
 String _driftMessage({
-  required final String emitterName,
-  required final String rendered,
-  required final String disk,
+  required String emitterName,
+  required String rendered,
+  required String disk,
 }) {
   final diff = _firstLineDiff(rendered, disk);
   return 'owned by the "$emitterName" emitter; the file on disk differs '
@@ -187,7 +187,7 @@ String _driftMessage({
 }
 
 /// First differing line between two strings, as a short human hint.
-String? _firstLineDiff(final String a, final String b) {
+String? _firstLineDiff(String a, String b) {
   final aLines = a.split('\n');
   final bLines = b.split('\n');
   final n = aLines.length < bLines.length ? aLines.length : bLines.length;
@@ -205,7 +205,7 @@ String? _firstLineDiff(final String a, final String b) {
   return null;
 }
 
-String _clip(final String line) {
+String _clip(String line) {
   final one = line.trim();
   return one.length <= 60 ? one : '${one.substring(0, 57)}…';
 }

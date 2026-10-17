@@ -84,7 +84,7 @@ Future<DeliveryVerificationReport> verifyAndroidDelivery({
   final output = Directory(outputDirectory);
   await output.create(recursive: true);
   final tool = await findBundletool(explicitPath: bundletoolPath);
-  Future<BundletoolCommandResult> run(final List<String> args) async {
+  Future<BundletoolCommandResult> run(List<String> args) async {
     if (runBundletool != null) return runBundletool(args);
     if (tool == null) {
       return const BundletoolCommandResult(

@@ -9,8 +9,8 @@ class OkStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async => StepResult.success();
 }
 
@@ -20,8 +20,8 @@ class FailingStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async => StepResult.failure('device not attached');
 }
 
@@ -31,8 +31,8 @@ class ThrowingStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async => throw StateError('broken step');
 }
 
@@ -41,7 +41,7 @@ class SlowStep extends BuildStep {
   String get name => 'slow-step';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
       Future<StepResult>.delayed(
         const Duration(seconds: 5),
         StepResult.success,
@@ -58,8 +58,8 @@ class ReadingStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async => (state[artifact.id] as String?) == null
       ? StepResult.failure('missing artifact')
       : StepResult.success();

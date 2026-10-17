@@ -11,7 +11,7 @@ import 'package:oka_huawei/oka_huawei.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-BuildContext _ctx(final Directory tmp) => BuildContext(
+BuildContext _ctx(Directory tmp) => BuildContext(
   projectPath: tmp.path,
   buildDir: p.join(tmp.path, '.oka_cache', 'build', 'debug'),
   mode: BuildMode.debug,
@@ -60,7 +60,7 @@ void main() {
       final ctx = _ctx(tmp);
       final chain = describeTarget(_target, ctx);
       expect(chain.isValid, isTrue, reason: chain.validationError);
-      expect(chain.steps.map((final s) => s.name).toList(), [
+      expect(chain.steps.map((s) => s.name).toList(), [
         'huawei-stage-aab',
         'publish-plan',
       ], reason: 'the upload tail is substituted by the plan step (as code)');
@@ -120,7 +120,7 @@ void main() {
       );
       final chain = describeTarget(real, _ctx(tmp));
       expect(chain.isValid, isTrue, reason: chain.validationError);
-      expect(chain.steps.map((final s) => s.name).toList(), [
+      expect(chain.steps.map((s) => s.name).toList(), [
         'huawei-stage-aab',
         'agc-publish',
       ]);
@@ -136,7 +136,7 @@ void main() {
         _ctx(tmp),
         sourcePaths: [p.absolute('lib/src')],
       );
-      expect(violations.where((final v) => v.contains('law 2')), isEmpty);
+      expect(violations.where((v) => v.contains('law 2')), isEmpty);
     });
   });
 

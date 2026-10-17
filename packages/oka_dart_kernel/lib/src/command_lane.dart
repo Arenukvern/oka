@@ -35,14 +35,14 @@ final class CommandLaneSpec {
     final watch = json['watch'];
     if (watch is! List ||
         watch.isEmpty ||
-        watch.any((final root) => root is! String)) {
+        watch.any((root) => root is! String)) {
       throw ArgumentError('command lane "$name" needs non-empty string '
           '"watch" roots');
     }
     final run = json['run'];
     if (run is! List ||
         run.isEmpty ||
-        run.any((final arg) => arg is! String)) {
+        run.any((arg) => arg is! String)) {
       throw ArgumentError('command lane "$name" needs a non-empty string '
           '"run" argv (no shell)');
     }
@@ -87,7 +87,7 @@ final class CommandLane {
     this.projectRoot,
     void Function(Map<String, Object?> receipt)? onReceipt,
   }) : _onReceipt =
-           onReceipt ?? ((final receipt) => throw UnimplementedError());
+           onReceipt ?? ((receipt) => throw UnimplementedError());
 
   final CommandLaneSpec spec;
 
@@ -202,8 +202,8 @@ Future<void> runCommandLanes({
   void Function(Map<String, Object?> receipt)? onReceipt,
   int? parentPid,
 }) async {
-  void emit(final Map<String, Object?> receipt) {
-    (onReceipt ?? (final _) {})(receipt);
+  void emit(Map<String, Object?> receipt) {
+    (onReceipt ?? (_) {})(receipt);
   }
 
   if (parentPid != null) {

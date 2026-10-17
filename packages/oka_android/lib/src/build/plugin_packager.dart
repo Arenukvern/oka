@@ -89,7 +89,7 @@ class PluginPackagingResult {
 class PluginPackager {
   PluginPackager({
     required this.dependencyCache,
-    required final ResolvedToolchain sdkLocator,
+    required ResolvedToolchain sdkLocator,
     this.verbose = false,
     this.allowNetwork = true,
     PluginInputInspector? inputInspector,
@@ -116,10 +116,10 @@ class PluginPackager {
   /// When [requireAll] is true (default strict), any packable-required plugin
   /// that cannot be prepared is listed in [PluginPackagingResult.failed].
   Future<PluginPackagingResult> packageAll(
-    final PluginDiscoveryResult discovery, {
-    required final String buildDir,
-    required final List<String> abis,
-    final bool requireAll = true,
+    PluginDiscoveryResult discovery, {
+    required String buildDir,
+    required List<String> abis,
+    bool requireAll = true,
   }) async {
     final packaged = <PackagedPlugin>[];
     final failed = <PackagedPlugin>[];
@@ -185,7 +185,7 @@ class PluginPackager {
       jars.addAll(result.jarDeps);
       resDirs.addAll(result.resDirs);
       manifests.addAll(result.manifestPaths);
-      result.nativeLibsByAbi.forEach((final abi, final paths) {
+      result.nativeLibsByAbi.forEach((abi, paths) {
         natives.putIfAbsent(abi, () => []).addAll(paths);
       });
       final reg = result.registration;
@@ -211,8 +211,8 @@ class PluginPackager {
   /// (kotlin set gated on [hasKotlinSources]). Shared by [packageOne] and the
   /// `oka explain --deps` dependency plan so both see identical inputs.
   Future<PluginDeclaredDeps> collectDeclaredDeps(
-    final DiscoveredPlugin plugin, {
-    required final bool hasKotlinSources,
+    DiscoveredPlugin plugin, {
+    required bool hasKotlinSources,
     PluginInputs? inputs,
   }) async {
     final path = plugin.path;
@@ -325,14 +325,14 @@ class PluginPackager {
 
   /// Whether a plugin declares Kotlin host sources (gates the kotlin
   /// bootstrap dependency set).
-  Future<bool> hasKotlinSources(final DiscoveredPlugin plugin) async =>
+  Future<bool> hasKotlinSources(DiscoveredPlugin plugin) async =>
       (await inputInspector.inspect(plugin.path)).kotlinSources.isNotEmpty;
 
   /// Package a single plugin: sources, deps, res, natives.
   Future<PackagedPlugin> packageOne(
-    final DiscoveredPlugin plugin, {
-    required final String workDir,
-    required final List<String> abis,
+    DiscoveredPlugin plugin, {
+    required String workDir,
+    required List<String> abis,
   }) async {
     await Directory(workDir).create(recursive: true);
     final path = plugin.path;
@@ -364,7 +364,7 @@ class PluginPackager {
           rootCoords,
           extraRepos: extraRepos,
         );
-        jarDeps.addAll(resolved.map((final r) => r.jarPath));
+        jarDeps.addAll(resolved.map((r) => r.jarPath));
       } catch (e) {
         if (verbose) {
           print('   ⚠️  ${plugin.name}: dependency resolve issues: $e');
@@ -389,7 +389,7 @@ class PluginPackager {
           workDir: p.join(workDir, 'native'),
           abis: abis,
         );
-        built.forEach((final abi, final soPath) {
+        built.forEach((abi, soPath) {
           nativesByAbi.putIfAbsent(abi, () => []).add(soPath);
         });
       } catch (e) {
@@ -439,7 +439,7 @@ class PluginPackager {
     if (verbose) {
       print(
         '   ${plugin.name}: java=${javaMain.length} kt=${ktMain.length} '
-        'jars=${jarDeps.length} natives=${nativesByAbi.values.fold<int>(0, (final a, final b) => a + b.length)}',
+        'jars=${jarDeps.length} natives=${nativesByAbi.values.fold<int>(0, (a, b) => a + b.length)}',
       );
     }
 
@@ -454,7 +454,7 @@ class PluginPackager {
     );
   }
 
-  Future<String> _guessPackaging(final ParsedGradleDep dep) async {
+  Future<String> _guessPackaging(ParsedGradleDep dep) async {
     // Heuristic: androidx / com.google.android often AAR
     if (dep.groupId.startsWith('androidx.') ||
         dep.groupId.startsWith('com.google.android.') ||
@@ -475,9 +475,9 @@ class PluginPackager {
 
   /// Build CMake shared library for a plugin (e.g. jni → libdartjni.so).
   Future<Map<String, String>> buildCmakeNative({
-    required final String pluginPath,
-    required final String workDir,
-    required final List<String> abis,
+    required String pluginPath,
+    required String workDir,
+    required List<String> abis,
   }) => nativeBuildService.build(
     pluginPath: pluginPath,
     workDir: workDir,

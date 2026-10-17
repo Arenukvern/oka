@@ -8,7 +8,7 @@ import 'package:oka_play/oka_play.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-BuildContext _ctx(final Directory tmp) => BuildContext(
+BuildContext _ctx(Directory tmp) => BuildContext(
       projectPath: tmp.path,
       buildDir: p.join(tmp.path, '.oka_cache', 'build', 'debug'),
       mode: BuildMode.debug,
@@ -58,7 +58,7 @@ void main() {
       final chain = describeTarget(const PlayPublishTarget(), _ctx(tmp));
       expect(chain.isValid, isTrue, reason: chain.validationError);
       expect(
-        chain.steps.map((final s) => s.name).toList(),
+        chain.steps.map((s) => s.name).toList(),
         ['stage-aab', 'publish-plan'],
         reason: 'the upload tail is substituted by the plan step (as code)',
       );
@@ -122,7 +122,7 @@ void main() {
       // explicit and keeps future refactors honest.
       final transport = FakeHttpTransport()..routeJsonAlways(
           url: 'androidpublisher.googleapis.com',
-          json: (final _) => {'should': 'never be reached'},
+          json: (_) => {'should': 'never be reached'},
         );
       final state = PipelineState();
       final result =
@@ -198,7 +198,7 @@ void main() {
       expect(resolution.ok, isTrue);
       expect(resolution.source!.kind, CredentialSourceKind.env);
       expect(
-        resolution.tried.map((final s) => s.qualified).join('|'),
+        resolution.tried.map((s) => s.qualified).join('|'),
         contains('env OKA_PLAY_SERVICE_ACCOUNT_JSON'),
       );
     });
@@ -210,7 +210,7 @@ void main() {
         () => resolver.require(ref),
         throwsA(
           isA<CredentialResolutionException>().having(
-            (final e) => e.toString(),
+            (e) => e.toString(),
             'message',
             allOf(
               contains('play/service-account-json'),

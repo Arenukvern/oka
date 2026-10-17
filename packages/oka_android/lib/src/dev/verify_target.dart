@@ -111,7 +111,7 @@ class VerifyTarget extends Target {
       'failure signatures';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [
+  List<BuildStep> compile(BuildContext ctx) => [
         ResolveNewestApkStep(explicitApk: apk),
         ArtifactProvenanceRungStep(
           deviceId: deviceId,
@@ -182,7 +182,7 @@ class VerifyTarget extends Target {
   Set<String> get supportedInvocationArgs => const {'device'};
 
   @override
-  VerifyTarget applyInvocationArgs(final Map<String, String> args) {
+  VerifyTarget applyInvocationArgs(Map<String, String> args) {
     final unknown = args.keys.toSet().difference(supportedInvocationArgs);
     if (unknown.isNotEmpty) {
       throw ArgumentError(

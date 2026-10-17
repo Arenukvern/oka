@@ -54,28 +54,28 @@ import 'chrome_profile_state.dart';
 /// build DevTools/HTTP endpoints on it without knowing how the session got
 /// there. Frozen naming contract: renaming breaks consumers (ADR-0017
 /// Consequences).
-String chromeSessionHandleArtifactId(final String name) =>
+String chromeSessionHandleArtifactId(String name) =>
     'session-chrome-$name-handle';
 
 /// `session-<name>-cdp-port`: the engine-specific sub-handle carrying the
 /// CDP port as an [int].
-String chromeSessionCdpPortArtifactId(final String name) =>
+String chromeSessionCdpPortArtifactId(String name) =>
     'session-chrome-$name-cdp-port';
 
 /// `session-<name>-pid`: the spawned browser OS process id. Recorded so a
 /// composed [StopChromeSessionStep] can stop exactly the process oka
 /// started (and only that one).
-String chromeSessionPidArtifactId(final String name) =>
+String chromeSessionPidArtifactId(String name) =>
     'session-chrome-$name-pid';
 
 /// `session-<name>-profile-dir`: the ephemeral profile directory oka
 /// created for this session. Recorded only for ephemeral spawns so
 /// teardown deletes only dirs oka owns — never a reused session's profile,
 /// never a persistent one.
-String chromeSessionProfileDirArtifactId(final String name) =>
+String chromeSessionProfileDirArtifactId(String name) =>
     'session-chrome-$name-profile-dir';
 
-bool _validSessionName(final String value) =>
+bool _validSessionName(String value) =>
     RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$').hasMatch(value) &&
     value != '.' &&
     value != '..';
@@ -92,11 +92,11 @@ bool _validSessionName(final String value) =>
 /// (collisions are rejected earlier, fail-closed, by
 /// [BrowserSessionSpec.validate]).
 List<String> chromeLaunchArgs({
-  required final int debugPort,
-  required final String profileDir,
-  required final List<String> flags,
-  required final bool headless,
-  final ({int width, int height})? windowSize,
+  required int debugPort,
+  required String profileDir,
+  required List<String> flags,
+  required bool headless,
+  ({int width, int height})? windowSize,
 }) => [
   '--remote-debugging-port=$debugPort',
   '--user-data-dir=$profileDir',
@@ -119,7 +119,7 @@ List<String> chromeLaunchArgs({
 /// "not ready" and keeps polling. Deliberately extracts nothing else:
 /// parsing deeper CDP surfaces would be the first step down the CDP-client
 /// slope oka explicitly stays off (ADR-0017 out-of-scope line).
-String? parseVersionJson(final String body) {
+String? parseVersionJson(String body) {
   final Object? decoded;
   try {
     decoded = jsonDecode(body);
@@ -152,7 +152,7 @@ Future<int> assignEphemeralPort() async {
 /// (ADR-0017 §3): Chrome speaks CDP only. Pure — surfaced by
 /// [EnsureChromeSessionStep] at run start and usable by `oka explain` /
 /// tests without any I/O.
-List<String> chromeSessionIssues(final BrowserSessionSpec spec) {
+List<String> chromeSessionIssues(BrowserSessionSpec spec) {
   final issues = List<String>.of(spec.validate());
   if (spec.debugProtocol != DebugProtocol.cdp) {
     issues.add(
@@ -178,8 +178,8 @@ typedef CdpProbe = Future<String?> Function(Uri url);
 /// probe only — no websocket upgrade, no CDP commands, no protocol logic
 /// (ADR-0017 out-of-scope line).
 Future<String?> httpCdpProbe(
-  final Uri url, {
-  final Duration timeout = const Duration(seconds: 2),
+  Uri url, {
+  Duration timeout = const Duration(seconds: 2),
 }) async {
   if (timeout <= Duration.zero) throw ArgumentError.value(timeout, 'timeout');
   final client = HttpClient()..connectionTimeout = timeout;
@@ -231,8 +231,8 @@ final class _IoSessionProcess implements SessionProcess {
 /// Default [SessionProcessStarter]: `dart:io` `Process.start` (detached —
 /// the browser outlives the step; the step only records the pid).
 Future<SessionProcess> startSessionProcess(
-  final String executable,
-  final List<String> arguments,
+  String executable,
+  List<String> arguments,
 ) async {
   final process = await Process.start(
     executable,
@@ -301,12 +301,12 @@ class ChromeSessionTarget extends Target
   /// Pure session-state posture and configuration validation for
   /// `oka explain --targets`; this performs no browser or filesystem I/O.
   @override
-  List<String> explainDetails(final BuildContext ctx) {
+  List<String> explainDetails(BuildContext ctx) {
     final inspectorIds = stateWorkflow.inspectors
-        .map((final inspector) => inspector.id)
+        .map((inspector) => inspector.id)
         .join(', ');
     final reuseInspectorIds = stateWorkflow.reuseInspectors
-        ?.map((final inspector) => inspector.id)
+        ?.map((inspector) => inspector.id)
         .join(', ');
     final issues = [...chromeSessionIssues(spec), ...stateWorkflow.validate()];
     return [
@@ -325,7 +325,7 @@ class ChromeSessionTarget extends Target
 
   /// Compile to the ensure step (single step; stop is a separate target).
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [
+  List<BuildStep> compile(BuildContext ctx) => [
     EnsureChromeSessionStep(
       spec: spec,
       sessionName: sessionName,
@@ -337,7 +337,7 @@ class ChromeSessionTarget extends Target
   /// Process teardown follows the independent process scope. It never removes
   /// profile state retained beyond that process.
   @override
-  List<BuildStep> compileTeardown(final BuildContext ctx) =>
+  List<BuildStep> compileTeardown(BuildContext ctx) =>
       spec.effectiveProcessScope == LeaseScope.ephemeral
       ? [StopChromeSessionStep(sessionName: sessionName)]
       : const <BuildStep>[];
@@ -459,8 +459,8 @@ class EnsureChromeSessionStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     // Fail-closed spec validation (ADR-0017 §3): a mis-typed spec fails
     // with the accepted surface named before any process is touched.
@@ -469,7 +469,7 @@ class EnsureChromeSessionStep extends BuildStep {
       return StepResult.failure(
         'Chrome session "$sessionName" spec is invalid (fail-closed, '
         'ADR-0017 §3):\n'
-        '${issues.map((final i) => '  - $i').join('\n')}',
+        '${issues.map((i) => '  - $i').join('\n')}',
       );
     }
     if (!_validSessionName(sessionName)) {
@@ -483,7 +483,7 @@ class EnsureChromeSessionStep extends BuildStep {
     if (workflowIssues.isNotEmpty) {
       return StepResult.failure(
         'Chrome session-state workflow is invalid:\n'
-        '${workflowIssues.map((final issue) => '  - $issue').join('\n')}',
+        '${workflowIssues.map((issue) => '  - $issue').join('\n')}',
       );
     }
 
@@ -542,7 +542,7 @@ class EnsureChromeSessionStep extends BuildStep {
       final snapshot = await registry.inspect();
       final logicalKey = 'chrome-profile:${ctx.projectPath}:$sessionName';
       final matchingLeases = snapshot.leases.where(
-        (final lease) => lease.logicalResourceKey == logicalKey,
+        (lease) => lease.logicalResourceKey == logicalKey,
       );
       if (snapshot.issues.isEmpty && matchingLeases.length == 1) {
         final lease = matchingLeases.single;
@@ -610,7 +610,7 @@ class EnsureChromeSessionStep extends BuildStep {
       );
     }
     final profileVeto = profileFindings.firstWhere(
-      (final finding) => finding.use != SessionStateUse.unused,
+      (finding) => finding.use != SessionStateUse.unused,
       orElse: () => const SessionStateFinding(
         inspectorId: 'oka.profile-inspection',
         use: SessionStateUse.unused,
@@ -790,7 +790,7 @@ class EnsureChromeSessionStep extends BuildStep {
 
   // -- Lease recording + identity-verified failure-path kill (ADR-0018) ---
 
-  ProcessLeaseRegistry _registryFor(final BuildContext ctx) =>
+  ProcessLeaseRegistry _registryFor(BuildContext ctx) =>
       leaseRegistry ??
       ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: _host);
 
@@ -801,10 +801,10 @@ class EnsureChromeSessionStep extends BuildStep {
   /// obtainable. Stop hint: the graceful SIGTERM of the recorded pid.
   @visibleForTesting
   ProcessLease spawnLease(
-    final int pid,
-    final String? pidToken, {
-    required final int port,
-    final String? profileDir,
+    int pid,
+    String? pidToken, {
+    required int port,
+    String? profileDir,
   }) => ProcessLease(
     id: leaseId,
     pid: pid,
@@ -825,7 +825,7 @@ class EnsureChromeSessionStep extends BuildStep {
   /// Reuse never downgrades an existing owner's stop authority (ADR-0044).
   /// If no lease exists, record discovery as borrowed (pid 0). The caller
   /// receives no PID artifact and therefore no process teardown ownership.
-  Future<void> _adoptLease(final int port, final BuildContext ctx) async {
+  Future<void> _adoptLease(int port, BuildContext ctx) async {
     try {
       final registry = _registryFor(ctx);
       for (final lease in await registry.list()) {
@@ -858,11 +858,11 @@ class EnsureChromeSessionStep extends BuildStep {
   /// signals an unverifiable pid (report-never-guess; the reconcile sweep
   /// in L2 surfaces what we could not stop).
   Future<bool> _stopSpawned(
-    final SessionProcess? process,
-    final String? pidToken,
-    final BuildContext ctx, {
-    required final SessionStateManager stateManager,
-    required final String stateLeaseId,
+    SessionProcess? process,
+    String? pidToken,
+    BuildContext ctx, {
+    required SessionStateManager stateManager,
+    required String stateLeaseId,
   }) async {
     if (process == null) return true; // nothing spawned, nothing to clean
     if (pidToken == null) {
@@ -918,8 +918,8 @@ class EnsureChromeSessionStep extends BuildStep {
   }
 
   Future<void> _upsertLease(
-    final ProcessLease lease,
-    final BuildContext ctx,
+    ProcessLease lease,
+    BuildContext ctx,
   ) async {
     try {
       await _registryFor(ctx).upsert(lease);
@@ -929,7 +929,7 @@ class EnsureChromeSessionStep extends BuildStep {
     }
   }
 
-  Future<String?> _identityToken(final int pid) async {
+  Future<String?> _identityToken(int pid) async {
     try {
       return await _host.identityToken(pid);
     } on Object {
@@ -973,8 +973,8 @@ class StopChromeSessionStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final pidValue = pid ?? state[chromeSessionPidArtifactId(sessionName)];
     final profileDir =

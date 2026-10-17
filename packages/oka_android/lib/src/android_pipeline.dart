@@ -101,11 +101,11 @@ class AndroidPipeline implements PlatformPipeline {
   };
 
   AndroidPipeline copyWith({
-    final PipelineOverrides? overrides,
-    final List<BuildStep>? steps,
-    final bool? strictPlugins,
-    final AndroidBuild? config,
-    final FlutterBuild? flutterConfig,
+    PipelineOverrides? overrides,
+    List<BuildStep>? steps,
+    bool? strictPlugins,
+    AndroidBuild? config,
+    FlutterBuild? flutterConfig,
   }) => AndroidPipeline(
     overrides: overrides ?? this.overrides,
     steps: steps ?? this.steps,
@@ -148,7 +148,7 @@ class AndroidPipeline implements PlatformPipeline {
   }
 
   @override
-  Future<StepResult> run(final BuildContext ctx) async {
+  Future<StepResult> run(BuildContext ctx) async {
     if (steps != null && ctx.buildAab) {
       // Explicit step lists own APK-vs-AAB packaging — `--aab` only names the
       // build dir unless the composed list swaps in the AAB tail
@@ -231,8 +231,8 @@ class AndroidPipeline implements PlatformPipeline {
   /// `build-apks --mode=universal` — the same parsing path as Play — and
   /// extracts the installable universal APK.
   Future<bool> _verifyAabWithBundletool(
-    final BuildContext ctx,
-    final String aabPath,
+    BuildContext ctx,
+    String aabPath,
   ) async {
     print('\n🔍 Verifying AAB with bundletool...');
     final ks = await debugKeystore();

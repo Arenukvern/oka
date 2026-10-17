@@ -28,7 +28,7 @@ class FakeDeviceTarget extends Target {
   Set<String> get supportedInvocationArgs => const {'device'};
 
   @override
-  FakeDeviceTarget applyInvocationArgs(final Map<String, String> args) {
+  FakeDeviceTarget applyInvocationArgs(Map<String, String> args) {
     final unknown = args.keys.toSet().difference(supportedInvocationArgs);
     if (unknown.isNotEmpty) {
       throw ArgumentError(
@@ -40,7 +40,7 @@ class FakeDeviceTarget extends Target {
   }
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) =>
+  List<BuildStep> compile(BuildContext ctx) =>
       [FakeDeviceStep(deviceId: deviceId)];
 }
 
@@ -54,8 +54,8 @@ class FakeDeviceStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     File('${ctx.buildDir}/device-ran.txt')
       ..parent.createSync(recursive: true)
@@ -70,7 +70,7 @@ class FakeDeviceStep extends BuildStep {
   }
 }
 
-Future<void> main(final List<String> args) => okaRun(
+Future<void> main(List<String> args) => okaRun(
       args,
       oka: const Oka(pipelines: [], targets: [FakeDeviceTarget()]),
     );

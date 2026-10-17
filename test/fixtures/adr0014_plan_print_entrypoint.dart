@@ -35,10 +35,10 @@ class FixturePublishTarget extends PublishTarget {
   Map<String, String> get metadata => const {'fixture': 'true'};
 
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [_StageFixture()];
+  List<BuildStep> publishSteps(BuildContext ctx) => [_StageFixture()];
 
   @override
-  BuildStep uploadStep(final BuildContext ctx) => throw UnsupportedError(
+  BuildStep uploadStep(BuildContext ctx) => throw UnsupportedError(
         'the fixture target is dry-run only — the upload tail never compiles',
       );
 }
@@ -51,7 +51,7 @@ class _StageFixture extends BuildStep {
   Set<Artifact<Object>> get provides => {FixturePublishTarget.artifact};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     state[FixturePublishTarget.artifact.id] = '${ctx.buildDir}/fixture.aab';
     return StepResult.success();
   }
@@ -69,7 +69,7 @@ class FixturePipeline implements PlatformPipeline {
   Map<String, dynamic> get configOverrides => const {};
 
   @override
-  Future<StepResult> run(final BuildContext ctx) async => StepResult.success({
+  Future<StepResult> run(BuildContext ctx) async => StepResult.success({
         'apk_path': '${ctx.buildDir}/app-debug.apk',
       });
 }
@@ -86,7 +86,7 @@ class EchoTarget extends Target {
   String get description => 'Test-only no-op target';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [_EchoStep()];
+  List<BuildStep> compile(BuildContext ctx) => [_EchoStep()];
 }
 
 class _EchoStep extends BuildStep {
@@ -94,11 +94,11 @@ class _EchoStep extends BuildStep {
   String get name => 'echo';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async =>
       StepResult.success();
 }
 
-Future<void> main(final List<String> args) => okaRun(
+Future<void> main(List<String> args) => okaRun(
       args,
       oka: const Oka(pipelines: [FixturePipeline()], targets: [
         FixturePublishTarget(),

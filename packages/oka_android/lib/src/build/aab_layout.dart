@@ -67,13 +67,13 @@ List<int> minimalBundleConfigPb() {
 /// - [flutterAssetsDir] → `base/assets/flutter_assets/`.
 /// - [libflutterByAbi] / [libappByAbi] / [extraNativeByAbi] → `base/lib/<abi>/`.
 Future<void> stageAabBaseModule({
-  required final String baseDir,
-  required final String protoResourcesAp,
-  final List<String> dexFiles = const [],
-  final String? flutterAssetsDir,
-  final Map<String, String> libflutterByAbi = const {},
-  final Map<String, String> libappByAbi = const {},
-  final Map<String, List<String>> extraNativeByAbi = const {},
+  required String baseDir,
+  required String protoResourcesAp,
+  List<String> dexFiles = const [],
+  String? flutterAssetsDir,
+  Map<String, String> libflutterByAbi = const {},
+  Map<String, String> libappByAbi = const {},
+  Map<String, List<String>> extraNativeByAbi = const {},
 }) async {
   final root = Directory(baseDir);
   if (await root.exists()) {
@@ -120,8 +120,8 @@ Future<void> stageAabBaseModule({
   }
 
   Future<void> stageNative(
-    final Map<String, String> byAbi,
-    final String soName,
+    Map<String, String> byAbi,
+    String soName,
   ) async {
     for (final entry in byAbi.entries) {
       final abi = normalizeBundleAbi(entry.key);
@@ -149,7 +149,7 @@ Future<void> stageAabBaseModule({
 }
 
 /// Zip a bundle root ([bundleRoot] containing `base/`) into [aabPath].
-Future<void> zipBundle(final String bundleRoot, final String aabPath) async {
+Future<void> zipBundle(String bundleRoot, String aabPath) async {
   final archive = Archive();
   // Deterministic artifact bytes (ADR-0007): sorted entry order.
   final entries = await listRelativePaths(Directory(bundleRoot));
@@ -168,12 +168,12 @@ Future<void> zipBundle(final String bundleRoot, final String aabPath) async {
 /// Returns the signed output path. [jarsignerPath] defaults to `jarsigner`
 /// on PATH; oka resolves it next to javac when possible.
 Future<String> signAab({
-  required final String unsignedAabPath,
-  required final String keystorePath,
-  required final String keyAlias,
-  required final String storePass,
-  required final String signedAabPath,
-  final String? jarsignerPath,
+  required String unsignedAabPath,
+  required String keystorePath,
+  required String keyAlias,
+  required String storePass,
+  required String signedAabPath,
+  String? jarsignerPath,
 }) async {
   final tool = jarsignerPath ?? 'jarsigner';
   final result = await Process.run(tool, [
@@ -249,17 +249,17 @@ class AabContentValidation {
 
 /// Validate paths already listed from an `.aab` zip (module-relative).
 AabLayoutValidation validateAabPathSet(
-  final Iterable<String> paths, {
-  final AabLayoutSpec spec = const AabLayoutSpec(),
+  Iterable<String> paths, {
+  AabLayoutSpec spec = const AabLayoutSpec(),
 }) {
   final normalized = paths
-      .map((final e) => e.replaceAll(r'\', '/'))
+      .map((e) => e.replaceAll(r'\', '/'))
       .toSet()
       .toList();
   final missing = <String>[];
   final present = <String>[];
 
-  void check(final String label, final bool Function() ok) {
+  void check(String label, bool Function() ok) {
     if (ok()) {
       present.add(label);
     } else {
@@ -267,7 +267,7 @@ AabLayoutValidation validateAabPathSet(
     }
   }
 
-  bool has(final String entry) => normalized.contains('base/$entry');
+  bool has(String entry) => normalized.contains('base/$entry');
 
   if (spec.requireBundleConfig) {
     check('BundleConfig.pb', () => normalized.contains('BundleConfig.pb'));
@@ -286,7 +286,7 @@ AabLayoutValidation validateAabPathSet(
       () =>
           has('dex/classes.dex') ||
           normalized.any(
-            (final e) => RegExp(r'^base/dex/classes\d*\.dex$').hasMatch(e),
+            (e) => RegExp(r'^base/dex/classes\d*\.dex$').hasMatch(e),
           ),
     );
   }
@@ -294,7 +294,7 @@ AabLayoutValidation validateAabPathSet(
     check(
       'base/assets/flutter_assets/',
       () => normalized.any(
-        (final e) => e.startsWith('base/assets/flutter_assets'),
+        (e) => e.startsWith('base/assets/flutter_assets'),
       ),
     );
   }
@@ -316,13 +316,13 @@ AabLayoutValidation validateAabPathSet(
     check(
       'META-INF/*.SF',
       () => normalized.any(
-        (final e) => RegExp(r'^META-INF/[^/]+\.SF$').hasMatch(e),
+        (e) => RegExp(r'^META-INF/[^/]+\.SF$').hasMatch(e),
       ),
     );
     check(
       'META-INF/*.(RSA|DSA|EC)',
       () => normalized.any(
-        (final e) => RegExp(r'^META-INF/[^/]+\.(RSA|DSA|EC)$').hasMatch(e),
+        (e) => RegExp(r'^META-INF/[^/]+\.(RSA|DSA|EC)$').hasMatch(e),
       ),
     );
   }
@@ -337,36 +337,36 @@ AabLayoutValidation validateAabPathSet(
 /// Validate an AAB archive, including manifest, DEX, native ABI, resource,
 /// duplicate-entry, and (optionally) v1 signature invariants.
 Future<AabContentValidation> validateAabFile(
-  final String aabPath, {
-  final AabLayoutSpec spec = const AabLayoutSpec(),
+  String aabPath, {
+  AabLayoutSpec spec = const AabLayoutSpec(),
 }) async {
   final errors = <String>[];
   final warnings = <String>[];
   final archive = ZipDecoder().decodeBytes(await File(aabPath).readAsBytes());
-  final files = archive.where((final f) => f.isFile).toList();
-  final names = files.map((final f) => f.name.replaceAll(r'\', '/')).toList();
+  final files = archive.where((f) => f.isFile).toList();
+  final names = files.map((f) => f.name.replaceAll(r'\', '/')).toList();
   final counts = <String, int>{};
   for (final name in names) {
     counts[name] = (counts[name] ?? 0) + 1;
   }
   final duplicates = counts.entries
-      .where((final e) => e.value > 1)
-      .map((final e) => '${e.key} (${e.value} entries)')
+      .where((e) => e.value > 1)
+      .map((e) => '${e.key} (${e.value} entries)')
       .toList();
   if (duplicates.isNotEmpty) {
     errors.add('duplicate ZIP entries: ${duplicates.join(', ')}');
   }
 
   final layout = validateAabPathSet(names, spec: spec);
-  errors.addAll(layout.missing.map((final e) => 'missing $e'));
-  ArchiveFile? entry(final String name) {
+  errors.addAll(layout.missing.map((e) => 'missing $e'));
+  ArchiveFile? entry(String name) {
     for (final file in files) {
       if (file.name.replaceAll(r'\', '/') == name) return file;
     }
     return null;
   }
 
-  List<int> bytes(final String name) =>
+  List<int> bytes(String name) =>
       entry(name)?.content as List<int>? ?? const [];
 
   final manifest = bytes('base/manifest/AndroidManifest.xml');
@@ -377,7 +377,7 @@ Future<AabContentValidation> validateAabFile(
   // string. Requiring at least one printable string catches an accidentally
   // copied text/empty manifest without pretending to be a protobuf parser.
   if (manifest.isNotEmpty &&
-      !manifest.skip(1).any((final b) => b >= 0x20 && b <= 0x7e)) {
+      !manifest.skip(1).any((b) => b >= 0x20 && b <= 0x7e)) {
     errors.add(
       'base/manifest/AndroidManifest.xml has no readable protobuf data',
     );
@@ -388,7 +388,7 @@ Future<AabContentValidation> validateAabFile(
   }
 
   final dexNames = names
-      .where((final n) => RegExp(r'^base/dex/classes\d*\.dex$').hasMatch(n))
+      .where((n) => RegExp(r'^base/dex/classes\d*\.dex$').hasMatch(n))
       .toList();
   for (final dexName in dexNames) {
     final dex = bytes(dexName);
@@ -419,10 +419,10 @@ Future<AabContentValidation> validateAabFile(
   if (spec.requireSignature) {
     final hasManifest = names.contains('META-INF/MANIFEST.MF');
     final hasSf = names.any(
-      (final n) => RegExp(r'^META-INF/[^/]+\.SF$').hasMatch(n),
+      (n) => RegExp(r'^META-INF/[^/]+\.SF$').hasMatch(n),
     );
     final hasBlock = names.any(
-      (final n) => RegExp(r'^META-INF/[^/]+\.(RSA|DSA|EC)$').hasMatch(n),
+      (n) => RegExp(r'^META-INF/[^/]+\.(RSA|DSA|EC)$').hasMatch(n),
     );
     if (!hasManifest || !hasSf || !hasBlock) {
       errors.add(
@@ -439,17 +439,17 @@ Future<AabContentValidation> validateAabFile(
 }
 
 /// Read entry names from an `.aab` zip.
-Future<List<String>> listAabEntries(final String aabPath) async {
+Future<List<String>> listAabEntries(String aabPath) async {
   final bytes = await File(aabPath).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
   return archive
-      .where((final f) => f.isFile)
-      .map((final f) => f.name.replaceAll(r'\', '/'))
+      .where((f) => f.isFile)
+      .map((f) => f.name.replaceAll(r'\', '/'))
       .toList();
 }
 
 /// ABI normalization shared with the APK path (delegates to the same rules).
-String normalizeBundleAbi(final String abi) {
+String normalizeBundleAbi(String abi) {
   switch (abi.toLowerCase().trim()) {
     case 'android-arm64':
     case 'arm64':
@@ -474,8 +474,8 @@ String normalizeBundleAbi(final String abi) {
 }
 
 Future<void> copyDirectoryTree(
-  final Directory source,
-  final Directory dest,
+  Directory source,
+  Directory dest,
 ) async {
   await dest.create(recursive: true);
   await for (final e in source.list(recursive: true, followLinks: false)) {

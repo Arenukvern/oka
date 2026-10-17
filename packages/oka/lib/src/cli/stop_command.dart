@@ -14,7 +14,7 @@ import 'package:oka_core/oka_core.dart';
 /// runs before the force rung. `--json` emits the pipeline-events envelope
 /// (scope "processes", event "stop.result").
 class StopCommand {
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     final parser = ArgParser()
       ..addFlag(
         'force',
@@ -69,7 +69,7 @@ class StopCommand {
       }
       return;
     }
-    final positional = results.rest.where((final a) => !a.startsWith('-'));
+    final positional = results.rest.where((a) => !a.startsWith('-'));
     if (positional.isEmpty) {
       stderr.writeln(
         'Usage: oka stop <lease-id> [--force] [--stale] [--json]\n'

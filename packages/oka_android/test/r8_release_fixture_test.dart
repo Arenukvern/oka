@@ -172,7 +172,7 @@ public class Unused { public int gone() { return 1; } }
   );
 }
 
-void _copyDir(final Directory from, final Directory to) {
+void _copyDir(Directory from, Directory to) {
   for (final e in from.listSync(recursive: true)) {
     final relative = p.relative(e.path, from: from.path);
     final target = p.join(to.path, relative);
@@ -185,25 +185,25 @@ void _copyDir(final Directory from, final Directory to) {
   }
 }
 
-void _write(final String path, final String content) {
+void _write(String path, String content) {
   File(path).parent.createSync(recursive: true);
   File(path).writeAsStringSync(content);
 }
 
-List<String> _javaFiles(final Directory root) => [
+List<String> _javaFiles(Directory root) => [
   for (final e in root.listSync(recursive: true))
     if (e is File && e.path.endsWith('.java')) e.path,
 ];
 
 Future<void> _jar(
-  final String jarPath,
-  final String baseDir,
-  final String relativeDir,
+  String jarPath,
+  String baseDir,
+  String relativeDir,
 ) async {
   await Process.run('jar', ['cf', jarPath, '-C', baseDir, relativeDir]);
 }
 
-Future<String?> _which(final String command) async {
+Future<String?> _which(String command) async {
   final result = await Process.run(Platform.isWindows ? 'where' : 'which', [
     command,
   ], runInShell: Platform.isWindows);

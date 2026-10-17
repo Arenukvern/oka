@@ -29,25 +29,25 @@ void main() {
   FakeHttpTransport makeTransport() => FakeHttpTransport()
     ..routeJson(
       url: 'api/oauth2/v1/token',
-      json: (final _) => {'access_token': _syntheticToken, 'expires_in': 3600},
+      json: (_) => {'access_token': _syntheticToken, 'expires_in': 3600},
     )
     ..routeJson(
       url: 'api/publish/v2/upload-url',
-      json: (final _) => {
+      json: (_) => {
         'uploadUrl': 'https://upload.fake/agc/1',
         'session': 'session-1',
       },
     )
     ..route(
       url: 'upload.fake/agc/1',
-      handle: (final _) => const ScriptedResponse(
+      handle: (_) => const ScriptedResponse(
         json: {'result': 0},
         headers: {'content-type': 'application/octet-stream'},
       ),
     )
     ..routeJson(
       url: 'api/publish/v2/app-submit',
-      json: (final _) => {
+      json: (_) => {
         'ret': {'code': 0, 'msg': 'Success'},
         'version': '1.2.3',
         'submitId': 'submit-1',
@@ -174,7 +174,7 @@ void main() {
     // value-type law and forbidden-material scanning.
     expectStateRedacted(state, forbidden: _forbiddenMaterial);
     expectNoSecretMaterial(
-      result.data.entries.map((final e) => '${e.key}: ${e.value}').join('\n'),
+      result.data.entries.map((e) => '${e.key}: ${e.value}').join('\n'),
       forbidden: _forbiddenMaterial,
       context: 'step result data',
     );
@@ -293,7 +293,7 @@ void main() {
       final transport = FakeHttpTransport()
         ..routeJson(
           url: 'api/oauth2/v1/token',
-          json: (final _) => {
+          json: (_) => {
             'ret': {'code': 5, 'msg': 'invalid client'},
           },
           status: 401,
@@ -315,22 +315,22 @@ void main() {
       final transport = FakeHttpTransport()
         ..routeJson(
           url: 'api/oauth2/v1/token',
-          json: (final _) => {'access_token': _syntheticToken},
+          json: (_) => {'access_token': _syntheticToken},
         )
         ..routeJson(
           url: 'api/publish/v2/upload-url',
-          json: (final _) => {
+          json: (_) => {
             'uploadUrl': 'https://upload.fake/1',
             'session': 's',
           },
         )
         ..route(
           url: 'upload.fake/1',
-          handle: (final _) => const ScriptedResponse(json: {'result': 0}),
+          handle: (_) => const ScriptedResponse(json: {'result': 0}),
         )
         ..routeJson(
           url: 'api/publish/v2/app-submit',
-          json: (final _) => {
+          json: (_) => {
             'ret': {'code': 42, 'msg': 'release rejected'},
           },
         );

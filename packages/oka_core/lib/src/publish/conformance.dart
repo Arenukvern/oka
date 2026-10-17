@@ -39,9 +39,9 @@ final RegExp stdinUsagePattern = RegExp(r'\bstdin\b|readLineSync|readByteSync');
 /// Pure with respect to the real world: only the dry-run pipeline runs,
 /// and the dry-run law forbids it from doing anything.
 Future<List<String>> auditPublishConformance(
-  final PublishTarget target,
-  final BuildContext ctx, {
-  final List<String> sourcePaths = const [],
+  PublishTarget target,
+  BuildContext ctx, {
+  List<String> sourcePaths = const [],
 }) async {
   final violations = <String>[];
 
@@ -65,8 +65,8 @@ Future<List<String>> auditPublishConformance(
   if (target.dryRun) {
     // Determinism/purity: compiling twice yields the same step chain.
     final secondCompile = describeTarget(target, ctx);
-    final firstNames = chain.steps.map((final s) => s.name).toList();
-    final secondNames = secondCompile.steps.map((final s) => s.name).toList();
+    final firstNames = chain.steps.map((s) => s.name).toList();
+    final secondNames = secondCompile.steps.map((s) => s.name).toList();
     if (firstNames.join('|') != secondNames.join('|') ||
         chain.validationError != secondCompile.validationError) {
       violations.add(
@@ -189,7 +189,7 @@ Future<List<String>> auditPublishConformance(
 
 /// Scans [sourcePaths] (files or directories, `.dart` files) for stdin
 /// usage — the mechanical form of the no-stdin law.
-List<String> _auditNoStdin(final List<String> sourcePaths) {
+List<String> _auditNoStdin(List<String> sourcePaths) {
   final violations = <String>[];
   for (final path in sourcePaths) {
     final type = FileSystemEntity.typeSync(path);
@@ -201,7 +201,7 @@ List<String> _auditNoStdin(final List<String> sourcePaths) {
         ? Directory(path)
             .listSync(recursive: true)
             .whereType<File>()
-            .where((final f) => f.path.endsWith('.dart'))
+            .where((f) => f.path.endsWith('.dart'))
             .toList()
         : [File(path)];
     for (final file in files) {
@@ -237,9 +237,9 @@ List<String> _auditNoStdin(final List<String> sourcePaths) {
 /// });
 /// ```
 Future<void> expectPublishConformance(
-  final PublishTarget target,
-  final BuildContext ctx, {
-  final List<String> sourcePaths = const [],
+  PublishTarget target,
+  BuildContext ctx, {
+  List<String> sourcePaths = const [],
 }) async {
   final violations =
       await auditPublishConformance(target, ctx, sourcePaths: sourcePaths);
@@ -270,7 +270,7 @@ class PublishConformanceException implements Exception {
   @override
   String toString() =>
       'publish target "$target" violates the ADR-0014 publishing '
-      'conformance laws:\n${violations.map((final v) => '  - $v').join('\n')}';
+      'conformance laws:\n${violations.map((v) => '  - $v').join('\n')}';
 }
 
 /// A conformance fixture: the minimal [PublishTarget] target packages
@@ -341,12 +341,12 @@ class FixturePublishTarget extends PublishTarget {
   /// Staging steps: the pure fixture stage (or nothing when
   /// [missingArtifact]).
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) =>
+  List<BuildStep> publishSteps(BuildContext ctx) =>
       missingArtifact ? const [] : [FixtureStageAabStep(pollute: polluteState)];
 
   /// Upload tail: [FixtureUploadStep] (never executed by the audit).
   @override
-  BuildStep uploadStep(final BuildContext ctx) => FixtureUploadStep();
+  BuildStep uploadStep(BuildContext ctx) => FixtureUploadStep();
 }
 
 /// Pure staging step: provides the fixture artifact id, no I/O.
@@ -372,7 +372,7 @@ class FixtureStageAabStep extends BuildStep {
   /// Records a fake AAB path (and, when [pollute], law-3 violations) into
   /// state.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     state[aab.id] = '${ctx.buildDir}/app-release.aab';
     if (pollute) {
       state['client_secret'] = 'value';
@@ -402,7 +402,7 @@ class FixtureUploadStep extends BuildStep {
   /// Always throws — proof the conformance audit never reaches a real
   /// upload step.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     // A real target would upload here. The conformance audit must never
     // reach this step: it runs only dry-run pipelines.
     throw StateError('the conformance audit executed a real upload step');

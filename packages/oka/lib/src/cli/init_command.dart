@@ -218,9 +218,9 @@ class InitCommand {
   }
 
   void _writeYaml(
-    final StringBuffer buffer,
-    final Object? data,
-    final int indent,
+    StringBuffer buffer,
+    Object? data,
+    int indent,
   ) {
     final spaces = '  ' * indent;
 
@@ -614,7 +614,7 @@ List<String> _manifestLines(
   return lines;
 }
 
-List<String> _deeplinks(final Object? raw) {
+List<String> _deeplinks(Object? raw) {
   final links = <String>[];
   if (raw is! List) return links;
   for (final e in raw) {
@@ -634,10 +634,10 @@ List<String> _deeplinks(final Object? raw) {
 
 String _esc(String s) => s.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
 
-String _yStr(final Object? raw) => raw?.toString() ?? '';
+String _yStr(Object? raw) => raw?.toString() ?? '';
 
-List<String> _yStrings(final Object? raw) =>
-    raw is List ? raw.map((final e) => e.toString()).toList() : const [];
+List<String> _yStrings(Object? raw) =>
+    raw is List ? raw.map((e) => e.toString()).toList() : const [];
 
 String _strList(List<String> items) =>
     '[${items.map((e) => "'${_esc(e)}'").join(', ')}]';

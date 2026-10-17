@@ -37,12 +37,12 @@ void main() {
       );
 
       final gradle = locations
-          .where((final l) => l.category == 'gradle-cache')
+          .where((l) => l.category == 'gradle-cache')
           .toList();
-      expect(gradle.map((final l) => p.basename(l.path)).toSet(),
+      expect(gradle.map((l) => p.basename(l.path)).toSet(),
           {'caches', 'wrapper'});
-      expect(gradle.every((final l) => l.ownership == 'external'), isTrue);
-      expect(gradle.every((final l) => !l.prunable), isTrue,
+      expect(gradle.every((l) => l.ownership == 'external'), isTrue);
+      expect(gradle.every((l) => !l.prunable), isTrue,
           reason: 'oka never prunes another tool cache');
     });
 
@@ -58,7 +58,7 @@ void main() {
       );
 
       final fvm = locations
-          .where((final l) => l.category == 'fvm-versions')
+          .where((l) => l.category == 'fvm-versions')
           .toList();
       expect(fvm, hasLength(1));
       expect(fvm.first.ownership, 'external');
@@ -72,7 +72,7 @@ void main() {
         includeProject: false,
       );
       expect(
-        locations.where((final l) => l.category == 'fvm-versions'),
+        locations.where((l) => l.category == 'fvm-versions'),
         isEmpty,
       );
     });
@@ -80,7 +80,7 @@ void main() {
 
   group('ForeignStoreDiagnosticProvider', () {
     CacheDiagnosticContext contextWith(
-      final List<StorageMeasurement> measurements,
+      List<StorageMeasurement> measurements,
     ) => CacheDiagnosticContext(
       projects: const [],
       environment: env(),
@@ -88,9 +88,9 @@ void main() {
     );
 
     StorageMeasurement unit(
-      final String category,
-      final String path, {
-      final int size = 1234,
+      String category,
+      String path, {
+      int size = 1234,
     }) => StorageMeasurement(
       location: StorageLocation(
         id: '$category:$path',
@@ -126,23 +126,23 @@ void main() {
           reason: 'AVDs belong to the Android provider (kind emulator)');
 
       final pub = records.firstWhere(
-        (final r) => r.path == p.join(home, '.pub-cache'),
+        (r) => r.path == p.join(home, '.pub-cache'),
       );
       expect(pub.kind, 'foreign-cache');
       expect(pub.metadata['size_bytes'], 1024);
       expect(pub.metadata['prunable_by_oka'], isFalse);
       expect(
         pub.actions
-            .where((final a) => a.destructive)
-            .map((final a) => a.argv.join(' ')),
+            .where((a) => a.destructive)
+            .map((a) => a.argv.join(' ')),
         contains('dart pub cache clean'),
       );
 
       final gradle = records.firstWhere(
-        (final r) => r.path == p.join(home, '.gradle', 'caches'),
+        (r) => r.path == p.join(home, '.gradle', 'caches'),
       );
       expect(
-        gradle.actions.map((final a) => a.argv.join(' ')),
+        gradle.actions.map((a) => a.argv.join(' ')),
         contains('gradle --stop'),
       );
     });

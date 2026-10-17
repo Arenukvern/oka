@@ -163,8 +163,8 @@ class SignatureMatch {
 /// Scans [log] (case-insensitive) for [signatures]. Pure — unit-tested
 /// without a device.
 List<SignatureMatch> scanFailureSignatures(
-  final String log, {
-  final List<FailureSignature> signatures = builtinFailureSignatures,
+  String log, {
+  List<FailureSignature> signatures = builtinFailureSignatures,
 }) {
   final lowered = log.toLowerCase();
   final matches = <SignatureMatch>[];

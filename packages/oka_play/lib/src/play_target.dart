@@ -169,13 +169,13 @@ class PlayPublishTarget extends PublishTarget {
 
   /// Staging steps: the AAB stage with the typed path override.
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [
+  List<BuildStep> publishSteps(BuildContext ctx) => [
     StageAabStep(artifactPath: artifactPath),
   ];
 
   /// The upload tail: [PlayUploadStep].
   @override
-  BuildStep uploadStep(final BuildContext ctx) => PlayUploadStep(this);
+  BuildStep uploadStep(BuildContext ctx) => PlayUploadStep(this);
 
   /// Typed-config validation issues (empty = valid). Pure — used by the
   /// upload step and available to tooling; a misconfigured target fails

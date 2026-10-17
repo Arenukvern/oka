@@ -15,9 +15,9 @@ import 'package:resource_composition/resource_composition.dart';
 /// pass to [Supervisor] — validation failures never contact a process.
 final class SupervisorCommand {
   SupervisorCommand({
-    final void Function(String)? output,
-    final void Function(String)? errorOutput,
-    final void Function(int)? setExitCode,
+    void Function(String)? output,
+    void Function(String)? errorOutput,
+    void Function(int)? setExitCode,
   }) : _output = output ?? stdout.writeln,
        _errorOutput = errorOutput ?? stderr.writeln,
        _setExitCode = setExitCode ?? _setProcessExitCode;
@@ -26,9 +26,9 @@ final class SupervisorCommand {
   final void Function(String) _errorOutput;
   final void Function(int) _setExitCode;
 
-  static void _setProcessExitCode(final int value) => exitCode = value;
+  static void _setProcessExitCode(int value) => exitCode = value;
 
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     if (args.isEmpty) {
       _output(_usage);
       return;
@@ -51,7 +51,7 @@ final class SupervisorCommand {
     }
   }
 
-  Future<void> _status(final List<String> args) async {
+  Future<void> _status(List<String> args) async {
     final parser = ArgParser()
       ..addOption(
         'project',
@@ -101,7 +101,7 @@ final class SupervisorCommand {
     }
   }
 
-  Future<void> _apply(final List<String> args) async {
+  Future<void> _apply(List<String> args) async {
     final parser = ArgParser()
       ..addFlag(
         'dry-run',
@@ -207,7 +207,7 @@ final class SupervisorCommand {
   /// Names the first declaration this CLI cannot run, or null when every
   /// spec resolves. Providers are named seams (ADR-0040): this CLI ships
   /// exactly one, and a process spec must say what to run.
-  String? _providerPreflight(final DesiredState desired) {
+  String? _providerPreflight(DesiredState desired) {
     for (final spec in desired.specs) {
       if (spec.providerName != _processProviderName) {
         return 'unknown provider "${spec.providerName}"; '
@@ -230,7 +230,7 @@ final class SupervisorCommand {
   /// this machine's records — read-only, never converges. Fails on
   /// corrupt records, revision drift, absent services, or failed jobs;
   /// the CI hook for repo-governed plans.
-  Future<void> _check(final List<String> args) async {
+  Future<void> _check(List<String> args) async {
     final parser = ArgParser()
       ..addOption(
         'project',
@@ -321,8 +321,8 @@ final class SupervisorCommand {
   /// service it declares has a record with a matching revision hash and
   /// no job ended failed, and no record file is corrupt.
   List<String> _checkProblems(
-    final List<ComponentStatus> statuses,
-    final List<String> corruptPaths,
+    List<ComponentStatus> statuses,
+    List<String> corruptPaths,
   ) {
     final problems = <String>[
       for (final path in corruptPaths) 'corrupt record: $path',
@@ -351,12 +351,12 @@ final class SupervisorCommand {
     return problems;
   }
 
-  MachineRegistry _registry(final String? registryRoot) =>
+  MachineRegistry _registry(String? registryRoot) =>
       registryRoot == null || registryRoot.isEmpty
       ? MachineRegistry.forMachine()
       : MachineRegistry(root: registryRoot);
 
-  ArgResults? _parse(final ArgParser parser, final List<String> args) {
+  ArgResults? _parse(ArgParser parser, List<String> args) {
     try {
       return parser.parse(args);
     } on ArgParserException catch (error) {
@@ -384,8 +384,8 @@ final class SupervisorCommand {
 /// identity, so per-component commands stay constructor-injected.
 final class _ProcessProviderRouter implements ResourceProvider {
   _ProcessProviderRouter({
-    required final DesiredState desired,
-    required final String projectRoot,
+    required DesiredState desired,
+    required String projectRoot,
   }) : _providers = {
          for (final spec in desired.specs)
            spec.id: LeasedProcessProvider(
@@ -424,7 +424,7 @@ final class _ProcessProviderRouter implements ResourceProvider {
 
   /// The factory the supervisor composes with: only `process` resolves;
   /// anything else is a declaration bug, never a crash path.
-  ResourceProvider factory(final String name) {
+  ResourceProvider factory(String name) {
     if (name != SupervisorCommand._processProviderName) {
       throw StateError(
         'unknown provider "$name"; this CLI provides: '
@@ -434,7 +434,7 @@ final class _ProcessProviderRouter implements ResourceProvider {
     return this;
   }
 
-  LeasedProcessProvider _for(final String componentId) {
+  LeasedProcessProvider _for(String componentId) {
     final provider = _providers[componentId];
     if (provider == null) {
       throw StateError(
@@ -444,28 +444,28 @@ final class _ProcessProviderRouter implements ResourceProvider {
     return provider;
   }
 
-  static List<String> _splitArgs(final String? line) =>
-      (line ?? '').split(' ').where((final part) => part.isNotEmpty).toList();
+  static List<String> _splitArgs(String? line) =>
+      (line ?? '').split(' ').where((part) => part.isNotEmpty).toList();
 
   @override
   ProviderCapabilities get capabilities =>
       const ProviderCapabilities(readinessProbe: true, durableIdentity: true);
 
   @override
-  Future<StartReport> start(final StartRequest request) =>
+  Future<StartReport> start(StartRequest request) =>
       _for(request.component.id).start(request);
 
   @override
-  Future<Observation> inspect(final ResourceRef ref) =>
+  Future<Observation> inspect(ResourceRef ref) =>
       _for(ref.componentId).inspect(ref);
 
   @override
   Future<StopReport> stop(
-    final ResourceRef ref, {
-    required final Duration grace,
+    ResourceRef ref, {
+    required Duration grace,
   }) => _for(ref.componentId).stop(ref, grace: grace);
 
   @override
-  Future<Observation> reconcile(final ResourceRef ref) =>
+  Future<Observation> reconcile(ResourceRef ref) =>
       _for(ref.componentId).reconcile(ref);
 }

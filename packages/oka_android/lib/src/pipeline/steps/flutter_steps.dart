@@ -19,7 +19,7 @@ import '../../build_cache.dart';
 /// Runs `flutter assemble` to produce flutter_assets.
 class FlutterAssembleStep extends BuildStep {
 
-  FlutterAssembleStep({this.toolchain, final FlutterAssembler? assembler})
+  FlutterAssembleStep({this.toolchain, FlutterAssembler? assembler})
     : assembler = assembler ?? FlutterAssembler();
   @override
   Set<Artifact<Object>> get requires => {abis};
@@ -33,7 +33,7 @@ class FlutterAssembleStep extends BuildStep {
 
   /// Resolves the Android SDK without failing the step — when unavailable,
   /// the flutter tool reports its own actionable error.
-  Future<String?> _locateAndroidSdkSafe(final PipelineState state) async {
+  Future<String?> _locateAndroidSdkSafe(PipelineState state) async {
     try {
       return await (toolchain ?? state.resolvedToolchain ??
               ResolvedToolchain())
@@ -45,7 +45,7 @@ class FlutterAssembleStep extends BuildStep {
 
   /// Path-dependency pubspecs (workspace/sibling checkouts) — used to detect
   /// a stale package_config that `flutter assemble` would compile against.
-  static List<File> _pathDependencyPubspecs(final String projectPath) {
+  static List<File> _pathDependencyPubspecs(String projectPath) {
     final config = packageConfigFor(projectPath);
     if (config == null) return const [];
     final roots = pathDependencyRoots(
@@ -63,7 +63,7 @@ class FlutterAssembleStep extends BuildStep {
   String get name => 'flutter-assemble';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     final cache = StepCache(ctx.buildDir, verbose: ctx.verbose);
     await cache.load();
     final fp = await fingerprintInputsDetailed([
@@ -83,7 +83,7 @@ class FlutterAssembleStep extends BuildStep {
       'entrypoint:${ctx.entrypoint}',
       'mode:${ctx.mode.name}',
       'abis:${state.abis.join(',')}',
-      'defines:${(ctx.dartDefines.entries.toList()..sort((final a, final b) => a.key.compareTo(b.key))).map((final e) => '${e.key}=${e.value}').join(',')}',
+      'defines:${(ctx.dartDefines.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}=${e.value}').join(',')}',
       'buildArgs:${ctx.config.flutter.buildArgs.join(',')}',
       'probe:${ctx.config.flutter.startupProbe}',
     ]);
@@ -115,7 +115,7 @@ class FlutterAssembleStep extends BuildStep {
         (pubspec.existsSync() &&
             pubspec.lastModifiedSync().isAfter(configTime)) ||
         pathDepPubspecs.any(
-          (final f) => f.existsSync() && f.lastModifiedSync().isAfter(configTime),
+          (f) => f.existsSync() && f.lastModifiedSync().isAfter(configTime),
         );
     if (stale) {
       print('📦 package_config stale — running flutter pub get...');
@@ -201,7 +201,7 @@ class FlutterAssembleStep extends BuildStep {
 /// them as block-sharing links instead of re-extracting.
 class EngineExtractionStep extends BuildStep {
 
-  EngineExtractionStep({this.toolchain, final LocalArtifactStore? store})
+  EngineExtractionStep({this.toolchain, LocalArtifactStore? store})
     : store = store ?? LocalArtifactStore();
   @override
   Set<Artifact<Object>> get requires => {abis};
@@ -222,7 +222,7 @@ class EngineExtractionStep extends BuildStep {
   String get name => 'engine-extraction';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('📦 Extracting Flutter engine natives...');
     final engine = await engineArtifacts(
       ctx,
@@ -242,7 +242,7 @@ class EngineExtractionStep extends BuildStep {
     }
     final libDir = p.join(ctx.buildDir, 'lib');
     final embeddingJarDest = p.join(ctx.buildDir, 'flutter_embedding_classes.jar');
-    String soDestFor(final String abi) =>
+    String soDestFor(String abi) =>
         p.join(libDir, normalizeAbi(abi), 'libflutter.so');
 
     final cache = StepCache(ctx.buildDir, verbose: ctx.verbose);
@@ -385,10 +385,10 @@ class EngineExtractionStep extends BuildStep {
   /// hardlink → copy chain. Stored entries are regenerable, so store gc is
   /// always safe.
   Future<void> _materializeFromStore({
-    required final ContentKey key,
-    required final Future<File> Function() produce,
-    required final String destination,
-    required final bool verbose,
+    required ContentKey key,
+    required Future<File> Function() produce,
+    required String destination,
+    required bool verbose,
   }) async {
     final stored = await store.fetch(key, produce);
     final materialization = await materializeFile(
@@ -400,7 +400,7 @@ class EngineExtractionStep extends BuildStep {
     }
   }
 
-  static Future<String> _fileSha256(final String path) async {
+  static Future<String> _fileSha256(String path) async {
     final digest = await sha256.bind(File(path).openRead()).first;
     return digest.toString();
   }
@@ -409,10 +409,10 @@ class EngineExtractionStep extends BuildStep {
 /// Assembles release AOT (libapp.so) per ABI. No-op in debug/profile.
 class ReleaseAotStep extends BuildStep {
 
-  ReleaseAotStep({this.toolchain, final FlutterAssembler? assembler})
+  ReleaseAotStep({this.toolchain, FlutterAssembler? assembler})
     : assembler = assembler ?? FlutterAssembler();
     /// Resolves the Android SDK without failing the step.
-  Future<String?> _locateAndroidSdkSafe(final PipelineState state) async {
+  Future<String?> _locateAndroidSdkSafe(PipelineState state) async {
     try {
       return await (toolchain ?? state.resolvedToolchain ??
               ResolvedToolchain())
@@ -436,7 +436,7 @@ class ReleaseAotStep extends BuildStep {
   String get name => 'release-aot';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     if (!ctx.mode.isRelease) return StepResult.success();
 
     final cache = StepCache(ctx.buildDir, verbose: ctx.verbose);
@@ -455,7 +455,7 @@ class ReleaseAotStep extends BuildStep {
     ], extras: [
       'entrypoint:${ctx.entrypoint}',
       'abis:${state.abis.join(',')}',
-      'defines:${(ctx.dartDefines.entries.toList()..sort((final a, final b) => a.key.compareTo(b.key))).map((final e) => '${e.key}=${e.value}').join(',')}',
+      'defines:${(ctx.dartDefines.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}=${e.value}').join(',')}',
       'buildArgs:${ctx.config.flutter.buildArgs.join(',')}',
       'probe:${ctx.config.flutter.startupProbe}',
     ]);
@@ -553,7 +553,7 @@ class ReleaseAotStep extends BuildStep {
 /// `pipeline.extra_deps` in oka.yaml and [PipelineState.extraRuntimeJars]).
 class DependencyResolveStep extends BuildStep {
 
-  DependencyResolveStep({final DependencyCache? cache})
+  DependencyResolveStep({DependencyCache? cache})
     : cache = cache ?? DependencyCache();
   @override
   Set<Artifact<Object>> get provides => {androidxJars};
@@ -564,7 +564,7 @@ class DependencyResolveStep extends BuildStep {
   String get name => 'dependency-resolve';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('📚 Resolving AndroidX dependencies...');
     List<ResolvedJar> jars;
     try {

@@ -80,5 +80,5 @@ abstract class ShellEmitter {
   ///
   /// [existingIndexHtml] carries the current `web/index.html` content for
   /// emitters that inject (null when the file does not exist).
-  ShellOutput emit(final WebShell shell, {final String? existingIndexHtml});
+  ShellOutput emit(WebShell shell, {String? existingIndexHtml});
 }

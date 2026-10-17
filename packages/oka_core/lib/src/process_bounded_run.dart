@@ -104,18 +104,18 @@ final class BoundedRunResult {
 /// Output is captured up to
 /// [maxCapturedBytes] per stream; anything beyond is dropped and flagged.
 Future<BoundedRunResult> runBoundedProcess(
-  final String executable,
-  final List<String> arguments, {
-  required final Duration timeout,
-  final String? workingDirectory,
-  final Map<String, String>? environment,
-  final bool runInShell = false,
-  final Duration grace = const Duration(seconds: 3),
-  final Duration settle = const Duration(milliseconds: 250),
-  final int maxCapturedBytes = 256 * 1024,
-  final ProcessTreeProbe processTreeProbe = const HostProcessTreeProbe(),
-  final ProcessLiveness liveness = const HostProcessLiveness(),
-  final Duration observationBudget = const Duration(seconds: 2),
+  String executable,
+  List<String> arguments, {
+  required Duration timeout,
+  String? workingDirectory,
+  Map<String, String>? environment,
+  bool runInShell = false,
+  Duration grace = const Duration(seconds: 3),
+  Duration settle = const Duration(milliseconds: 250),
+  int maxCapturedBytes = 256 * 1024,
+  ProcessTreeProbe processTreeProbe = const HostProcessTreeProbe(),
+  ProcessLiveness liveness = const HostProcessLiveness(),
+  Duration observationBudget = const Duration(seconds: 2),
 }) async {
   ProcessObservationBudget(observationBudget); // Validate before spawning.
   final Process process;
@@ -285,7 +285,7 @@ final class _BoundedBuffer {
   var _size = 0;
   bool truncated = false;
 
-  void add(final List<int> chunk) {
+  void add(List<int> chunk) {
     if (_size >= capacity) {
       truncated = true;
       return;

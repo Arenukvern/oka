@@ -207,20 +207,20 @@ abstract interface class ResourceProvider {
   /// - resolve every output the component declares in `provides`, or fail.
   /// - a failed start leaves nothing running: stop what this start spawned
   ///   before throwing.
-  Future<StartReport> start(final StartRequest request);
+  Future<StartReport> start(StartRequest request);
 
   /// Read-only observation; never mutates or signals.
-  Future<Observation> inspect(final ResourceRef ref);
+  Future<Observation> inspect(ResourceRef ref);
 
   /// Stops with the graceful→force ladder, awaits the exit, and verifies
   /// death before reporting [StopDisposition.stopped]. Borrowed/foreign
   /// resources are refused, not guessed.
   Future<StopReport> stop(
-    final ResourceRef ref, {
-    required final Duration grace,
+    ResourceRef ref, {
+    required Duration grace,
   });
 
   /// Crash/late reconciliation: report what is observable. `unknown` when
   /// identity cannot be proven — evidence, never authority to terminate.
-  Future<Observation> reconcile(final ResourceRef ref);
+  Future<Observation> reconcile(ResourceRef ref);
 }

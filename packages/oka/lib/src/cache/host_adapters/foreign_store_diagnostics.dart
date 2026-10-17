@@ -25,7 +25,7 @@ final class ForeignStoreDiagnosticProvider implements CacheDiagnosticProvider {
 
   @override
   Future<CacheDiagnosticContribution> inspect(
-    final CacheDiagnosticContext context,
+    CacheDiagnosticContext context,
   ) async {
     final records = <CacheDiagnosticRecord>[];
     for (final entry in context.storage.locations) {
@@ -64,7 +64,7 @@ final class ForeignStoreDiagnosticProvider implements CacheDiagnosticProvider {
 
   /// The single official reclamation command for a category, when one
   /// exists. Executed only when the user runs it — never by oka.
-  CacheDiagnosticAction? _advisoryFor(final String category) {
+  CacheDiagnosticAction? _advisoryFor(String category) {
     switch (category) {
       case 'dart-pub-cache':
         return const CacheDiagnosticAction(

@@ -13,7 +13,7 @@ import 'package:path/path.dart' as p;
 /// digests recorded at cache time. Steps record input digests from oka
 /// 0.6.0; older caches report "no recorded inputs — rebuild once".
 class WhyCommand {
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     var mode = 'release';
     var project = Directory.current.path;
     String? step;
@@ -94,7 +94,7 @@ class WhyCommand {
       }
       final current = await fingerprintInputsDetailed(
         [entry.key],
-      ).then((final r) => r.fileDigests[entry.key]!);
+      ).then((r) => r.fileDigests[entry.key]!);
       if (current != entry.value) {
         // ignore: avoid_print
         print('   ✏️  changed:   ${_rel(entry.key, project)}');
@@ -122,7 +122,7 @@ class WhyCommand {
         ...filesUnder(p.join(project, 'packages'), extension: '.dart'),
         ...pathDependencyInputs(project),
       ];
-      final uncovered = expected.where((final f) => !covered.contains(f));
+      final uncovered = expected.where((f) => !covered.contains(f));
       var shown = 0;
       for (final f in uncovered) {
         if (shown == 0) {
@@ -143,6 +143,6 @@ class WhyCommand {
     }
   }
 
-  String _rel(final String path, final String project) =>
+  String _rel(String path, String project) =>
       p.relative(path, from: project);
 }

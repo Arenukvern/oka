@@ -15,7 +15,7 @@ final class _Planner implements SessionStatePlanner<_Handle> {
   String get id => 'protocol-planner';
 
   @override
-  SessionStatePlan<_Handle> plan(final SessionStateRequest request) =>
+  SessionStatePlan<_Handle> plan(SessionStateRequest request) =>
       SessionStatePlan(
         logicalResourceKey: 'protocol:${request.sessionName}',
         namespace: SessionStateNamespace.project,
@@ -37,7 +37,7 @@ final class _Source implements SessionStateSource<_Handle> {
   String get id => 'protocol-source';
 
   @override
-  Future<_Handle> restore(final SessionStateLease lease) async =>
+  Future<_Handle> restore(SessionStateLease lease) async =>
       const _Handle();
 }
 
@@ -49,7 +49,7 @@ final class _Inspector implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) async => const SessionStateFinding(
     inspectorId: 'protocol-inspector',
     use: SessionStateUse.unused,
@@ -66,7 +66,7 @@ const _workflow = SessionStateWorkflow<_Handle>(
   inspectors: [_Inspector()],
 );
 
-Future<void> main(final List<String> args) async {
+Future<void> main(List<String> args) async {
   print('ordinary project stdout before okaRun');
   final request = jsonDecode(args[1]) as Map<String, dynamic>;
   final fixtureMode = request.remove('_fixture_mode');

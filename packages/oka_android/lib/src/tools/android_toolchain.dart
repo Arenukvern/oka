@@ -26,7 +26,7 @@ class ToolchainEnv {
   final Map<String, String> values;
   final String home;
 
-  String? operator [](final String key) => values[key];
+  String? operator [](String key) => values[key];
 }
 
 /// Android tool-resolution policy as data (ADR-0013, T1).
@@ -45,7 +45,7 @@ class AndroidToolchain implements Toolchain {
     this.androidSdkPath,
     this.flutterSdkPath,
     this.verbose = false,
-    final ToolchainEnv? env,
+    ToolchainEnv? env,
     this.processRunner = runToolProcess,
   }) : _env = env ?? ToolchainEnv.platform();
 
@@ -74,15 +74,15 @@ class AndroidToolchain implements Toolchain {
   List<ToolSource> get androidSdkPolicy => sourcePolicy.androidSdkSources;
 
   @override
-  List<ToolSource> describe(final ToolQuery query) =>
+  List<ToolSource> describe(ToolQuery query) =>
       sourcePolicy.describe(query.name);
 
-  String remediationFor(final String tool) => sourcePolicy.remediation(tool);
+  String remediationFor(String tool) => sourcePolicy.remediation(tool);
 
   // -- Resolution ------------------------------------------------------------
 
   @override
-  Future<ToolResolution> resolve(final ToolQuery query) async {
+  Future<ToolResolution> resolve(ToolQuery query) async {
     final name = query.name;
     final cached = _cache[name];
     if (cached != null) return cached;
@@ -140,7 +140,7 @@ class AndroidToolchain implements Toolchain {
   }
 
   /// Resolve a required tool; throws [ToolchainException] naming the fix.
-  Future<ResolvedTool> require(final ToolQuery query) async {
+  Future<ResolvedTool> require(ToolQuery query) async {
     final r = await resolve(query);
     final tool = r.tool;
     if (tool != null) return tool;
@@ -305,19 +305,19 @@ class AndroidToolchain implements Toolchain {
 
   /// Lists build-tools version dirs under [sdkPath], newest first
   /// (reverse-lexicographic, as the locator always did).
-  Future<List<String>> _buildToolsVersions(final String sdkPath) async {
+  Future<List<String>> _buildToolsVersions(String sdkPath) async {
     final buildToolsDir = Directory(p.join(sdkPath, 'build-tools'));
     if (!await buildToolsDir.exists()) return const [];
     final versions = await buildToolsDir
         .list()
-        .where((final e) => e is Directory)
-        .map((final e) => p.basename(e.path))
+        .where((e) => e is Directory)
+        .map((e) => p.basename(e.path))
         .toList();
-    versions.sort((final a, final b) => b.compareTo(a));
+    versions.sort((a, b) => b.compareTo(a));
     return versions;
   }
 
-  Future<ToolResolution> _resolveBuildTool(final String name) async {
+  Future<ToolResolution> _resolveBuildTool(String name) async {
     final sdkRes = await resolve(const ToolQuery('android-sdk'));
     if (!sdkRes.ok) {
       // Surface the SDK failure directly: the SDK policy is the tried set.
@@ -350,7 +350,7 @@ class AndroidToolchain implements Toolchain {
     );
   }
 
-  String _buildToolsVersionsEmptyHint(final String sdkPath) =>
+  String _buildToolsVersionsEmptyHint(String sdkPath) =>
       ' (sdk: $sdkPath)';
 
   // r8 (optional; jar fallback) ----------------------------------------------
@@ -461,9 +461,9 @@ class AndroidToolchain implements Toolchain {
   /// probe the relative candidates in order. Shares the SDK's tried set so
   /// failures document the whole decision path.
   Future<ToolResolution> _resolveSdkRelative({
-    required final String name,
-    required final List<String> relativeCandidates,
-    required final String problem,
+    required String name,
+    required List<String> relativeCandidates,
+    required String problem,
   }) async {
     final sdkRes = await resolve(const ToolQuery('android-sdk'));
     if (!sdkRes.ok) return sdkRes;

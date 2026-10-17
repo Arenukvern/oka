@@ -36,12 +36,12 @@ class ContentKey {
   /// hit; any change → new key, never silent reuse. Include [platform] in
   /// [inputs] when artifact bytes differ per platform.
   factory ContentKey.compute({
-    required final String category,
-    required final String name,
-    required final String version,
-    required final List<String> inputs,
-    final String platform = 'any',
-    final String? fileName,
+    required String category,
+    required String name,
+    required String version,
+    required List<String> inputs,
+    String platform = 'any',
+    String? fileName,
   }) {
     final material = [...inputs]..sort();
     final digest = sha256
@@ -100,7 +100,7 @@ class ContentKey {
   String toString() => relativePath;
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is ContentKey &&
       other.category == category &&
       other.name == name &&
@@ -179,27 +179,27 @@ abstract interface class ArtifactStore {
   /// first use. The [miss] closure produces the artifact (download, extract,
   /// generate); the store decides where it lives. Hits must not re-run
   /// [miss]; hand-deleted files are re-fetched, never silently reused.
-  Future<File> fetch(final ContentKey key, final Future<File> Function() miss);
+  Future<File> fetch(ContentKey key, Future<File> Function() miss);
 
   /// Returns the stored entry for [key], or null when absent.
-  Future<ArtifactStoreEntry?> find(final ContentKey key);
+  Future<ArtifactStoreEntry?> find(ContentKey key);
 
   /// All entries currently in the store.
   Future<List<ArtifactStoreEntry>> entries();
 
   /// Deletes the entry for [key] (file + index). Returns true when
   /// something was removed.
-  Future<bool> delete(final ContentKey key);
+  Future<bool> delete(ContentKey key);
 
   /// Bulk deletion by explicit criteria only — never interactive:
   /// [olderThan] removes entries created before the cutoff; [maxTotalBytes]
   /// evicts oldest-first until the store fits the budget; [category]
   /// narrows both. [dryRun] reports without deleting.
   Future<PurgeResult> purge({
-    final Duration? olderThan,
-    final int? maxTotalBytes,
-    final String? category,
-    final bool dryRun = false,
+    Duration? olderThan,
+    int? maxTotalBytes,
+    String? category,
+    bool dryRun = false,
   });
 }
 
@@ -225,8 +225,8 @@ abstract interface class ArtifactStore {
 /// discover those, and delete/purge sweep the producer's version dir.
 class LocalArtifactStore implements ArtifactStore {
   LocalArtifactStore({
-    final String? root,
-    final Map<String, String>? environment,
+    String? root,
+    Map<String, String>? environment,
   }) : root = root ?? defaultRoot(environment: environment);
 
   /// Store root directory. All artifacts live under it.
@@ -238,7 +238,7 @@ class LocalArtifactStore implements ArtifactStore {
   /// Resolves the store root: `OKA_CACHE` when set (supports `~/`), else
   /// `~/.oka/store`. [environment] defaults to `Platform.environment` and is
   /// injectable for tests.
-  static String defaultRoot({final Map<String, String>? environment}) {
+  static String defaultRoot({Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
     final home = env['HOME'] ?? env['USERPROFILE'] ?? Directory.systemTemp.path;
     final override = env['OKA_CACHE']?.trim();
@@ -251,13 +251,13 @@ class LocalArtifactStore implements ArtifactStore {
     return p.join(home, '.oka', 'store');
   }
 
-  Directory _entryDir(final ContentKey key) => Directory(
+  Directory _entryDir(ContentKey key) => Directory(
     p.join(root, key.category, key.name, key.dirName, key.platform),
   );
 
   /// Reads a per-entry index; null when missing or corrupt (corrupt indexes
   /// are skipped, never fatal — the entry is simply re-fetchable).
-  Map<String, dynamic>? _readIndexAt(final String dirPath) {
+  Map<String, dynamic>? _readIndexAt(String dirPath) {
     final f = File(p.join(dirPath, indexFileName));
     if (!f.existsSync()) return null;
     try {
@@ -269,10 +269,10 @@ class LocalArtifactStore implements ArtifactStore {
   }
 
   Map<String, dynamic> _entryJson(
-    final ContentKey key,
-    final String fileName,
-    final int sizeBytes, {
-    final String? source,
+    ContentKey key,
+    String fileName,
+    int sizeBytes, {
+    String? source,
   }) => {
     'category': key.category,
     'name': key.name,
@@ -288,8 +288,8 @@ class LocalArtifactStore implements ArtifactStore {
   /// Turns a per-entry index (written by [fetch] or by a foreign producer)
   /// into an entry. Throws [FormatException] when the record is malformed.
   ArtifactStoreEntry _entryFromIndex(
-    final Map<String, dynamic> json,
-    final String indexDirPath,
+    Map<String, dynamic> json,
+    String indexDirPath,
   ) {
     final fileName = (json['file'] ?? json['path']) as String?;
     if (fileName == null) {
@@ -317,8 +317,8 @@ class LocalArtifactStore implements ArtifactStore {
 
   @override
   Future<File> fetch(
-    final ContentKey key,
-    final Future<File> Function() miss,
+    ContentKey key,
+    Future<File> Function() miss,
   ) async {
     final dirPath = _entryDir(key).path;
     final index = _readIndexAt(dirPath);
@@ -350,7 +350,7 @@ class LocalArtifactStore implements ArtifactStore {
   /// foreign-layout entries like Maven's version dirs) by scanning
   /// discovered entries. Null when absent.
   @override
-  Future<ArtifactStoreEntry?> find(final ContentKey key) async {
+  Future<ArtifactStoreEntry?> find(ContentKey key) async {
     // Fast path: the key addresses its own directory.
     final dirPath = _entryDir(key).path;
     final index = _readIndexAt(dirPath);
@@ -397,7 +397,7 @@ class LocalArtifactStore implements ArtifactStore {
         continue;
       }
     }
-    out.sort((final a, final b) => a.key.id.compareTo(b.key.id));
+    out.sort((a, b) => a.key.id.compareTo(b.key.id));
     return out;
   }
 
@@ -405,7 +405,7 @@ class LocalArtifactStore implements ArtifactStore {
   /// such as extracted AAR files. Index metadata is intentionally excluded;
   /// links are skipped so a cache cannot count or traverse outside its root.
   Future<ArtifactStoreEntry> _withLogicalSize(
-    final ArtifactStoreEntry entry,
+    ArtifactStoreEntry entry,
   ) async {
     final dir = Directory(entry.dir);
     final paths = await _resolvedStorePaths(dir.path);
@@ -451,7 +451,7 @@ class LocalArtifactStore implements ArtifactStore {
   /// Removes an entry's sweep dir and prunes now-empty parents up to (but
   /// never including) the store root, so purged categories leave no
   /// skeleton behind.
-  Future<bool> _removeSweepDir(final ArtifactStoreEntry entry) async {
+  Future<bool> _removeSweepDir(ArtifactStoreEntry entry) async {
     final dir = Directory(entry.dir);
     final paths = await _resolvedStorePaths(dir.path);
     if (paths == null) return false;
@@ -483,7 +483,7 @@ class LocalArtifactStore implements ArtifactStore {
   /// lexical `canonicalize` is insufficient: `root/link/entry` can otherwise
   /// escape through a symlink in `link`.
   Future<({String root, String target})?> _resolvedStorePaths(
-    final String target,
+    String target,
   ) async {
     try {
       final rootPath = await Directory(root).resolveSymbolicLinks();
@@ -500,7 +500,7 @@ class LocalArtifactStore implements ArtifactStore {
   /// Deletes the entry addressed by [key] (its sweep directory); `false`
   /// when the key is unknown.
   @override
-  Future<bool> delete(final ContentKey key) async {
+  Future<bool> delete(ContentKey key) async {
     final entry = await find(key);
     if (entry == null) return false;
     return _removeSweepDir(entry);
@@ -508,17 +508,17 @@ class LocalArtifactStore implements ArtifactStore {
 
   @override
   Future<PurgeResult> purge({
-    final Duration? olderThan,
-    final int? maxTotalBytes,
-    final String? category,
-    final bool dryRun = false,
+    Duration? olderThan,
+    int? maxTotalBytes,
+    String? category,
+    bool dryRun = false,
   }) async {
     var all = (await entries()).toList();
     if (category != null) {
-      all = all.where((final e) => e.key.category == category).toList();
+      all = all.where((e) => e.key.category == category).toList();
     }
     // Oldest first: deterministic eviction order.
-    all.sort((final a, final b) => a.createdAt.compareTo(b.createdAt));
+    all.sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
     // Age criterion: everything created before the cutoff goes.
     final cutoff = olderThan == null
@@ -534,8 +534,8 @@ class LocalArtifactStore implements ArtifactStore {
     // budget (entries already removed by age don't count against it).
     if (maxTotalBytes != null) {
       var budgetTotal =
-          all.fold<int>(0, (final s, final e) => s + e.sizeBytes) -
-          victims.fold<int>(0, (final s, final e) => s + e.sizeBytes);
+          all.fold<int>(0, (s, e) => s + e.sizeBytes) -
+          victims.fold<int>(0, (s, e) => s + e.sizeBytes);
       for (final e in all) {
         if (budgetTotal <= maxTotalBytes) break;
         if (victims.contains(e)) continue;

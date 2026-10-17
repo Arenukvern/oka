@@ -51,8 +51,8 @@ class WebZipStep extends BuildStep {
   /// ADR-0007) and records the zip path in [PipelineState].
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final dirPath = state[inputArtifact.id];
     if (dirPath is! String || dirPath.isEmpty) {

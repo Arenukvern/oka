@@ -37,7 +37,7 @@ class _EchoTarget extends Target {
   String get description => 'echoes';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [_EchoStep()];
+  List<BuildStep> compile(BuildContext ctx) => [_EchoStep()];
 }
 
 class _EchoStep extends BuildStep {
@@ -50,7 +50,7 @@ class _EchoStep extends BuildStep {
   Set<Artifact<Object>> get provides => {out};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async =>
       StepResult.success({out.id: 'echo'});
 }
 
@@ -64,7 +64,7 @@ class _BrokenTarget extends Target {
   String get description => 'requires an artifact nobody provides';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [_BrokenStep()];
+  List<BuildStep> compile(BuildContext ctx) => [_BrokenStep()];
 }
 
 class _BrokenStep extends BuildStep {
@@ -77,7 +77,7 @@ class _BrokenStep extends BuildStep {
   Set<Artifact<Object>> get requires => {missing};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async =>
       StepResult.success();
 }
 
@@ -123,7 +123,7 @@ void main() {
         () => validateTargets(oka),
         throwsA(
           isA<TargetResolutionException>().having(
-            (final e) => e.message,
+            (e) => e.message,
             'message',
             contains('duplicate target name "echo"'),
           ),
@@ -147,7 +147,7 @@ void main() {
         ),
         throwsA(
           isA<TargetResolutionException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('"session-state"'),
           ),
@@ -168,7 +168,7 @@ void main() {
         () => findTarget(oka, 'nope'),
         throwsA(
           isA<TargetResolutionException>().having(
-            (final e) => e.message,
+            (e) => e.message,
             'message',
             allOf(contains('not found'), contains('echo')),
           ),
@@ -182,7 +182,7 @@ void main() {
         () => findTarget(oka, 'nope'),
         throwsA(
           isA<TargetResolutionException>().having(
-            (final e) => e.message,
+            (e) => e.message,
             'message',
             allOf(contains('declares no targets'), contains('Oka(targets:')),
           ),
@@ -212,8 +212,8 @@ void main() {
     late String relBin;
 
     Future<ProcessResult> okaCli(
-      final List<String> args, {
-      final String? cwd,
+      List<String> args, {
+      String? cwd,
     }) =>
         Process.run(
           'dart',
@@ -300,8 +300,8 @@ void main() {
 
   group('entrypoint target reporting (CLI, fixtures)', () {
     Future<ProcessResult> runFixture(
-      final String fixture,
-      final List<String> args,
+      String fixture,
+      List<String> args,
     ) =>
         Process.run('dart', ['run', fixture, ...args],
             workingDirectory: Directory.current.path);
@@ -346,7 +346,7 @@ class _VerbShadower extends Target {
   String get description => 'illegal: shadows the build verb';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => const [];
+  List<BuildStep> compile(BuildContext ctx) => const [];
 }
 
 class _SessionStateShadower extends Target {
@@ -359,5 +359,5 @@ class _SessionStateShadower extends Target {
   String get description => 'illegal: shadows the session-state verb';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => const [];
+  List<BuildStep> compile(BuildContext ctx) => const [];
 }

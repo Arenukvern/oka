@@ -466,8 +466,8 @@ List<String> filterRuntimeJars(List<String> jars) {
 /// newest, and losing jars are repacked (into [buildDir]) without them.
 /// Jars without conflicts pass through untouched.
 Future<List<String>> resolveClassConflicts({
-  required final List<String> jars,
-  required final String buildDir,
+  required List<String> jars,
+  required String buildDir,
 }) async {
   if (jars.length < 2) return jars;
   final entriesByJar = <String, Set<String>>{};
@@ -478,8 +478,8 @@ Future<List<String>> resolveClassConflicts({
       names = ZipDecoder()
           .decodeBytes(File(jar).readAsBytesSync())
           .files
-          .where((final f) => f.isFile && f.name.endsWith('.class'))
-          .map((final f) => f.name)
+          .where((f) => f.isFile && f.name.endsWith('.class'))
+          .map((f) => f.name)
           .toList(growable: false);
     } on FormatException {
       continue; // Not a zip / unreadable — leave it to d8 to complain.
@@ -494,19 +494,19 @@ Future<List<String>> resolveClassConflicts({
     }
   }
   final conflicts = <String, String>{};
-  classOwners.forEach((final name, final owner) {
+  classOwners.forEach((name, owner) {
     final claimants = entriesByJar.entries
-        .where((final e) => e.value.contains(name))
-        .map((final e) => e.key)
+        .where((e) => e.value.contains(name))
+        .map((e) => e.key)
         .toList();
     if (claimants.length > 1) conflicts[name] = owner;
   });
   if (conflicts.isEmpty) return jars;
 
   final losing = <String, Set<String>>{};
-  conflicts.forEach((final name, final owner) {
+  conflicts.forEach((name, owner) {
     for (final claimant
-        in entriesByJar.entries.where((final e) => e.value.contains(name))) {
+        in entriesByJar.entries.where((e) => e.value.contains(name))) {
       if (claimant.key != owner) {
         losing.putIfAbsent(claimant.key, () => <String>{}).add(name);
       }
@@ -638,7 +638,7 @@ String _artifactVersion(String jarPath) {
 
 /// Compares dotted Maven version strings numerically segment by segment
 /// (`1.15.0` > `1.9.0`), ignoring non-digit separators (rc/beta suffixes).
-int compareMavenVersions(final String left, final String right) {
+int compareMavenVersions(String left, String right) {
   List<int> parse(String value) => value
       .split(RegExp('[^0-9]+'))
       .where((part) => part.isNotEmpty)

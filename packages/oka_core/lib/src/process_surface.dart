@@ -60,8 +60,8 @@ final class LeaseInventoryEntry {
       LeaseLiveness.unknown => 'identity unknown',
     };
     final ident = lease.identity.entries
-        .where((final e) => e.key != processLeasePidTokenKey)
-        .map((final e) => '${e.key}=${e.value}')
+        .where((e) => e.key != processLeasePidTokenKey)
+        .map((e) => '${e.key}=${e.value}')
         .join(' ');
     return '${lease.id}  pid ${lease.pid}  ${lease.kind}  '
         '${lease.ownership.label}/${lease.scope.label}  $verdict'
@@ -84,8 +84,8 @@ final class LeaseInventoryEntry {
 /// final json = [for (final e in entries) e.toJson()]; // tooling form
 /// ```
 Future<List<LeaseInventoryEntry>> inventoryLeases(
-  final String projectPath, {
-  final ProcessLiveness? liveness,
+  String projectPath, {
+  ProcessLiveness? liveness,
 }) async {
   final registry = ProcessLeaseRegistry.forProject(
     projectPath,
@@ -157,14 +157,14 @@ final class LeaseStopOutcome {
 /// }
 /// ```
 Future<LeaseStopOutcome> stopLease(
-  final String projectPath,
-  final String id, {
-  final ProcessLiveness? liveness,
-  final bool force = false,
-  final Duration stopVerifyGrace = const Duration(seconds: 5),
-  final Duration pollInterval = const Duration(milliseconds: 200),
-  final Future<ProcessResult> Function(String, List<String>)? runProcess,
-  final VerifySemanticStop? verifySemanticStop,
+  String projectPath,
+  String id, {
+  ProcessLiveness? liveness,
+  bool force = false,
+  Duration stopVerifyGrace = const Duration(seconds: 5),
+  Duration pollInterval = const Duration(milliseconds: 200),
+  Future<ProcessResult> Function(String, List<String>)? runProcess,
+  VerifySemanticStop? verifySemanticStop,
 }) async {
   final host = liveness ?? const HostProcessLiveness();
   final registry = ProcessLeaseRegistry.forProject(projectPath, liveness: host);
@@ -219,10 +219,10 @@ Future<LeaseStopOutcome> stopLease(
 /// degrade to "reported", never crash the CLI. Returns
 /// `(failed, message, result)`.
 Future<(bool, String, ProcessResult?)> _runHint(
-  final Future<ProcessResult> Function(String, List<String>) run,
-  final String tool,
-  final List<String> args,
-  final ProcessLease lease,
+  Future<ProcessResult> Function(String, List<String>) run,
+  String tool,
+  List<String> args,
+  ProcessLease lease,
 ) async {
   final ProcessResult result;
   try {
@@ -335,11 +335,11 @@ final class LeaseReconcileSummary {
 /// }
 /// ```
 Future<LeaseReconcileSummary> reconcileLeases(
-  final String projectPath, {
-  final ProcessLiveness? liveness,
-  final bool stopOrphans = false,
-  final Duration stopVerifyGrace = const Duration(seconds: 5),
-  final Future<ProcessResult> Function(String, List<String>)? runProcess,
+  String projectPath, {
+  ProcessLiveness? liveness,
+  bool stopOrphans = false,
+  Duration stopVerifyGrace = const Duration(seconds: 5),
+  Future<ProcessResult> Function(String, List<String>)? runProcess,
 }) async {
   final host = liveness ?? const HostProcessLiveness();
   final entries = await inventoryLeases(projectPath, liveness: host);

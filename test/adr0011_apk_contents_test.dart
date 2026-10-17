@@ -53,8 +53,8 @@ class HotReloadFixture extends StatelessWidget {
 ''';
 
 BuildContext _fixtureContext(
-  final String projectPath, {
-  final bool buildAab = false,
+  String projectPath, {
+  bool buildAab = false,
 }) {
   final buildDir = p.join(
     projectPath,
@@ -111,7 +111,7 @@ void main() {
         targetPlatform: 'android-arm64',
       );
       expect(
-        args.where((final a) => a.startsWith('-dTrackWidgetCreation')),
+        args.where((a) => a.startsWith('-dTrackWidgetCreation')),
         isEmpty,
       );
       expect(args, contains('release_android_application'));
@@ -192,12 +192,12 @@ void main() {
       final bytes = await apk.readAsBytes();
       final entries = ZipDecoder()
           .decodeBytes(bytes)
-          .where((final f) => f.isFile)
-          .map((final f) => f.name)
+          .where((f) => f.isFile)
+          .map((f) => f.name)
           .toList();
-      String? find(final String suffix) => entries
-          .where((final e) => e.endsWith(suffix))
-          .fold<String?>(null, (final a, final e) => a ?? e);
+      String? find(String suffix) => entries
+          .where((e) => e.endsWith(suffix))
+          .fold<String?>(null, (a, e) => a ?? e);
       expect(
         find('flutter_assets/kernel_blob.bin'),
         isNotNull,
@@ -211,16 +211,16 @@ void main() {
         reason: 'JIT marker absent — is this accidentally an AOT build?',
       );
       expect(
-        entries.any((final e) => e.contains('libflutter.so')),
+        entries.any((e) => e.contains('libflutter.so')),
         isTrue,
         reason: 'engine runtime must be packaged',
       );
       expect(
-        entries.any((final e) => e.endsWith('libapp.so')),
+        entries.any((e) => e.endsWith('libapp.so')),
         isFalse,
         reason: 'AOT libapp.so must NOT be in a debug (JIT) APK',
       );
-      expect(entries.any((final e) => e.endsWith('classes.dex')), isTrue);
+      expect(entries.any((e) => e.endsWith('classes.dex')), isTrue);
 
       // H1 golden evidence at the pipeline level: the default pipeline
       // recorded the session manifest next to the APK.
@@ -256,8 +256,8 @@ void main() {
       expect(aab.existsSync(), isTrue);
       final aabEntries = ZipDecoder()
           .decodeBytes(await aab.readAsBytes())
-          .where((final f) => f.isFile)
-          .map((final f) => f.name)
+          .where((f) => f.isFile)
+          .map((f) => f.name)
           .toList();
       expect(aabEntries, contains('BundleConfig.pb'));
       expect(aabEntries, contains('base/dex/classes.dex'));
@@ -267,12 +267,12 @@ void main() {
       );
       expect(
         aabEntries.any(
-          (final e) => e.contains('base/lib/') && e.endsWith('libflutter.so'),
+          (e) => e.contains('base/lib/') && e.endsWith('libflutter.so'),
         ),
         isTrue,
       );
       expect(
-        aabEntries.any((final e) => e.endsWith('/libapp.so')),
+        aabEntries.any((e) => e.endsWith('/libapp.so')),
         isFalse,
         reason: 'AOT libapp.so must not be in a debug AAB',
       );
@@ -285,7 +285,7 @@ void main() {
   });
 }
 
-void onSkip(final String reason) {
+void onSkip(String reason) {
   final required = Platform.environment['OKA_REQUIRE_REAL_ANDROID_SMOKE'];
   if (required == '1' || required == 'true') {
     fail('real Android smoke is required but unavailable: $reason');

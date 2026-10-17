@@ -54,7 +54,7 @@ class DaemonEvent {
   /// interpreted (feature-detect).
   final Map<String, Object?> params;
 
-  Object? field(final String key) => params[key];
+  Object? field(String key) => params[key];
 
   @override
   String toString() => 'DaemonEvent($event, $params)';
@@ -106,7 +106,7 @@ abstract class DaemonTransport {
   Future<int> get exitCode;
 
   /// Writes one line to the daemon's stdin (a command; no newline needed).
-  void writeLine(final String line);
+  void writeLine(String line);
 
   /// Kills the daemon process (detach/quit cleanup).
   bool kill();
@@ -128,7 +128,7 @@ class ProcessDaemonTransport implements DaemonTransport {
   Future<int> get exitCode => _process.exitCode;
 
   @override
-  void writeLine(final String line) {
+  void writeLine(String line) {
     _process.stdin.writeln(line);
   }
 
@@ -138,7 +138,7 @@ class ProcessDaemonTransport implements DaemonTransport {
 
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
 /// [spawnAttachDaemon]).
-List<String> flutterAttachMachineArgs({required final String deviceId}) => [
+List<String> flutterAttachMachineArgs({required String deviceId}) => [
   'attach',
   '--machine',
   '-d',
@@ -154,9 +154,9 @@ List<String> flutterAttachMachineArgs({required final String deviceId}) => [
 /// oka-managed SDK dir is often not on the ambient PATH (live e2e finding,
 /// 2026-09-07 — without this, attach reports "No supported devices found").
 Future<DaemonTransport> spawnAttachDaemon({
-  required final String flutterBinary,
-  required final String deviceId,
-  final String? adbPath,
+  required String flutterBinary,
+  required String deviceId,
+  String? adbPath,
 }) async {
   final environment = <String, String>{...Platform.environment};
   if (adbPath != null && adbPath.isNotEmpty) {
@@ -176,7 +176,7 @@ Future<DaemonTransport> spawnAttachDaemon({
 /// and exposes `reload` / `restart` / `stop` / `shutdown`.
 class FlutterDaemonAdapter {
   FlutterDaemonAdapter({
-    required final DaemonTransport transport,
+    required DaemonTransport transport,
     this.verbose = false,
     this.onChatter,
   }) : _transport = transport {
@@ -221,7 +221,7 @@ class FlutterDaemonAdapter {
   Future<int> get exitCode => _transport.exitCode;
 
   /// The latest event of [name], or null (feature-detect accessor).
-  DaemonEvent? lastEvent(final String name) => _seen[name];
+  DaemonEvent? lastEvent(String name) => _seen[name];
 
   /// The `wsUri` from the newest `app.debugPort` event, or null.
   String? get wsUri => lastEvent('app.debugPort')?.field('wsUri') as String?;
@@ -232,10 +232,10 @@ class FlutterDaemonAdapter {
 
   // -- Inbound ---------------------------------------------------------------
 
-  void _onStdoutData(final String chunk) =>
+  void _onStdoutData(String chunk) =>
       chunk.split('\n').forEach(_handleLine);
 
-  void _onStderrData(final String chunk) {
+  void _onStderrData(String chunk) {
     if (!verbose) return;
     for (final line in chunk.split('\n')) {
       final t = line.trim();
@@ -243,7 +243,7 @@ class FlutterDaemonAdapter {
     }
   }
 
-  void _onExit(final int code) {
+  void _onExit(int code) {
     _exited = true;
     _failAllPending('flutter attach exited (code $code)');
     if (!_events.isClosed) unawaited(_events.close());
@@ -252,7 +252,7 @@ class FlutterDaemonAdapter {
   /// Handles one stdout line. Single-element JSON arrays are the pinned
   /// protocol shape; bare JSON objects and chatter are tolerated
   /// (feature-detect, ADR-0011 §2).
-  void _handleLine(final String raw) {
+  void _handleLine(String raw) {
     final line = raw.trim();
     if (line.isEmpty) return;
     final Object? decoded;
@@ -294,7 +294,7 @@ class FlutterDaemonAdapter {
     }
   }
 
-  void _handleEvent(final DaemonEvent event) {
+  void _handleEvent(DaemonEvent event) {
     final firstOfKind = !_seen.containsKey(event.event);
     _seen[event.event] = event;
     if (event.event == 'app.start' && firstOfKind) {
@@ -305,7 +305,7 @@ class FlutterDaemonAdapter {
     if (!_events.isClosed) _events.add(event);
   }
 
-  void _handleResponse(final Map<Object?, Object?> item) {
+  void _handleResponse(Map<Object?, Object?> item) {
     final id = item['id']! as int;
     final pending = _pending.remove(id);
     final response = DaemonResponse(
@@ -318,7 +318,7 @@ class FlutterDaemonAdapter {
     }
   }
 
-  void _chatter(final String line) {
+  void _chatter(String line) {
     if (verbose) onChatter?.call(line);
   }
 
@@ -328,7 +328,7 @@ class FlutterDaemonAdapter {
   /// only after it (protocol fact pinned in H0). Throws [DaemonException]
   /// on timeout or daemon exit.
   Future<void> waitAppStart({
-    final Duration timeout = const Duration(seconds: 90),
+    Duration timeout = const Duration(seconds: 90),
   }) async {
     if (appStartReceived) return;
     if (_exited) {
@@ -358,9 +358,9 @@ class FlutterDaemonAdapter {
   /// Sends [method] with [params], waiting for the matching response.
   /// Commands are gated behind `app.start` per the pinned protocol facts.
   Future<DaemonResponse> send(
-    final String method, {
-    final Map<String, Object?> params = const {},
-    final Duration timeout = const Duration(seconds: 60),
+    String method, {
+    Map<String, Object?> params = const {},
+    Duration timeout = const Duration(seconds: 60),
   }) async {
     if (_exited) {
       throw DaemonException('cannot send $method — flutter attach exited');
@@ -399,7 +399,7 @@ class FlutterDaemonAdapter {
   Future<DaemonResponse> restart() => _appOperation(fullRestart: true);
 
   Future<DaemonResponse> _appOperation({
-    required final bool fullRestart,
+    required bool fullRestart,
   }) async {
     // Gate commands behind app.start first — the appId arrives with it.
     if (!appStartReceived) await waitAppStart();
@@ -472,7 +472,7 @@ class FlutterDaemonAdapter {
     if (!_events.isClosed) unawaited(_events.close());
   }
 
-  void _failAllPending(final String why) {
+  void _failAllPending(String why) {
     for (final c in _pending.values) {
       if (!c.isCompleted) c.completeError(DaemonException(why));
     }

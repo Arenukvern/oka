@@ -30,7 +30,7 @@ class SigningConfig {
   /// ```
   /// Passwords read from environment variables referenced by `*_env` keys —
   /// secrets never belong in yaml.
-  factory SigningConfig.fromYamlMap(final Map<dynamic, dynamic> map) {
+  factory SigningConfig.fromYamlMap(Map<dynamic, dynamic> map) {
     final storeEnv = map['store_password_env']?.toString() ?? '';
     final keyEnv = map['key_password_env']?.toString() ?? '';
     final storePass =
@@ -64,10 +64,10 @@ class SigningConfig {
       storePassword.isNotEmpty;
 
   SigningConfig copyWith({
-    final String? keystorePath,
-    final String? keyAlias,
-    final String? storePassword,
-    final String? keyPassword,
+    String? keystorePath,
+    String? keyAlias,
+    String? storePassword,
+    String? keyPassword,
   }) => SigningConfig(
     keystorePath: keystorePath ?? this.keystorePath,
     keyAlias: keyAlias ?? this.keyAlias,
@@ -78,7 +78,7 @@ class SigningConfig {
   /// Gradle-compatible `android/key.properties`:
   /// `storeFile`, `keyAlias`, `storePassword`, `keyPassword`.
   static Future<SigningConfig?> fromKeyProperties(
-    final String projectPath,
+    String projectPath,
   ) async {
     final file = File(p.join(projectPath, 'android', 'key.properties'));
     if (!await file.exists()) return null;
@@ -108,7 +108,7 @@ class SigningConfig {
 
   /// Resolution chain: explicit Dart config → oka.yaml `android.signing` →
   /// `android/key.properties` → null (debug keystore fallback).
-  static Future<SigningConfig?> autoResolve(final BuildContext ctx) async {
+  static Future<SigningConfig?> autoResolve(BuildContext ctx) async {
     final androidYaml = ctx.config.toJson()['android'];
     if (androidYaml is Map && androidYaml['signing'] is Map) {
       final fromYaml = SigningConfig.fromYamlMap(

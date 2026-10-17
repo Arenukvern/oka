@@ -86,8 +86,8 @@ final class ComponentStatus {
 /// Projects one status line per component: desired specs in declaration
 /// order (record-backed or not), then record-only ids in id order.
 List<ComponentStatus> projectStatus({
-  required final RegistrySnapshot snapshot,
-  final DesiredState? desired,
+  required RegistrySnapshot snapshot,
+  DesiredState? desired,
 }) {
   final statuses = <ComponentStatus>[];
   final recorded = <String>{};
@@ -115,18 +115,18 @@ List<ComponentStatus> projectStatus({
 
   final recordOnly =
       snapshot.records
-          .where((final record) => !recorded.contains(record.componentId))
+          .where((record) => !recorded.contains(record.componentId))
           .map(_fromRecordOnly)
           .toList()
-        ..sort((final a, final b) => a.componentId.compareTo(b.componentId));
+        ..sort((a, b) => a.componentId.compareTo(b.componentId));
   statuses.addAll(recordOnly);
   return statuses;
 }
 
 ComponentStatus _fromRecord(
-  final SupervisorRecord record, {
-  final String? desiredRevisionHash,
-  final bool drifted = false,
+  SupervisorRecord record, {
+  String? desiredRevisionHash,
+  bool drifted = false,
 }) => ComponentStatus(
   componentId: record.componentId,
   present: true,
@@ -143,11 +143,11 @@ ComponentStatus _fromRecord(
   drifted: drifted,
 );
 
-ComponentStatus _fromRecordOnly(final SupervisorRecord record) =>
+ComponentStatus _fromRecordOnly(SupervisorRecord record) =>
     _fromRecord(record);
 
 /// Aligned plain-text rendering for terminals.
-String renderStatus(final List<ComponentStatus> statuses) {
+String renderStatus(List<ComponentStatus> statuses) {
   const header = <String>[
     'ID',
     'PRESENT',
@@ -176,7 +176,7 @@ String renderStatus(final List<ComponentStatus> statuses) {
     for (var column = 0; column < header.length; column++)
       rows.fold(
         0,
-        (final max, final row) =>
+        (max, row) =>
             row[column].length > max ? row[column].length : max,
       ),
   ];
@@ -193,8 +193,8 @@ String renderStatus(final List<ComponentStatus> statuses) {
 /// the wire shape for CLI `--json`, embedding UIs, and (later) mesh
 /// supervisor-state frames (ADR-0041).
 String statusJson({
-  required final List<ComponentStatus> statuses,
-  final List<String> corruptPaths = const <String>[],
+  required List<ComponentStatus> statuses,
+  List<String> corruptPaths = const <String>[],
 }) => const JsonEncoder.withIndent('  ').convert({
   'statuses': [for (final status in statuses) status.toJson()],
   'corruptRecords': List<String>.of(corruptPaths),

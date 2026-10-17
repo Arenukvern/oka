@@ -51,9 +51,9 @@ typedef DeviceToolRunner = Future<ProcessResult> Function(
 ///   already accepted) → otherwise fail naming the exact command.
 class AndroidDeviceProvisioner {
   AndroidDeviceProvisioner({
-    final ArtifactStore? store,
-    final DeviceToolRunner? runProcess,
-    final String? osOverride,
+    ArtifactStore? store,
+    DeviceToolRunner? runProcess,
+    String? osOverride,
     this.verbose = false,
   })  : _store = store ?? LocalArtifactStore(),
         _runProcess = runProcess ?? Process.run,
@@ -82,7 +82,7 @@ class AndroidDeviceProvisioner {
   ///
   /// Throws [ToolchainException] naming the exact sdkmanager command when
   /// even the direct download fails.
-  Future<String> ensureAdb({final ResolvedToolchain? toolchain}) async {
+  Future<String> ensureAdb({ResolvedToolchain? toolchain}) async {
     // 1. Policy first — an existing SDK install always wins.
     final resolved =
         await (toolchain ?? ResolvedToolchain()).resolve(const ToolQuery('adb'));
@@ -123,7 +123,7 @@ class AndroidDeviceProvisioner {
   /// Downloads and extracts adb for a store miss. Only the `adb` binary is
   /// materialized as the store artifact — it is self-contained in current
   /// platform-tools builds; the rest of the zip is discarded.
-  Future<File> _downloadAdb(final String url, final String tmpDir) async {
+  Future<File> _downloadAdb(String url, String tmpDir) async {
     final zipPath = p.join(tmpDir, 'platform-tools.zip');
     final download = await _runProcess('curl', [
       '-L', // follow redirects
@@ -195,9 +195,9 @@ class AndroidDeviceProvisioner {
   ///    dependent run fails instead of hanging;
   /// 3. otherwise a [ToolchainException] whose fix names the exact command.
   Future<String> ensureSystemImage({
-    required final String package,
-    final String? sdkRoot,
-    final String? sdkManagerPath,
+    required String package,
+    String? sdkRoot,
+    String? sdkManagerPath,
   }) async {
     final key = ContentKey.compute(
       category: 'system-images',
@@ -307,7 +307,7 @@ class AndroidDeviceProvisioner {
     return null;
   }
 
-  Future<String?> _findSdkManager(final String? root) async {
+  Future<String?> _findSdkManager(String? root) async {
     if (root == null) return null;
     for (final c in [
       p.join(root, 'cmdline-tools', 'latest', 'bin', 'sdkmanager'),
@@ -322,7 +322,7 @@ class AndroidDeviceProvisioner {
   /// The SDK-side package dir for an sdkmanager-style package id
   /// (`system-images;android-34;google_apis;x86_64` →
   /// `<sdk>/system-images/android-34/google_apis/x86_64`).
-  String _systemImageDir(final String root, final String package) =>
+  String _systemImageDir(String root, String package) =>
       p.joinAll([root, ...package.split(';')]);
 
   /// Registers the installed package dir into the store as a pointer entry:
@@ -332,10 +332,10 @@ class AndroidDeviceProvisioner {
   /// the install visible to `oka cache list/gc` — deleting the entry removes
   /// the record, never SDK-owned content.
   Future<void> _registerSystemImagePointer(
-    final String packageDir,
-    final String package,
-    final ContentKey key,
-    final String root,
+    String packageDir,
+    String package,
+    ContentKey key,
+    String root,
   ) async {
     try {
       final tmp = await Directory.systemTemp

@@ -98,13 +98,13 @@ class WebDeployTarget extends Target {
       'gh-pages (replaces per-store release branches)';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [
+  List<BuildStep> compile(BuildContext ctx) => [
         ...crazyGamesWebBuild.compile(ctx),
         ...crazyGamesGhPages.compile(ctx),
       ];
 
   @override
-  List<String> explainDetails(final BuildContext ctx) => const [
+  List<String> explainDetails(BuildContext ctx) => const [
         'composed chain: web-build (delegation) → publish-gh-pages (dry run)',
       ];
 }

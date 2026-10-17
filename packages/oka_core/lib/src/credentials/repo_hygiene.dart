@@ -56,9 +56,9 @@ class RepoHygieneReport {
 /// checker is injected and no `.gitignore` exists, the file is treated as
 /// not ignored (fail-closed).
 RepoHygieneReport checkCredentialRepoHygiene({
-  required final String credentialPath,
-  required final String projectPath,
-  final GitignoreChecker? isIgnored,
+  required String credentialPath,
+  required String projectPath,
+  GitignoreChecker? isIgnored,
 }) {
   final inside = p.isWithin(
     p.normalize(projectPath),
@@ -99,8 +99,8 @@ RepoHygieneReport checkCredentialRepoHygiene({
 /// `**` globs, and patterns containing `/` (root-anchored). Last matching
 /// pattern wins (standard gitignore semantics).
 bool isIgnoredByGitignore(
-  final String absolutePath, {
-  required final String projectPath,
+  String absolutePath, {
+  required String projectPath,
 }) {
   final root = p.normalize(projectPath);
   final target = p.normalize(absolutePath);
@@ -125,7 +125,7 @@ bool isIgnoredByGitignore(
 
 /// Matches one gitignore [pattern] against a project-relative path [rel].
 @visibleForTesting
-bool matchesGitignorePattern(final String pattern, final String rel) {
+bool matchesGitignorePattern(String pattern, String rel) {
   var dirOnly = false;
   var anchored = false;
   var pat = pattern;
@@ -162,7 +162,7 @@ bool matchesGitignorePattern(final String pattern, final String rel) {
 /// Compiles one gitignore pattern (without leading `/`, without trailing
 /// `/`) to a full-match [RegExp]. Supports `*`, `?`, `**`, and character
 /// classes pass through.
-RegExp _globToRegExp(final String pattern) {
+RegExp _globToRegExp(String pattern) {
   final b = StringBuffer('^');
   var i = 0;
   while (i < pattern.length) {

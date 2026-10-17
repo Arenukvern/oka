@@ -32,7 +32,7 @@ class PlayBillingStep extends BuildStep {
   Set<Artifact<Object>> get requires => {billing};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     everRan = true;
     return Future<StepResult>.value(
       StepResult.success({
@@ -56,7 +56,7 @@ class MiswiredHuaweiTarget extends Target {
   String get description => 'mis-wired composition (test fixture)';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [
+  List<BuildStep> compile(BuildContext ctx) => [
     ...compileVariantSteps(ctx),
     PlayBillingStep(),
   ];
@@ -75,12 +75,12 @@ class ValidHuaweiTarget extends Target {
   String get description => 'the GMS-excluded variant composition';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => compileVariantSteps(ctx);
+  List<BuildStep> compile(BuildContext ctx) => compileVariantSteps(ctx);
 }
 
 /// The variant's composition steps: stage the AAB the way the real target
 /// does (a stand-in for the platform build's tail).
-List<BuildStep> compileVariantSteps(final BuildContext ctx) => [
+List<BuildStep> compileVariantSteps(BuildContext ctx) => [
   HuaweiStageAabStep(),
 ];
 
@@ -253,7 +253,7 @@ void main() {
       const variant = HuaweiBuildVariant();
       final chain = describeTarget(const ValidHuaweiTarget(variant), makeCtx());
       expect(chain.isValid, isTrue, reason: chain.validationError);
-      expect(chain.steps.map((final s) => s.name).toList(), [
+      expect(chain.steps.map((s) => s.name).toList(), [
         'huawei-stage-aab',
       ]);
     });

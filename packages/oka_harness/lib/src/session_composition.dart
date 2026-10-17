@@ -19,7 +19,7 @@ const runnerSessionVmUri = OutputRef<String>('runner-session.vm_service_uri');
 /// The declared readiness for a live runner session: the discovery file
 /// exists — and, being writer-owned and deleted at exit, its absence is
 /// the liveness signal (mcp_flutter ADR-0014 spec v2).
-FilePresent runnerSessionReadiness(final String projectDir) =>
+FilePresent runnerSessionReadiness(String projectDir) =>
     FilePresent('$projectDir/.flutter_mcp/runner-session.json');
 
 /// Attach-only provider over the published runner-session contract.
@@ -36,7 +36,7 @@ final class RunnerSessionProvider implements ResourceProvider {
       );
 
   @override
-  Future<StartReport> start(final StartRequest request) async {
+  Future<StartReport> start(StartRequest request) async {
     if (request.mode == StartMode.start) {
       throw ArgumentError(
         'RunnerSessionProvider is attach-only: launching a second owner is '
@@ -64,7 +64,7 @@ final class RunnerSessionProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> inspect(final ResourceRef ref) async {
+  Future<Observation> inspect(ResourceRef ref) async {
     final session = readRunnerSessionFile(projectDir);
     if (session == null) {
       return const Observation(
@@ -82,8 +82,8 @@ final class RunnerSessionProvider implements ResourceProvider {
 
   @override
   Future<StopReport> stop(
-    final ResourceRef ref, {
-    required final Duration grace,
+    ResourceRef ref, {
+    required Duration grace,
   }) async =>
       const StopReport(
         disposition: StopDisposition.refused,
@@ -92,12 +92,12 @@ final class RunnerSessionProvider implements ResourceProvider {
       );
 
   @override
-  Future<Observation> reconcile(final ResourceRef ref) => inspect(ref);
+  Future<Observation> reconcile(ResourceRef ref) => inspect(ref);
 }
 
 /// The live runner session as a composition component: declared readiness
 /// ([runnerSessionReadiness]) plus the typed VM-URI output, attach-only.
-Component runnerSessionComponent(final String projectDir) => Component(
+Component runnerSessionComponent(String projectDir) => Component(
       id: 'runner-session',
       provider: RunnerSessionProvider(projectDir: projectDir),
       readiness: runnerSessionReadiness(projectDir),
@@ -107,7 +107,7 @@ Component runnerSessionComponent(final String projectDir) => Component(
 /// Resolves the live session's typed outputs — attach, no ownership.
 /// Throws [StateError] when no session is live.
 Future<ResolvedOutputs> resolveLiveSessionOutputs(
-  final String projectDir,
+  String projectDir,
 ) async {
   final component = runnerSessionComponent(projectDir);
   final report = await component.provider.start(

@@ -34,7 +34,7 @@ void main() {
     final report = composition.validate();
     expect(report.ok, isFalse);
     expect(
-      report.issues.map((final i) => i.code),
+      report.issues.map((i) => i.code),
       contains('duplicateComponentId'),
     );
   });
@@ -44,7 +44,7 @@ void main() {
       Component(id: 'a', provider: FakeProvider(), dependsOn: const ['ghost']),
     ]);
     expect(
-      composition.validate().issues.map((final i) => i.code),
+      composition.validate().issues.map((i) => i.code),
       contains('unknownDependency'),
     );
   });
@@ -55,8 +55,8 @@ void main() {
       Component(id: 'b', provider: FakeProvider(), dependsOn: const ['a']),
     ]);
     final issues = composition.validate().issues;
-    expect(issues.map((final i) => i.code), contains('cyclicDependency'));
-    expect(issues.firstWhere((final i) => i.code == 'cyclicDependency').message,
+    expect(issues.map((i) => i.code), contains('cyclicDependency'));
+    expect(issues.firstWhere((i) => i.code == 'cyclicDependency').message,
         contains('a ->'));
   });
 
@@ -72,7 +72,7 @@ void main() {
       ),
     ]);
     expect(
-      composition.validate().issues.map((final i) => i.code),
+      composition.validate().issues.map((i) => i.code),
       contains('unmetRequirement'),
     );
   });
@@ -108,7 +108,7 @@ void main() {
       ),
     ]);
     final issues = composition.validate().issues;
-    expect(issues.map((final i) => i.code), contains('capabilityReadiness'));
+    expect(issues.map((i) => i.code), contains('capabilityReadiness'));
     expect(issues.first.message, contains('swap the provider'));
   });
 
@@ -123,7 +123,7 @@ void main() {
       ),
     ]);
     expect(
-      composition.validate().issues.map((final i) => i.code),
+      composition.validate().issues.map((i) => i.code),
       contains('capabilityIdentity'),
     );
   });
@@ -142,7 +142,7 @@ void main() {
       ),
     ]);
     expect(
-      composition.validate().issues.map((final i) => i.code),
+      composition.validate().issues.map((i) => i.code),
       contains('scopeInversion'),
     );
   });
@@ -157,7 +157,7 @@ void main() {
     ])
         .validate()
         .issues;
-    expect(issues.map((final i) => i.code), contains('invalidReadiness'));
+    expect(issues.map((i) => i.code), contains('invalidReadiness'));
 
     final nested = Composition(components: [
       Component(
@@ -170,7 +170,7 @@ void main() {
     ])
         .validate()
         .issues;
-    expect(nested.map((final i) => i.code), contains('invalidReadiness'));
+    expect(nested.map((i) => i.code), contains('invalidReadiness'));
   });
 
   test('validate performs no side effects: providers are never contacted',

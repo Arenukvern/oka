@@ -7,20 +7,20 @@ import '../spec/body_entry.dart';
 import '../spec/head_entry.dart';
 
 /// HTML-escapes an attribute value (`&`, `"`, `<`, `>`).
-String escapeAttribute(final String value) => value
+String escapeAttribute(String value) => value
     .replaceAll('&', '&amp;')
     .replaceAll('"', '&quot;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 
 /// HTML-escapes text content (`&`, `<`, `>`).
-String escapeText(final String value) => value
+String escapeText(String value) => value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 
 /// Renders one [WebHeadEntry] as a single HTML line, indented two spaces.
-String renderHeadEntry(final WebHeadEntry entry) {
+String renderHeadEntry(WebHeadEntry entry) {
   final buffer = StringBuffer('  ');
   switch (entry) {
     case final WebMetaEntry e:
@@ -81,17 +81,17 @@ String renderHeadEntry(final WebHeadEntry entry) {
 }
 
 /// Renders one [WebBodyEntry] as an indented HTML line (or lines).
-List<String> renderBodyEntry(final WebBodyEntry entry) => switch (entry) {
+List<String> renderBodyEntry(WebBodyEntry entry) => switch (entry) {
       final WebHtmlEntry e => e.html
           .split('\n')
-          .map((final line) => '  $line')
+          .map((line) => '  $line')
           .toList(),
       final WebElementEntry e => [
           '  <${_openTag(e)}>${escapeText(e.text)}</${e.tag}>',
         ],
     };
 
-String _openTag(final WebElementEntry e) {
+String _openTag(WebElementEntry e) {
   final buffer = StringBuffer(e.tag);
   if (e.id != null) buffer.write(' id="${escapeAttribute(e.id!)}"');
   if (e.classes.isNotEmpty) {

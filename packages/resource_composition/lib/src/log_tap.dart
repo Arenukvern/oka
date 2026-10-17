@@ -27,7 +27,7 @@ final class LogTap {
   /// Whether [close] has been called.
   bool get isClosed => _closed;
 
-  void add(final String line) {
+  void add(String line) {
     if (_closed) return;
     _buffer.add(line);
     if (_buffer.length > maxLines) _buffer.removeAt(0);
@@ -35,13 +35,13 @@ final class LogTap {
   }
 
   /// The last [n] lines (fewer when the buffer is younger).
-  List<String> tail(final int n) {
+  List<String> tail(int n) {
     final start = _buffer.length > n ? _buffer.length - n : 0;
     return List.of(_buffer.sublist(start));
   }
 
   /// First buffered line matching [pattern], or null.
-  String? firstMatch(final Pattern pattern) {
+  String? firstMatch(Pattern pattern) {
     for (final line in _buffer) {
       if (pattern.allMatches(line).isNotEmpty) return line;
     }
@@ -49,22 +49,22 @@ final class LogTap {
   }
 
   /// How many buffered lines match [pattern].
-  int count(final Pattern pattern) =>
-      _buffer.where((final line) => pattern.allMatches(line).isNotEmpty).length;
+  int count(Pattern pattern) =>
+      _buffer.where((line) => pattern.allMatches(line).isNotEmpty).length;
 
   /// The first line matching [pattern] — from the buffer or the live
   /// stream — or a [TimeoutException] whose message embeds the tail.
   Future<String> waitFor(
-    final Pattern pattern, {
-    required final Duration timeout,
-    final Duration pollInterval = const Duration(milliseconds: 50),
+    Pattern pattern, {
+    required Duration timeout,
+    Duration pollInterval = const Duration(milliseconds: 50),
   }) async {
     final buffered = firstMatch(pattern);
     if (buffered != null) return buffered;
 
     final completer = Completer<String>();
     late final StreamSubscription<String> sub;
-    sub = stream.listen((final line) {
+    sub = stream.listen((line) {
       if (!completer.isCompleted && pattern.allMatches(line).isNotEmpty) {
         completer.complete(line);
       }

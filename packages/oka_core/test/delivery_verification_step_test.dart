@@ -83,9 +83,9 @@ void main() {
         config: OkaConfig.empty,
       );
       final steps = target.compile(ctx);
-      expect(steps.map((final s) => s.name), contains('verify-delivery'));
+      expect(steps.map((s) => s.name), contains('verify-delivery'));
       // Gate runs after staging, before the upload tail.
-      final names = steps.map((final s) => s.name).toList();
+      final names = steps.map((s) => s.name).toList();
       expect(
         names.indexOf('verify-delivery'),
         lessThan(names.indexOf('upload')),
@@ -107,7 +107,7 @@ void main() {
                 config: OkaConfig.empty,
               ),
             )
-            .map((final s) => s.name),
+            .map((s) => s.name),
         isNot(contains('verify-delivery')),
       );
       const refusing = _RefusingTarget();
@@ -146,10 +146,10 @@ class _FakePublishTarget extends PublishTarget {
   String get artifactId => 'aab-path';
 
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [StageAabStep()];
+  List<BuildStep> publishSteps(BuildContext ctx) => [StageAabStep()];
 
   @override
-  BuildStep uploadStep(final BuildContext ctx) => _NoopUploadStep();
+  BuildStep uploadStep(BuildContext ctx) => _NoopUploadStep();
 }
 
 class _RefusingTarget extends _FakePublishTarget {
@@ -167,6 +167,6 @@ class _NoopUploadStep extends BuildStep {
   Set<Artifact<Object>> get requires => {const Artifact<String>('aab-path')};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
       Future.value(StepResult.success());
 }

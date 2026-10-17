@@ -15,7 +15,7 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final missing = args.where((final jar) => !File(jar).existsSync()).toList();
+  final missing = args.where((jar) => !File(jar).existsSync()).toList();
   if (missing.isNotEmpty) {
     for (final jar in missing) {
       stderr.writeln('Jar does not exist: $jar');

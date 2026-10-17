@@ -47,7 +47,7 @@ class BadgingInfo {
 final _attrRe = RegExp(r"([a-zA-Z][a-zA-Z0-9_\-]*)='([^']*)'");
 
 /// Parse `aapt2 dump badging` output into a [BadgingInfo].
-BadgingInfo parseBadging(final String output) {
+BadgingInfo parseBadging(String output) {
   var packageName = '';
   var versionCode = '';
   var versionName = '';
@@ -117,7 +117,7 @@ BadgingInfo parseBadging(final String output) {
     targetSdkVersion: targetSdk,
     launchableActivity: launchable,
     intentFilters: Map.unmodifiable(
-      intentFilters.map((final k, final v) => MapEntry(k, v..sort())),
+      intentFilters.map((k, v) => MapEntry(k, v..sort())),
     ),
     allLines: allLines..sort(),
   );
@@ -146,16 +146,16 @@ class ZipEntryDiff {
 /// Entry names only (directories included as-is); common entries are compared
 /// by crc32 to catch silent content swaps. Timestamps and compression
 /// metadata are ignored — the gate targets content equivalence.
-ZipEntryDiff compareZipEntries(final String pathA, final String pathB) {
+ZipEntryDiff compareZipEntries(String pathA, String pathB) {
   final entriesA = _entryCrcs(pathA);
   final entriesB = _entryCrcs(pathB);
-  final onlyA = entriesA.keys.where((final n) => !entriesB.containsKey(n)).toList()
+  final onlyA = entriesA.keys.where((n) => !entriesB.containsKey(n)).toList()
     ..sort();
-  final onlyB = entriesB.keys.where((final n) => !entriesA.containsKey(n)).toList()
+  final onlyB = entriesB.keys.where((n) => !entriesA.containsKey(n)).toList()
     ..sort();
   final changed = entriesA.keys
       .where(
-        (final n) =>
+        (n) =>
             entriesB.containsKey(n) &&
             entriesB[n] != entriesA[n] &&
             entriesA[n] != null,
@@ -169,7 +169,7 @@ ZipEntryDiff compareZipEntries(final String pathA, final String pathB) {
   );
 }
 
-Map<String, int?> _entryCrcs(final String path) {
+Map<String, int?> _entryCrcs(String path) {
   final bytes = File(path).readAsBytesSync();
   final archive = ZipDecoder().decodeBytes(bytes);
   return {
@@ -250,11 +250,11 @@ class ArtifactComparison {
 /// reason — the zip diff still applies. [skipBadgingSection] forces that
 /// skip (the `oka compare --skip-badging` routing).
 Future<ArtifactComparison> compareArtifacts(
-  final String pathA,
-  final String pathB, {
-  final String? aapt2Path,
-  final bool skipBadgingSection = false,
-  final Future<String> Function(String aapt2, String artifact)? dumpBadging,
+  String pathA,
+  String pathB, {
+  String? aapt2Path,
+  bool skipBadgingSection = false,
+  Future<String> Function(String aapt2, String artifact)? dumpBadging,
 }) async {
   final zipDiff = compareZipEntries(pathA, pathB);
 
@@ -292,7 +292,7 @@ Future<ArtifactComparison> compareArtifacts(
   );
 }
 
-Future<String> _defaultDumpBadging(final String aapt2, final String artifact) async {
+Future<String> _defaultDumpBadging(String aapt2, String artifact) async {
   final result = await Process.run(aapt2, ['dump', 'badging', artifact]);
   if (result.exitCode != 0) {
     throw Exception(
@@ -303,7 +303,7 @@ Future<String> _defaultDumpBadging(final String aapt2, final String artifact) as
   return result.stdout as String;
 }
 
-List<String> _badgingDifferences(final BadgingInfo? a, final BadgingInfo? b) {
+List<String> _badgingDifferences(BadgingInfo? a, BadgingInfo? b) {
   if (a == null || b == null) {
     return const [];
   }
@@ -329,10 +329,10 @@ List<String> _badgingDifferences(final BadgingInfo? a, final BadgingInfo? b) {
     );
   }
   final permsOnlyA = a.usesPermissions
-      .where((final x) => !b.usesPermissions.contains(x))
+      .where((x) => !b.usesPermissions.contains(x))
       .toList();
   final permsOnlyB = b.usesPermissions
-      .where((final x) => !a.usesPermissions.contains(x))
+      .where((x) => !a.usesPermissions.contains(x))
       .toList();
   for (final perm in permsOnlyA) {
     diffs.add('permission only in A: $perm');
@@ -342,8 +342,8 @@ List<String> _badgingDifferences(final BadgingInfo? a, final BadgingInfo? b) {
   }
   // Full-output fallback catches anything the structured extraction missed
   // (intent-filter metadata, labels, features, …).
-  final linesOnlyA = a.allLines.where((final l) => !b.allLines.contains(l)).toList();
-  final linesOnlyB = b.allLines.where((final l) => !a.allLines.contains(l)).toList();
+  final linesOnlyA = a.allLines.where((l) => !b.allLines.contains(l)).toList();
+  final linesOnlyB = b.allLines.where((l) => !a.allLines.contains(l)).toList();
   if (diffs.isEmpty && (linesOnlyA.isNotEmpty || linesOnlyB.isNotEmpty)) {
     for (final l in linesOnlyA.take(20)) {
       diffs.add('badging line only in A: $l');

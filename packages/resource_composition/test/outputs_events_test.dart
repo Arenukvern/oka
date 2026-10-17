@@ -13,7 +13,7 @@ void main() {
       () => missing.require(port),
       throwsA(
         isA<StateError>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           contains('violated its declared provides'),
         ),
@@ -25,7 +25,7 @@ void main() {
       () => wrongType.require(port),
       throwsA(
         isA<StateError>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           contains('expected int'),
         ),
@@ -84,7 +84,7 @@ void main() {
   test('terminal causes cover the survey failure classes', () {
     // F5: death has a meaning — the enum must carry provider faults and
     // transport loss distinctly from deadline kills.
-    expect(TerminalCause.values.map((final c) => c.name), containsAll([
+    expect(TerminalCause.values.map((c) => c.name), containsAll([
       'exited',
       'signaled',
       'killedOnDeadline',

@@ -15,7 +15,7 @@ class _BareTarget extends Target {
   String get description => 'bare';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => const [];
+  List<BuildStep> compile(BuildContext ctx) => const [];
 }
 
 BuildContext _ctx() => const BuildContext(
@@ -56,7 +56,7 @@ void main() {
 
   test('EmulatorTarget.compile records AVD inventory after the boot chain', () {
     final steps = const EmulatorTarget().compile(_ctx());
-    expect(steps.map((final s) => s.name), [
+    expect(steps.map((s) => s.name), [
       'ensure-avd',
       'boot-emulator',
       'record-android-avd-inventory',

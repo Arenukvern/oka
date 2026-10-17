@@ -71,7 +71,7 @@ class WebShellTarget extends Target {
 
   /// Compile to the validate → emit step chain (no Flutter invocation).
   @override
-  List<BuildStep> compile(final BuildContext ctx) {
+  List<BuildStep> compile(BuildContext ctx) {
     final shell = compose();
     final dir = p.isAbsolute(webDir)
         ? webDir
@@ -85,7 +85,7 @@ class WebShellTarget extends Target {
   /// ADR-0016 W1: the composed-shell render for `oka explain --targets` —
   /// pure (no I/O, no execution); the same value the emit step writes.
   @override
-  List<String> explainDetails(final BuildContext ctx) {
+  List<String> explainDetails(BuildContext ctx) {
     final shell = compose();
     final header = 'composed web shell (emitter "${emitter.name}" owns: '
         '${emitter.ownedPaths.join(', ')}; post-emit drift gate: re-render '
@@ -157,7 +157,7 @@ class WebBuildTarget extends Target {
 
   /// Compile to the [FlutterWebBuildStep] delegation.
   @override
-  List<BuildStep> compile(final BuildContext ctx) =>
+  List<BuildStep> compile(BuildContext ctx) =>
       [FlutterWebBuildStep(baseHref: effectiveBaseHref, extraArgs: extraArgs)];
 
   /// Debug string: effective base href plus the delegation marker.

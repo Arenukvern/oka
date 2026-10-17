@@ -8,11 +8,11 @@ final class _ForeignPattern implements Pattern {
   const _ForeignPattern();
 
   @override
-  Iterable<Match> allMatches(final String string, [final int start = 0]) =>
+  Iterable<Match> allMatches(String string, [int start = 0]) =>
       const [];
 
   @override
-  Match? matchAsPrefix(final String string, [final int start = 0]) => null;
+  Match? matchAsPrefix(String string, [int start = 0]) => null;
 }
 
 void main() {
@@ -93,7 +93,7 @@ void main() {
       final handshake = byId['gateway']!.readiness! as HandshakeLine;
       expect(
         handshake.pattern,
-        isA<RegExp>().having((final p) => p.pattern, 'pattern', '^READY'),
+        isA<RegExp>().having((p) => p.pattern, 'pattern', '^READY'),
       );
       expect(handshake.budget, const Duration(seconds: 9));
       expect(handshake.parse, isNull);
@@ -220,7 +220,7 @@ void main() {
       expect(
         handshake.pattern,
         isA<RegExp>().having(
-          (final p) => p.pattern,
+          (p) => p.pattern,
           'pattern',
           'listening on (?<port>[0-9]+)',
         ),
@@ -304,12 +304,12 @@ void main() {
   });
 
   group('SpecCodec decode errors', () {
-    void expectRejected(final String json, {final String? containing}) {
+    void expectRejected(String json, {String? containing}) {
       expect(
         () => codec.decode(json),
         throwsA(
           isA<SpecFormatException>().having(
-            (final error) => '$error',
+            (error) => '$error',
             'toString',
             contains(containing ?? 'invalid supervisor plan'),
           ),

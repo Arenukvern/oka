@@ -119,12 +119,12 @@ final class ReadinessAll extends Readiness {
   final List<Readiness> conditions;
 
   @override
-  String describe() => conditions.map((final c) => c.describe()).join(' AND ');
+  String describe() => conditions.map((c) => c.describe()).join(' AND ');
 }
 
 /// Convenience for the common multi-condition conjunctions.
 Readiness allOf(
-  final Iterable<Readiness> conditions, {
-  final Duration? budget,
+  Iterable<Readiness> conditions, {
+  Duration? budget,
 }) =>
     ReadinessAll(List.of(conditions), budget: budget);

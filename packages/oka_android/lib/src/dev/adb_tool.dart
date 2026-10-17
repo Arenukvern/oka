@@ -35,14 +35,14 @@ import '../build/toolchain.dart';
 
 /// Serial prefix so adb targets one attached device. Multi-device hosts
 /// (phone + emulator) fail with "more than one device" without it.
-List<String> adbSerialArgs(final String? serial) =>
+List<String> adbSerialArgs(String? serial) =>
     serial == null || serial.trim().isEmpty ? const [] : ['-s', serial.trim()];
 
 /// `adb devices -l` (long listing: id, state, model).
 List<String> adbDevicesArgs() => ['devices', '-l'];
 
 /// `adb [-s <serial>] install -r <apk>` (reinstall, keep data).
-List<String> adbInstallArgs(final String apk, {final String? serial}) => [
+List<String> adbInstallArgs(String apk, {String? serial}) => [
   ...adbSerialArgs(serial),
   'install',
   '-r',
@@ -51,15 +51,15 @@ List<String> adbInstallArgs(final String apk, {final String? serial}) => [
 
 /// `adb [-s <serial>] install-multiple -r <apk>...` for split APK sets.
 List<String> adbInstallMultipleArgs(
-  final List<String> apks, {
-  final String? serial,
+  List<String> apks, {
+  String? serial,
 }) => [...adbSerialArgs(serial), 'install-multiple', '-r', ...apks];
 
 /// `adb [-s <serial>] shell am start -n <package>/<activity>`.
 List<String> adbLaunchArgs(
-  final String packageName,
-  final String activity, {
-  final String? serial,
+  String packageName,
+  String activity, {
+  String? serial,
 }) => [
   ...adbSerialArgs(serial),
   'shell',
@@ -72,14 +72,14 @@ List<String> adbLaunchArgs(
 /// `adb [-s <serial>] forward tcp:<hostPort> tcp:<devicePort>`; [hostPort]
 /// 0 = adb picks a free local port (printed on stdout).
 List<String> adbForwardArgs({
-  required final int devicePort,
-  final int hostPort = 0,
-  final String? serial,
+  required int devicePort,
+  int hostPort = 0,
+  String? serial,
 }) => [...adbSerialArgs(serial), 'forward', 'tcp:$hostPort', 'tcp:$devicePort'];
 
 /// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
 /// no stream).
-List<String> adbLogcatDumpArgs({final String? serial}) => [
+List<String> adbLogcatDumpArgs({String? serial}) => [
   ...adbSerialArgs(serial),
   'logcat',
   '-d',
@@ -87,7 +87,7 @@ List<String> adbLogcatDumpArgs({final String? serial}) => [
 
 /// `adb [-s <serial>] logcat -c` (clear buffer before launch, per
 /// [LaunchAppStep]).
-List<String> adbLogcatClearArgs({final String? serial}) => [
+List<String> adbLogcatClearArgs({String? serial}) => [
   ...adbSerialArgs(serial),
   'logcat',
   '-c',
@@ -117,7 +117,7 @@ class AdbDevice {
 /// Parses `adb devices -l` output into [AdbDevice]s. Tolerates the header
 /// line, daemon-startup noise (`* daemon started successfully`), and empty
 /// lines; returns an empty list when nothing is attached.
-List<AdbDevice> parseAdbDevices(final String output) {
+List<AdbDevice> parseAdbDevices(String output) {
   final devices = <AdbDevice>[];
   for (final raw in output.split('\n')) {
     final line = raw.trim();
@@ -141,11 +141,11 @@ List<AdbDevice> parseAdbDevices(final String output) {
 
 /// Extracts an AVD name from `adb -s <serial> emu avd name` output
 /// (`<name>\nOK`).
-String? parseEmuAvdName(final String output) {
+String? parseEmuAvdName(String output) {
   final lines = output
       .split('\n')
-      .map((final line) => line.trim())
-      .where((final line) => line.isNotEmpty && line != 'OK')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty && line != 'OK')
       .toList();
   return lines.isEmpty ? null : lines.first;
 }
@@ -189,7 +189,7 @@ class VmServiceInfo {
 /// engines print `Dart VM Service listening on`, newer ones print
 /// `The Dart VM service is listening on` — matched case-insensitively with
 /// an optional `is`.
-VmServiceInfo? parseVmServiceUri(final String log) {
+VmServiceInfo? parseVmServiceUri(String log) {
   final re = RegExp(
     r'dart vm service (?:is )?listening on\s+(https?)://([^\s/:]+):(\d+)/(\S+)',
     caseSensitive: false,
@@ -211,7 +211,7 @@ VmServiceInfo? parseVmServiceUri(final String log) {
 
 /// Parses the local port chosen by `adb forward tcp:0 tcp:<port>` (adb
 /// prints the picked host port on stdout).
-int? parseForwardPort(final String output) {
+int? parseForwardPort(String output) {
   final m = RegExp(r'(\d+)').firstMatch(output.trim());
   return m == null ? null : int.parse(m.group(1)!);
 }
@@ -239,7 +239,7 @@ class AdbFailure {
 /// Maps raw adb output to a typed failure + oka-style remediation.
 /// Best-effort: unknown outputs degrade to [AdbFailure.kind] = `unknown`
 /// with the raw text — never a silent pass.
-AdbFailure classifyAdbFailure(final String rawOutput) {
+AdbFailure classifyAdbFailure(String rawOutput) {
   final out = rawOutput.trim();
   final lower = out.toLowerCase();
   if (lower.contains('unauthorized') ||
@@ -337,12 +337,12 @@ class AdbTool {
   AdbTool({
     required this.adbPath,
     this.serial,
-    final Future<ProcessResult> Function(String, List<String>)? runProcess,
+    Future<ProcessResult> Function(String, List<String>)? runProcess,
   }) : _runProcess = runProcess ?? _defaultRun;
 
   static Future<ProcessResult> _defaultRun(
-    final String exe,
-    final List<String> args,
+    String exe,
+    List<String> args,
   ) => Process.run(exe, args);
 
   final String adbPath;
@@ -353,7 +353,7 @@ class AdbTool {
 
   final Future<ProcessResult> Function(String, List<String>) _runProcess;
 
-  Never _fail(final String operation, final ProcessResult r) {
+  Never _fail(String operation, ProcessResult r) {
     final f = classifyAdbFailure('${r.stdout}${r.stderr}');
     throw AdbToolException('adb $operation failed — ${f.message}', f);
   }
@@ -368,14 +368,14 @@ class AdbTool {
 
   /// `adb install -r`. Throws [AdbToolException] with the classified fix on
   /// failure (adb exits non-zero OR prints `Failure` while exiting 0).
-  Future<void> install(final String apk) async {
+  Future<void> install(String apk) async {
     final r = await _runProcess(adbPath, adbInstallArgs(apk, serial: serial));
     final out = '${r.stdout}${r.stderr}';
     if (r.exitCode != 0 || out.contains('Failure')) _fail('install', r);
   }
 
   /// Installs a device-specific split set produced by bundletool.
-  Future<void> installMultiple(final List<String> apks) async {
+  Future<void> installMultiple(List<String> apks) async {
     final r = await _runProcess(
       adbPath,
       adbInstallMultipleArgs(apks, serial: serial),
@@ -387,7 +387,7 @@ class AdbTool {
   }
 
   /// `adb shell am start -n <package>/<activity>`.
-  Future<void> launch(final String packageName, final String activity) async {
+  Future<void> launch(String packageName, String activity) async {
     final r = await _runProcess(
       adbPath,
       adbLaunchArgs(packageName, activity, serial: serial),
@@ -411,8 +411,8 @@ class AdbTool {
   /// `adb forward tcp:<hostPort> tcp:<devicePort>`; with [hostPort] 0,
   /// returns the local port adb picked (parsed from stdout).
   Future<int> forwardTcp({
-    required final int devicePort,
-    final int hostPort = 0,
+    required int devicePort,
+    int hostPort = 0,
   }) async {
     final r = await _runProcess(
       adbPath,
@@ -439,8 +439,8 @@ class AdbTool {
   /// [pollInterval] until [parseVmServiceUri] matches or [timeout] passes.
   /// Returns null on timeout (caller decides the oka-branded failure).
   Future<VmServiceInfo?> awaitVmServiceUri({
-    final Duration timeout = const Duration(seconds: 60),
-    final Duration pollInterval = const Duration(milliseconds: 500),
+    Duration timeout = const Duration(seconds: 60),
+    Duration pollInterval = const Duration(milliseconds: 500),
   }) async {
     final deadline = DateTime.now().add(timeout);
     while (true) {
@@ -472,9 +472,9 @@ class AdbToolException implements Exception {
 /// Resolves adb (injectable path → toolchain policy) for the VM-service
 /// steps. Shared failure shape: missing adb is a failure naming the fix.
 Future<String> resolveAdbForSteps(
-  final PipelineState state, {
-  final String? adbPath,
-  final ResolvedToolchain? toolchain,
+  PipelineState state, {
+  String? adbPath,
+  ResolvedToolchain? toolchain,
 }) async {
   if (adbPath != null) return adbPath;
   return (toolchain ?? state.resolvedToolchain ?? ResolvedToolchain())
@@ -515,8 +515,8 @@ class AwaitVmServiceStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final String adb;
     try {
@@ -575,8 +575,8 @@ class ForwardVmServiceStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final String adb;
     try {
@@ -608,7 +608,7 @@ class ForwardVmServiceStep extends BuildStep {
 /// Rebuilds the host-reachable VM service endpoint after
 /// [ForwardVmServiceStep]: same scheme/auth path, host loopback, forwarded
 /// local port. Pure, exported for tests.
-String forwardedVmServiceUri(final VmServiceInfo info, final int localPort) {
+String forwardedVmServiceUri(VmServiceInfo info, int localPort) {
   final scheme = info.scheme == 'https' ? 'wss' : 'ws';
   // The plain HTTP announcement carries no `/ws` path — the Dart VM
   // service websocket endpoint is the same token path plus `/ws`.

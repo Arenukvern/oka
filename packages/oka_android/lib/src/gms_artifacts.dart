@@ -43,11 +43,11 @@ import 'package:oka_core/oka_core.dart';
 const String gmsDependencyArtifactPrefix = 'gms-dep:';
 
 /// The artifact id for a GMS-provided [coordinate] (no version).
-String gmsDependencyArtifactId(final String coordinate) =>
+String gmsDependencyArtifactId(String coordinate) =>
     '$gmsDependencyArtifactPrefix$coordinate';
 
 /// Whether [id] is a GMS-dependency artifact id.
-bool isGmsDependencyArtifactId(final String id) =>
+bool isGmsDependencyArtifactId(String id) =>
     id.startsWith(gmsDependencyArtifactPrefix);
 
 /// A typed artifact handle on a resolved GMS-provided dependency.
@@ -55,7 +55,7 @@ bool isGmsDependencyArtifactId(final String id) =>
 /// Identity is the coordinate without version, so a step requiring
 /// Play Billing composes against whatever version the dependency layer
 /// resolved.
-Artifact<String> gmsDependencyArtifact(final String coordinate) =>
+Artifact<String> gmsDependencyArtifact(String coordinate) =>
     Artifact<String>(
       gmsDependencyArtifactId(coordinate),
       description: 'GMS-provided dependency $coordinate',
@@ -78,7 +78,7 @@ const List<String> gmsGroupPrefixes = [
 ///
 /// Malformed coordinates (no `:`) are never classified as GMS: the
 /// dependency layer reports them.
-bool isGmsCoordinate(final String coordinate) {
+bool isGmsCoordinate(String coordinate) {
   final group = coordinate.split(':').first;
   for (final prefix in gmsGroupPrefixes) {
     if (group == prefix || group.startsWith('$prefix.')) return true;
@@ -89,7 +89,7 @@ bool isGmsCoordinate(final String coordinate) {
 /// Splits [coordinates] into the GMS-provided ones and the rest — the
 /// classification a GMS-exclusion variant applies to `extraDeps`.
 ({List<String> gms, List<String> other}) splitGmsDependencies(
-  final Iterable<String> coordinates,
+  Iterable<String> coordinates,
 ) {
   final gms = <String>[];
   final other = <String>[];
@@ -126,7 +126,7 @@ class GmsDependencyProviderStep extends BuildStep {
       };
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     for (final entry in resolvedPaths.entries) {
       final file = entry.value;
       if (!await isReadableFile(file)) {
@@ -145,6 +145,6 @@ class GmsDependencyProviderStep extends BuildStep {
 
   /// Existence check seam (injected in tests; real builds stat the file).
   @visibleForTesting
-  Future<bool> isReadableFile(final String path) async =>
+  Future<bool> isReadableFile(String path) async =>
       File(path).existsSync();
 }

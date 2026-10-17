@@ -60,13 +60,13 @@ final class CompositionRunHandle {
 
 /// Starts a [Composition]'s components in dependency order.
 final class CompositionRunner {
-  CompositionRunner({required this.composition, final EvidenceSink? evidence})
+  CompositionRunner({required this.composition, EvidenceSink? evidence})
     : evidence = evidence ?? _asSink(composition.evidence);
 
   final Composition composition;
   final EvidenceSink evidence;
 
-  static EvidenceSink _asSink(final Object? candidate) => switch (candidate) {
+  static EvidenceSink _asSink(Object? candidate) => switch (candidate) {
         final EvidenceSink sink => sink,
         _ => CollectingEvidenceSink(),
       };
@@ -75,7 +75,7 @@ final class CompositionRunner {
 
   /// Ids of currently running components, started-first.
   List<String> get runningIds =>
-      _started.map((final r) => r.component.id).toList();
+      _started.map((r) => r.component.id).toList();
 
   /// Starts every component in topological order (stable among
   /// independents: declaration order).
@@ -158,14 +158,14 @@ final class CompositionRunner {
 
       // Provider contract check: every declared provide must resolve.
       final unresolved = component.provides
-          .where((final ref) => !startReport.outputs.contains(ref))
+          .where((ref) => !startReport.outputs.contains(ref))
           .toList();
       if (unresolved.isNotEmpty) {
         evidence.add(ComponentFailed(
           componentId: component.id,
           cause: TerminalCause.providerFault,
           message: 'did not resolve declared outputs: '
-              '${unresolved.map((final r) => r.id).join(', ')}',
+              '${unresolved.map((r) => r.id).join(', ')}',
         ));
         await component.provider.stop(
           startReport.ref,
@@ -175,7 +175,7 @@ final class CompositionRunner {
         throw CompositionRunException(
           componentId: component.id,
           message: 'provider did not resolve declared outputs: '
-              '${unresolved.map((final r) => r.id).join(', ')}',
+              '${unresolved.map((r) => r.id).join(', ')}',
           cause: TerminalCause.providerFault,
           teardownNotes: notes,
         );
@@ -204,8 +204,8 @@ final class CompositionRunner {
   Future<List<String>> stopAll() => _teardownStarted();
 
   ResolvedOutputs _resolvedFrom(
-    final CompositionRunHandle handle,
-    final Component component,
+    CompositionRunHandle handle,
+    Component component,
   ) {
     final values = <String, Object?>{};
     for (final ref in component.requires) {
@@ -259,7 +259,7 @@ final class CompositionRunner {
       for (final component in composition.components) {
         if (started.contains(component.id)) continue;
         final ready = component.dependsOn.every(
-          (final dep) =>
+          (dep) =>
               started.contains(dep) || !byId.containsKey(dep),
         );
         if (ready) {

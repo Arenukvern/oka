@@ -46,9 +46,9 @@ List<String> avdManagerListArgs() => ['list', 'avd'];
 /// ` is the caller's job (stdin must never be attached; avdmanager's custom
 /// hardware profile prompt defaults to no).
 List<String> avdManagerCreateArgs({
-  required final String name,
-  required final String image,
-  final String? deviceProfile,
+  required String name,
+  required String image,
+  String? deviceProfile,
 }) => [
   'create',
   'avd',
@@ -62,9 +62,9 @@ List<String> avdManagerCreateArgs({
 
 /// `emulator -avd <name> [flags]`.
 List<String> emulatorLaunchArgs({
-  required final String name,
-  final bool headless = true,
-  final bool noSnapshotSave = true,
+  required String name,
+  bool headless = true,
+  bool noSnapshotSave = true,
 }) => [
   '-avd',
   name,
@@ -74,17 +74,17 @@ List<String> emulatorLaunchArgs({
 
 /// Parses `avdmanager list avd` output for the AVD names (`Name: <x>`
 /// blocks, ignoring blanks and INFO noise).
-List<String> parseAvdManagerNames(final String output) => output
+List<String> parseAvdManagerNames(String output) => output
     .split('\n')
-    .map((final l) => l.trim())
-    .where((final l) => l.startsWith('Name:'))
-    .map((final l) => l.substring('Name:'.length).trim())
-    .where((final l) => l.isNotEmpty)
+    .map((l) => l.trim())
+    .where((l) => l.startsWith('Name:'))
+    .map((l) => l.substring('Name:'.length).trim())
+    .where((l) => l.isNotEmpty)
     .toList();
 
 /// True when [output] (from `adb shell getprop sys.boot_completed`) means
 /// "booted".
-bool parseBootCompleted(final String output) => output.trim() == '1';
+bool parseBootCompleted(String output) => output.trim() == '1';
 
 // -- Target ------------------------------------------------------------------
 
@@ -190,7 +190,7 @@ class EmulatorTarget extends Target implements SessionStateWorkflowContributor {
   Set<String> get supportedInvocationArgs => const {'device'};
 
   @override
-  EmulatorTarget applyInvocationArgs(final Map<String, String> args) {
+  EmulatorTarget applyInvocationArgs(Map<String, String> args) {
     final unknown = args.keys.toSet().difference(supportedInvocationArgs);
     if (unknown.isNotEmpty) {
       throw ArgumentError(
@@ -222,7 +222,7 @@ class EmulatorTarget extends Target implements SessionStateWorkflowContributor {
   }
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [
+  List<BuildStep> compile(BuildContext ctx) => [
     EnsureAvdStep(
       avdName: avdName,
       systemImage: _systemImage,
@@ -255,7 +255,7 @@ class EmulatorTarget extends Target implements SessionStateWorkflowContributor {
   /// stop-on-exit declaration the owner's intent — while `oka stop`
   /// (lease-based) keeps the borrowed refusal.
   @override
-  List<BuildStep> compileTeardown(final BuildContext ctx) => stopOnExit
+  List<BuildStep> compileTeardown(BuildContext ctx) => stopOnExit
       ? [StopEmulatorStep(adbPath: adbPath, toolchain: toolchain)]
       : const <BuildStep>[];
 }
@@ -275,10 +275,10 @@ String defaultAbi() {
 
 /// Resolves a tool path: explicit → state toolchain → default policy.
 Future<String> _resolveTool(
-  final PipelineState state, {
-  required final String tool,
-  final String? explicit,
-  final ResolvedToolchain? toolchain,
+  PipelineState state, {
+  required String tool,
+  String? explicit,
+  ResolvedToolchain? toolchain,
 }) async {
   if (explicit != null) return explicit;
   final resolved = toolchain ?? state.resolvedToolchain ?? ResolvedToolchain();
@@ -296,7 +296,7 @@ class EnsureAvdStep extends BuildStep {
     this.createIfMissing = true,
     this.avdManagerPath,
     this.toolchain,
-    final Future<ProcessResult> Function(String, List<String>)? runProcess,
+    Future<ProcessResult> Function(String, List<String>)? runProcess,
   }) : _runProcess = runProcess ?? _defaultRun;
 
   final String avdName;
@@ -310,18 +310,18 @@ class EnsureAvdStep extends BuildStep {
   @override
   String get name => 'ensure-avd';
 
-  Future<ProcessResult> _run(final String exe, final List<String> args) =>
+  Future<ProcessResult> _run(String exe, List<String> args) =>
       _runProcess(exe, args);
 
   static Future<ProcessResult> _defaultRun(
-    final String exe,
-    final List<String> args,
+    String exe,
+    List<String> args,
   ) => Process.run(exe, args);
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final String avdManager;
     try {
@@ -401,8 +401,8 @@ class BootEmulatorStep extends BuildStep {
     this.liveness,
     this.leaseRegistry,
     this.ownerCmd = 'oka run emulator',
-    final Future<ProcessResult> Function(String, List<String>)? runProcess,
-    final Future<Process> Function(String, List<String>)? startProcess,
+    Future<ProcessResult> Function(String, List<String>)? runProcess,
+    Future<Process> Function(String, List<String>)? startProcess,
   }) : _runProcess = runProcess ?? Process.run,
        _startProcess = startProcess ?? Process.start;
 
@@ -446,8 +446,8 @@ class BootEmulatorStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final String adb;
     final String emulator;
@@ -471,7 +471,7 @@ class BootEmulatorStep extends BuildStep {
       );
     }
 
-    Future<ProcessResult> runCmd(final List<String> args) =>
+    Future<ProcessResult> runCmd(List<String> args) =>
         _runProcess(adb, args);
 
     final deadline = DateTime.now().add(bootTimeout);
@@ -480,9 +480,9 @@ class BootEmulatorStep extends BuildStep {
     final running = await runCmd(adbDevicesArgs());
     final serials = (running.stdout as String)
         .split('\n')
-        .map((final l) => l.trim())
-        .where((final l) => l.startsWith('emulator-'))
-        .map((final l) => l.split(RegExp(r'\s+')).first)
+        .map((l) => l.trim())
+        .where((l) => l.startsWith('emulator-'))
+        .map((l) => l.split(RegExp(r'\s+')).first)
         .toList();
     for (final serial in serials) {
       final avdOut = await runCmd([
@@ -540,10 +540,10 @@ class BootEmulatorStep extends BuildStep {
       final listed = await runCmd(adbDevicesArgs());
       final candidates = (listed.stdout as String)
           .split('\n')
-          .map((final l) => l.trim())
-          .where((final l) => l.startsWith('emulator-'))
-          .map((final l) => l.split(RegExp(r'\s+')).first)
-          .where((final s) => !before.contains(s))
+          .map((l) => l.trim())
+          .where((l) => l.startsWith('emulator-'))
+          .map((l) => l.split(RegExp(r'\s+')).first)
+          .where((s) => !before.contains(s))
           .toList();
       if (candidates.isNotEmpty) {
         serial = candidates.first;
@@ -585,9 +585,9 @@ class BootEmulatorStep extends BuildStep {
 
   /// Polls `sys.boot_completed` until [deadline].
   Future<bool> _awaitBoot(
-    final String serial,
-    final Future<ProcessResult> Function(List<String>) runCmd,
-    final DateTime deadline,
+    String serial,
+    Future<ProcessResult> Function(List<String>) runCmd,
+    DateTime deadline,
   ) async {
     while (DateTime.now().isBefore(deadline)) {
       final boot = await runCmd([
@@ -609,7 +609,7 @@ class BootEmulatorStep extends BuildStep {
   /// Lease id for this step's AVD — the ADR §1 shape (`emulator-<avd>`).
   String get _leaseId => 'emulator-$avdName';
 
-  ProcessLeaseRegistry _registryFor(final BuildContext ctx) =>
+  ProcessLeaseRegistry _registryFor(BuildContext ctx) =>
       leaseRegistry ??
       ProcessLeaseRegistry.forProject(ctx.projectPath, liveness: _host);
 
@@ -619,9 +619,9 @@ class BootEmulatorStep extends BuildStep {
   /// finds the new emulator-* entry.
   @visibleForTesting
   ProcessLease spawnLease(
-    final int pid,
-    final String? pidToken, {
-    final String? serial,
+    int pid,
+    String? pidToken, {
+    String? serial,
   }) => ProcessLease(
     id: _leaseId,
     pid: pid,
@@ -647,7 +647,7 @@ class BootEmulatorStep extends BuildStep {
   /// ownership `borrowed`; if none exists, record one as borrowed (pid 0 —
   /// adopted by semantic discovery, `adb emu avd name`). Never kills
   /// anything: teardown stops only owned leases.
-  Future<void> _adoptLease(final String serial, final BuildContext ctx) async {
+  Future<void> _adoptLease(String serial, BuildContext ctx) async {
     try {
       final registry = _registryFor(ctx);
       for (final lease in await registry.list()) {
@@ -694,9 +694,9 @@ class BootEmulatorStep extends BuildStep {
   /// signals an unverifiable pid: a recycled pid belongs to an innocent
   /// process, and a token we could not verify is a report, not a guess.
   Future<bool> _stopSpawned(
-    final Process? process,
-    final String? pidToken,
-    final BuildContext ctx,
+    Process? process,
+    String? pidToken,
+    BuildContext ctx,
   ) async {
     if (process == null) return true; // nothing spawned, nothing to clean
     final registry = _registryFor(ctx);
@@ -717,8 +717,8 @@ class BootEmulatorStep extends BuildStep {
   }
 
   Future<void> _upsertLease(
-    final ProcessLease lease,
-    final BuildContext ctx,
+    ProcessLease lease,
+    BuildContext ctx,
   ) async {
     try {
       await _registryFor(ctx).upsert(lease);
@@ -728,7 +728,7 @@ class BootEmulatorStep extends BuildStep {
     }
   }
 
-  Future<String?> _identityToken(final int pid) async {
+  Future<String?> _identityToken(int pid) async {
     try {
       return await _host.identityToken(pid);
     } on Object {
@@ -740,8 +740,8 @@ class BootEmulatorStep extends BuildStep {
   /// A); spawn errors stay swallowed (historical posture) — serial
   /// discovery below fails with its own actionable message either way.
   Future<Process?> _spawnSafely(
-    final String emulator,
-    final List<String> args,
+    String emulator,
+    List<String> args,
   ) async {
     try {
       return await _startProcess(emulator, args);
@@ -777,8 +777,8 @@ class StopEmulatorStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final target = serial ?? state[emulatorSerial.id] as String?;
     if (target == null || target.isEmpty) {

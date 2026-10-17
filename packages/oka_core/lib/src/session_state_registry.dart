@@ -97,7 +97,7 @@ final class SessionStateRegistry {
   /// Directory containing one JSON record per opaque acquisition id.
   final Directory directory;
 
-  File _recordFile(final String id) {
+  File _recordFile(String id) {
     if (!_validId(id)) {
       throw ArgumentError.value(id, 'id', 'Invalid session-state id.');
     }
@@ -279,8 +279,8 @@ final class SessionStateRegistry {
         SessionStateRegistryIssue(path: directory.path, message: '$error'),
       );
     }
-    leases.sort((final a, final b) => a.id.compareTo(b.id));
-    issues.sort((final a, final b) => a.path.compareTo(b.path));
+    leases.sort((a, b) => a.id.compareTo(b.id));
+    issues.sort((a, b) => a.path.compareTo(b.path));
     return SessionStateRegistrySnapshot(
       leases: List.unmodifiable(leases),
       issues: List.unmodifiable(issues),
@@ -288,14 +288,14 @@ final class SessionStateRegistry {
   }
 
   /// Reads one valid record or returns null when absent.
-  Future<SessionStateLease?> read(final String id) async {
+  Future<SessionStateLease?> read(String id) async {
     final file = _recordFile(id);
     if (!await file.exists()) return null;
     return SessionStateLease.fromJson(jsonDecode(await file.readAsString()));
   }
 
   /// Creates a new reservation; existing ids are never overwritten.
-  Future<void> create(final SessionStateLease lease) async {
+  Future<void> create(SessionStateLease lease) async {
     _validateLease(lease);
     await _withRegistryLock(() async {
       final file = _recordFile(lease.id);
@@ -310,7 +310,7 @@ final class SessionStateRegistry {
 
   /// Compare-and-swap update. A stale writer cannot overwrite newer state.
   Future<SessionStateLease> update(
-    final SessionStateLease lease, {
+    SessionStateLease lease, {
     required int expectedGeneration,
   }) {
     _validateLease(lease);
@@ -338,7 +338,7 @@ final class SessionStateRegistry {
 
   /// Removes a record only after the caller has confirmed disposal.
   Future<bool> deleteDisposed(
-    final String id, {
+    String id, {
     required int expectedGeneration,
   }) => _withRegistryLock(() async {
     final file = _recordFile(id);
@@ -362,8 +362,8 @@ final class SessionStateRegistry {
 
   /// Holds a cross-process lock for all mutations of one logical resource.
   Future<T> withResourceLock<T>(
-    final String logicalResourceKey,
-    final Future<T> Function() action,
+    String logicalResourceKey,
+    Future<T> Function() action,
   ) async {
     if (logicalResourceKey.isEmpty || logicalResourceKey.length > 1024) {
       throw ArgumentError.value(
@@ -387,7 +387,7 @@ final class SessionStateRegistry {
     });
   }
 
-  Future<T> _withRegistryLock<T>(final Future<T> Function() action) async {
+  Future<T> _withRegistryLock<T>(Future<T> Function() action) async {
     await _ensureRegistryDirectory();
     return _withInProcessLock(_registryLockKey, () async {
       final lock = await File(
@@ -507,8 +507,8 @@ final class SessionStateRegistry {
   }
 
   Future<void> _writeAtomic(
-    final File target,
-    final SessionStateLease lease,
+    File target,
+    SessionStateLease lease,
   ) async {
     final temporary = File(
       p.join(directory.path, '.${lease.id}.${_idGenerator()}.tmp'),
@@ -525,7 +525,7 @@ final class SessionStateRegistry {
     }
   }
 
-  void _validateLease(final SessionStateLease lease) {
+  void _validateLease(SessionStateLease lease) {
     _recordFile(lease.id);
     if (!_validId(lease.id)) {
       throw ArgumentError.value(lease.id, 'id', 'Invalid session-state id.');
@@ -562,8 +562,8 @@ final class SessionStateRegistry {
 final Map<String, Completer<void>> _processLocalLocks = {};
 
 Future<T> _withInProcessLock<T>(
-  final String key,
-  final Future<T> Function() action,
+  String key,
+  Future<T> Function() action,
 ) async {
   final previous = _processLocalLocks[key]?.future ?? Future<void>.value();
   final release = Completer<void>();
@@ -579,9 +579,9 @@ Future<T> _withInProcessLock<T>(
   }
 }
 
-bool _validId(final String value) => RegExp(r'^[a-f0-9]{32}$').hasMatch(value);
+bool _validId(String value) => RegExp(r'^[a-f0-9]{32}$').hasMatch(value);
 
-Future<bool> _hasLinkedAncestor(final String path) async {
+Future<bool> _hasLinkedAncestor(String path) async {
   var current = p.normalize(p.absolute(path));
   while (true) {
     if (await FileSystemEntity.type(current, followLinks: false) ==
@@ -599,7 +599,7 @@ String _randomId() {
   return List<int>.generate(
     16,
     (_) => random.nextInt(256),
-  ).map((final byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
 }
 
 Future<String> _currentBootId() async {

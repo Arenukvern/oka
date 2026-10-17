@@ -4,7 +4,7 @@ import 'package:oka_supervisor/oka_supervisor.dart';
 import 'package:resource_composition/resource_composition.dart';
 import 'package:test/test.dart';
 
-DesiredState desired(final Duration budget) => DesiredState(
+DesiredState desired(Duration budget) => DesiredState(
   readinessBudget: budget,
   specs: const [
     ComponentSpec(
@@ -66,7 +66,7 @@ void main() {
       final leftovers = store.dir
           .listSync()
           .whereType<File>()
-          .where((final f) => f.path.endsWith('.tmp'))
+          .where((f) => f.path.endsWith('.tmp'))
           .toList();
       expect(leftovers, isEmpty);
     });

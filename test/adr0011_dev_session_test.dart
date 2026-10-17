@@ -89,12 +89,12 @@ void main() {
 
   group('selectDevDevice (injectable runner, no real adb)', () {
     Future<DevDeviceSelection> selectListing(
-      final String listing, {
-      final String? deviceId,
+      String listing, {
+      String? deviceId,
     }) {
       final tool = AdbTool(
         adbPath: 'fake-adb',
-        runProcess: (final exe, final args) async =>
+        runProcess: (exe, args) async =>
             ProcessResult(0, 0, listing, ''),
       );
       return selectDevDevice(deviceId: deviceId, tool: tool);
@@ -177,7 +177,7 @@ void main() {
     test('adb listing failure surfaces the classified refusal', () async {
       final tool = AdbTool(
         adbPath: 'fake-adb',
-        runProcess: (final exe, final args) async =>
+        runProcess: (exe, args) async =>
             ProcessResult(0, 1, '', 'adb: insufficient permissions'),
       );
       final r = await selectDevDevice(tool: tool);
@@ -192,22 +192,22 @@ void main() {
     /// Returns the outcome, captured output lines, and command lines sent
     /// to the daemon.
     Future<(DevSessionOutcome, List<String>, List<String>)> drive({
-      required final void Function(FakeDaemonTransport t) script,
-      required final Future<void> Function(
+      required void Function(FakeDaemonTransport t) script,
+      required Future<void> Function(
         FakeDaemonTransport t,
         StreamController<DevControlCommand> control,
         List<String> lines,
       )
       after,
-      final bool json = false,
-      final bool rebuildOnNative = false,
-      final Object? Function(String method)? respondTo,
-      final Object? Function(String method)? respondErrorTo,
-      final DevEventRenderer? renderer,
+      bool json = false,
+      bool rebuildOnNative = false,
+      Object? Function(String method)? respondTo,
+      Object? Function(String method)? respondErrorTo,
+      DevEventRenderer? renderer,
     }) async {
       final lines = <String>[];
       final t = FakeDaemonTransport()
-        ..respondTo = (respondTo ?? (final _) => const <String, Object?>{})
+        ..respondTo = (respondTo ?? (_) => const <String, Object?>{})
         ..respondErrorTo = respondErrorTo;
       final control = StreamController<DevControlCommand>.broadcast();
       final session = DevSession(
@@ -232,25 +232,25 @@ void main() {
       return (outcome, lines, t.sent);
     }
 
-    Iterable<String> methodsOf(final List<String> sent) => sent
+    Iterable<String> methodsOf(List<String> sent) => sent
         .map(
-          (final l) =>
+          (l) =>
               ((jsonDecode(l) as List).single as Map)['method'] as String,
         )
         .toList();
 
     test('json mode emits the structured agent stream', () async {
       final (outcome, lines, _) = await drive(
-        script: (final t) => t.emitStartup(),
-        after: (final t, final control, final lines) async {
+        script: (t) => t.emitStartup(),
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           expect(
-            lines.where((final l) => l.contains('"event":"session.ready"')),
+            lines.where((l) => l.contains('"event":"session.ready"')),
             hasLength(1),
           );
           expect(
             lines.any(
-              (final l) =>
+              (l) =>
                   l.contains('"event":"daemon.app.debugPort"') &&
                   l.contains('wsUri'),
             ),
@@ -260,7 +260,7 @@ void main() {
                 '${lines.join('\n')}',
           );
           expect(
-            lines.any((final l) => l.startsWith('⏳') || l.startsWith('🚀')),
+            lines.any((l) => l.startsWith('⏳') || l.startsWith('🚀')),
             isFalse,
             reason: 'json mode is structured only — no TUI rendering',
           );
@@ -275,8 +275,8 @@ void main() {
         () async {
       final renderer = RecordingDevRenderer();
       await drive(
-        script: (final t) => t.emitStartup(),
-        after: (final t, final control, final lines) async {
+        script: (t) => t.emitStartup(),
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           control.add(DevControlCommand.reload);
           await Future<void>.delayed(Duration.zero);
@@ -293,8 +293,8 @@ void main() {
 
     test('programmatic reload works headless (agent acceptance)', () async {
       final (outcome, lines, sent) = await drive(
-        script: (final t) => t.emitStartup(),
-        after: (final t, final control, final lines) async {
+        script: (t) => t.emitStartup(),
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           control.add(DevControlCommand.reload);
           await Future<void>.delayed(Duration.zero);
@@ -314,8 +314,8 @@ void main() {
 
     test('human mode: reload dispatch + branded success line', () async {
       final (outcome, lines, sent) = await drive(
-        script: (final t) => t.emitStartup(),
-        after: (final t, final control, final lines) async {
+        script: (t) => t.emitStartup(),
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           control.add(DevControlCommand.reload);
           await Future<void>.delayed(Duration.zero);
@@ -347,8 +347,8 @@ void main() {
 
     test('quit stops the app', () async {
       final (outcome, _, sent) = await drive(
-        script: (final t) => t.emitStartup(),
-        after: (final t, final control, final lines) async {
+        script: (t) => t.emitStartup(),
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           control.add(DevControlCommand.quit);
         },
@@ -362,14 +362,14 @@ void main() {
       'reload failure response renders an agent-actionable message',
       () async {
         final (outcome, lines, _) = await drive(
-          script: (final t) => t.emitStartup(),
-          after: (final t, final control, final lines) async {
+          script: (t) => t.emitStartup(),
+          after: (t, control, lines) async {
             await Future<void>.delayed(Duration.zero);
             control.add(DevControlCommand.reload);
             await Future<void>.delayed(Duration.zero);
             control.add(DevControlCommand.quit);
           },
-          respondErrorTo: (final method) =>
+          respondErrorTo: (method) =>
               method == 'app.restart' ? 'Observable wipe failed' : null,
         );
         expect(outcome, DevSessionOutcome.quit);
@@ -382,13 +382,13 @@ void main() {
 
     test('app.reloadRecommended renders the oka-branded tip', () async {
       final (outcome, lines, _) = await drive(
-        script: (final t) {
+        script: (t) {
           t.emitStartup();
           t.emitEvent('app.reloadRecommended', {
             'reason': 'Files were changed outside of the running session',
           });
         },
-        after: (final t, final control, final lines) async {
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           control.add(DevControlCommand.quit);
         },
@@ -402,8 +402,8 @@ void main() {
     test('rebuildRouting without --rebuild-on-native prints the exact '
         'command and keeps the session', () async {
       final (outcome, lines, _) = await drive(
-        script: (final t) => t.emitStartup(),
-        after: (final t, final control, final lines) async {
+        script: (t) => t.emitStartup(),
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           control.add(DevControlCommand.rebuildRouting);
           await Future<void>.delayed(Duration.zero);
@@ -420,8 +420,8 @@ void main() {
     test('rebuildRouting with --rebuild-on-native ends the session for '
         'the rebuild', () async {
       final (outcome, lines, _) = await drive(
-        script: (final t) => t.emitStartup(),
-        after: (final t, final control, final lines) async {
+        script: (t) => t.emitStartup(),
+        after: (t, control, lines) async {
           await Future<void>.delayed(Duration.zero);
           control.add(DevControlCommand.rebuildRouting);
         },
@@ -433,11 +433,11 @@ void main() {
 
     test('daemon exit ends the session as daemonExited', () async {
       final (outcome, lines, _) = await drive(
-        script: (final t) {
+        script: (t) {
           t.emitStartup();
           t.exitWith(255);
         },
-        after: (final t, final control, final lines) async {},
+        after: (t, control, lines) async {},
       );
       expect(outcome, DevSessionOutcome.daemonExited);
       expect(
@@ -485,7 +485,7 @@ void main() {
         prepare: () async {
           sessions++;
           final t = FakeDaemonTransport()
-            ..respondTo = (final _) => const <String, Object?>{};
+            ..respondTo = (_) => const <String, Object?>{};
           final control = StreamController<DevControlCommand>.broadcast();
           controllers.add(control);
           final session = DevSession(
@@ -529,7 +529,7 @@ void main() {
       final flow = DevFlow(
         prepare: () async {
           final t = FakeDaemonTransport()
-            ..respondTo = (final _) => const <String, Object?>{};
+            ..respondTo = (_) => const <String, Object?>{};
           final control = StreamController<DevControlCommand>.broadcast();
           controllers.add(control);
           unawaited(
@@ -566,7 +566,7 @@ void main() {
         prepare: () async {
           sessions++;
           final t = FakeDaemonTransport()
-            ..respondTo = (final m) => const <String, Object?>{};
+            ..respondTo = (m) => const <String, Object?>{};
           if (sessions == 1) {
             // The physical-device failure mode: app.restart never gets a
             // daemon response; the app just stops.

@@ -19,9 +19,9 @@ void main() {
 
   tearDown(() => temp.deleteSync(recursive: true));
 
-  List<int> content(final String seed, final int size) => List.generate(
+  List<int> content(String seed, int size) => List.generate(
     size,
-    (final i) => (seed.codeUnitAt(i % seed.length) + i) % 256,
+    (i) => (seed.codeUnitAt(i % seed.length) + i) % 256,
   );
 
   test('first revision is a snapshot; identical content is a no-op', () {
@@ -207,7 +207,7 @@ void main() {
       () => store.materialize(name: 'deltas'),
       throwsA(
         isA<ArtifactStoreCorruptException>().having(
-          (final e) => e.problems.single,
+          (e) => e.problems.single,
           'problems',
           contains('no codec was provided'),
         ),
@@ -276,13 +276,13 @@ final class UnavailableCodec implements DeltaCodec {
 
   @override
   Uint8List delta({
-    required final List<int> base,
-    required final List<int> target,
+    required List<int> base,
+    required List<int> target,
   }) => throw UnsupportedError('unavailable');
 
   @override
   Uint8List undelta({
-    required final List<int> base,
-    required final Uint8List deltaBytes,
+    required List<int> base,
+    required Uint8List deltaBytes,
   }) => throw UnsupportedError('unavailable');
 }

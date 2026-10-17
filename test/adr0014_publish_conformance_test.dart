@@ -13,7 +13,7 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-BuildContext _ctx(final Directory tmp) => BuildContext(
+BuildContext _ctx(Directory tmp) => BuildContext(
       projectPath: tmp.path,
       buildDir: p.join(tmp.path, '.oka_cache', 'build', 'debug'),
       mode: BuildMode.debug,
@@ -24,7 +24,7 @@ BuildContext _ctx(final Directory tmp) => BuildContext(
 
 /// Writes Dart sources for the law-2 (no-stdin) scan: [violating] adds a
 /// file that reads stdin.
-Directory _sourceDir(final Directory tmp, {final bool violating = false}) {
+Directory _sourceDir(Directory tmp, {bool violating = false}) {
   final dir = Directory(p.join(tmp.path, 'lib', 'src'))
     ..createSync(recursive: true);
   File(p.join(dir.path, 'clean.dart')).writeAsStringSync('''
@@ -60,7 +60,7 @@ void main() {
       final chain = describeTarget(target, ctx);
       expect(chain.isValid, isTrue, reason: chain.validationError);
       expect(
-        chain.steps.map((final s) => s.name).toList(),
+        chain.steps.map((s) => s.name).toList(),
         ['fixture-stage-aab', 'publish-plan'],
         reason: 'the upload tail is substituted by the plan step (as code)',
       );
@@ -144,7 +144,7 @@ void main() {
         _ctx(tmp),
         sourcePaths: [dir.path],
       );
-      expect(violations.where((final v) => v.contains('law 2')), isEmpty);
+      expect(violations.where((v) => v.contains('law 2')), isEmpty);
     });
 
     test('a step reading stdin is named with file and line', () async {
@@ -154,7 +154,7 @@ void main() {
         _ctx(tmp),
         sourcePaths: [dir.path],
       );
-      final law2 = violations.where((final v) => v.contains('law 2')).toList();
+      final law2 = violations.where((v) => v.contains('law 2')).toList();
       expect(law2, hasLength(1));
       expect(law2.single, contains('bad.dart'));
       expect(law2.single, contains('build paths never read stdin'));
@@ -194,7 +194,7 @@ void main() {
         const FixturePublishTarget(polluteState: true),
         _ctx(tmp),
       );
-      final law3 = violations.where((final v) => v.contains('law 3')).toList();
+      final law3 = violations.where((v) => v.contains('law 3')).toList();
       expect(
         law3.join('\n'),
         allOf(
@@ -233,12 +233,12 @@ void main() {
         throwsA(
           isA<PublishConformanceException>()
               .having(
-                (final e) => e.target,
+                (e) => e.target,
                 'target',
                 'publish-fixture',
               )
               .having(
-                (final e) => e.toString(),
+                (e) => e.toString(),
                 'message',
                 allOf(
                   contains('law 1 (dry-run)'),
@@ -343,11 +343,11 @@ class DirectoryArtifactTarget extends PublishTarget {
   String get artifactId => 'web-dir';
 
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) =>
+  List<BuildStep> publishSteps(BuildContext ctx) =>
       [_StageDirectoryStep(artifactPath)];
 
   @override
-  BuildStep uploadStep(final BuildContext ctx) =>
+  BuildStep uploadStep(BuildContext ctx) =>
       throw UnimplementedError('never executed: conformance is dry-run only');
 }
 
@@ -365,7 +365,7 @@ class _StageDirectoryStep extends BuildStep {
   Set<Artifact<Object>> get provides => {dir};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     state[dir.id] = path;
     return Future<StepResult>.value(StepResult.success());
   }

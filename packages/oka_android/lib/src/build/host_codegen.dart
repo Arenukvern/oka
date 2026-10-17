@@ -7,7 +7,7 @@ import '../manifest_spec.dart';
 import '../pipeline/steps/asset_steps.dart' show DeeplinkConfig;
 
 /// Android package name validation (simple).
-bool isValidAndroidPackageName(final String packageName) {
+bool isValidAndroidPackageName(String packageName) {
   if (packageName.isEmpty) return false;
   final parts = packageName.split('.');
   if (parts.length < 2) return false;
@@ -16,13 +16,13 @@ bool isValidAndroidPackageName(final String packageName) {
 }
 
 /// Path for MainActivity relative to a java source root.
-String mainActivityRelativePath(final String packageName) {
+String mainActivityRelativePath(String packageName) {
   final segments = packageName.split('.');
   return '${segments.join('/')}/MainActivity.java';
 }
 
 /// Generates a minimal FlutterActivity host.
-String generateMainActivityJava(final String packageName) {
+String generateMainActivityJava(String packageName) {
   if (!isValidAndroidPackageName(packageName)) {
     throw ArgumentError('Invalid Android package name: $packageName');
   }
@@ -50,7 +50,7 @@ class PluginRegistration {
 /// Generates `io.flutter.plugins.GeneratedPluginRegistrant`.
 ///
 /// When [plugins] is empty, emits a no-op registrant (valid for plugin-free apps).
-String generatePluginRegistrantJava(final List<PluginRegistration> plugins) {
+String generatePluginRegistrantJava(List<PluginRegistration> plugins) {
   final buffer = StringBuffer();
   buffer.writeln('package io.flutter.plugins;');
   buffer.writeln();
@@ -100,15 +100,15 @@ String generatePluginRegistrantJava(final List<PluginRegistration> plugins) {
 /// Backward-compatible wrapper: prefer [generateAndroidManifestFromSpec]
 /// (ADR-0006 — the manifest is a typed [ManifestSpec] value).
 String generateAndroidManifestXml({
-  required final String packageName,
-  required final String label,
-  required final String minSdk,
-  required final String targetSdk,
-  final String activityName = '.MainActivity',
-  final List<String> permissions = const ['android.permission.INTERNET'],
-  final bool debuggable = true,
-  final String extraIntentFilters = '',
-  final String iconRef = '',
+  required String packageName,
+  required String label,
+  required String minSdk,
+  required String targetSdk,
+  String activityName = '.MainActivity',
+  List<String> permissions = const ['android.permission.INTERNET'],
+  bool debuggable = true,
+  String extraIntentFilters = '',
+  String iconRef = '',
 }) => generateAndroidManifestFromSpec(
   packageName: packageName,
   label: label,
@@ -122,17 +122,17 @@ String generateAndroidManifestXml({
 
 /// Renders the host AndroidManifest from a typed [ManifestSpec] (ADR-0006).
 String generateAndroidManifestFromSpec({
-  required final String packageName,
-  required final String label,
-  required final String minSdk,
-  required final String targetSdk,
-  final String activityName = '.MainActivity',
-  final ManifestSpec spec = const ManifestSpec(),
-  final String extraIntentFilters = '',
-  final String iconRef = '',
+  required String packageName,
+  required String label,
+  required String minSdk,
+  required String targetSdk,
+  String activityName = '.MainActivity',
+  ManifestSpec spec = const ManifestSpec(),
+  String extraIntentFilters = '',
+  String iconRef = '',
 }) {
   final permLines = spec.permissions
-      .map((final p) => '    <uses-permission android:name="$p" />')
+      .map((p) => '    <uses-permission android:name="$p" />')
       .join('\n');
 
   // Application attributes: typed spec fields first, then passthrough map.
@@ -146,7 +146,7 @@ String generateAndroidManifestFromSpec({
     ...spec.applicationAttributes,
   };
   final appAttrLines = appAttrs.entries
-      .map((final e) => '        ${e.key}="${e.value}"')
+      .map((e) => '        ${e.key}="${e.value}"')
       .join('\n');
 
   final metaData = <MetaDataSpec>[
@@ -156,7 +156,7 @@ String generateAndroidManifestFromSpec({
   ];
   final metaDataLines = metaData
       .map(
-        (final m) => m.resource != null
+        (m) => m.resource != null
             ? '        <meta-data android:name="${m.name}" '
                   'android:resource="${m.resource}" />'
             : '        <meta-data android:name="${m.name}" '
@@ -166,21 +166,21 @@ String generateAndroidManifestFromSpec({
 
   // Raw application-level elements (services, receivers, providers, ...).
   final appElements = spec.applicationElements
-      .map((final e) => '        $e')
+      .map((e) => '        $e')
       .join('\n');
 
   final actAttrLines = spec.activityAttributes.entries
-      .map((final e) => '            ${e.key}="${e.value}"')
+      .map((e) => '            ${e.key}="${e.value}"')
       .join('\n');
 
   // Activity-level meta-data; a spec-provided NormalTheme replaces the
   // hardcoded `@android:style` fallback (project launch themes).
   final hasNormalTheme = spec.activityMetaData.any(
-    (final m) => m.name == 'io.flutter.embedding.android.NormalTheme',
+    (m) => m.name == 'io.flutter.embedding.android.NormalTheme',
   );
   final actMetaDataLines = spec.activityMetaData
       .map(
-        (final m) => m.resource != null
+        (m) => m.resource != null
             ? '            <meta-data android:name="${m.name}" '
                   'android:resource="${m.resource}" />'
             : '            <meta-data android:name="${m.name}" '
@@ -246,8 +246,8 @@ $appElements
 }
 
 /// Renders deeplink intent-filters for a typed [ManifestSpec].
-String renderDeeplinkIntentFilters(final List<DeeplinkConfig> deeplinks) =>
-    deeplinks.map((final d) => d.intentFilterXml).join('\n');
+String renderDeeplinkIntentFilters(List<DeeplinkConfig> deeplinks) =>
+    deeplinks.map((d) => d.intentFilterXml).join('\n');
 
 /// Minimal values/strings and adaptive-friendly placeholder: we rely on
 /// `@android:style` and a generated solid-color mipmap via aapt is complex;

@@ -44,7 +44,7 @@ class PipelineOverrides {
   });
 
   /// Merges `android:` section surfaces that are not `pipeline:`-scoped.
-  factory PipelineOverrides.fromOkaYaml(final Map<dynamic, dynamic> doc) {
+  factory PipelineOverrides.fromOkaYaml(Map<dynamic, dynamic> doc) {
     final pipelineRaw = doc['pipeline'];
     final base = pipelineRaw is Map
         ? PipelineOverrides.fromYamlMap(pipelineRaw)
@@ -52,31 +52,31 @@ class PipelineOverrides {
     final android = doc['android'];
     final resRaw = android is Map ? android['res_dirs'] : null;
     final resDirs = resRaw is List
-        ? resRaw.map((final e) => e.toString()).toList(growable: false)
+        ? resRaw.map((e) => e.toString()).toList(growable: false)
         : const <String>[];
     return resDirs.isEmpty ? base : base.copyWith(resDirs: resDirs);
   }
 
-  factory PipelineOverrides.fromYamlMap(final Map<dynamic, dynamic> map) {
+  factory PipelineOverrides.fromYamlMap(Map<dynamic, dynamic> map) {
     final deps = map['extra_deps'];
     final assetsRaw = map['extra_assets'];
     final linksRaw = map['deeplinks'];
     final iconRaw = map['icon'];
     final aarsRaw = map['local_aars'];
     return PipelineOverrides(
-      extraDeps: deps is List ? deps.map((final e) => e.toString()).toList() : [],
+      extraDeps: deps is List ? deps.map((e) => e.toString()).toList() : [],
       extraAssets: assetsRaw is List
           ? ExtraAssetsStep.parse(assetsRaw)
           : const [],
       deeplinks: linksRaw is List ? DeeplinkConfig.parse(linksRaw) : const [],
       icon: iconRaw is Map ? IconConfig.fromMap(iconRaw) : const IconConfig(),
       localAars: aarsRaw is List
-          ? aarsRaw.map((final e) => e.toString()).toList()
+          ? aarsRaw.map((e) => e.toString()).toList()
           : const [],
       resourceConfigs: _resourceConfigs(map['resource_configs']),
       excludePlugins:
           map['exclude_plugins'] is List
-          ? (map['exclude_plugins'] as List).map((final e) => e.toString()).toList()
+          ? (map['exclude_plugins'] as List).map((e) => e.toString()).toList()
           : const [],
       maxSizeMb: map['max_size_mb'] is int ? map['max_size_mb'] as int : null,
     );
@@ -122,17 +122,17 @@ class PipelineOverrides {
   /// Typed-override helper for Dart composition (ADR-0006). Example:
   /// `overrides.copyWith(resourceConfigs: ['en', 'ru'])`.
   PipelineOverrides copyWith({
-    final List<String>? extraDeps,
-    final List<({String from, String to})>? extraAssets,
-    final List<DeeplinkConfig>? deeplinks,
-    final IconConfig? icon,
-    final List<String>? localAars,
-    final List<String>? resourceConfigs,
-    final SigningConfig? signing,
-    final ManifestSpec? manifest,
-    final List<String>? resDirs,
-    final List<String>? excludePlugins,
-    final int? maxSizeMb,
+    List<String>? extraDeps,
+    List<({String from, String to})>? extraAssets,
+    List<DeeplinkConfig>? deeplinks,
+    IconConfig? icon,
+    List<String>? localAars,
+    List<String>? resourceConfigs,
+    SigningConfig? signing,
+    ManifestSpec? manifest,
+    List<String>? resDirs,
+    List<String>? excludePlugins,
+    int? maxSizeMb,
   }) => PipelineOverrides(
     extraDeps: extraDeps ?? this.extraDeps,
     extraAssets: extraAssets ?? this.extraAssets,
@@ -148,10 +148,10 @@ class PipelineOverrides {
   );
 
 
-  static List<String> _resourceConfigs(final Object? raw) =>
-      raw is List ? raw.map((final e) => e.toString()).toList() : const [];
+  static List<String> _resourceConfigs(Object? raw) =>
+      raw is List ? raw.map((e) => e.toString()).toList() : const [];
 
-  static Future<PipelineOverrides> load(final String projectPath) async {
+  static Future<PipelineOverrides> load(String projectPath) async {
     final file = File(p.join(projectPath, 'oka.yaml'));
     if (!await file.exists()) return const PipelineOverrides();
     try {

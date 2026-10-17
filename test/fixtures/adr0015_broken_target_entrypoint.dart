@@ -17,7 +17,7 @@ class BrokenTarget extends Target {
   String get description => 'Test-only target with an unsatisfied require';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [BrokenStep()];
+  List<BuildStep> compile(BuildContext ctx) => [BrokenStep()];
 }
 
 class BrokenStep extends BuildStep {
@@ -32,12 +32,12 @@ class BrokenStep extends BuildStep {
   Set<Artifact<Object>> get requires => {missing};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     throw StateError('broken-step must never run — validation must catch it');
   }
 }
 
-Future<void> main(final List<String> args) => okaRun(
+Future<void> main(List<String> args) => okaRun(
       args,
       oka: const Oka(pipelines: [], targets: [BrokenTarget()]),
     );

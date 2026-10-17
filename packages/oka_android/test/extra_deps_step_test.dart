@@ -46,7 +46,7 @@ List<int> _aarBytes({
 /// Seeds a Maven store entry (`.aar` + extracted `-classes.jar`) under
 /// [cacheRoot] exactly as a cold resolve would have left it.
 Future<void> _seedStore(
-  final String cacheRoot, {
+  String cacheRoot, {
   required String coordinate,
   required String abi,
   required String soName,
@@ -69,7 +69,7 @@ Future<void> _seedStore(
   ).writeAsBytes(_paddedJarBytes(), flush: true);
 }
 
-BuildContext _ctx(final String projectPath, final String buildDir) =>
+BuildContext _ctx(String projectPath, String buildDir) =>
     BuildContext(
       projectPath: projectPath,
       buildDir: buildDir,

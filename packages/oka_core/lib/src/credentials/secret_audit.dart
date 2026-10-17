@@ -23,7 +23,7 @@ const List<String> secretishKeyPatterns = [
 
 /// Whether a dart-define [key] is secret-ish (case-insensitive match
 /// against [secretishKeyPatterns]).
-bool isSecretishKey(final String key) {
+bool isSecretishKey(String key) {
   final lower = key.toLowerCase();
   return secretishKeyPatterns.any(lower.contains);
 }
@@ -68,8 +68,8 @@ class SecretAuditFinding {
 /// Returns one [SecretAuditFinding] per offending key, inline first, then
 /// file keys in file order.
 List<SecretAuditFinding> auditDartDefines({
-  final Map<String, String> inlineDefines = const {},
-  final Map<String, String> fileDefines = const {},
+  Map<String, String> inlineDefines = const {},
+  Map<String, String> fileDefines = const {},
 }) => [
       for (final entry in inlineDefines.entries)
         if (isSecretishKey(entry.key))
@@ -94,8 +94,8 @@ List<SecretAuditFinding> auditDartDefines({
 /// Doctor lines for the secret audit: ✅ when clean, one ❌ line per
 /// finding with the tier-rule fix.
 List<String> describeSecretAuditLines({
-  final Map<String, String> inlineDefines = const {},
-  final Map<String, String> fileDefines = const {},
+  Map<String, String> inlineDefines = const {},
+  Map<String, String> fileDefines = const {},
 }) {
   final findings = auditDartDefines(
     inlineDefines: inlineDefines,
@@ -117,8 +117,8 @@ List<String> describeSecretAuditLines({
 /// (the CLI passes raw strings only — no mechanics), audits the keys, and
 /// returns doctor lines. Unreadable files become ❌ lines, never throws.
 List<String> doctorSecretAuditLines({
-  final List<String> inlineDefineArgs = const [],
-  final List<String> defineFilePaths = const [],
+  List<String> inlineDefineArgs = const [],
+  List<String> defineFilePaths = const [],
 }) {
   // Keys only — values are never read (the map values are placeholders).
   final inline = <String, String>{
@@ -153,6 +153,6 @@ List<String> doctorSecretAuditLines({
   ];
 }
 
-String _unreadableLine(final String u) => '⚠️  --dart-define-from-file could '
+String _unreadableLine(String u) => '⚠️  --dart-define-from-file could '
     'not be read: $u — fix the path or the file format; its keys were not '
     'audited';

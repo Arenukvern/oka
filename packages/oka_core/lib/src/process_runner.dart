@@ -34,11 +34,11 @@ abstract class ProcessRunner {
   /// Runs [executable] with [arguments]; returns the outcome. [timeout]
   /// defaults to 30 minutes in the default implementation.
   Future<ProcOutcome> run(
-    final String executable,
-    final List<String> arguments, {
-    final String? workingDirectory,
-    final Map<String, String>? environment,
-    final Duration? timeout,
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    Duration? timeout,
   });
 }
 
@@ -64,11 +64,11 @@ class SystemProcessRunner implements ProcessRunner {
 
   @override
   Future<ProcOutcome> run(
-    final String executable,
-    final List<String> arguments, {
-    final String? workingDirectory,
-    final Map<String, String>? environment,
-    final Duration? timeout,
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    Duration? timeout,
   }) async {
     final effectiveTimeout = timeout ?? const Duration(minutes: 30);
     final result = await runBoundedProcess(

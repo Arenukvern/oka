@@ -14,8 +14,8 @@ import 'package:test/test.dart';
 
 /// Writes a minimal zip acting as an APK with the given dex entries.
 Future<String> fakeApk(
-  final Directory dir,
-  final Map<String, String> dexEntries,
+  Directory dir,
+  Map<String, String> dexEntries,
 ) async {
   final archive = Archive();
   for (final entry in dexEntries.entries) {
@@ -117,7 +117,7 @@ void main() {
   });
 
   group('oka debug dex CLI delegation', () {
-    Future<ProcessResult> cli(final List<String> args) => Process.run(
+    Future<ProcessResult> cli(List<String> args) => Process.run(
           'dart',
           ['run', 'packages/oka/bin/oka.dart', 'debug', 'dex', ...args],
           workingDirectory: Directory.current.path,

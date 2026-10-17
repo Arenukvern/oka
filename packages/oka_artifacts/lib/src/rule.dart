@@ -10,7 +10,7 @@ sealed class StorageStrategy {
   /// Manifest echo, so chains stay self-describing.
   Map<String, Object?> toJson();
 
-  static StorageStrategy fromJson(final Map<String, Object?> json) =>
+  static StorageStrategy fromJson(Map<String, Object?> json) =>
       switch (json['kind']) {
         'snapshotOnly' => const SnapshotOnly(),
         'deltaChain' => DeltaChain(

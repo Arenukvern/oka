@@ -54,7 +54,7 @@ class AndroidSdkDoctorReport {
 ///
 /// [toolchain] is injectable (the doctor command passes its [SdkLocator]).
 Future<AndroidSdkDoctorReport> androidSdkDoctorChecks({
-  final ResolvedToolchain? toolchain,
+  ResolvedToolchain? toolchain,
 }) async {
   final tc = toolchain ?? SdkLocator();
 
@@ -70,8 +70,8 @@ Future<AndroidSdkDoctorReport> androidSdkDoctorChecks({
   }
 
   Future<AndroidToolCheck> check(
-    final String name,
-    final Future<String> Function() find,
+    String name,
+    Future<String> Function() find,
   ) async {
     try {
       return AndroidToolCheck(tool: name, found: true, path: await find());
@@ -112,7 +112,7 @@ Directory defaultOkaToolsDir() {
 /// True when a bundletool jar/wrapper sits under the oka tools dir
 /// (`~/.oka/tools`) — the doctor's presence signal for the AAB verification
 /// dependency (ADR-0004). [toolsDir] is injectable for tests.
-Future<bool> bundletoolAvailableInOkaTools({final Directory? toolsDir}) async {
+Future<bool> bundletoolAvailableInOkaTools({Directory? toolsDir}) async {
   final dir = toolsDir ?? defaultOkaToolsDir();
   if (!dir.existsSync()) return false;
   return dir.listSync().any(
@@ -123,7 +123,7 @@ Future<bool> bundletoolAvailableInOkaTools({final Directory? toolsDir}) async {
 /// Build-Health lines for the bundletool verification dependency, formatted
 /// exactly as `oka doctor` prints them (ADR-0015: the strings live with the
 /// mechanism they describe). [toolsDir] is injectable for tests.
-Future<List<String>> bundletoolHealthLines({final Directory? toolsDir}) async {
+Future<List<String>> bundletoolHealthLines({Directory? toolsDir}) async {
   final installed = await bundletoolAvailableInOkaTools(toolsDir: toolsDir);
   const missingLine =
       '  ℹ️  bundletool not installed (only needed for --verify-aab) —'

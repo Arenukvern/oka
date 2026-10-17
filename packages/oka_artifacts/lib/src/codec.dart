@@ -20,13 +20,13 @@ abstract interface class DeltaCodec {
   String? get unavailability;
 
   Uint8List delta({
-    required final List<int> base,
-    required final List<int> target,
+    required List<int> base,
+    required List<int> target,
   });
 
   Uint8List undelta({
-    required final List<int> base,
-    required final Uint8List deltaBytes,
+    required List<int> base,
+    required Uint8List deltaBytes,
   });
 }
 
@@ -74,20 +74,20 @@ final class ZstdCliCodec implements DeltaCodec {
 
   @override
   Uint8List delta({
-    required final List<int> base,
-    required final List<int> target,
+    required List<int> base,
+    required List<int> target,
   }) => _run(base: base, input: target, decompress: false);
 
   @override
   Uint8List undelta({
-    required final List<int> base,
-    required final Uint8List deltaBytes,
+    required List<int> base,
+    required Uint8List deltaBytes,
   }) => _run(base: base, input: deltaBytes, decompress: true);
 
   Uint8List _run({
-    required final List<int> base,
-    required final List<int> input,
-    required final bool decompress,
+    required List<int> base,
+    required List<int> input,
+    required bool decompress,
   }) {
     final temp = Directory.systemTemp.createTempSync('oka_artifacts_zstd_');
     try {
@@ -116,7 +116,7 @@ final class ZstdCliCodec implements DeltaCodec {
     }
   }
 
-  static String _tempPath(final Directory dir, final String name) =>
+  static String _tempPath(Directory dir, String name) =>
       '${dir.path}/$name';
 }
 
@@ -148,8 +148,8 @@ final class XorTestCodec implements DeltaCodec {
 
   @override
   Uint8List delta({
-    required final List<int> base,
-    required final List<int> target,
+    required List<int> base,
+    required List<int> target,
   }) {
     final out = BytesBuilder();
     final length = ByteData(4)..setUint32(0, target.length);
@@ -162,8 +162,8 @@ final class XorTestCodec implements DeltaCodec {
 
   @override
   Uint8List undelta({
-    required final List<int> base,
-    required final Uint8List deltaBytes,
+    required List<int> base,
+    required Uint8List deltaBytes,
   }) {
     final length = ByteData.view(deltaBytes.buffer).getUint32(0);
     final out = Uint8List(length);
@@ -191,8 +191,8 @@ final class SharedPrefixCodec implements DeltaCodec {
 
   @override
   Uint8List delta({
-    required final List<int> base,
-    required final List<int> target,
+    required List<int> base,
+    required List<int> target,
   }) {
     var shared = 0;
     final limit = base.length < target.length ? base.length : target.length;
@@ -211,8 +211,8 @@ final class SharedPrefixCodec implements DeltaCodec {
 
   @override
   Uint8List undelta({
-    required final List<int> base,
-    required final Uint8List deltaBytes,
+    required List<int> base,
+    required Uint8List deltaBytes,
   }) {
     final header = ByteData.view(deltaBytes.buffer);
     final shared = header.getUint32(0);
@@ -229,5 +229,5 @@ final class SharedPrefixCodec implements DeltaCodec {
 }
 
 /// JSON helper shared by the store files (sorted keys, compact).
-String encodeCanonical(final Map<String, Object?> value) =>
+String encodeCanonical(Map<String, Object?> value) =>
     const JsonEncoder.withIndent('  ').convert(value);

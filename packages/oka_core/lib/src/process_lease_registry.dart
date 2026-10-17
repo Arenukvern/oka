@@ -43,14 +43,14 @@ import 'process_liveness.dart';
 final class ProcessLeaseRegistry {
   /// Creates a registry over [directory] (created lazily on first write).
   /// [liveness] defaults to [HostProcessLiveness]; tests inject fakes.
-  ProcessLeaseRegistry(this.directory, {final ProcessLiveness? liveness})
+  ProcessLeaseRegistry(this.directory, {ProcessLiveness? liveness})
     : _liveness = liveness ?? const HostProcessLiveness();
 
   /// Registry rooted at the standard project location:
   /// `<projectPath>/.oka_cache/processes/`.
   factory ProcessLeaseRegistry.forProject(
-    final String projectPath, {
-    final ProcessLiveness? liveness,
+    String projectPath, {
+    ProcessLiveness? liveness,
   }) => ProcessLeaseRegistry(
     Directory(p.absolute(projectPath, '.oka_cache', 'processes')),
     liveness: liveness,
@@ -62,12 +62,12 @@ final class ProcessLeaseRegistry {
   final ProcessLiveness _liveness;
 
   /// The lease file for [id] (`<id>.json`).
-  File _leaseFile(final String id) =>
+  File _leaseFile(String id) =>
       File(p.absolute(directory.path, '$id.json'));
 
   /// Writes (or replaces) [lease] atomically: write a unique temp file,
   /// flush, rename over the target.
-  Future<void> upsert(final ProcessLease lease) async {
+  Future<void> upsert(ProcessLease lease) async {
     await directory.create(recursive: true);
     final target = _leaseFile(lease.id);
     final tmp = File(
@@ -88,7 +88,7 @@ final class ProcessLeaseRegistry {
   }
 
   /// Reads the lease with [id], or null when absent.
-  Future<ProcessLease?> read(final String id) async {
+  Future<ProcessLease?> read(String id) async {
     final file = _leaseFile(id);
     if (!file.existsSync()) return null;
     return ProcessLease.fromJsonString(await file.readAsString());
@@ -157,7 +157,7 @@ final class ProcessLeaseRegistry {
   }
 
   /// Deletes the lease with [id]. Returns whether a record existed.
-  Future<bool> delete(final String id) async {
+  Future<bool> delete(String id) async {
     final file = _leaseFile(id);
     if (!file.existsSync()) return false;
     await file.delete();
@@ -175,7 +175,7 @@ final class ProcessLeaseRegistry {
   /// * pid alive with no recorded token (spawn-time token unobtainable) →
   ///   [LeaseLiveness.unknown] — report, never guess.
   /// * pid alive and token matches → [LeaseLiveness.live].
-  Future<LeaseLiveness> checkLiveness(final ProcessLease lease) async {
+  Future<LeaseLiveness> checkLiveness(ProcessLease lease) async {
     if (lease.pid <= 0) return LeaseLiveness.unknown;
     final bool alive;
     try {

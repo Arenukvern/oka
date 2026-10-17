@@ -8,9 +8,9 @@ const _bootTime = '2025-04-03T02:01:00.0000000Z';
 const _startTime = '2025-04-03T02:02:03.4567890Z';
 
 String _aliveOutput({
-  final String machineId = _machineId,
-  final String bootTime = _bootTime,
-  final String startTime = _startTime,
+  String machineId = _machineId,
+  String bootTime = _bootTime,
+  String startTime = _startTime,
 }) => 'alive|$machineId|$bootTime|$startTime\n';
 
 void main() {
@@ -72,7 +72,7 @@ void main() {
         String? executable;
         List<String>? arguments;
         final liveness = WindowsProcessLiveness(
-          commandRunner: (final command, final args) async {
+          commandRunner: (command, args) async {
             executable = command;
             arguments = args;
             return ProcessResult(1, 0, _aliveOutput(), '');

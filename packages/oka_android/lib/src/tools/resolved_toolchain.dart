@@ -16,13 +16,13 @@ typedef JavaEnvironmentResolver =
 /// `find*` semantics are identical to the pre-ADR `SdkLocator`.
 class ResolvedToolchain implements Toolchain {
   ResolvedToolchain({
-    final String? androidSdkPath,
-    final String? flutterSdkPath,
+    String? androidSdkPath,
+    String? flutterSdkPath,
     this.verbose = false,
-    final ArtifactStore? store,
-    final ToolchainEnv? env,
-    final ToolProcessRunner processRunner = runToolProcess,
-    final AndroidxJarProvisioner? androidxProvisioner,
+    ArtifactStore? store,
+    ToolchainEnv? env,
+    ToolProcessRunner processRunner = runToolProcess,
+    AndroidxJarProvisioner? androidxProvisioner,
     JavaEnvironmentResolver? javaEnvironmentResolver,
   }) : _toolchain = AndroidToolchain(
          androidSdkPath: androidSdkPath,
@@ -55,19 +55,19 @@ class ResolvedToolchain implements Toolchain {
   AndroidToolchain get policy => _toolchain;
 
   @override
-  List<ToolSource> describe(final ToolQuery query) =>
+  List<ToolSource> describe(ToolQuery query) =>
       _toolchain.describe(query);
 
   @override
-  Future<ToolResolution> resolve(final ToolQuery query) =>
+  Future<ToolResolution> resolve(ToolQuery query) =>
       _toolchain.resolve(query);
 
   /// Resolve a required tool or throw [ToolchainException] naming the fix.
-  Future<ResolvedTool> require(final ToolQuery query) =>
+  Future<ResolvedTool> require(ToolQuery query) =>
       _toolchain.require(query);
 
   /// Remediation hint for [tool] (doctor output, error messages).
-  String remediationFor(final String tool) => _toolchain.remediationFor(tool);
+  String remediationFor(String tool) => _toolchain.remediationFor(tool);
 
   // -- find* facade (SdkLocator-compatible semantics) ------------------------
 
@@ -170,7 +170,7 @@ class ResolvedToolchain implements Toolchain {
   /// Includes optional `adb` when present; packaging validation is
   /// [validatePackagingTools].
   Future<Map<String, String>> validateTools({
-    final bool requireAdb = false,
+    bool requireAdb = false,
   }) async {
     final tools = await validatePackagingTools();
 
@@ -197,7 +197,7 @@ class ResolvedToolchain implements Toolchain {
   /// Returns environment variables map to use for Process.run calls,
   /// or null if system default Java should be used
   Future<Map<String, String>?> resolveJavaForKotlin(
-    final BuildContext ctx,
+    BuildContext ctx,
   ) async {
     final requiredJavaVersion = ctx.config.android.requiredJavaVersion;
 
@@ -216,7 +216,7 @@ class ResolvedToolchain implements Toolchain {
   /// One doctor line per tool: `✅ aapt2 → path (source)` or
   /// `❌ tool: not found` + tried candidates + fix. Human- and agent-readable.
   Future<List<String>> describePolicyLines({
-    final List<String> tools = defaultDoctorTools,
+    List<String> tools = defaultDoctorTools,
   }) async {
     final lines = <String>[];
     for (final name in tools) {

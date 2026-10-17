@@ -27,11 +27,11 @@ class _ScriptedRunner implements ProcessRunner {
 
   @override
   Future<ProcOutcome> run(
-    final String executable,
-    final List<String> arguments, {
-    final String? workingDirectory,
-    final Map<String, String>? environment,
-    final Duration? timeout,
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    Duration? timeout,
   }) {
     final call = _Call(executable, arguments, workingDirectory, environment);
     calls.add(call);
@@ -48,8 +48,8 @@ class _ScriptedRunner implements ProcessRunner {
 const syntheticKey = 'synthetic-butler-key-value';
 
 BuildContext _ctx(
-  final Directory tmp, {
-  final ProcessRunner? runner,
+  Directory tmp, {
+  ProcessRunner? runner,
 }) =>
     BuildContext(
       projectPath: tmp.path,
@@ -61,7 +61,7 @@ BuildContext _ctx(
       processRunner: runner,
     );
 
-Directory _source(final Directory tmp) {
+Directory _source(Directory tmp) {
   final dir = Directory(p.join(tmp.path, 'build', 'web'))
     ..createSync(recursive: true);
   File(p.join(dir.path, 'index.html')).writeAsStringSync('<html></html>');
@@ -150,7 +150,7 @@ void main() {
 
     test('dry run succeeds with no credentials and runs zero commands',
         () async {
-      final runner = _ScriptedRunner((final _) => fail('must not run butler'));
+      final runner = _ScriptedRunner((_) => fail('must not run butler'));
       final state = PipelineState();
       final result =
           await Pipeline(const ItchDeployTarget(user: 'u', game: 'g')
@@ -171,7 +171,7 @@ void main() {
         channel: 'html5',
         sourceDir: source.path,
       );
-      final runner = _ScriptedRunner((final _) => const ProcOutcome(
+      final runner = _ScriptedRunner((_) => const ProcOutcome(
             exitCode: 0,
             stdout: 'pushed to example-user/my-game:html5',
             stderr: '',
@@ -216,7 +216,7 @@ void main() {
         game: 'my-game',
         sourceDir: source.path,
       );
-      final runner = _ScriptedRunner((final _) =>
+      final runner = _ScriptedRunner((_) =>
           const ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
       final state = PipelineState();
       final result = await Pipeline([
@@ -247,7 +247,7 @@ void main() {
         sourceDir: source.path,
       );
       final runner =
-          _ScriptedRunner((final _) => fail('must not run butler'));
+          _ScriptedRunner((_) => fail('must not run butler'));
       final state = PipelineState();
       final result = await Pipeline([
         StageWebDirectoryStep(
@@ -274,7 +274,7 @@ void main() {
         sourceDir: source.path,
         apiKeyPath: keyFile.path,
       );
-      final runner = _ScriptedRunner((final _) =>
+      final runner = _ScriptedRunner((_) =>
           const ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
       final state = PipelineState();
       final result = await Pipeline([
@@ -313,7 +313,7 @@ void main() {
         game: 'my-game',
         sourceDir: source.path,
       );
-      final runner = _ScriptedRunner((final _) =>
+      final runner = _ScriptedRunner((_) =>
           const ProcOutcome(exitCode: 0, stdout: 'ok', stderr: ''));
       final state = PipelineState();
       final result = await Pipeline([

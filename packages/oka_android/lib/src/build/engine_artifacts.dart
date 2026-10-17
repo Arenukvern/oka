@@ -11,7 +11,7 @@ import 'apk_layout.dart';
 ///
 /// Each mode pairs only with its own engine build (see
 /// [engineArtifactDirForVariant] for why cross-pairing is fatal).
-String engineVariantForMode(final BuildMode mode) {
+String engineVariantForMode(BuildMode mode) {
   switch (mode) {
     case BuildMode.debug:
       return '';
@@ -38,8 +38,8 @@ class EngineArtifacts {
   /// falls back to another variant's jar: pairing the debug (JIT) engine
   /// with a release AOT snapshot produces apps that hang on the splash
   /// forever. Use [ensureEngineJars] to populate the cache on demand.
-  Future<String?> findFlutterJar(final String abi,
-      {required final String variant}) async {
+  Future<String?> findFlutterJar(String abi,
+      {required String variant}) async {
     final dirName = engineArtifactDirForVariant(abi, variant: variant);
     final jar = p.join(engineRoot, dirName, 'flutter.jar');
     if (await File(jar).exists()) {
@@ -56,15 +56,15 @@ class EngineArtifacts {
   /// still missing after the cache update — a wrong-variant engine is never
   /// substituted.
   Future<Map<String, String>> ensureEngineJars({
-    required final List<String> abis,
-    required final String variant,
-    final String? workingDirectory,
-    final Future<ProcessResult> Function(
+    required List<String> abis,
+    required String variant,
+    String? workingDirectory,
+    Future<ProcessResult> Function(
       String executable,
       List<String> arguments, {
       String? workingDirectory,
     })? runProcess,
-    final void Function(String message)? log,
+    void Function(String message)? log,
   }) async {
     final runner = runProcess ?? Process.run;
     final say = log ?? print;
@@ -116,9 +116,9 @@ class EngineArtifacts {
 
   /// Extract `lib/<abi>/libflutter.so` from [flutterJar] into [destSoPath].
   Future<String> extractLibflutterFromJar({
-    required final String flutterJar,
-    required final String abi,
-    required final String destSoPath,
+    required String flutterJar,
+    required String abi,
+    required String destSoPath,
   }) async {
     final bytes = await File(flutterJar).readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
@@ -163,9 +163,9 @@ class EngineArtifacts {
 
   /// Resolve the variant flutter.jar, then extract its libflutter.so.
   Future<String> extractLibflutter({
-    required final String abi,
-    required final String destSoPath,
-    required final String variant,
+    required String abi,
+    required String destSoPath,
+    required String variant,
   }) async {
     final jarPath = await findFlutterJar(abi, variant: variant);
     if (jarPath == null) {
@@ -184,9 +184,9 @@ class EngineArtifacts {
 
   /// Extract all requested ABIs' libflutter.so into [libDir]/abi}/libflutter.so.
   Future<Map<String, String>> extractLibflutterForAbis({
-    required final List<String> abis,
-    required final String libDir,
-    required final String variant,
+    required List<String> abis,
+    required String libDir,
+    required String variant,
   }) async {
     final result = <String, String>{};
     for (final abi in abis) {
@@ -203,8 +203,8 @@ class EngineArtifacts {
   /// Engine `flutter.jar` also contains `lib/**/*.so` which break d8 when passed
   /// as a whole archive.
   Future<String> extractEmbeddingClassesJar({
-    required final String flutterJar,
-    required final String destJarPath,
+    required String flutterJar,
+    required String destJarPath,
   }) async {
     final bytes = await File(flutterJar).readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);

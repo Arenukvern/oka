@@ -38,14 +38,14 @@ class Artifact<T> {
   final String? description;
 
   /// Whether [value] is a runtime value of this artifact's declared type.
-  bool accepts(final Object? value) => value is T;
+  bool accepts(Object? value) => value is T;
 
   /// Debug string: artifact id with its type argument.
   @override
   String toString() => 'Artifact<$T>($id)';
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is Artifact<T> && other.id == id;
 
   /// Hash of id + type (equality is id + type based).
@@ -72,8 +72,8 @@ class Artifact<T> {
 class PipelineState {
   final Map<String, Object?> _values = {};
 
-  Object? operator [](final String key) => _values[key];
-  void operator []=(final String key, final Object? value) =>
+  Object? operator [](String key) => _values[key];
+  void operator []=(String key, Object? value) =>
       _values[key] = value;
 
   /// All values currently in the store (for diagnostics).
@@ -101,11 +101,11 @@ class StepResult {
   const StepResult({required this.ok, this.error, this.data = const {}});
 
   /// A successful result, optionally carrying diagnostic [data].
-  factory StepResult.success([final Map<String, Object?> data = const {}]) =>
+  factory StepResult.success([Map<String, Object?> data = const {}]) =>
       StepResult(ok: true, data: data);
 
   /// A failed result. [error] is shown to the user and to driving agents.
-  factory StepResult.failure(final String error) =>
+  factory StepResult.failure(String error) =>
       StepResult(ok: false, error: error);
 
   /// Whether the step completed successfully.
@@ -169,7 +169,7 @@ abstract class BuildStep {
   /// outputs back into it, and return [StepResult.success] or
   /// [StepResult.failure]. Throw only for programming errors — expected
   /// tool/build failures are reported via the result.
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state);
+  Future<StepResult> run(BuildContext ctx, PipelineState state);
 }
 
 /// Runs a list of steps in order, stopping at the first failure.
@@ -230,9 +230,9 @@ class Pipeline {
   }
 
   Future<StepResult> run(
-    final BuildContext ctx, {
-    final PipelineState? initialState,
-    final bool Function()? shouldCancel,
+    BuildContext ctx, {
+    PipelineState? initialState,
+    bool Function()? shouldCancel,
   }) async {
     final validationError = validate();
     if (validationError != null) return StepResult.failure(validationError);
@@ -240,7 +240,7 @@ class Pipeline {
     // ADR-0010: platform pipelines may seed the runtime scope (e.g. the
     // merged pipeline-level overrides) — it is the single mutable layer.
     final state = initialState ?? PipelineState();
-    void emit(final PipelineEvent e) => onEvent?.call(e);
+    void emit(PipelineEvent e) => onEvent?.call(e);
     for (final step in steps) {
       // Let an in-flight step finish publishing its resource handles before
       // teardown, but never start another acquisition after cancellation.
@@ -285,5 +285,5 @@ class Pipeline {
 
 /// Shared helper for diagnostics.
 @visibleForTesting
-String describeArtifacts(final Iterable<Artifact<Object>> artifacts) =>
-    artifacts.map((final a) => a.id).join(', ');
+String describeArtifacts(Iterable<Artifact<Object>> artifacts) =>
+    artifacts.map((a) => a.id).join(', ');

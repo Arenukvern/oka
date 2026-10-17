@@ -86,9 +86,9 @@ class PlayPublisherClient {
   /// Parses an API JSON response; a wrong shape is an API error, not a
   /// crash — reported via [PlayApiException].
   Map<String, dynamic> _decode(
-    final http.Response response, {
-    required final String method,
-    required final Uri url,
+    http.Response response, {
+    required String method,
+    required Uri url,
   }) {
     final String bodyText;
     try {
@@ -123,7 +123,7 @@ class PlayPublisherClient {
     return decoded;
   }
 
-  Future<http.Response> _send(final http.Request request) async {
+  Future<http.Response> _send(http.Request request) async {
     final response = await client.send(request).then(http.Response.fromStream);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw PlayApiException(
@@ -156,8 +156,8 @@ class PlayPublisherClient {
   /// `POST /edits/{editId}/bundles?uploadType=media` with the AAB bytes →
   /// the assigned version code.
   Future<int> uploadAab({
-    required final String editId,
-    required final String aabPath,
+    required String editId,
+    required String aabPath,
   }) async {
     final bytes = File(aabPath).readAsBytesSync();
     final url = Uri.parse('${_editsUrl()}/$editId/bundles?uploadType=media');
@@ -191,11 +191,11 @@ class PlayPublisherClient {
   /// [userFraction] (0 < x < 1) turns the release into a staged rollout
   /// (`status: inProgress`); without it the release is `completed`.
   Future<void> assignTrack({
-    required final String editId,
-    required final String track,
-    required final int versionCode,
-    final double? userFraction,
-    final String? releaseName,
+    required String editId,
+    required String track,
+    required int versionCode,
+    double? userFraction,
+    String? releaseName,
   }) async {
     final url = Uri.parse('${_editsUrl()}/$editId/tracks/$track');
     final body = jsonEncode({
@@ -217,17 +217,17 @@ class PlayPublisherClient {
   }
 
   /// `POST /edits/{editId}:commit` — makes the edit live.
-  Future<void> commit({required final String editId}) async {
+  Future<void> commit({required String editId}) async {
     final url = Uri.parse('${_editsUrl()}/$editId:commit');
     await _send(http.Request('POST', url));
   }
 
   /// Runs the full Edits flow: create → upload → assign track → commit.
   Future<PlayEditResult> publishAab({
-    required final String aabPath,
-    required final String track,
-    final double? userFraction,
-    final String? releaseName,
+    required String aabPath,
+    required String track,
+    double? userFraction,
+    String? releaseName,
   }) async {
     final editId = await createEdit();
     final versionCode = await uploadAab(editId: editId, aabPath: aabPath);

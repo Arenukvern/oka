@@ -40,7 +40,7 @@ class FlutterWebBuildStep extends BuildStep {
   Set<Artifact<Object>> get provides => {webBuildOutput};
 
   /// The resolved argument vector (pure — tested directly).
-  List<String> buildArgs(final BuildContext ctx) => [
+  List<String> buildArgs(BuildContext ctx) => [
         'build',
         'web',
         if (baseHref.isNotEmpty) '--base-href=$baseHref',
@@ -51,8 +51,8 @@ class FlutterWebBuildStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final executable = ctx.flutterSdkPath.isEmpty
         ? 'flutter'

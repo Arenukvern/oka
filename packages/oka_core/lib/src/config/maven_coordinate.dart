@@ -15,7 +15,7 @@ class MavenCoordinate {
 
   /// Decodes from oka.yaml-style JSON/YAML maps (accepts `groupId`/`group`
   /// and `artifactId`/`artifact` aliases).
-  factory MavenCoordinate.fromJson(final Object? json) {
+  factory MavenCoordinate.fromJson(Object? json) {
     final map = json is Map
         ? json.cast<String, dynamic>()
         : <String, dynamic>{};
@@ -44,10 +44,10 @@ class MavenCoordinate {
 
   /// Parses `group:artifact:version` (packaging auto-detected via KMP
   /// suffix probing at resolve time). Returns null for malformed input.
-  static MavenCoordinate? parse(final String coordinate) {
+  static MavenCoordinate? parse(String coordinate) {
     final parts = coordinate.split(':');
     if (parts.length != 3) return null;
-    if (parts.any((final p) => p.trim().isEmpty)) return null;
+    if (parts.any((p) => p.trim().isEmpty)) return null;
     return MavenCoordinate(
       groupId: parts[0].trim(),
       artifactId: parts[1].trim(),
@@ -84,7 +84,7 @@ class MavenCoordinate {
   String toString() => '$groupId:$artifactId:$version@$packaging';
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is MavenCoordinate && other.cacheKey == cacheKey;
 
   /// Hash of the cache key (equality is cache-key based).

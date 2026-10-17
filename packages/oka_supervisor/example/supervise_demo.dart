@@ -46,11 +46,11 @@ Future<void> main() async {
       ),
     ],
   );
-  ResourceProvider factory(final String name) => provider;
+  ResourceProvider factory(String name) => provider;
 
   Future<String> converge() => supervisor
       .converge(desired: desired, factory: factory, evidence: facts)
-      .then((final report) => report.describe());
+      .then((report) => report.describe());
 
   // 1. Desired but absent → converge starts it.
   // 2. Running → converge observes and only reports.

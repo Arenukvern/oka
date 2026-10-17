@@ -102,22 +102,22 @@ Future<SessionStateReconcileReport> expectSessionStateFailClosed({
   }
   final observedEntry = observation.entries.single;
   final workflow = reconciler.workflows.where(
-    (final item) =>
+    (item) =>
         item.id == observedEntry.lease.workflowId &&
         item.version == observedEntry.lease.workflowVersion,
   );
   final providerInspectorIds = workflow.isEmpty
       ? const <String>{}
       : workflow.single.inspectors
-            .map((final inspector) => inspector.id)
+            .map((inspector) => inspector.id)
             .toSet();
   final hasFailClosedProviderFinding = observedEntry.findings.any(
-    (final finding) =>
+    (finding) =>
         providerInspectorIds.contains(finding.inspectorId) &&
         finding.use != SessionStateUse.unused,
   );
   final inspectorFailedClosed = observedEntry.findings.any(
-    (final finding) =>
+    (finding) =>
         finding.inspectorId == 'oka.workflow-inspection' &&
         finding.reason.startsWith('provider observation failed:'),
   );
@@ -130,7 +130,7 @@ Future<SessionStateReconcileReport> expectSessionStateFailClosed({
   }
 
   final report = await reconciler.close(leaseId: leaseId, apply: true);
-  final entry = report.entries.where((final item) => item.lease.id == leaseId);
+  final entry = report.entries.where((item) => item.lease.id == leaseId);
   final persisted = await registry.read(leaseId);
   if (entry.length != 1 ||
       entry.single.disposition != SessionStateDisposition.retained ||
@@ -183,7 +183,7 @@ Future<SessionStateLease> expectSessionStateBorrowedRetention<H>({
     liveness: liveness,
   );
   final report = await reconciler.close(leaseId: lease.id, apply: true);
-  final entry = report.entries.where((final item) => item.lease.id == lease.id);
+  final entry = report.entries.where((item) => item.lease.id == lease.id);
   if (entry.length != 1 ||
       entry.single.disposition != SessionStateDisposition.retained ||
       await registry.read(lease.id) == null) {
@@ -206,7 +206,7 @@ Future<SessionStateLease> expectSessionStateBorrowedRetention<H>({
 /// Returns registry issues, failing if the snapshot silently hides invalid
 /// or future-schema records.
 Future<List<SessionStateRegistryIssue>> expectSessionStateRegistryIssues(
-  final SessionStateRegistry registry,
+  SessionStateRegistry registry,
 ) async {
   final snapshot = await registry.inspect();
   if (snapshot.issues.isEmpty) {
@@ -234,7 +234,7 @@ final class _ReservationProbe<H> implements SessionStateProvisionStep<H> {
   Set<Artifact<Object>> get provides => delegate.provides;
 
   @override
-  Future<void> run(final SessionStateContext<H> context) async {
+  Future<void> run(SessionStateContext<H> context) async {
     final persisted = await registry.read(context.lease.id);
     if (persisted == null ||
         persisted.phase != SessionStatePhase.provisioning ||

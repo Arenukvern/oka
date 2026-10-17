@@ -12,7 +12,7 @@ void main() {
   late Directory temp;
   late String receipt;
   final now = DateTime.utc(2026, 10, 13);
-  Map<String, Object?> payload(final int pid, {final String state = 'ready'}) =>
+  Map<String, Object?> payload(int pid, {String state = 'ready'}) =>
       {
         'schema': 'codemap.index-watch.v1',
         'root': temp.path,
@@ -25,7 +25,7 @@ void main() {
         'watcher_continuity': 'reconciled',
         'blocker': state == 'blocked' ? 'unsupported' : null,
       };
-  CodemapIndexHealth read(final int pid) => CodemapIndexHealth.read(
+  CodemapIndexHealth read(int pid) => CodemapIndexHealth.read(
     receiptPath: receipt,
     projectRoot: temp.path,
     pid: pid,
@@ -240,7 +240,7 @@ Future<void> main(List<String> args) async {
         expect(
           first.started,
           1,
-          reason: evidence.events.map((final e) => e.toJsonLine()).join('\n'),
+          reason: evidence.events.map((e) => e.toJsonLine()).join('\n'),
         );
         expect((await provider.inspect(ref())).state, ResourceState.ready);
         File(receipt).writeAsStringSync(
@@ -367,7 +367,7 @@ Future<void> main(List<String> args) async {
         );
       }
 
-      Future<CodemapIndexHealth> current({final String? differentFrom}) async {
+      Future<CodemapIndexHealth> current({String? differentFrom}) async {
         for (var attempt = 0; attempt < 150; attempt++) {
           final health = provider.health(ref());
           if (health.current &&
@@ -391,7 +391,7 @@ Future<void> main(List<String> args) async {
         expect(
           started.started,
           1,
-          reason: evidence.events.map((final e) => e.toJsonLine()).join('\n'),
+          reason: evidence.events.map((e) => e.toJsonLine()).join('\n'),
         );
         final initial = await current();
         File(

@@ -48,13 +48,13 @@ final class Component {
   final Diagnostics diagnostics;
 
   Component copyWith({
-    final ResourceProvider? provider,
-    final List<String>? dependsOn,
-    final List<OutputRef<Object?>>? requires,
-    final List<OutputRef<Object?>>? provides,
-    final Readiness? readiness,
-    final Lifecycle? lifecycle,
-    final Diagnostics? diagnostics,
+    ResourceProvider? provider,
+    List<String>? dependsOn,
+    List<OutputRef<Object?>>? requires,
+    List<OutputRef<Object?>>? provides,
+    Readiness? readiness,
+    Lifecycle? lifecycle,
+    Diagnostics? diagnostics,
   }) =>
       Component(
         id: id,

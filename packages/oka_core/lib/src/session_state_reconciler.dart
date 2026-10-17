@@ -33,7 +33,7 @@ final class SessionStateReconcileEntry {
     'lease': lease.toJson(),
     'disposition': disposition.name,
     'reason': reason,
-    'findings': findings.map((final finding) => finding.toJson()).toList(),
+    'findings': findings.map((finding) => finding.toJson()).toList(),
     'resource_missing': resourceMissing,
   };
 
@@ -57,19 +57,19 @@ final class SessionStateReconcileReport {
 
   int get eligibleCount => entries
       .where(
-        (final entry) => entry.disposition == SessionStateDisposition.eligible,
+        (entry) => entry.disposition == SessionStateDisposition.eligible,
       )
       .length;
 
   int get retainedCount => entries
       .where(
-        (final entry) => entry.disposition == SessionStateDisposition.retained,
+        (entry) => entry.disposition == SessionStateDisposition.retained,
       )
       .length;
 
   int get forgottenCount => entries
       .where(
-        (final entry) => entry.disposition == SessionStateDisposition.forgotten,
+        (entry) => entry.disposition == SessionStateDisposition.forgotten,
       )
       .length;
 
@@ -83,8 +83,8 @@ final class SessionStateReconcileReport {
       'forgotten': forgottenCount,
       'registry_issues': issues.length,
     },
-    'entries': entries.map((final entry) => entry.toJson()).toList(),
-    'issues': issues.map((final issue) => issue.toJson()).toList(),
+    'entries': entries.map((entry) => entry.toJson()).toList(),
+    'issues': issues.map((issue) => issue.toJson()).toList(),
   };
 }
 
@@ -148,7 +148,7 @@ final class SessionStateReconciler {
     required String leaseId,
   }) async {
     final snapshot = await registry.inspect();
-    final matches = snapshot.leases.where((final lease) => lease.id == leaseId);
+    final matches = snapshot.leases.where((lease) => lease.id == leaseId);
     final entries = matches.isEmpty
         ? const <SessionStateReconcileEntry>[]
         : [await _observeLease(matches.single)];
@@ -167,7 +167,7 @@ final class SessionStateReconciler {
     bool apply = false,
   }) async {
     final snapshot = await registry.inspect();
-    final matches = snapshot.leases.where((final lease) => lease.id == leaseId);
+    final matches = snapshot.leases.where((lease) => lease.id == leaseId);
     if (matches.isEmpty) {
       return SessionStateReconcileReport(
         entries: const [],
@@ -198,7 +198,7 @@ final class SessionStateReconciler {
     bool apply = false,
   }) async {
     final snapshot = await registry.inspect();
-    final matches = snapshot.leases.where((final item) => item.id == leaseId);
+    final matches = snapshot.leases.where((item) => item.id == leaseId);
     if (matches.isEmpty) {
       return SessionStateReconcileReport(
         entries: const [],
@@ -229,7 +229,7 @@ final class SessionStateReconciler {
     bool apply = false,
   }) async {
     final snapshot = await registry.inspect();
-    final matches = snapshot.leases.where((final item) => item.id == leaseId);
+    final matches = snapshot.leases.where((item) => item.id == leaseId);
     if (matches.isEmpty) {
       return SessionStateReconcileReport(
         entries: const [],
@@ -253,7 +253,7 @@ final class SessionStateReconciler {
   }
 
   Future<SessionStateReconcileEntry> _inspectLease(
-    final SessionStateLease lease, {
+    SessionStateLease lease, {
     bool explicitClose = false,
   }) async {
     if (lease.phase == SessionStatePhase.disposed) {
@@ -438,7 +438,7 @@ final class SessionStateReconciler {
   }
 
   Future<SessionStateReconcileEntry> _inspectForget(
-    final SessionStateLease lease,
+    SessionStateLease lease,
   ) async {
     if (lease.resourceKind != SessionStateResourceKind.directory) {
       return _retain(
@@ -509,7 +509,7 @@ final class SessionStateReconciler {
   }
 
   Future<SessionStateReconcileEntry> _forgetLease(
-    final SessionStateLease snapshotLease,
+    SessionStateLease snapshotLease,
   ) async {
     try {
       return await registry.withResourceLock(
@@ -570,7 +570,7 @@ final class SessionStateReconciler {
   }
 
   Future<SessionStateReconcileEntry> _observeLease(
-    final SessionStateLease lease,
+    SessionStateLease lease,
   ) async {
     final findings = <SessionStateFinding>[];
     try {
@@ -714,7 +714,7 @@ final class SessionStateReconciler {
   }
 
   Future<SessionStateReconcileEntry> _applyLease(
-    final SessionStateLease snapshotLease, {
+    SessionStateLease snapshotLease, {
     bool explicitClose = false,
   }) async {
     try {
@@ -825,7 +825,7 @@ final class SessionStateReconciler {
             }
             final finalFindings = await restored.inspect(current);
             final veto = finalFindings.firstWhere(
-              (final finding) => finding.use != SessionStateUse.unused,
+              (finding) => finding.use != SessionStateUse.unused,
               orElse: () => const SessionStateFinding(
                 inspectorId: 'oka.final-inspection',
                 use: SessionStateUse.unused,
@@ -992,7 +992,7 @@ final class SessionStateReconciler {
     return currentLease;
   }
 
-  Future<void> _deleteReservation(final SessionStateLease lease) async {
+  Future<void> _deleteReservation(SessionStateLease lease) async {
     final reservation = File(lease.reservationMarkerPath);
     if (await _hasLinkedPath(lease.rootPath, reservation.path)) {
       throw FileSystemException(
@@ -1003,7 +1003,7 @@ final class SessionStateReconciler {
     if (await reservation.exists()) await reservation.delete();
   }
 
-  Future<_RootCheck> _checkRootAndMarker(final SessionStateLease lease) async {
+  Future<_RootCheck> _checkRootAndMarker(SessionStateLease lease) async {
     final rootPath = p.normalize(p.absolute(lease.rootPath));
     final rootType = await FileSystemEntity.type(rootPath, followLinks: false);
     if (rootType != FileSystemEntityType.directory) {
@@ -1166,7 +1166,7 @@ final class SessionStateReconciler {
   /// exists, and the resource path is absent. No filesystem resource is
   /// deleted in this branch.
   Future<_RootCheck?> _checkUnmaterializedReservation(
-    final SessionStateLease lease,
+    SessionStateLease lease,
   ) async {
     if (lease.quarantineRelativePath != null) return null;
     final rootPath = p.normalize(p.absolute(lease.rootPath));
@@ -1212,10 +1212,10 @@ final class SessionStateReconciler {
   }
 
   Future<bool> _markerMatches(
-    final File file, {
-    required final String id,
-    required final String nonce,
-    required final String hostId,
+    File file, {
+    required String id,
+    required String nonce,
+    required String hostId,
   }) async {
     if (await FileSystemEntity.type(file.path, followLinks: false) !=
         FileSystemEntityType.file) {
@@ -1232,7 +1232,7 @@ final class SessionStateReconciler {
     }
   }
 
-  Future<bool> _hasLinkedAncestor(final String path) async {
+  Future<bool> _hasLinkedAncestor(String path) async {
     var current = p.normalize(p.absolute(path));
     while (true) {
       if (await FileSystemEntity.type(current, followLinks: false) ==
@@ -1245,7 +1245,7 @@ final class SessionStateReconciler {
     }
   }
 
-  Future<bool> _hasLinkedPath(final String root, final String path) async {
+  Future<bool> _hasLinkedPath(String root, String path) async {
     if (!p.isWithin(root, path)) return true;
     var current = root;
     final relative = p.relative(path, from: root);
@@ -1260,8 +1260,8 @@ final class SessionStateReconciler {
   }
 
   Future<_ProcessState> _processState(
-    final int pid,
-    final String? token,
+    int pid,
+    String? token,
   ) async {
     if (pid <= 0 || token == null || token.isEmpty) {
       return _ProcessState.unknown;
@@ -1276,7 +1276,7 @@ final class SessionStateReconciler {
     }
   }
 
-  SessionStateWorkflow<dynamic>? _workflowFor(final SessionStateLease lease) {
+  SessionStateWorkflow<dynamic>? _workflowFor(SessionStateLease lease) {
     for (final workflow in workflows) {
       if (workflow.id == lease.workflowId &&
           workflow.version == lease.workflowVersion) {
@@ -1287,8 +1287,8 @@ final class SessionStateReconciler {
   }
 
   SessionStateReconcileEntry _retain(
-    final SessionStateLease lease,
-    final String reason,
+    SessionStateLease lease,
+    String reason,
   ) => SessionStateReconcileEntry(
     lease: lease,
     disposition: SessionStateDisposition.retained,

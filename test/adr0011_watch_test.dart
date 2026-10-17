@@ -10,7 +10,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('classifyChanges (table-driven over file-event fixtures)', () {
-    ChangeAction actionOf(final Iterable<String> paths) =>
+    ChangeAction actionOf(Iterable<String> paths) =>
         classifyChanges(paths).action;
 
     test('Dart-only under lib/ routes to hot reload', () {
@@ -206,7 +206,7 @@ void main() {
         targetFile: 'lib/main.dart',
       );
       expect(
-        paths.where((final w) => p.basename(w) == 'main.dart'),
+        paths.where((w) => p.basename(w) == 'main.dart'),
         isEmpty,
         reason: 'the lib/ root already watches it — no file root added',
       );
@@ -250,7 +250,7 @@ void main() {
       }
       await sub.cancel();
       expect(batches, isNotEmpty);
-      final allPaths = batches.expand((final b) => b).toSet();
+      final allPaths = batches.expand((b) => b).toSet();
       final classification = classifyChanges(allPaths);
       expect(classification.action, ChangeAction.hotReload);
       expect(classification.reasons.join('; '), contains('lib/main.dart'));

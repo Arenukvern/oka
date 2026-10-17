@@ -115,8 +115,8 @@ class DeliveryVerificationStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final path = state[artifactId];
     if (path is! String || path.isEmpty) {
@@ -150,5 +150,5 @@ class DeliveryVerificationStep extends BuildStep {
   }
 }
 
-String _reportSuffix(final String? reportPath) =>
+String _reportSuffix(String? reportPath) =>
     reportPath == null ? '' : ' — report: $reportPath';

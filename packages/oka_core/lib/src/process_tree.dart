@@ -126,7 +126,7 @@ final class HostProcessTreeProbe implements ProcessTreeProbe {
 ///
 /// Pure and golden-testable; skips the header-free whitespace-padded rows
 /// that do not parse as two integers.
-Map<int, int> parsePosixProcessParentMap(final String output) {
+Map<int, int> parsePosixProcessParentMap(String output) {
   final parentOf = <int, int>{};
   for (final line in output.split('\n')) {
     final fields = line
@@ -144,7 +144,7 @@ Map<int, int> parsePosixProcessParentMap(final String output) {
 }
 
 /// Parses the `pid|ppid` rows emitted by [windowsProcessTableScript].
-Map<int, int> parseWindowsProcessParentMap(final String output) {
+Map<int, int> parseWindowsProcessParentMap(String output) {
   final parentOf = <int, int>{};
   for (final line in output.split(RegExp(r'\r?\n'))) {
     final fields = line.trim().split('|');
@@ -194,14 +194,14 @@ final class TreeStopResult {
 /// [observationBudget] bounds aggregate direct read awaits; it excludes grace
 /// waits and mutating kill adapters. Late read completion cannot resume a stop.
 Future<TreeStopResult> stopProcessTree({
-  required final ProcessTreeProbe probe,
-  required final ProcessLiveness liveness,
-  required final int rootPid,
-  final String? rootIdentityToken,
-  final Duration grace = const Duration(seconds: 3),
-  final Duration settle = const Duration(milliseconds: 250),
-  final int forceRounds = 2,
-  final Duration observationBudget = const Duration(seconds: 2),
+  required ProcessTreeProbe probe,
+  required ProcessLiveness liveness,
+  required int rootPid,
+  String? rootIdentityToken,
+  Duration grace = const Duration(seconds: 3),
+  Duration settle = const Duration(milliseconds: 250),
+  int forceRounds = 2,
+  Duration observationBudget = const Duration(seconds: 2),
 }) async {
   final budget = ProcessObservationBudget(observationBudget);
   final tracked = <int>{if (rootPid > 0) rootPid};
@@ -227,13 +227,13 @@ Future<TreeStopResult> stopProcessTree({
 }
 
 Future<TreeStopResult> _stopProcessTree({
-  required final ProcessTreeProbe probe,
-  required final ProcessLiveness liveness,
-  required final int rootPid,
-  final String? rootIdentityToken,
-  final Duration grace = const Duration(seconds: 3),
-  final Duration settle = const Duration(milliseconds: 250),
-  final int forceRounds = 2,
+  required ProcessTreeProbe probe,
+  required ProcessLiveness liveness,
+  required int rootPid,
+  String? rootIdentityToken,
+  Duration grace = const Duration(seconds: 3),
+  Duration settle = const Duration(milliseconds: 250),
+  int forceRounds = 2,
 }) async {
   if (rootPid <= 0) {
     return const TreeStopResult(

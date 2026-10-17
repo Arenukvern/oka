@@ -28,14 +28,14 @@ class PublishPlan {
   });
 
   /// Decodes from the plan payload (also what [PublishPlanStep] stores).
-  factory PublishPlan.fromJson(final Map<String, dynamic> json) => PublishPlan(
+  factory PublishPlan.fromJson(Map<String, dynamic> json) => PublishPlan(
     target: json['target']?.toString() ?? '',
     endpoint: json['endpoint']?.toString() ?? '',
     track: json['track']?.toString() ?? '',
     artifactId: json['artifactId']?.toString() ?? '',
     artifactPath: json['artifactPath']?.toString() ?? '',
     metadata: (json['metadata'] as Map<dynamic, dynamic>? ?? const {}).map(
-      (final k, final v) => MapEntry(k.toString(), v.toString()),
+      (k, v) => MapEntry(k.toString(), v.toString()),
     ),
     credentials: [
       for (final c in (json['credentials'] as List<dynamic>? ?? const []))
@@ -117,7 +117,7 @@ class PublishPlan {
   };
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is PublishPlan &&
       other.target == target &&
       other.endpoint == endpoint &&
@@ -152,11 +152,11 @@ class PublishPlan {
       '${dryRun ? ', dry run' : ''})';
 }
 
-bool _mapsEqual(final Map<String, String> a, final Map<String, String> b) =>
-    a.length == b.length && a.entries.every((final e) => b[e.key] == e.value);
+bool _mapsEqual(Map<String, String> a, Map<String, String> b) =>
+    a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
 
-bool _listsEqual(final List<CredentialRef> a, final List<CredentialRef> b) =>
-    a.length == b.length && a.indexed.every((final e) => b[e.$1] == e.$2);
+bool _listsEqual(List<CredentialRef> a, List<CredentialRef> b) =>
+    a.length == b.length && a.indexed.every((e) => b[e.$1] == e.$2);
 
 /// The plan-producing tail step oka_core substitutes for the upload step in
 /// dry-run mode (ADR-0014 dry-run law, as code).
@@ -191,8 +191,8 @@ class PublishPlanStep extends BuildStep {
   /// fails actionably when the artifact is missing.
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final artifact = state[target.artifactId];
     if (artifact is! String || artifact.isEmpty) {
@@ -288,17 +288,17 @@ abstract class PublishTarget extends Target {
 
   /// Steps that produce/transform the publish artifact. Run before the
   /// upload tail; the last one must provide [artifactId].
-  List<BuildStep> publishSteps(final BuildContext ctx) => const [];
+  List<BuildStep> publishSteps(BuildContext ctx) => const [];
 
   /// The real upload tail step. Never invoked when [dryRun] is true —
   /// [compile] substitutes [PublishPlanStep] instead (law 1, as code).
-  BuildStep uploadStep(final BuildContext ctx);
+  BuildStep uploadStep(BuildContext ctx);
 
   /// The publish plan for a real (or, with [dryRun], the described) run.
   /// Pure: a function of the target value + inputs only.
   PublishPlan plan(
-    final BuildContext ctx, {
-    required final String artifactPath,
+    BuildContext ctx, {
+    required String artifactPath,
   }) => PublishPlan(
     target: name,
     endpoint: endpoint,
@@ -316,7 +316,7 @@ abstract class PublishTarget extends Target {
   /// or the real upload tail. A real run with plan-time refusals throws here
   /// — before tools, credentials, or HTTP.
   @override
-  List<BuildStep> compile(final BuildContext ctx) {
+  List<BuildStep> compile(BuildContext ctx) {
     if (!dryRun) {
       final issues = validateRealMode();
       if (issues.isNotEmpty) {

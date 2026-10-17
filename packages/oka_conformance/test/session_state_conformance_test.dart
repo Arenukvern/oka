@@ -12,15 +12,15 @@ final class _Handle {
 
 final class _Liveness implements ProcessLiveness {
   @override
-  Future<bool> isAlive(final int pid) async => false;
+  Future<bool> isAlive(int pid) async => false;
 
   @override
-  Future<String?> identityToken(final int pid) async => 'token-$pid';
+  Future<String?> identityToken(int pid) async => 'token-$pid';
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async => false;
 }
 
@@ -43,7 +43,7 @@ final class _Planner implements SessionStatePlanner<_Handle> {
   String get id => 'fixture-planner';
 
   @override
-  SessionStatePlan<_Handle> plan(final SessionStateRequest request) =>
+  SessionStatePlan<_Handle> plan(SessionStateRequest request) =>
       SessionStatePlan(
         logicalResourceKey: 'fixture:${request.sessionName}',
         namespace: SessionStateNamespace.project,
@@ -63,7 +63,7 @@ final class _Source implements SessionStateSource<_Handle> {
   String get id => 'fixture-source';
 
   @override
-  Future<_Handle> restore(final SessionStateLease lease) async =>
+  Future<_Handle> restore(SessionStateLease lease) async =>
       _Handle(p.join(lease.rootPath, lease.relativePath));
 }
 
@@ -78,7 +78,7 @@ final class _Provision implements SessionStateProvisionStep<_Handle> {
   Set<Artifact<Object>> get provides => const {};
 
   @override
-  Future<void> run(final SessionStateContext<_Handle> context) async {
+  Future<void> run(SessionStateContext<_Handle> context) async {
     await File(
       p.join(context.handle.path, 'provider-data'),
     ).writeAsString('ok');
@@ -96,7 +96,7 @@ final class _Inspector implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) async {
     if (fail) throw StateError('scripted inspector failure');
     return SessionStateFinding(
@@ -108,16 +108,16 @@ final class _Inspector implements SessionStateInspector<_Handle> {
 }
 
 SessionStateWorkflow<_Handle> _workflow(
-  final String root, {
-  final SessionStateOwnership ownership = SessionStateOwnership.oka,
-  final SessionStateAcquisitionMode acquisitionMode =
+  String root, {
+  SessionStateOwnership ownership = SessionStateOwnership.oka,
+  SessionStateAcquisitionMode acquisitionMode =
       SessionStateAcquisitionMode.created,
-  final SessionStateRetention retention = SessionStateRetention.ephemeral,
-  final SessionStateUse inspectorUse = SessionStateUse.unused,
-  final String relativePath = 'managed/profile',
-  final bool duplicateIds = false,
-  final bool inspectorFails = false,
-  final bool noProvision = false,
+  SessionStateRetention retention = SessionStateRetention.ephemeral,
+  SessionStateUse inspectorUse = SessionStateUse.unused,
+  String relativePath = 'managed/profile',
+  bool duplicateIds = false,
+  bool inspectorFails = false,
+  bool noProvision = false,
 }) => SessionStateWorkflow(
   id: 'fixture-session',
   version: 1,
@@ -221,7 +221,7 @@ void main() {
       ),
       throwsA(
         isA<SessionStateConformanceException>().having(
-          (final error) => error.message,
+          (error) => error.message,
           'message',
           contains('was not exercised'),
         ),
@@ -317,11 +317,11 @@ void main() {
     final issues = await expectSessionStateRegistryIssues(registry);
     expect(issues, hasLength(2));
     expect(
-      issues.map((final issue) => issue.path),
+      issues.map((issue) => issue.path),
       contains(contains('malformed')),
     );
     expect(
-      issues.map((final issue) => issue.path),
+      issues.map((issue) => issue.path),
       contains(contains('future')),
     );
 

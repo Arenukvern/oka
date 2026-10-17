@@ -29,7 +29,7 @@ void main() {
             versionCode: null,
             versionName: '',
           )
-          .where((final i) => i.contains('versionCode')),
+          .where((i) => i.contains('versionCode')),
       isEmpty,
     );
   });
@@ -62,7 +62,7 @@ void main() {
     );
     expect(
       target.validateRealMode().any(
-        (final issue) => issue.contains('below 10'),
+        (issue) => issue.contains('below 10'),
       ),
       isTrue,
     );

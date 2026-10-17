@@ -42,7 +42,7 @@ class CredentialSource {
   String toString() => qualified;
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is CredentialSource && other.kind == kind && other.label == label;
 
   /// Hash of kind + label (equality is field-wise).
@@ -126,7 +126,7 @@ class CredentialResolutionException implements Exception {
 /// Only paths are resolved here — file *contents* are never read, never
 /// stored, never logged. No interactive anything: never reads stdin.
 class CredentialResolver {
-  CredentialResolver({final Map<String, String>? environment, final String? home})
+  CredentialResolver({Map<String, String>? environment, String? home})
       : environment = environment ?? Platform.environment,
         home = home ?? _defaultHome(environment ?? Platform.environment);
 
@@ -139,11 +139,11 @@ class CredentialResolver {
   /// Home directory used to expand the well-known location.
   final String home;
 
-  static String _defaultHome(final Map<String, String> env) =>
+  static String _defaultHome(Map<String, String> env) =>
       env['HOME'] ?? env['USERPROFILE'] ?? '';
 
   /// The ordered candidate sources for [ref] — the policy as data.
-  List<CredentialSource> policyFor(final CredentialRef ref) => [
+  List<CredentialSource> policyFor(CredentialRef ref) => [
         if (ref.explicitPath != null)
           CredentialSource(
             CredentialSourceKind.config,
@@ -158,7 +158,7 @@ class CredentialResolver {
 
   /// Resolves [ref] to a credential file path, or returns the failure with
   /// every candidate tried. Pure w.r.t. secrets: only existence checks.
-  CredentialResolution resolve(final CredentialRef ref) {
+  CredentialResolution resolve(CredentialRef ref) {
     final tried = <CredentialSource>[];
 
     // 1. Explicit typed-config path — hard boundary, no silent fall-through.
@@ -231,14 +231,14 @@ class CredentialResolver {
 
   /// Resolves a **required** credential or throws
   /// [CredentialResolutionException] naming the candidates and the fix.
-  CredentialResolution require(final CredentialRef ref) {
+  CredentialResolution require(CredentialRef ref) {
     final r = resolve(ref);
     if (r.ok) return r;
     throw CredentialResolutionException(ref: ref, resolution: r);
   }
 
   /// Remediation for [ref] — the "errors name the fix" half of the policy.
-  static String remediationFor(final CredentialRef ref) =>
+  static String remediationFor(CredentialRef ref) =>
       'Place the credential file at ${ref.wellKnownPath} (gitignored when '
       'inside a repo), or set ${ref.envVarName} to a *path* (never a '
       'value), or set the credential path in typed config.';
@@ -246,7 +246,7 @@ class CredentialResolver {
   /// One doctor line per ref: `✅ target/kind → path (source)` or
   /// `❌ target/kind: not found` + tried candidates + fix. Never prints
   /// file contents — paths only.
-  List<String> describePolicyLines(final Iterable<CredentialRef> refs) {
+  List<String> describePolicyLines(Iterable<CredentialRef> refs) {
     final lines = <String>[];
     for (final ref in refs) {
       final r = resolve(ref);
@@ -266,7 +266,7 @@ class CredentialResolver {
 
   /// Expands a leading `~/` against [home] (`p.join` would otherwise
   /// replace the whole prefix with the absolute remainder).
-  String _expandTilde(final String path) {
+  String _expandTilde(String path) {
     if (!path.startsWith('~') || home.isEmpty) return path;
     final rest = path.substring(1);
     final relative =
@@ -303,10 +303,10 @@ final RegExp _okaEnvVarPattern = RegExp(r'^OKA_[A-Z][A-Z0-9_]*$');
 /// Inject [environment]/[home] in tests. Never prints file contents —
 /// paths only, values never.
 List<String> doctorCredentialPolicyLines({
-  final Map<String, String>? environment,
-  final String? home,
-  final String? projectPath,
-  final List<CredentialRef> refs = const [],
+  Map<String, String>? environment,
+  String? home,
+  String? projectPath,
+  List<CredentialRef> refs = const [],
 }) {
   final env = environment ?? Platform.environment;
   final homeDir =

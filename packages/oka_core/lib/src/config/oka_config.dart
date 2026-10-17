@@ -13,7 +13,7 @@ import 'flutter_config.dart';
 extension type const OkaConfig(Map<String, dynamic> value) {
 
   /// Decodes from the `oka.yaml` payload map.
-  factory OkaConfig.fromJson(final Object? json) => OkaConfig(jsonDecodeMap(json));
+  factory OkaConfig.fromJson(Object? json) => OkaConfig(jsonDecodeMap(json));
   static const empty = OkaConfig({});
 
   /// Android build configuration

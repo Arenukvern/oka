@@ -9,10 +9,10 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 /// Scans every .dart file under [root] recursively.
-List<File> dartFiles(final Directory root) => root
+List<File> dartFiles(Directory root) => root
     .listSync(recursive: true)
     .whereType<File>()
-    .where((final f) => f.path.endsWith('.dart'))
+    .where((f) => f.path.endsWith('.dart'))
     .toList();
 
 void main() {
@@ -27,7 +27,7 @@ void main() {
     for (final file in [
       ...dartFiles(libRoot),
       ...dartFiles(testRoot),
-    ].where((final f) => f.path != self.path)) {
+    ].where((f) => f.path != self.path)) {
       final content = file.readAsStringSync();
       if (content.contains('oka_android')) {
         violations.add(file.path);
@@ -55,7 +55,7 @@ void main() {
       // machinery — the package:oka_android scan above is the import gate.
       if (markers.allMatches(content).isNotEmpty) {
         violations.add('${file.path}: '
-            '${markers.allMatches(content).map((final m) => m.group(0)).toSet()}');
+            '${markers.allMatches(content).map((m) => m.group(0)).toSet()}');
       }
     }
     expect(

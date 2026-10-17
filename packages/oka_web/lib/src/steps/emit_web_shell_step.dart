@@ -40,14 +40,14 @@ class ValidateWebShellStep extends BuildStep {
   /// the composed shell.
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final issues = validateWebShell(shell, webDir: webDir);
     if (issues.isNotEmpty) {
       return StepResult.failure(
         'web shell validation failed:\n'
-        '${issues.map((final i) => '  - $i').join('\n')}',
+        '${issues.map((i) => '  - $i').join('\n')}',
       );
     }
     state[webShellComposed.id] = shell;
@@ -93,8 +93,8 @@ class EmitWebShellStep extends BuildStep {
   /// the written bytes are not the composition's render.
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final shell = state[ValidateWebShellStep.webShellComposed.id];
     if (shell is! WebShell) {
@@ -142,7 +142,7 @@ class EmitWebShellStep extends BuildStep {
       return StepResult.failure(
         'post-emit drift gate failed — the written output is not the '
         "composition's re-render:\n"
-        '${driftReport.describeLines().map((final l) => '  $l').join('\n')}',
+        '${driftReport.describeLines().map((l) => '  $l').join('\n')}',
       );
     }
 

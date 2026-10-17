@@ -43,9 +43,9 @@ class PluginDiscoveryResult {
     required this.unsupported,
   });
   /// Returns a copy without the named plugins (test-only plugins etc.).
-  PluginDiscoveryResult excluding(final List<String> names) {
+  PluginDiscoveryResult excluding(List<String> names) {
     if (names.isEmpty) return this;
-    bool keep(final Object p) => !names.contains((p as dynamic).name as String);
+    bool keep(Object p) => !names.contains((p as dynamic).name as String);
     return PluginDiscoveryResult(
       plugins: plugins.where(keep).toList(),
       unsupported: unsupported.where(keep).toList(),
@@ -56,7 +56,7 @@ class PluginDiscoveryResult {
   final List<DiscoveredPlugin> unsupported;
 
   List<DiscoveredPlugin> get androidPlugins =>
-      plugins.where((final p) => p.hasAndroid).toList();
+      plugins.where((p) => p.hasAndroid).toList();
 
   bool get hasUnsupported => unsupported.isNotEmpty;
 }
@@ -72,8 +72,8 @@ const kDefaultSoftSkipPluginNames = <String>{};
 /// Default is false for jni (packaged via CMake/NDK). Override lists can mark
 /// plugins for soft-skip when explicitly requested.
 bool isKnownUnsupportedPluginName(
-  final String name, {
-  final Set<String> softSkipNames = const {},
+  String name, {
+  Set<String> softSkipNames = const {},
 }) {
   final n = name.toLowerCase();
   if (softSkipNames.contains(n)) return true;
@@ -101,8 +101,8 @@ class PluginSupportDecision {
 /// - [strict] true (default): hard-fail when unsupported present
 /// - [strict] false (soft): allow build, skip unsupported from registrant
 PluginSupportDecision decidePluginSupport(
-  final PluginDiscoveryResult result, {
-  final bool strict = true,
+  PluginDiscoveryResult result, {
+  bool strict = true,
 }) {
   if (!result.hasUnsupported) {
     return const PluginSupportDecision(
@@ -119,7 +119,7 @@ PluginSupportDecision decidePluginSupport(
       softMode: false,
       skipped: skipped,
       warnings: skipped
-          .map((final p) =>
+          .map((p) =>
               '${p.name}: ${p.unsupportedReason ?? "unsupported native"}')
           .toList(),
     );
@@ -129,7 +129,7 @@ PluginSupportDecision decidePluginSupport(
     softMode: true,
     skipped: skipped,
     warnings: skipped
-        .map((final p) =>
+        .map((p) =>
             'soft-plugins: skipping ${p.name} (${p.unsupportedReason ?? "unsupported"})')
         .toList(),
   );
@@ -137,8 +137,8 @@ PluginSupportDecision decidePluginSupport(
 
 /// Parses Flutter's `.flutter-plugins-dependencies` JSON (Flutter 2+).
 PluginDiscoveryResult parseFlutterPluginsDependenciesJson(
-  final String jsonContent, {
-  final String projectRoot = '',
+  String jsonContent, {
+  String projectRoot = '',
 }) {
   final map = jsonDecode(jsonContent) as Map<String, dynamic>;
   final plugins = <DiscoveredPlugin>[];
@@ -186,7 +186,7 @@ PluginDiscoveryResult parseFlutterPluginsDependenciesJson(
       for (final entry in list) {
         if (entry is! Map) continue;
         final name = entry['name']?.toString() ?? '';
-        if (plugins.any((final p) => p.name == name)) continue;
+        if (plugins.any((p) => p.name == name)) continue;
         plugins.add(
           DiscoveredPlugin(
             name: name,
@@ -201,7 +201,7 @@ PluginDiscoveryResult parseFlutterPluginsDependenciesJson(
 }
 
 /// Parses legacy `.flutter-plugins` (name=path per line).
-List<DiscoveredPlugin> parseFlutterPluginsFile(final String content) {
+List<DiscoveredPlugin> parseFlutterPluginsFile(String content) {
   final result = <DiscoveredPlugin>[];
   for (final line in content.split('\n')) {
     final trimmed = line.trim();
@@ -216,7 +216,7 @@ List<DiscoveredPlugin> parseFlutterPluginsFile(final String content) {
 }
 
 /// Reads plugin Android class from plugin's pubspec.yaml `flutter.plugin` section.
-Future<DiscoveredPlugin> enrichPluginFromPubspec(final DiscoveredPlugin plugin) async {
+Future<DiscoveredPlugin> enrichPluginFromPubspec(DiscoveredPlugin plugin) async {
   final pubspecPath = p.join(plugin.path, 'pubspec.yaml');
   final file = File(pubspecPath);
   if (!await file.exists()) {
@@ -287,7 +287,7 @@ Future<DiscoveredPlugin> enrichPluginFromPubspec(final DiscoveredPlugin plugin) 
   }
 }
 
-bool _looksUnsupportedGradle(final String gradle) {
+bool _looksUnsupportedGradle(String gradle) {
   // CMake/NDK is handled by PluginPackager — not auto-unsupported.
   // Only AGP plugins we cannot replicate without Gradle are unsupported.
   if (gradle.contains('com.google.gms.google-services') ||
@@ -304,7 +304,7 @@ class PluginDiscovery {
   PluginDiscovery({this.verbose = false});
   final bool verbose;
 
-  Future<PluginDiscoveryResult> discover(final String projectPath) async {
+  Future<PluginDiscoveryResult> discover(String projectPath) async {
     final depsFile =
         File(p.join(projectPath, '.flutter-plugins-dependencies'));
     final legacyFile = File(p.join(projectPath, '.flutter-plugins'));
@@ -354,7 +354,7 @@ class PluginDiscovery {
   }
 
   /// Build registrant registrations from discovery (skips unsupported).
-  List<PluginRegistration> toRegistrations(final PluginDiscoveryResult result) {
+  List<PluginRegistration> toRegistrations(PluginDiscoveryResult result) {
     final regs = <PluginRegistration>[];
     for (final plugin in result.androidPlugins) {
       if (plugin.unsupportedNative) continue;
@@ -366,7 +366,7 @@ class PluginDiscovery {
   }
 
   /// Throws if unsupported plugins are present and [strict] is true.
-  void ensureSupported(final PluginDiscoveryResult result, {final bool strict = true}) {
+  void ensureSupported(PluginDiscoveryResult result, {bool strict = true}) {
     final decision = decidePluginSupport(result, strict: strict);
     if (decision.allowBuild) return;
     final names = decision.warnings.join('\n  - ');
@@ -377,5 +377,5 @@ class PluginDiscovery {
   }
 
   /// Soft-mode helper: returns warnings to print; never throws.
-  List<String> softSkipWarnings(final PluginDiscoveryResult result) => decidePluginSupport(result, strict: false).warnings;
+  List<String> softSkipWarnings(PluginDiscoveryResult result) => decidePluginSupport(result, strict: false).warnings;
 }

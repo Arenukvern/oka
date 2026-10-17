@@ -28,11 +28,11 @@ class FakeDaemonTransport implements DaemonTransport {
   /// stops answering — e.g. the physical-device attach-mode restart hang).
   final Set<String> silentMethods = {};
 
-  void emit(final String line) => _stdout.add(utf8.encode('$line\n'));
+  void emit(String line) => _stdout.add(utf8.encode('$line\n'));
 
   void emitEvent(
-    final String name, [
-    final Map<String, Object?> params = const {},
+    String name, [
+    Map<String, Object?> params = const {},
   ]) => emit(
     jsonEncode([
       {'event': name, 'params': params},
@@ -65,14 +65,14 @@ class FakeDaemonTransport implements DaemonTransport {
     emitEvent('app.started', {'appId': 'com.example.example'});
   }
 
-  void respond(final int id, {final Object? result, final Object? error}) =>
+  void respond(int id, {Object? result, Object? error}) =>
       emit(
         jsonEncode([
           {'id': id, 'result': ?result, 'error': ?error},
         ]),
       );
 
-  void exitWith(final int code) {
+  void exitWith(int code) {
     if (!_exit.isCompleted) _exit.complete(code);
   }
 
@@ -86,7 +86,7 @@ class FakeDaemonTransport implements DaemonTransport {
   Future<int> get exitCode => _exit.future;
 
   @override
-  void writeLine(final String line) {
+  void writeLine(String line) {
     sent.add(line);
     // Auto-respond with the daemon's response shape (id echo) when a
     // responder is installed; otherwise the test replies manually.
@@ -129,7 +129,7 @@ void main() {
       final t = FakeDaemonTransport();
       final adapter = FlutterDaemonAdapter(transport: t);
       final events = <String>[];
-      final sub = adapter.events.listen((final e) => events.add(e.event));
+      final sub = adapter.events.listen((e) => events.add(e.event));
       t.emitStartup();
       await Future<void>.delayed(Duration.zero);
       expect(
@@ -200,7 +200,7 @@ void main() {
       'commands wait for app.start, then send single-element arrays',
       () async {
         final t = FakeDaemonTransport()
-          ..respondTo = (final method) => const <String, Object?>{};
+          ..respondTo = (method) => const <String, Object?>{};
         final adapter = FlutterDaemonAdapter(transport: t);
         final sentFuture = adapter.reload();
         await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -231,7 +231,7 @@ void main() {
         adapter.waitAppStart(timeout: const Duration(milliseconds: 50)),
         throwsA(
           isA<DaemonException>().having(
-            (final e) => e.message,
+            (e) => e.message,
             'message',
             contains('app.start'),
           ),
@@ -242,7 +242,7 @@ void main() {
 
     test('error responses come back typed with text', () async {
       final t = FakeDaemonTransport()
-        ..respondTo = (final method) =>
+        ..respondTo = (method) =>
             method == 'app.reload' ? null : <String, Object?>{};
       // Custom responder returning an error result is not expressible via
       // respondTo (result slot) — drive the error through a manual reply.
@@ -278,7 +278,7 @@ void main() {
         'interface', () async {
       final sent = <Map<String, Object?>>[];
       final t = FakeDaemonTransport()
-        ..respondTo = (final method) => const <String, Object?>{};
+        ..respondTo = (method) => const <String, Object?>{};
       final adapter = FlutterDaemonAdapter(transport: t);
       t.emitStartup();
       await adapter.reload();
@@ -293,7 +293,7 @@ void main() {
           'params': (cmd['params'] as Map?)?.cast<String, Object?>() ?? {},
         });
       }
-      expect(sent.map((final c) => c['method']), [
+      expect(sent.map((c) => c['method']), [
         'app.restart',
         'app.restart',
         'app.stop',

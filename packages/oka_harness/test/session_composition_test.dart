@@ -52,7 +52,7 @@ void main() {
       resolveLiveSessionOutputs(projectDir.path),
       throwsA(
         isA<StateError>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           allOf(contains('absence'), contains('liveness')),
         ),

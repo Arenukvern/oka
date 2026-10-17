@@ -79,7 +79,7 @@ class RuStorePublishTarget extends PublishTarget {
 
   /// Staging (shared primitive) + real-bundle-fact verification gate.
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [
+  List<BuildStep> publishSteps(BuildContext ctx) => [
     StageAabStep(artifactPath: artifactPath),
     if (!dryRun)
       RuStoreArtifactVerificationStep(
@@ -91,7 +91,7 @@ class RuStorePublishTarget extends PublishTarget {
   /// The upload tail. Unreachable through [compile] (real mode is refused
   /// at plan time); kept as a hard stop for direct step composition.
   @override
-  BuildStep uploadStep(final BuildContext ctx) => _RuStoreUploadStep(this);
+  BuildStep uploadStep(BuildContext ctx) => _RuStoreUploadStep(this);
 }
 
 class _RuStoreUploadStep extends BuildStep {
@@ -104,7 +104,7 @@ class _RuStoreUploadStep extends BuildStep {
   Set<Artifact<Object>> get requires => {StageAabStep.aab};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
       Future.value(
         StepResult.failure(
           'RuStore upload requires a project-provided credential adapter; '

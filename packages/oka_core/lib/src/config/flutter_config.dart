@@ -9,7 +9,7 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 extension type const FlutterConfig(Map<String, dynamic> value) {
 
   /// Decodes from the `flutter:` section of the oka.yaml payload.
-  factory FlutterConfig.fromJson(final Object? json) =>
+  factory FlutterConfig.fromJson(Object? json) =>
       FlutterConfig(jsonDecodeMap(json));
   static const empty = FlutterConfig({});
 

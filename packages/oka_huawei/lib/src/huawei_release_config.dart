@@ -37,11 +37,11 @@ class HuaweiReleaseConfig {
 
   /// Returns a copy with the given fields replaced (others untouched).
   HuaweiReleaseConfig copyWith({
-    final String? appId,
-    final String? track,
-    final int? phasePercent,
-    final String? releaseDate,
-    final List<AgcReleaseNote>? releaseNotes,
+    String? appId,
+    String? track,
+    int? phasePercent,
+    String? releaseDate,
+    List<AgcReleaseNote>? releaseNotes,
   }) => HuaweiReleaseConfig(
     appId: appId ?? this.appId,
     track: track ?? this.track,
@@ -58,7 +58,7 @@ class HuaweiReleaseConfig {
     if (releaseDate.isNotEmpty) 'releaseDate': releaseDate,
     if (releaseNotes.isNotEmpty)
       'releaseNotes': releaseNotes
-          .map((final n) => '${n.language}:${n.file}')
+          .map((n) => '${n.language}:${n.file}')
           .join(', '),
   };
 
@@ -66,7 +66,7 @@ class HuaweiReleaseConfig {
   /// only (release-note *contents* are read from the files at publish time
   /// and placed under `releaseNotes` by the step; they never enter state).
   Map<String, dynamic> submitPayload({
-    required final List<({String language, String content})>
+    required List<({String language, String content})>
     releaseNoteContents,
   }) => {
     'track': track,
@@ -82,7 +82,7 @@ class HuaweiReleaseConfig {
 
   /// Field-wise equality (release notes compared pairwise).
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is HuaweiReleaseConfig &&
       other.appId == appId &&
       other.track == track &&
@@ -105,11 +105,11 @@ class HuaweiReleaseConfig {
   String toString() =>
       'HuaweiReleaseConfig(appId: $appId, track: $track, '
       'phasePercent: $phasePercent%, notes: '
-      '${releaseNotes.map((final n) => '${n.language}:${n.file}').join(', ')})';
+      '${releaseNotes.map((n) => '${n.language}:${n.file}').join(', ')})';
 }
 
-bool _notesEqual(final List<AgcReleaseNote> a, final List<AgcReleaseNote> b) =>
-    a.length == b.length && a.indexed.every((final e) => b[e.$1] == e.$2);
+bool _notesEqual(List<AgcReleaseNote> a, List<AgcReleaseNote> b) =>
+    a.length == b.length && a.indexed.every((e) => b[e.$1] == e.$2);
 
 /// One release-note entry: the language tag and the **file path** holding
 /// the note text (path reference, not content — the ADR-0014 tier rule).
@@ -129,7 +129,7 @@ class AgcReleaseNote {
 
   /// Field-wise equality.
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is AgcReleaseNote &&
       other.language == language &&
       other.file == file;

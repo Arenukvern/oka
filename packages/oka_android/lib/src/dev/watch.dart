@@ -81,7 +81,7 @@ const _rebuildRootFiles = <String>{'oka.yaml', 'pubspec.yaml', 'pubspec.lock'};
 /// | `assets/**` | rebuild | asset payload |
 /// | `oka.yaml`, `pubspec.yaml/lock` | rebuild | config/deps |
 /// | `.oka_cache/**`, `.dart_tool/**`, `build/**`, dot files | ignore | build/meta |
-ChangeClassification classifyChanges(final Iterable<String> paths) {
+ChangeClassification classifyChanges(Iterable<String> paths) {
   var action = ChangeAction.ignore;
   final reasons = <String>[];
   for (final raw in paths) {
@@ -130,8 +130,8 @@ ChangeClassification classifyChanges(final Iterable<String> paths) {
 /// [interval] passed with no new value. Values arriving during the quiet
 /// window accumulate (a save storm is one dispatch).
 Stream<List<T>> debounceStream<T>(
-  final Stream<T> source,
-  final Duration interval,
+  Stream<T> source,
+  Duration interval,
 ) {
   late final StreamController<List<T>> out;
   Timer? timer;
@@ -140,7 +140,7 @@ Stream<List<T>> debounceStream<T>(
   out = StreamController<List<T>>(
     onListen: () {
       sub = source.listen(
-        (final v) {
+        (v) {
           batch.add(v);
           timer?.cancel();
           timer = Timer(interval, () {
@@ -168,7 +168,7 @@ Stream<List<T>> debounceStream<T>(
 
 /// Merges many single-value streams into one (tiny [StreamGroup] — no
 /// extra dependency).
-Stream<T> mergeStreams<T>(final Iterable<Stream<T>> streams) {
+Stream<T> mergeStreams<T>(Iterable<Stream<T>> streams) {
   late final StreamController<T> out;
   final pendingDone = <Stream<void>>{};
   out = StreamController<T>(
@@ -196,8 +196,8 @@ Stream<T> mergeStreams<T>(final Iterable<Stream<T>> streams) {
 /// target file, `android/`, `assets/`, `oka.yaml`, `pubspec.yaml`.
 /// Missing paths are skipped (a pure-Dart project may have no `android/`).
 List<String> computeDevWatchPaths({
-  required final String projectPath,
-  final String? targetFile,
+  required String projectPath,
+  String? targetFile,
 }) {
   final candidates = <String>[
     p.join(projectPath, 'lib'),
@@ -215,7 +215,7 @@ List<String> computeDevWatchPaths({
     // Skip the target when a watched root already covers it (e.g.
     // lib/main.dart under the lib/ watcher).
     final covered = candidates.any(
-      (final c) => _isDir(c) && p.isWithin(c, resolvedTarget),
+      (c) => _isDir(c) && p.isWithin(c, resolvedTarget),
     );
     if (!covered) candidates.add(resolvedTarget);
   }
@@ -225,17 +225,17 @@ List<String> computeDevWatchPaths({
   ];
 }
 
-bool _exists(final String path) =>
+bool _exists(String path) =>
     File(path).existsSync() || Directory(path).existsSync();
 
-bool _isDir(final String path) => Directory(path).existsSync();
+bool _isDir(String path) => Directory(path).existsSync();
 
 /// Watches the dev surface and yields debounced batches of changed paths,
 /// relative to [projectPath] when inside it.
 Stream<List<String>> watchDevPaths({
-  required final String projectPath,
-  final String? targetFile,
-  final Duration debounce = const Duration(milliseconds: 300),
+  required String projectPath,
+  String? targetFile,
+  Duration debounce = const Duration(milliseconds: 300),
 }) {
   final roots = computeDevWatchPaths(
     projectPath: projectPath,
@@ -245,10 +245,10 @@ Stream<List<String>> watchDevPaths({
     for (final root in roots)
       (File(root).existsSync() ? FileWatcher(root) : DirectoryWatcher(root))
           .events
-          .map((final e) => p.normalize(e.path)),
+          .map((e) => p.normalize(e.path)),
   ]);
   return debounceStream(merged, debounce).map(
-    (final batch) => [
+    (batch) => [
       for (final path in batch)
         if (p.isWithin(projectPath, path))
           p.relative(path, from: projectPath)
@@ -265,10 +265,10 @@ Stream<List<String>> watchDevPaths({
 /// Ignore-class batches emit nothing. [onEvent] observes every batch
 /// (`--json` visibility and tests).
 Stream<DevControlCommand> watchCommandStream({
-  required final Stream<List<String>> changes,
-  final void Function(ChangeClassification)? onEvent,
+  required Stream<List<String>> changes,
+  void Function(ChangeClassification)? onEvent,
 }) => changes
-    .map((final batch) {
+    .map((batch) {
       final c = classifyChanges(batch);
       onEvent?.call(c);
       return switch (c.action) {
@@ -277,5 +277,5 @@ Stream<DevControlCommand> watchCommandStream({
         ChangeAction.ignore => null,
       };
     })
-    .where((final c) => c != null)
+    .where((c) => c != null)
     .cast<DevControlCommand>();

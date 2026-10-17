@@ -26,7 +26,7 @@ void main() {
     if (temp.existsSync()) temp.deleteSync(recursive: true);
   });
 
-  BuildContext contextFor(final String name, {final BuildMode mode = BuildMode.release}) {
+  BuildContext contextFor(String name, {BuildMode mode = BuildMode.release}) {
     final project = temp.createTempSync(name);
     final buildDir = p.join(project.path, '.oka_cache', 'build', mode.name);
     Directory(buildDir).createSync(recursive: true);
@@ -40,7 +40,7 @@ void main() {
 
   /// A minimal ELF-looking blob carrying a Dart snapshot version hash the
   /// way gen_snapshot / the engine embed it.
-  List<int> soWithVersion(final String hash, {final bool features = true}) =>
+  List<int> soWithVersion(String hash, {bool features = true}) =>
       latin1.encode(
         '<elf-padding>$hash${features ? 'product no-asan no-msan '
             'no-tsan no-shared_data no-code_comments no-dwarf_stack_traces '
@@ -65,7 +65,7 @@ void main() {
         const ProvenanceFact('b', '2'),
         const ProvenanceFact('a', '3'),
       ], const []);
-      expect(record.facts.map((final f) => f.key), ['a', 'b']);
+      expect(record.facts.map((f) => f.key), ['a', 'b']);
       expect(record.fact('a'), '3');
     });
 
@@ -174,10 +174,10 @@ void main() {
 09-27 12:31:25.308 F libc : Fatal signal 11 (SIGSEGV)
 ''';
       final matches = scanFailureSignatures(log);
-      final ids = matches.map((final m) => m.signature.id).toSet();
+      final ids = matches.map((m) => m.signature.id).toSet();
       expect(ids, containsAll(['vm-snapshot-invalid', 'fatal-signal']));
       final vm = matches.firstWhere(
-        (final m) => m.signature.id == 'vm-snapshot-invalid',
+        (m) => m.signature.id == 'vm-snapshot-invalid',
       );
       expect(vm.line, contains('dart_vm_data.cc'));
       expect(vm.signature.fix, contains('pub get'));
@@ -243,8 +243,8 @@ void main() {
         ..['device_package'] = 'com.example.app';
       final invocations = <List<String>>[];
       Future<ProcessResult> fakeAdb(
-        final String adb,
-        final List<String> args,
+        String adb,
+        List<String> args,
       ) async {
         invocations.add(args);
         final joined = args.join(' ');
@@ -304,14 +304,14 @@ void main() {
 
       final verdicts = state.verificationVerdicts
           .map(
-            (final line) =>
+            (line) =>
                 RungVerdict.fromJson(jsonDecode(line) as Map<String, dynamic>),
           )
           .toList();
       expect(verdicts, hasLength(4));
-      expect(verdicts.map((final v) => v.status), everyElement(RungStatus.passed));
+      expect(verdicts.map((v) => v.status), everyElement(RungStatus.passed));
       expect(
-        verdicts.firstWhere((final v) => v.rung == 'dart-main').detail,
+        verdicts.firstWhere((v) => v.rung == 'dart-main').detail,
         contains('main entered'),
       );
       expect(invocations, isNotEmpty);
@@ -415,7 +415,7 @@ Future<void> main() async {
     test('compiles the full ladder with the report last', () {
       final ctx = contextFor('target');
       final steps = const VerifyTarget(startupProbe: true).compile(ctx);
-      final names = steps.map((final s) => s.name).toList();
+      final names = steps.map((s) => s.name).toList();
       expect(names.first, 'resolve-device-apk');
       expect(names, contains('artifact-provenance-rung'));
       expect(names, contains('snapshot-pairing-rung'));
@@ -454,8 +454,8 @@ class _StaticContributor implements ProvenanceContributor {
 
   @override
   List<ProvenanceFact> provenanceFacts(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) =>
       facts;
 }
@@ -466,8 +466,8 @@ class _CountingRung extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     record(
       state,

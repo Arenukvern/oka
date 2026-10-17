@@ -77,9 +77,9 @@ void main() {
         store: LocalArtifactStore(root: p.join(temp.path, 'store')),
         toolsRoot: p.join(temp.path, 'tools', 'chrome-for-testing'),
         platform: platform,
-        fetchText: (final url) async =>
+        fetchText: (url) async =>
             jsonEncode({'channels': {'Stable': {'version': version}}}),
-        fetchBytes: (final url) async => ZipEncoder().encodeBytes(zip),
+        fetchBytes: (url) async => ZipEncoder().encodeBytes(zip),
       );
     }
 
@@ -92,7 +92,7 @@ void main() {
       // Store entry visible for oka cache list/gc.
       final entries = await cft.store.entries();
       expect(
-        entries.where((final e) => e.key.category == 'chrome-for-testing'),
+        entries.where((e) => e.key.category == 'chrome-for-testing'),
         isNotEmpty,
       );
     });
@@ -139,8 +139,8 @@ void main() {
         store: cft.store,
         toolsRoot: cft.toolsRoot,
         platform: cft.platform,
-        fetchText: (final _) async => fail('network used'),
-        fetchBytes: (final _) async => fail('network used'),
+        fetchText: (_) async => fail('network used'),
+        fetchBytes: (_) async => fail('network used'),
       );
       final resolved = await fresh.resolveBinary(environment: {
         'HOME': temp.path,

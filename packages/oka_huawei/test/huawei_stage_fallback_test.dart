@@ -14,8 +14,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 BuildContext _ctx(
-  final Directory tmp, {
-  final BuildMode mode = BuildMode.debug,
+  Directory tmp, {
+  BuildMode mode = BuildMode.debug,
 }) => BuildContext(
   projectPath: tmp.path,
   buildDir: p.join(tmp.path, '.oka_cache', 'build', '${mode.name}-aab'),

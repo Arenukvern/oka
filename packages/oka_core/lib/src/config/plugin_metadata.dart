@@ -10,7 +10,7 @@ import 'dependency.dart';
 /// Uses from_json_to_json for type-safe JSON handling.
 extension type const PluginMetadata(Map<String, dynamic> value) {
   /// Decodes from a plugin metadata map (pubspec-style plugin section).
-  factory PluginMetadata.fromJson(final Object? json) =>
+  factory PluginMetadata.fromJson(Object? json) =>
       PluginMetadata(jsonDecodeMap(json));
 
   /// Plugin name

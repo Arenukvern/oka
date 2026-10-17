@@ -9,9 +9,9 @@ import 'package:test/test.dart';
 
 /// Rewrites one entry's creation time in its per-entry index (gc seeding).
 void _seedAge(
-  final LocalArtifactStore store,
-  final ContentKey key, {
-  required final DateTime at,
+  LocalArtifactStore store,
+  ContentKey key, {
+  required DateTime at,
 }) {
   final indexFile = File(
     p.join(
@@ -29,7 +29,7 @@ void _seedAge(
   indexFile.writeAsStringSync(jsonEncode(record));
 }
 
-Future<File> _missWith(final String fileName, final String content) async {
+Future<File> _missWith(String fileName, String content) async {
   final tmpDir = await Directory.systemTemp.createTemp('oka_miss_');
   final f = File(p.join(tmpDir.path, fileName));
   await f.writeAsString(content);
@@ -263,10 +263,10 @@ void main() {
     });
 
     Future<ContentKey> seed({
-      required final String name,
-      required final DateTime createdAt,
-      required final int sizeBytes,
-      final String? category,
+      required String name,
+      required DateTime createdAt,
+      required int sizeBytes,
+      String? category,
     }) async {
       final key = ContentKey.compute(
         category: category ?? 'gc',
@@ -326,7 +326,7 @@ void main() {
       expect(result.bytesFreed, 300);
       final left = await store.entries();
       expect(left, hasLength(2));
-      expect(left.map((final e) => e.key.name), isNot(contains('oldest')));
+      expect(left.map((e) => e.key.name), isNot(contains('oldest')));
     });
 
     test('dry run reports without deleting', () async {

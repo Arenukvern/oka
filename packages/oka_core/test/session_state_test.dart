@@ -20,16 +20,16 @@ final class _Liveness implements ProcessLiveness {
   final Map<int, String?> tokens;
 
   @override
-  Future<bool> isAlive(final int pid) async => livePids.contains(pid);
+  Future<bool> isAlive(int pid) async => livePids.contains(pid);
 
   @override
-  Future<String?> identityToken(final int pid) async =>
+  Future<String?> identityToken(int pid) async =>
       tokens.containsKey(pid) ? tokens[pid] : 'token-$pid';
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async => false;
 }
 
@@ -54,7 +54,7 @@ final class _Planner implements SessionStatePlanner<_Handle> {
   String get id => 'test-planner';
 
   @override
-  SessionStatePlan<_Handle> plan(final SessionStateRequest request) {
+  SessionStatePlan<_Handle> plan(SessionStateRequest request) {
     final relativePath = relativePathPrefix.isEmpty
         ? request.sessionName
         : p.posix.join(relativePathPrefix, request.sessionName);
@@ -78,7 +78,7 @@ final class _Source implements SessionStateSource<_Handle> {
   String get id => 'test-source';
 
   @override
-  Future<_Handle> restore(final SessionStateLease lease) async =>
+  Future<_Handle> restore(SessionStateLease lease) async =>
       _Handle(p.join(lease.rootPath, lease.relativePath));
 }
 
@@ -93,7 +93,7 @@ final class _CreateDirectory implements SessionStateProvisionStep<_Handle> {
   Set<Artifact<Object>> get provides => const {};
 
   @override
-  Future<void> run(final SessionStateContext<_Handle> context) async {
+  Future<void> run(SessionStateContext<_Handle> context) async {
     await Directory(context.handle.path).create(recursive: true);
   }
 }
@@ -109,7 +109,7 @@ final class _FailProvision implements SessionStateProvisionStep<_Handle> {
   Set<Artifact<Object>> get provides => const {};
 
   @override
-  Future<void> run(final SessionStateContext<_Handle> context) {
+  Future<void> run(SessionStateContext<_Handle> context) {
     throw StateError('scripted provision failure');
   }
 }
@@ -127,7 +127,7 @@ final class _FailOnceProvision implements SessionStateProvisionStep<_Handle> {
   Set<Artifact<Object>> get provides => const {};
 
   @override
-  Future<void> run(final SessionStateContext<_Handle> context) async {
+  Future<void> run(SessionStateContext<_Handle> context) async {
     if (!failed) {
       failed = true;
       throw StateError('scripted first-attempt failure');
@@ -141,7 +141,7 @@ final class _FailCleanup implements SessionStateCleanupStep<_Handle> {
   String get id => 'fail-cleanup';
 
   @override
-  Future<void> prepare(final SessionStateContext<_Handle> context) {
+  Future<void> prepare(SessionStateContext<_Handle> context) {
     throw StateError('scripted cleanup failure');
   }
 }
@@ -155,7 +155,7 @@ final class _HangingCleanup implements SessionStateCleanupStep<_Handle> {
   String get id => 'hanging-cleanup';
 
   @override
-  Future<void> prepare(final SessionStateContext<_Handle> context) =>
+  Future<void> prepare(SessionStateContext<_Handle> context) =>
       completion.future;
 }
 
@@ -165,7 +165,7 @@ final class _UnusedInspector implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) async => const SessionStateFinding(
     inspectorId: 'test-unused',
     use: SessionStateUse.unused,
@@ -179,7 +179,7 @@ final class _UnknownInspector implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) async => const SessionStateFinding(
     inspectorId: 'test-unknown',
     use: SessionStateUse.unknown,
@@ -198,7 +198,7 @@ final class _MutableInspector implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) async => SessionStateFinding(inspectorId: id, use: use, reason: reason);
 }
 
@@ -208,7 +208,7 @@ final class _BusyInspector implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) async => const SessionStateFinding(
     inspectorId: 'test-busy',
     use: SessionStateUse.busy,
@@ -226,24 +226,24 @@ final class _HangingInspector implements SessionStateInspector<_Handle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_Handle> context,
+    SessionStateContext<_Handle> context,
   ) => completion.future;
 }
 
 SessionStateWorkflow<_Handle> _workflow(
-  final String root, {
-  final int version = 1,
-  final bool failProvision = false,
-  final bool failCleanup = false,
-  final SessionStateRetention retention = SessionStateRetention.ephemeral,
-  final SessionStateOwnership ownership = SessionStateOwnership.oka,
-  final SessionStateAcquisitionMode acquisitionMode =
+  String root, {
+  int version = 1,
+  bool failProvision = false,
+  bool failCleanup = false,
+  SessionStateRetention retention = SessionStateRetention.ephemeral,
+  SessionStateOwnership ownership = SessionStateOwnership.oka,
+  SessionStateAcquisitionMode acquisitionMode =
       SessionStateAcquisitionMode.created,
-  final SessionStateResourceKind resourceKind =
+  SessionStateResourceKind resourceKind =
       SessionStateResourceKind.directory,
-  final List<SessionStateInspector<_Handle>>? inspectors,
-  final List<SessionStateInspector<_Handle>>? reuseInspectors,
-  final List<SessionStateProvisionStep<_Handle>>? provision,
+  List<SessionStateInspector<_Handle>>? inspectors,
+  List<SessionStateInspector<_Handle>>? reuseInspectors,
+  List<SessionStateProvisionStep<_Handle>>? provision,
 }) => SessionStateWorkflow(
   id: 'test.profile',
   version: version,
@@ -416,7 +416,7 @@ void main() {
         ),
         throwsA(
           isA<SessionStateRegistryException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('multiple state leases'),
           ),
@@ -1126,7 +1126,7 @@ void main() {
       ).resume(workflow, associated.id),
       throwsA(
         isA<SessionStateRegistryException>().having(
-          (final error) => error.message,
+          (error) => error.message,
           'message',
           contains('still used by recorded process'),
         ),
@@ -1165,7 +1165,7 @@ void main() {
         ).resume(workflow, liveOwner.id),
         throwsA(
           isA<SessionStateRegistryException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('live Oka process'),
           ),
@@ -1187,7 +1187,7 @@ void main() {
         ).resume(mismatchedWorkflow, liveOwner.id),
         throwsA(
           isA<SessionStateRegistryException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('not test.other@1'),
           ),
@@ -1219,7 +1219,7 @@ void main() {
         manager.resume(workflow, ready.id),
         throwsA(
           isA<SessionStateRegistryException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('cannot be resumed from phase "ready"'),
           ),
@@ -1267,7 +1267,7 @@ void main() {
         manager.resume(workflow, nonemptyPartial.id),
         throwsA(
           isA<SessionStateRegistryException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('existing directory is not empty'),
           ),
@@ -1290,7 +1290,7 @@ void main() {
         manager.resume(workflow, unproven.id),
         throwsA(
           isA<SessionStateRegistryException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('reservation marker'),
           ),
@@ -1670,9 +1670,9 @@ void main() {
 
     expect(
       reports
-          .expand((final report) => report.entries)
+          .expand((report) => report.entries)
           .where(
-            (final entry) => entry.disposition == SessionStateDisposition.error,
+            (entry) => entry.disposition == SessionStateDisposition.error,
           ),
       isEmpty,
     );
@@ -1806,7 +1806,7 @@ void main() {
       ),
       throwsA(
         isA<SessionStateRegistryException>().having(
-          (final error) => error.message,
+          (error) => error.message,
           'message',
           contains('live Oka process'),
         ),
@@ -2131,7 +2131,7 @@ void main() {
     );
     expect(
       inspection.entries.single.findings.map(
-        (final finding) => finding.inspectorId,
+        (finding) => finding.inspectorId,
       ),
       contains('test-unused'),
     );

@@ -82,7 +82,7 @@ final class IntervalTrigger extends Trigger {
 
   /// The first instant at/after [last] this trigger is due: `last +
   /// period`, advanced to the next [at] occurrence when anchored.
-  DateTime nextRunAfter(final DateTime last) {
+  DateTime nextRunAfter(DateTime last) {
     final earliest = last.add(period);
     final anchor = at;
     if (anchor == null) return earliest;
@@ -95,13 +95,13 @@ final class IntervalTrigger extends Trigger {
   }
 
   /// Whether [anchor] is a valid "HH:mm" wall-clock anchor.
-  static bool isValidAnchor(final String anchor) =>
+  static bool isValidAnchor(String anchor) =>
       RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(anchor);
 
   /// Parses "HH:mm" into local hours/minutes. Throws [ArgumentError] on
   /// any other shape (plan documents are validated upstream; this is the
   /// loud-failure backstop).
-  static (int, int) parseAnchor(final String anchor) {
+  static (int, int) parseAnchor(String anchor) {
     if (!isValidAnchor(anchor)) {
       throw ArgumentError.value(anchor, 'at', 'must be "HH:mm" (00:00–23:59)');
     }
@@ -222,7 +222,7 @@ final class DesiredState {
   /// Builds the substrate composition. Throws [ArgumentError] when a
   /// provider name cannot be resolved — invalid states fail before any
   /// side effect.
-  Composition composition(final ProviderFactory factory) {
+  Composition composition(ProviderFactory factory) {
     final unknown = <String>{
       for (final spec in specs)
         if (!_resolves(factory, spec.providerName)) spec.providerName,
@@ -261,7 +261,7 @@ final class DesiredState {
 
   /// Validates provider resolution, policy sanity, and the substrate
   /// graph — zero side effects, providers never contacted.
-  CompositionReport validate(final ProviderFactory factory) =>
+  CompositionReport validate(ProviderFactory factory) =>
       composition(factory).validate();
 
   /// Specs by id, declaration order preserved.
@@ -269,7 +269,7 @@ final class DesiredState {
         for (final spec in specs) spec.id: spec,
       };
 
-  static bool _resolves(final ProviderFactory factory, final String name) {
+  static bool _resolves(ProviderFactory factory, String name) {
     try {
       factory(name);
       return true;
@@ -287,13 +287,13 @@ typedef ProviderFactory = ResourceProvider Function(String name);
 final class _CanonicalJson {
   const _CanonicalJson();
 
-  String encode(final Object? value) {
+  String encode(Object? value) {
     final buffer = StringBuffer();
     _write(value, buffer);
     return buffer.toString();
   }
 
-  void _write(final Object? value, final StringBuffer buffer) {
+  void _write(Object? value, StringBuffer buffer) {
     switch (value) {
       case null:
         buffer.write('null');
@@ -314,7 +314,7 @@ final class _CanonicalJson {
         }
         buffer.write(']');
       case final Map<Object?, Object?> v:
-        final keys = v.keys.map((final k) => '$k').toList()..sort();
+        final keys = v.keys.map((k) => '$k').toList()..sort();
         buffer.write('{');
         for (var i = 0; i < keys.length; i++) {
           if (i > 0) buffer.write(',');

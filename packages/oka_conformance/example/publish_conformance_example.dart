@@ -63,12 +63,12 @@ class DemoPublishTarget extends PublishTarget {
       ];
 
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [
+  List<BuildStep> publishSteps(BuildContext ctx) => [
         _StageDemoStep(),
       ];
 
   @override
-  BuildStep uploadStep(final BuildContext ctx) =>
+  BuildStep uploadStep(BuildContext ctx) =>
       throw UnimplementedError('real upload tail is out of scope for the '
           'example; dry-run compiles a plan step instead of this step');
 }
@@ -84,7 +84,7 @@ class _StageDemoStep extends BuildStep {
   Set<Artifact<Object>> get provides => {demoArtifact};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     state[demoArtifact.id] = '${ctx.buildDir}/demo/demo-release.aab';
     return Future<StepResult>.value(StepResult.success());
   }

@@ -57,16 +57,16 @@ class _Harness {
   late final DevSession session;
 
   static Future<_Harness> start({
-    final int port = 0,
-    final Set<String> silentMethods = const {},
-    final Duration reloadTimeout = const Duration(seconds: 5),
-    final Duration restartTimeout = const Duration(seconds: 5),
-    final Duration stopTimeout = const Duration(seconds: 5),
+    int port = 0,
+    Set<String> silentMethods = const {},
+    Duration reloadTimeout = const Duration(seconds: 5),
+    Duration restartTimeout = const Duration(seconds: 5),
+    Duration stopTimeout = const Duration(seconds: 5),
   }) async {
     final projectDir = await Directory.systemTemp.createTemp('oka_control');
     final transport = FakeDaemonTransport()
       ..silentMethods.addAll(silentMethods)
-      ..respondTo = (final _) => const <String, Object?>{};
+      ..respondTo = (_) => const <String, Object?>{};
     // Closed in [_Harness.teardown]; the analyzer cannot see the hand-off.
     // ignore: close_sinks
     final control = StreamController<DevControlCommand>.broadcast();
@@ -116,7 +116,7 @@ class _Harness {
         (_) {
           if (!h._ended.isCompleted) h._ended.complete();
         },
-        onError: (final Object e) {
+        onError: (Object e) {
           if (!h._ended.isCompleted) h._ended.completeError(e);
         },
       ),
@@ -153,7 +153,7 @@ class _ControlClient {
   final _done = Completer<void>();
 
   Future<Map<String, Object?>> request(
-    final Map<String, Object?> request,
+    Map<String, Object?> request,
   ) async {
     _lines.clear();
     _socket.write('${jsonEncode(request)}\n');
@@ -186,7 +186,7 @@ void main() {
       final methods =
           h.transport.sent
               .map(
-                (final l) =>
+                (l) =>
                     ((jsonDecode(l) as List).single
                         as Map)['method'] as String,
               )
@@ -250,7 +250,7 @@ void main() {
       final methods =
           h.transport.sent
               .map(
-                (final l) =>
+                (l) =>
                     ((jsonDecode(l) as List).single
                         as Map)['method'] as String,
               )
@@ -489,7 +489,7 @@ void main() {
         () => readRunnerSessionFile(tmp.path),
         throwsA(
           isA<FormatException>().having(
-            (final e) => e.message,
+            (e) => e.message,
             'message',
             contains('schema'),
           ),

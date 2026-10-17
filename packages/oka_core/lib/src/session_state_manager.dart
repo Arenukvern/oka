@@ -39,17 +39,17 @@ final class SessionStateManager {
   ///
   /// The marker is committed before spawn so a failure to attach a process
   /// identity cannot be interpreted as proof that no process was created.
-  Future<SessionStateLease> expectProcess(final String leaseId) =>
+  Future<SessionStateLease> expectProcess(String leaseId) =>
       _updateMetadata(leaseId, {'process_snapshot_required': true});
 
   /// Clears a pre-spawn expectation only when the launcher confirms that
   /// process creation failed before returning a process handle.
-  Future<SessionStateLease> markProcessNotStarted(final String leaseId) =>
+  Future<SessionStateLease> markProcessNotStarted(String leaseId) =>
       _updateMetadata(leaseId, {'process_snapshot_required': false});
 
   Future<SessionStateLease> _updateMetadata(
-    final String leaseId,
-    final Map<String, Object?> changes,
+    String leaseId,
+    Map<String, Object?> changes,
   ) async {
     final lease = await registry.read(leaseId);
     if (lease == null) {
@@ -85,14 +85,14 @@ final class SessionStateManager {
   /// identity proof. Caller-owned resources are borrowed and never provisioned
   /// by Oka.
   Future<SessionStateLease> acquire<H>(
-    final SessionStateWorkflow<H> workflow,
-    final SessionStateRequest request,
+    SessionStateWorkflow<H> workflow,
+    SessionStateRequest request,
   ) async {
     final workflowIssues = workflow.validate();
     if (workflowIssues.isNotEmpty) {
       throw ArgumentError(
         'Invalid session-state workflow:\n'
-        '${workflowIssues.map((final issue) => '  - $issue').join('\n')}',
+        '${workflowIssues.map((issue) => '  - $issue').join('\n')}',
       );
     }
     final plan = workflow.plan.plan(request);
@@ -100,7 +100,7 @@ final class SessionStateManager {
     if (planIssues.isNotEmpty) {
       throw ArgumentError(
         'Invalid session-state plan:\n'
-        '${planIssues.map((final issue) => '  - $issue').join('\n')}',
+        '${planIssues.map((issue) => '  - $issue').join('\n')}',
       );
     }
 
@@ -179,7 +179,7 @@ final class SessionStateManager {
         workflow.reuseInspectors == null) {
       final snapshot = await registry.inspect();
       final existing = snapshot.leases.where(
-        (final lease) =>
+        (lease) =>
             lease.namespace == plan.namespace &&
             lease.logicalResourceKey == plan.logicalResourceKey,
       );
@@ -215,7 +215,7 @@ final class SessionStateManager {
           );
         }
         final existing = snapshot.leases.where(
-          (final lease) =>
+          (lease) =>
               lease.namespace == plan.namespace &&
               lease.logicalResourceKey == plan.logicalResourceKey,
         );
@@ -424,14 +424,14 @@ final class SessionStateManager {
   /// idempotent. Resume never adopts borrowed/opaque resources or repairs
   /// missing reservation evidence.
   Future<SessionStateLease> resume<H>(
-    final SessionStateWorkflow<H> workflow,
-    final String leaseId,
+    SessionStateWorkflow<H> workflow,
+    String leaseId,
   ) async {
     final workflowIssues = workflow.validate();
     if (workflowIssues.isNotEmpty) {
       throw ArgumentError(
         'Invalid session-state workflow:\n'
-        '${workflowIssues.map((final issue) => '  - $issue').join('\n')}',
+        '${workflowIssues.map((issue) => '  - $issue').join('\n')}',
       );
     }
     final initial = await registry.read(leaseId);
@@ -590,11 +590,11 @@ final class SessionStateManager {
     );
   }
 
-  Future<void> _writeReservationMarker(final SessionStateLease lease) async {
+  Future<void> _writeReservationMarker(SessionStateLease lease) async {
     await _ensureReservationMarker(lease);
   }
 
-  Future<void> _ensureReservationMarker(final SessionStateLease lease) async {
+  Future<void> _ensureReservationMarker(SessionStateLease lease) async {
     final marker = File(lease.reservationMarkerPath);
     if (await _hasLinkedPath(lease.rootPath, marker.path)) {
       throw SessionStateRegistryException(
@@ -626,7 +626,7 @@ final class SessionStateManager {
   }
 
   Future<void> _verifyExistingManagedResource(
-    final SessionStateLease lease,
+    SessionStateLease lease,
   ) async {
     final resourcePath = p.join(lease.rootPath, lease.relativePath);
     if (await _hasLinkedPath(lease.rootPath, resourcePath) ||
@@ -652,7 +652,7 @@ final class SessionStateManager {
     }
   }
 
-  Future<void> _verifyReservationEvidence(final SessionStateLease lease) async {
+  Future<void> _verifyReservationEvidence(SessionStateLease lease) async {
     final marker = File(lease.reservationMarkerPath);
     if (await _hasLinkedPath(lease.rootPath, marker.path) ||
         !await _markerMatches(
@@ -669,8 +669,8 @@ final class SessionStateManager {
   }
 
   Future<void> _verifyResumeEvidence(
-    final SessionStateLease lease,
-    final String resourcePath,
+    SessionStateLease lease,
+    String resourcePath,
   ) async {
     final root = Directory(lease.rootPath);
     if (await FileSystemEntity.type(root.path, followLinks: false) !=
@@ -744,8 +744,8 @@ final class SessionStateManager {
   }
 
   Future<void> _prepareResumeResource(
-    final String resourcePath,
-    final SessionStateLease lease,
+    String resourcePath,
+    SessionStateLease lease,
   ) async {
     await _verifyResumeEvidence(lease, resourcePath);
     if (await FileSystemEntity.type(resourcePath, followLinks: false) ==
@@ -765,9 +765,9 @@ final class SessionStateManager {
   }
 
   Future<void> _requireOwnerStoppedOrCurrent(
-    final SessionStateLease lease,
-    final int currentPid,
-    final String currentToken,
+    SessionStateLease lease,
+    int currentPid,
+    String currentToken,
   ) async {
     if (lease.ownerPid == currentPid && lease.ownerPidToken == currentToken) {
       return;
@@ -785,7 +785,7 @@ final class SessionStateManager {
   }
 
   Future<void> _requireAssociatedProcessStopped(
-    final SessionStateLease lease,
+    SessionStateLease lease,
   ) async {
     if (lease.requiresProcessSnapshot && !lease.hasCompleteProcessSnapshot) {
       throw SessionStateRegistryException(
@@ -809,8 +809,8 @@ final class SessionStateManager {
   }
 
   Future<void> _requireResourceUnused<H>(
-    final SessionStateWorkflow<H> workflow,
-    final SessionStateLease lease,
+    SessionStateWorkflow<H> workflow,
+    SessionStateLease lease,
   ) async {
     if ((workflow.reuseInspectors ?? workflow.inspectors).isEmpty) {
       throw SessionStateRegistryException(
@@ -821,7 +821,7 @@ final class SessionStateManager {
     final session = await workflow.restoreSession(lease, forReuse: true);
     final findings = await session.inspect(lease);
     final blockers = findings.where(
-      (final finding) => finding.use != SessionStateUse.unused,
+      (finding) => finding.use != SessionStateUse.unused,
     );
     if (blockers.isNotEmpty) {
       final blocker = blockers.first;
@@ -832,7 +832,7 @@ final class SessionStateManager {
     }
   }
 
-  Future<bool?> _processMatches(final int pid, final String? token) async {
+  Future<bool?> _processMatches(int pid, String? token) async {
     if (pid <= 0 || token == null || token.isEmpty) return null;
     try {
       if (!await liveness.isAlive(pid)) return false;
@@ -845,7 +845,7 @@ final class SessionStateManager {
   }
 
   Future<bool> _markerMatches(
-    final File file, {
+    File file, {
     required String id,
     required String nonce,
     required String hostId,
@@ -870,8 +870,8 @@ final class SessionStateManager {
   }
 
   Future<void> _writeOwnershipMarker(
-    final String resourcePath,
-    final SessionStateLease lease,
+    String resourcePath,
+    SessionStateLease lease,
   ) async {
     final type = await FileSystemEntity.type(resourcePath, followLinks: false);
     if (type != FileSystemEntityType.directory) {
@@ -891,8 +891,8 @@ final class SessionStateManager {
   /// data. POSIX hosts enforce mode 0700; Windows inherits ACLs that dart:io
   /// cannot verify. The ownership marker is written before provisioning.
   Future<void> _createManagedDirectory(
-    final String resourcePath,
-    final SessionStateLease lease,
+    String resourcePath,
+    SessionStateLease lease,
   ) async {
     if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) {
       throw UnsupportedError(
@@ -918,8 +918,8 @@ final class SessionStateManager {
   }
 
   Future<void> _restrictManagedDirectoryPermissions(
-    final String resourcePath,
-    final String rootPath,
+    String resourcePath,
+    String rootPath,
   ) async {
     if (Platform.isWindows) return;
     if (!Platform.isLinux && !Platform.isMacOS) {
@@ -951,8 +951,8 @@ final class SessionStateManager {
   }
 
   void _validateArtifacts<H>(
-    final SessionStateProvisionStep<H> step,
-    final SessionStateContext<H> context,
+    SessionStateProvisionStep<H> step,
+    SessionStateContext<H> context,
   ) {
     for (final artifact in step.requires) {
       if (!context.artifacts.containsKey(artifact.id) ||
@@ -966,8 +966,8 @@ final class SessionStateManager {
   }
 
   void _validateProvidedArtifacts<H>(
-    final SessionStateProvisionStep<H> step,
-    final SessionStateContext<H> context,
+    SessionStateProvisionStep<H> step,
+    SessionStateContext<H> context,
   ) {
     for (final artifact in step.provides) {
       final value = context.artifacts[artifact.id];
@@ -982,7 +982,7 @@ final class SessionStateManager {
   }
 }
 
-Future<bool> _hasLinkedPath(final String root, final String path) async {
+Future<bool> _hasLinkedPath(String root, String path) async {
   if (!p.isWithin(root, path)) return true;
   var current = root;
   final relative = p.relative(path, from: root);

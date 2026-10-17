@@ -34,9 +34,9 @@ class RuStoreDistributionPolicy {
   /// A `null` [versionCode] means "not declared" — acceptable unless the
   /// policy pins a range.
   List<String> validateConfig({
-    required final String packageName,
-    required final int? versionCode,
-    required final String versionName,
+    required String packageName,
+    required int? versionCode,
+    required String versionName,
   }) {
     final issues = <String>[];
     if (packageName != this.packageName) {
@@ -88,7 +88,7 @@ Future<List<String>> verifyRuStoreAab({
   }
   if (policy.requireSignature) {
     final hasSignature = entries.any(
-      (final entry) =>
+      (entry) =>
           entry.startsWith('META-INF/') &&
           (entry.endsWith('.RSA') ||
               entry.endsWith('.DSA') ||
@@ -120,8 +120,8 @@ class RuStoreArtifactVerificationStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final path = state[artifact.id];
     if (path is! String) {

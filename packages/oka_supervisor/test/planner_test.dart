@@ -5,15 +5,15 @@ import 'package:test/test.dart';
 final DateTime now = DateTime.utc(2026, 10, 9, 12);
 
 SupervisorRecord serviceRecord({
-  final String id = 'api',
-  final String revisionHash = 'r1',
-  final int epoch = 1,
-  final int? pid = 100,
-  final KillPolicy killPolicy = KillPolicy.spawned,
-  final int restartCount = 0,
-  final DateTime? windowStartedAt,
-  final String? lastRun,
-  final DateTime? startedAt,
+  String id = 'api',
+  String revisionHash = 'r1',
+  int epoch = 1,
+  int? pid = 100,
+  KillPolicy killPolicy = KillPolicy.spawned,
+  int restartCount = 0,
+  DateTime? windowStartedAt,
+  String? lastRun,
+  DateTime? startedAt,
 }) => SupervisorRecord(
   componentId: id,
   providerName: 'leased',
@@ -56,7 +56,7 @@ void main() {
         now: now,
       );
       expect(plan.isEmpty, isTrue);
-      expect(plan.findings.map((final f) => f.code), ['ready']);
+      expect(plan.findings.map((f) => f.code), ['ready']);
     });
 
     test('unowned but ready reports unowned, never acts', () {
@@ -72,7 +72,7 @@ void main() {
         now: now,
       );
       expect(plan.isEmpty, isTrue);
-      expect(plan.findings.map((final f) => f.code), contains('unowned'));
+      expect(plan.findings.map((f) => f.code), contains('unowned'));
     });
 
     test('dead owned record within budget restarts', () {
@@ -223,7 +223,7 @@ void main() {
         policy: SupervisionPolicy(shape: SupervisionShape.job),
         trigger: IntervalTrigger(period: Duration(hours: 6)),
       );
-      SupervisorRecord runAt(final DateTime startedAt) => serviceRecord(
+      SupervisorRecord runAt(DateTime startedAt) => serviceRecord(
         id: 'nap',
         revisionHash: dueSpec.revisionHash,
         pid: null,
@@ -298,13 +298,13 @@ void main() {
         now: now,
       );
       expect(
-        plan.actions.where((final a) => a.componentId == 'ghost'),
+        plan.actions.where((a) => a.componentId == 'ghost'),
         isEmpty,
       );
       expect(
         plan.findings
-            .where((final f) => f.componentId == 'ghost')
-            .map((final f) => f.code),
+            .where((f) => f.componentId == 'ghost')
+            .map((f) => f.code),
         ['orphan'],
       );
     });
@@ -318,7 +318,7 @@ void main() {
         observations: const {'api': Observation(state: ResourceState.crashed)},
         now: now,
       );
-      expect(plan.actions.map((final a) => a.componentId), ['api']);
+      expect(plan.actions.map((a) => a.componentId), ['api']);
     });
 
     test('actions are ordered dependencies-first', () {
@@ -334,7 +334,7 @@ void main() {
         observations: const {},
         now: now,
       );
-      expect(plan.actions.map((final a) => a.componentId).toList(), [
+      expect(plan.actions.map((a) => a.componentId).toList(), [
         'db',
         'api',
       ]);

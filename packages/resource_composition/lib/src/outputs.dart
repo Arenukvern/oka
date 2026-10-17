@@ -38,14 +38,14 @@ final class ResolvedOutputs {
 
   /// Whether [ref] was resolved. Composition-time `requires` validation
   /// guarantees producers; runtime checks catch provider bugs.
-  bool contains(final OutputRef<Object?> ref) => _values.containsKey(ref.id);
+  bool contains(OutputRef<Object?> ref) => _values.containsKey(ref.id);
 
   /// The typed value for [ref].
   ///
   /// Throws [StateError] with an actionable message when the output was not
   /// resolved or has the wrong runtime type — both are provider contract
   /// violations, never composition errors.
-  T require<T>(final OutputRef<T> ref) {
+  T require<T>(OutputRef<T> ref) {
     if (!_values.containsKey(ref.id)) {
       throw StateError(
         'Output "${ref.id}" was not resolved by its producer; the provider '
@@ -64,7 +64,7 @@ final class ResolvedOutputs {
 
   /// A view of this instance filtered to [ids]; used to hand a dependent
   /// exactly its declared requirements.
-  ResolvedOutputs scopedTo(final Iterable<OutputRef<Object?>> refs) =>
+  ResolvedOutputs scopedTo(Iterable<OutputRef<Object?>> refs) =>
       ResolvedOutputs({
         for (final ref in refs)
           if (_values.containsKey(ref.id)) ref.id: _values[ref.id],

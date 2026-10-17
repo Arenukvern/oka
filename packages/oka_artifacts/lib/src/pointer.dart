@@ -20,7 +20,7 @@ final class ArtifactPointer {
     this.createdAt,
   });
 
-  factory ArtifactPointer.fromJson(final Map<String, Object?> json) =>
+  factory ArtifactPointer.fromJson(Map<String, Object?> json) =>
       ArtifactPointer(
         name: json['name']! as String,
         sha256: json['sha256']! as String,
@@ -33,7 +33,7 @@ final class ArtifactPointer {
             : DateTime.parse(json['createdAt']! as String),
       );
 
-  factory ArtifactPointer.fromJsonString(final String contents) =>
+  factory ArtifactPointer.fromJsonString(String contents) =>
       ArtifactPointer.fromJson(jsonDecode(contents) as Map<String, Object?>);
 
   /// Logical artifact name (must match the chain name in the store).
@@ -71,16 +71,16 @@ final class ArtifactPointer {
 
   /// Atomic pointer write (temp + rename): a half-written pointer must
   /// never look like a valid one.
-  void writeTo(final File target) {
+  void writeTo(File target) {
     target.parent.createSync(recursive: true);
     File('${target.path}.${DateTime.now().microsecondsSinceEpoch}.tmp')
       ..writeAsStringSync(encode())
       ..renameSync(target.path);
   }
 
-  static String hashBytes(final List<int> bytes) =>
+  static String hashBytes(List<int> bytes) =>
       crypto.sha256.convert(bytes).toString();
 
-  static bool verify(final List<int> bytes, final String sha256) =>
+  static bool verify(List<int> bytes, String sha256) =>
       hashBytes(bytes) == sha256;
 }

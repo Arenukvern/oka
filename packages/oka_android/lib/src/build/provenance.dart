@@ -72,7 +72,7 @@ class ProvenanceFact {
 
   // Named decode pairs read better at call sites than private constructors.
   // ignore: prefer_constructors_over_static_methods
-  static ProvenanceFact fromJson(final Map<String, dynamic> json) =>
+  static ProvenanceFact fromJson(Map<String, dynamic> json) =>
       ProvenanceFact(json['key']! as String, json['value']! as Object);
 }
 
@@ -85,8 +85,8 @@ class ProvenanceFact {
 // ignore: one_member_abstracts
 abstract interface class ProvenanceContributor {
   List<ProvenanceFact> provenanceFacts(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   );
 }
 
@@ -96,7 +96,7 @@ class ProvenanceRecord {
   ProvenanceRecord(this.facts)
     : assert(
         facts.every(
-          (final f) => f.value is String || f.value is num || f.value is bool,
+          (f) => f.value is String || f.value is num || f.value is bool,
         ),
         'provenance fact values must be JSON primitives',
       );
@@ -104,7 +104,7 @@ class ProvenanceRecord {
   final List<ProvenanceFact> facts;
 
   /// Latest value for [key], or null.
-  Object? fact(final String key) {
+  Object? fact(String key) {
     for (final f in facts) {
       if (f.key == key) return f.value;
     }
@@ -117,7 +117,7 @@ class ProvenanceRecord {
   });
 
   // ignore: prefer_constructors_over_static_methods, see ProvenanceFact.fromJson.
-  static ProvenanceRecord decode(final String json) {
+  static ProvenanceRecord decode(String json) {
     final data = jsonDecode(json) as Map<String, dynamic>;
     final factsJson = data['facts'];
     final list = <ProvenanceFact>[];
@@ -138,14 +138,14 @@ class ProvenanceRecord {
 /// Collects facts from the state list and [contributors] (declarative
 /// extras), last-writer-wins per key, preserving first-seen order. Pure.
 ProvenanceRecord collectProvenance(
-  final List<ProvenanceFact> stateFacts,
-  final List<ProvenanceContributor> contributors, {
-  final BuildContext? ctx,
-  final PipelineState? state,
+  List<ProvenanceFact> stateFacts,
+  List<ProvenanceContributor> contributors, {
+  BuildContext? ctx,
+  PipelineState? state,
 }) {
   final ordered = <ProvenanceFact>[];
   final byKey = <String, ProvenanceFact>{};
-  void add(final ProvenanceFact f) {
+  void add(ProvenanceFact f) {
     final existing = byKey[f.key];
     if (existing == null) {
       byKey[f.key] = f;
@@ -164,7 +164,7 @@ ProvenanceRecord collectProvenance(
 }
 
 /// SHA-256 of a file (hex), or null when the file does not exist.
-Future<String?> fileSha256(final String path) async {
+Future<String?> fileSha256(String path) async {
   final f = File(path);
   if (!f.existsSync()) return null;
   return sha256.convert(await f.readAsBytes()).toString();
@@ -195,8 +195,8 @@ class ProvenanceStampStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final assetsDir = state.flutterAssetsDir;
     if (assetsDir == null || assetsDir.isEmpty) {
@@ -240,7 +240,7 @@ class ProvenanceStampStep extends BuildStep {
 /// disk: `unzip -p <artifact> assets/flutter_assets/oka-provenance.json`.
 /// Null when the artifact predates ADR-0029 (no record inside).
 Future<ProvenanceRecord?> readProvenanceFromArtifact(
-  final String artifactPath,
+  String artifactPath,
 ) async {
   final r = await Process.run('unzip', [
     '-p',
@@ -258,4 +258,4 @@ Future<ProvenanceRecord?> readProvenanceFromArtifact(
 }
 
 /// Normalizes an ABI for provenance storage.
-String provenanceAbi(final String abi) => normalizeAbi(abi);
+String provenanceAbi(String abi) => normalizeAbi(abi);

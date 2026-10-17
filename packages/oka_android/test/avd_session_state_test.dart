@@ -83,7 +83,7 @@ void main() {
           listDevices: () async => const [
             AdbDevice(id: 'emulator-5554', state: 'device'),
           ],
-          readAvdName: (final _) async => 'oka-ci',
+          readAvdName: (_) async => 'oka-ci',
         ).inspect(context);
         final unknown = await AndroidAvdUseInspector(
           listDevices: () async => const [],

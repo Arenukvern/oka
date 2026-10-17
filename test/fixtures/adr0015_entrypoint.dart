@@ -18,10 +18,10 @@ class EchoTarget extends Target {
   String get description => 'Test-only no-op target (writes a marker file)';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [EchoStep()];
+  List<BuildStep> compile(BuildContext ctx) => [EchoStep()];
 
   @override
-  List<String> explainDetails(final BuildContext ctx) => const [
+  List<String> explainDetails(BuildContext ctx) => const [
         'test detail: pure explain line (never executes the step)',
       ];
 }
@@ -33,7 +33,7 @@ class EchoStep extends BuildStep {
   String get name => 'echo';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     File('${ctx.buildDir}/echo-ran.txt')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('echo');
@@ -41,7 +41,7 @@ class EchoStep extends BuildStep {
   }
 }
 
-Future<void> main(final List<String> args) => okaRun(
+Future<void> main(List<String> args) => okaRun(
       args,
       oka: const Oka(pipelines: [], targets: [EchoTarget()]),
     );

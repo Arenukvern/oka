@@ -25,8 +25,8 @@ import 'package:test/test.dart';
 void main() {
   group('--oka-describe-targets (entrypoint machine mode)', () {
     Future<ProcessResult> runFixture(
-      final String fixture,
-      final List<String> args,
+      String fixture,
+      List<String> args,
     ) =>
         Process.run('dart', ['run', fixture, ...args],
             workingDirectory: Directory.current.path);
@@ -71,7 +71,7 @@ void main() {
       );
       expect(result.exitCode, 0, reason: '${result.stderr}');
       final described = (jsonDecode(result.stdout as String) as List)
-          .map((final e) => TargetChainDescription.fromJson(
+          .map((e) => TargetChainDescription.fromJson(
                 (e as Map).cast<String, dynamic>(),
               ))
           .toList();
@@ -93,7 +93,7 @@ void main() {
       );
       final described = describeTarget(const _ChainTarget(), ctx);
       expect(described.isValid, isTrue);
-      expect(described.steps.map((final s) => s.name).toList(),
+      expect(described.steps.map((s) => s.name).toList(),
           ['chain-assemble', 'chain-sign']);
       expect(described.steps[0].provides, ['chain-out']);
       expect(described.steps[1].requires, ['chain-out']);
@@ -112,8 +112,8 @@ void main() {
     late String relBin;
 
     Future<ProcessResult> okaCli(
-      final List<String> args, {
-      final String? cwd,
+      List<String> args, {
+      String? cwd,
     }) =>
         Process.run(
           'dart',
@@ -240,11 +240,11 @@ class _ChainTarget extends Target {
   String get description => 'test chain';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) =>
+  List<BuildStep> compile(BuildContext ctx) =>
       [_AssembleStep(), _SignStep()];
 
   @override
-  List<String> explainDetails(final BuildContext ctx) =>
+  List<String> explainDetails(BuildContext ctx) =>
       const ['test detail: pure composition line'];
 }
 
@@ -259,7 +259,7 @@ class _PlainTarget extends Target {
   String get description => 'test plain';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [_AssembleStep()];
+  List<BuildStep> compile(BuildContext ctx) => [_AssembleStep()];
 }
 
 class _AssembleStep extends BuildStep {
@@ -272,7 +272,7 @@ class _AssembleStep extends BuildStep {
   Set<Artifact<Object>> get provides => {out};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
       Future.value(StepResult.success());
 }
 
@@ -286,6 +286,6 @@ class _SignStep extends BuildStep {
   Set<Artifact<Object>> get requires => {input};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
       Future.value(StepResult.success());
 }

@@ -27,8 +27,8 @@ void main() {
   final now = DateTime(2026, 10, 10, 12);
 
   Map<String, Object?> intervalLane({
-    final String name = 'store-refresh',
-    final int intervalS = 21600,
+    String name = 'store-refresh',
+    int intervalS = 21600,
   }) => {
     'name': name,
     'run': ['python3', 'tools/ops/refresh_global_store.py', '--families'],
@@ -38,7 +38,7 @@ void main() {
     'promise': 'global fact store stays fresh across the portfolio',
   };
 
-  Map<String, Object?> watchLane({final String name = 'aot'}) => {
+  Map<String, Object?> watchLane({String name = 'aot'}) => {
     'name': name,
     'run': ['/bin/bash', 'tools/ops/build_aot.sh'],
     'trigger': 'watch',
@@ -50,9 +50,9 @@ void main() {
   };
 
   Map<String, Object?> receipt(
-    final String lane, {
-    final bool ok = true,
-    final int seq = 3,
+    String lane, {
+    bool ok = true,
+    int seq = 3,
   }) => {
     'event': 'run_receipt',
     'seq': seq,
@@ -62,16 +62,16 @@ void main() {
     'duration_ms': 1234,
   };
 
-  File writeSnapshot(final List<Map<String, Object?>> lanes) =>
+  File writeSnapshot(List<Map<String, Object?>> lanes) =>
       File('${snapshots.path}/lanes.json')..writeAsStringSync(
         const JsonEncoder.withIndent('  ').convert({'lanes': lanes}),
       );
 
   File writeCapture(
-    final String name, {
-    required final List<Map<String, Object?>> lines,
-    required final DateTime at,
-    final bool prettyDocument = false,
+    String name, {
+    required List<Map<String, Object?>> lines,
+    required DateTime at,
+    bool prettyDocument = false,
   }) => File('${receipts.path}/$name')
     ..writeAsStringSync(
       prettyDocument
@@ -80,14 +80,14 @@ void main() {
     )
     ..setLastModifiedSync(at);
 
-  CodemapLaneSnapshot parse(final File file) =>
+  CodemapLaneSnapshot parse(File file) =>
       CodemapLaneSnapshot.parse(file.readAsStringSync());
 
   group('snapshot parse', () {
     test('accepts the data form and the --list audit document', () {
       final dataForm = parse(writeSnapshot([watchLane(), intervalLane()]));
       expect(dataForm.declarationPath, isNull);
-      expect(dataForm.lanes.map((final lane) => lane.name), [
+      expect(dataForm.lanes.map((lane) => lane.name), [
         'aot',
         'store-refresh',
       ]);
@@ -112,7 +112,7 @@ void main() {
         ),
         throwsA(
           isA<FormatException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             allOf(
               contains("command lane 'store-refresh'"),
@@ -150,7 +150,7 @@ void main() {
         ),
         throwsA(
           isA<FormatException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('duplicate lane names'),
           ),
@@ -160,7 +160,7 @@ void main() {
         () => CodemapLaneSnapshot.parse(jsonEncode({'lanes': <Object?>[]})),
         throwsA(
           isA<FormatException>().having(
-            (final error) => error.message,
+            (error) => error.message,
             'message',
             contains('non-empty "lanes" list'),
           ),
@@ -360,7 +360,7 @@ void main() {
       expect(scan.scanned, 2);
       expect(scan.corrupt.length, 2);
       expect(
-        scan.corrupt.map((final entry) => entry.lane),
+        scan.corrupt.map((entry) => entry.lane),
         containsAll([null, 'quick-check']),
       );
       final findings = projectCodemapLaneFindings(
@@ -417,7 +417,7 @@ void main() {
       );
       expect(projection.scanned, 0);
       expect(
-        projection.findings.map((final finding) => finding.code),
+        projection.findings.map((finding) => finding.code),
         everyElement('unrun'),
       );
     });
@@ -461,7 +461,7 @@ void main() {
     });
 
     test('--check gate: ready is clean, the rest are not', () {
-      CodemapProjection gate(final List<CodemapLaneFinding> findings) =>
+      CodemapProjection gate(List<CodemapLaneFinding> findings) =>
           CodemapProjection(
             findings: findings,
             scanned: 0,

@@ -26,7 +26,7 @@ void main() {
         ),
         throwsA(
           isA<SecretMaterialException>().having(
-            (final e) => e.toString(),
+            (e) => e.toString(),
             'message',
             allOf(contains('credentials/fixture-sa.json'), contains('redacted')),
           ),
@@ -42,7 +42,7 @@ void main() {
         ),
         throwsA(
           isA<SecretMaterialException>().having(
-            (final e) => e.toString(),
+            (e) => e.toString(),
             'message',
             allOf(
               contains('forbidden material'),
@@ -105,7 +105,7 @@ void main() {
         () => expectPlanShape(plan, track: 'production'),
         throwsA(
           isA<PlanShapeException>().having(
-            (final e) => e.toString(),
+            (e) => e.toString(),
             'message',
             contains('track: expected production'),
           ),
@@ -118,7 +118,7 @@ void main() {
         () => expectPlanShape(plan, exactMetadata: true),
         throwsA(
           isA<PlanShapeException>().having(
-            (final e) => e.toString(),
+            (e) => e.toString(),
             'message',
             contains('unexpected key "versionName"'),
           ),
@@ -169,7 +169,7 @@ void main() {
       expect(
         used.assertNoRequests,
         throwsA(isA<StateError>().having(
-          (final e) => e.toString(),
+          (e) => e.toString(),
           'message',
           allOf(contains('expected zero HTTP requests'), contains('saw 1')),
         )),

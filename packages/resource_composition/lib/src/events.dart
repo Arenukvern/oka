@@ -54,7 +54,7 @@ enum LifecycleEventKind {
 
 /// Base class of structured lifecycle events.
 sealed class LifecycleEvent {
-  LifecycleEvent({required this.componentId, final DateTime? at})
+  LifecycleEvent({required this.componentId, DateTime? at})
     : at = at ?? DateTime.now().toUtc();
 
   final String componentId;

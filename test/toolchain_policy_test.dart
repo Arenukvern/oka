@@ -180,12 +180,12 @@ void main() {
         expect(e.fix, contains('oka get android-sdk'));
         // Ordered policy, not if-chain soup: env sources before system ones.
         final firstSystem =
-            e.tried.indexWhere((final t) => t.kind == ToolSourceKind.system);
+            e.tried.indexWhere((t) => t.kind == ToolSourceKind.system);
         final lastEnv =
-            e.tried.lastIndexWhere((final t) => t.kind == ToolSourceKind.env);
+            e.tried.lastIndexWhere((t) => t.kind == ToolSourceKind.env);
         expect(lastEnv, lessThan(firstSystem));
-        expect(e.tried.map((final t) => t.label), contains('ANDROID_HOME'));
-        expect(e.tried.map((final t) => t.label), contains('ANDROID_SDK_ROOT'));
+        expect(e.tried.map((t) => t.label), contains('ANDROID_HOME'));
+        expect(e.tried.map((t) => t.label), contains('ANDROID_SDK_ROOT'));
       }
     });
   });
@@ -316,9 +316,9 @@ void main() {
       expect(policy, everyElement(isA<ToolSource>()));
       // Env sources come before system sources.
       final firstSystem =
-          policy.indexWhere((final s) => s.kind == ToolSourceKind.system);
+          policy.indexWhere((s) => s.kind == ToolSourceKind.system);
       final lastEnv =
-          policy.lastIndexWhere((final s) => s.kind == ToolSourceKind.env);
+          policy.lastIndexWhere((s) => s.kind == ToolSourceKind.env);
       expect(lastEnv, lessThan(firstSystem));
     });
 
@@ -332,23 +332,23 @@ void main() {
         'adb',
       ]);
       expect(
-        lines.any((final l) => l.startsWith('✅ android-sdk: $sdk')),
+        lines.any((l) => l.startsWith('✅ android-sdk: $sdk')),
         isTrue,
       );
       expect(
-        lines.any((final l) =>
+        lines.any((l) =>
             l.contains('source:') &&
             l.contains('config androidSdkPath')),
         isTrue,
       );
       expect(
-        lines.any((final l) => l.contains('aapt2') && l.contains('35.0.0')),
+        lines.any((l) => l.contains('aapt2') && l.contains('35.0.0')),
         isTrue,
       );
-      expect(lines.where((final l) => l.startsWith('❌ adb: not found')),
+      expect(lines.where((l) => l.startsWith('❌ adb: not found')),
           hasLength(1));
       expect(
-        lines.any((final l) => l.contains('fix:') && l.contains('platform-tools')),
+        lines.any((l) => l.contains('fix:') && l.contains('platform-tools')),
         isTrue,
       );
     });

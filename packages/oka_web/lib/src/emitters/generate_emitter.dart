@@ -40,8 +40,8 @@ class GenerateShellEmitter extends ShellEmitter {
   /// ignored (a non-empty one only produces a replacement note).
   @override
   ShellOutput emit(
-    final WebShell shell, {
-    final String? existingIndexHtml,
+    WebShell shell, {
+    String? existingIndexHtml,
   }) {
     final notes = <String>[
       if (existingIndexHtml != null && existingIndexHtml.isNotEmpty)
@@ -57,7 +57,7 @@ class GenerateShellEmitter extends ShellEmitter {
   }
 
   /// Renders the full `index.html` (Flutter stable template shape).
-  String renderIndexHtml(final WebShell shell) {
+  String renderIndexHtml(WebShell shell) {
     final manifest = shell.manifest;
     final icons = manifest.icons;
     final buffer = StringBuffer()
@@ -135,7 +135,7 @@ class GenerateShellEmitter extends ShellEmitter {
   }
 
   /// Renders `manifest.json` (4-space indent, Flutter template shape).
-  String renderManifestJson(final WebShell manifestShell) {
+  String renderManifestJson(WebShell manifestShell) {
     final manifest = manifestShell.manifest;
     final icons = manifest.icons;
     final manifestIcons = <Map<String, String>>[

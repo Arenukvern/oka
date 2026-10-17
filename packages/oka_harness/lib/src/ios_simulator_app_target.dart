@@ -50,7 +50,7 @@ final class IosSimulatorAppTarget implements AppTarget {
   final Duration vmServiceTimeout;
 
   @override
-  Future<LaunchedApp> launch({final bool build = true}) async {
+  Future<LaunchedApp> launch({bool build = true}) async {
     if (!build) {
       throw ArgumentError(
         'IosSimulatorAppTarget always builds through its owning `flutter '
@@ -123,7 +123,7 @@ final class IosSimulatorAppTarget implements AppTarget {
     }
   }
 
-  void _pump(final Stream<List<int>> stream, final LogTap tap) {
+  void _pump(Stream<List<int>> stream, LogTap tap) {
     stream
         .transform(utf8.decoder)
         .transform(const LineSplitter())

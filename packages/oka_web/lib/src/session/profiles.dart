@@ -42,12 +42,12 @@ const List<String> chromeWebMcpFlags = <String>[
 /// section 5); everything else keeps [BrowserSessionSpec] defaults
 /// (headless, ephemeral profile, auto-assigned CDP port) unless overridden.
 BrowserSessionSpec chromeWebMcp({
-  final String? binaryPath,
-  final int? debugPort,
-  final bool headless = true,
-  final ProfilePersistence profilePersistence = ProfilePersistence.ephemeral,
-  final Duration bootTimeout = const Duration(seconds: 30),
-  final ({int width, int height})? windowSize,
+  String? binaryPath,
+  int? debugPort,
+  bool headless = true,
+  ProfilePersistence profilePersistence = ProfilePersistence.ephemeral,
+  Duration bootTimeout = const Duration(seconds: 30),
+  ({int width, int height})? windowSize,
 }) =>
     BrowserSessionSpec(
       binaryPath: binaryPath,

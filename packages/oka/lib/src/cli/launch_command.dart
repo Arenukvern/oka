@@ -16,14 +16,14 @@ import 'run_command.dart';
 /// portable flags
 /// (`--device`/`-d`, `--verbose`) working.
 class LaunchCommand {
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     // Flags that moved behind the device target (ADR-0015): device-flow
     // options are typed target config now, not CLI flags. Fail with the
     // migration path instead of letting them leak into the dispatcher.
     const movedFlags = {'apk', 'package', 'activity', 'no-install', 'wait'};
     final moved = args
         .where(
-          (final a) =>
+          (a) =>
               a.startsWith('--') &&
               movedFlags.contains(a.substring(2).split('=').first),
         )

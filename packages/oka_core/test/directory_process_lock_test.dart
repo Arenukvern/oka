@@ -5,13 +5,13 @@ import 'package:test/test.dart';
 
 final class _AlwaysAlive implements ProcessLiveness {
   @override
-  Future<bool> isAlive(final int pid) async => pid > 0;
+  Future<bool> isAlive(int pid) async => pid > 0;
 
   @override
-  Future<String?> identityToken(final int pid) async => 'tok-$pid';
+  Future<String?> identityToken(int pid) async => 'tok-$pid';
 
   @override
-  Future<bool> kill(final int pid, {final Duration grace = Duration.zero}) async =>
+  Future<bool> kill(int pid, {Duration grace = Duration.zero}) async =>
       false;
 }
 

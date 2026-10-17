@@ -27,7 +27,7 @@ import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-BuildContext _ctx(final String projectPath) => BuildContext(
+BuildContext _ctx(String projectPath) => BuildContext(
       projectPath: projectPath,
       buildDir: p.join(projectPath, '.oka_cache', 'build', 'debug'),
       mode: BuildMode.debug,
@@ -41,8 +41,8 @@ BuildContext _ctx(final String projectPath) => BuildContext(
 /// test (proves provisioning spawned nothing unexpected).
 Future<ProcessResult> Function(String, List<String>,
     {String? workingDirectory, Map<String, String>? environment}) _recordingRunner(
-  final List<String> calls,
-  final List<int> zipBytes,
+  List<String> calls,
+  List<int> zipBytes,
 ) =>
     (
       executable,
@@ -66,10 +66,10 @@ Future<ProcessResult> Function(String, List<String>,
 /// A runner that fails the test on ANY invocation (store-hit paths must
 /// spawn nothing).
 Future<ProcessResult> _noProcess(
-  final String executable,
-  final List<String> arguments, {
-  final String? workingDirectory,
-  final Map<String, String>? environment,
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  Map<String, String>? environment,
 }) =>
     fail('expected a store hit — got process: $executable $arguments');
 
@@ -106,9 +106,9 @@ exit 1
 ''';
 
 Future<String> _script(
-  final Directory dir,
-  final String name,
-  final String body,
+  Directory dir,
+  String name,
+  String body,
 ) async {
   final f = File(p.join(dir.path, name))
     ..writeAsStringSync('#!/bin/sh\n$body');
@@ -118,12 +118,12 @@ Future<String> _script(
 
 /// Fake Android SDK with the requested device-tool layout.
 Future<String> makeSdk(
-  final Directory tmp,
-  final String name, {
-  final bool platformTools = false,
-  final bool emulator = false,
-  final bool avdManager = false,
-  final bool systemImages = false,
+  Directory tmp,
+  String name, {
+  bool platformTools = false,
+  bool emulator = false,
+  bool avdManager = false,
+  bool systemImages = false,
 }) async {
   final sdk = Directory(p.join(tmp.path, name))..createSync(recursive: true);
   final bt = Directory(p.join(sdk.path, 'build-tools', '34.0.0'))
@@ -294,7 +294,7 @@ void main() {
       // (deterministic pseudo-random bytes — DEFLATE can't crush them).
       var seed = 42;
       String noise(int n) => String.fromCharCodes(List.generate(
-          n, (final i) => 33 + ((seed = seed * 1103515245 + 12345) >> 16) % 90));
+          n, (i) => 33 + ((seed = seed * 1103515245 + 12345) >> 16) % 90));
       final filler = noise(2048);
       final zip = ZipEncoder().encode(
         Archive()
@@ -320,11 +320,11 @@ void main() {
       expect(await File(adb).length(), greaterThan(0));
       expect(p.basename(adb), 'adb');
       expect(adb, contains(p.join('store', 'platform-tools')));
-      expect(calls.where((final c) => c.startsWith('curl')), hasLength(1));
+      expect(calls.where((c) => c.startsWith('curl')), hasLength(1));
 
       final entries = await store.entries();
       expect(
-        entries.any((final e) =>
+        entries.any((e) =>
             e.key.category == 'platform-tools' && e.key.name == 'adb'),
         isTrue,
         reason: 'download must be registered in the store index',
@@ -336,7 +336,7 @@ void main() {
         runProcess: _noProcess,
       ).ensureAdb(toolchain: tc);
       expect(second, adb);
-      expect(calls.where((final c) => c.startsWith('curl')), hasLength(1),
+      expect(calls.where((c) => c.startsWith('curl')), hasLength(1),
           reason: 'the zip must be downloaded exactly once');
     });
 
@@ -357,8 +357,8 @@ void main() {
       await expectLater(
         prov.ensureAdb(toolchain: tc),
         throwsA(isA<ToolchainException>()
-            .having((final e) => e.tool, 'tool', 'adb')
-            .having((final e) => e.fix, 'fix',
+            .having((e) => e.tool, 'tool', 'adb')
+            .having((e) => e.fix, 'fix',
                 contains('sdkmanager "platform-tools"'))),
       );
     });
@@ -379,7 +379,7 @@ void main() {
   group('AndroidDeviceProvisioner.ensureSystemImage', () {
     const package = 'system-images;android-34;google_apis;x86_64';
 
-    Future<String> sdkWithLicenses(final String name) async {
+    Future<String> sdkWithLicenses(String name) async {
       final sdk = await makeSdk(tmp, name);
       Directory(p.join(sdk, 'licenses')).createSync();
       return sdk;
@@ -405,7 +405,7 @@ void main() {
       // layout inside the SDK), so `oka cache list/gc` can see it.
       final entries = await store.entries();
       final pointer = entries
-          .where((final e) => e.key.category == 'system-images')
+          .where((e) => e.key.category == 'system-images')
           .toList();
       expect(pointer, hasLength(1));
       expect(pointer.single.key.name, package.replaceAll(';', '_'));
@@ -441,8 +441,8 @@ void main() {
           sdkManagerPath: manager,
         ),
         throwsA(isA<ToolchainException>()
-            .having((final e) => e.fix, 'fix', contains('sdkmanager'))
-            .having((final e) => e.fix, 'fix', contains('"$package"'))),
+            .having((e) => e.fix, 'fix', contains('sdkmanager'))
+            .having((e) => e.fix, 'fix', contains('"$package"'))),
       );
     });
 
@@ -460,7 +460,7 @@ void main() {
           sdkManagerPath: manager,
         ),
         throwsA(isA<ToolchainException>().having(
-          (final e) => e.fix,
+          (e) => e.fix,
           'fix',
           contains('sdkmanager --sdk_root=<sdk> "$package"'),
         )),

@@ -28,7 +28,7 @@ final class ScriptedProvider implements ResourceProvider {
   );
 
   @override
-  Future<StartReport> start(final StartRequest request) async {
+  Future<StartReport> start(StartRequest request) async {
     starts.add(request);
     if (startError != null) {
       // ignore: only_throw_errors — scripted by the test.
@@ -47,12 +47,12 @@ final class ScriptedProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> inspect(final ResourceRef ref) async => observation;
+  Future<Observation> inspect(ResourceRef ref) async => observation;
 
   @override
   Future<StopReport> stop(
-    final ResourceRef ref, {
-    required final Duration grace,
+    ResourceRef ref, {
+    required Duration grace,
   }) async {
     stops.add(ref);
     return const StopReport(
@@ -62,7 +62,7 @@ final class ScriptedProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> reconcile(final ResourceRef ref) async => observation;
+  Future<Observation> reconcile(ResourceRef ref) async => observation;
 }
 
 void main() {
@@ -98,7 +98,7 @@ void main() {
 
     final first = await supervisor.converge(
       desired: desired,
-      factory: (final name) => api,
+      factory: (name) => api,
       evidence: sink,
     );
     expect(first.started, 1);
@@ -109,14 +109,14 @@ void main() {
     expect(record.pid, isNotNull);
     expect(record.revisionHash, isNotEmpty);
     expect(
-      sink.events.map((final e) => e.kind.wire),
+      sink.events.map((e) => e.kind.wire),
       containsAll(['componentStarting', 'componentReady']),
     );
 
     api.observation = const Observation(state: ResourceState.ready);
     final second = await supervisor.converge(
       desired: desired,
-      factory: (final name) => api,
+      factory: (name) => api,
       evidence: sink,
     );
     expect(second.started, 0);
@@ -124,7 +124,7 @@ void main() {
     expect(second.plan.findings.single.code, 'ready');
     expect(api.starts, hasLength(1));
     expect(
-      sink.events.whereType<SupervisorFindingEvent>().map((final e) => e.code),
+      sink.events.whereType<SupervisorFindingEvent>().map((e) => e.code),
       contains('ready'),
     );
   });
@@ -136,7 +136,7 @@ void main() {
     );
     final report = await makeSupervisor().converge(
       desired: desired,
-      factory: (final name) => api,
+      factory: (name) => api,
       evidence: sink,
       apply: false,
     );
@@ -159,7 +159,7 @@ void main() {
           ),
         ],
       );
-      ResourceProvider factory(final String name) => api;
+      ResourceProvider factory(String name) => api;
 
       await supervisor.converge(
         desired: desired,
@@ -193,7 +193,7 @@ void main() {
         evidence: sink,
       );
       expect(gaveUp.plan.actions, isEmpty);
-      expect(gaveUp.plan.findings.map((final f) => f.code), contains('giveUp'));
+      expect(gaveUp.plan.findings.map((f) => f.code), contains('giveUp'));
       expect(api.starts, hasLength(2));
 
       // The revision bump is the reset: a changed declaration restarts.
@@ -244,7 +244,7 @@ void main() {
       state: ResourceState.crashed,
       cause: TerminalCause.exited,
     );
-    ResourceProvider factory(final String name) => api;
+    ResourceProvider factory(String name) => api;
     final report = await supervisor.converge(
       desired: const DesiredState(specs: [spec]),
       factory: factory,
@@ -253,7 +253,7 @@ void main() {
     expect(report.plan.actions, isEmpty);
     expect(api.stops, isEmpty);
     expect(api.starts, isEmpty);
-    expect(report.plan.findings.map((final f) => f.code), contains('unowned'));
+    expect(report.plan.findings.map((f) => f.code), contains('unowned'));
     // The foreign record stays — observe-only means no registry surgery.
     expect(registry.read(scope, 'api'), isNotNull);
   });
@@ -282,14 +282,14 @@ void main() {
       desired: const DesiredState(
         specs: [ComponentSpec(id: 'api', providerName: 'sh')],
       ),
-      factory: (final name) => api,
+      factory: (name) => api,
       evidence: sink,
     );
     expect(report.started, 1);
     expect(
       report.plan.findings
-          .where((final f) => f.componentId == 'ghost')
-          .map((final f) => f.code),
+          .where((f) => f.componentId == 'ghost')
+          .map((f) => f.code),
       ['orphan'],
     );
     expect(api.stops, isEmpty);
@@ -306,7 +306,7 @@ void main() {
     );
     final report = await makeSupervisor().converge(
       desired: desired,
-      factory: (final name) => api,
+      factory: (name) => api,
       evidence: sink,
     );
     expect(report.invalid, isTrue);
@@ -330,7 +330,7 @@ void main() {
         ),
       ],
     );
-    ResourceProvider factory(final String name) => job;
+    ResourceProvider factory(String name) => job;
 
     final first = await supervisor.converge(
       desired: desired,
@@ -357,7 +357,7 @@ void main() {
       evidence: sink,
     );
     expect(third.plan.actions, isEmpty);
-    expect(third.plan.findings.map((final f) => f.code), contains('giveUp'));
+    expect(third.plan.findings.map((f) => f.code), contains('giveUp'));
     expect(job.starts, hasLength(2));
   });
 
@@ -378,7 +378,7 @@ void main() {
 
     await supervisor.converge(
       desired: desired,
-      factory: (final name) => nap,
+      factory: (name) => nap,
       evidence: sink,
     );
     var record = registry.read(scope, 'nap')!;
@@ -387,7 +387,7 @@ void main() {
     // Not due: converged.
     final second = await supervisor.converge(
       desired: desired,
-      factory: (final name) => nap,
+      factory: (name) => nap,
       evidence: sink,
     );
     expect(second.plan.actions, isEmpty);
@@ -397,7 +397,7 @@ void main() {
     now = base.add(const Duration(hours: 7));
     final third = await supervisor.converge(
       desired: desired,
-      factory: (final name) => nap,
+      factory: (name) => nap,
       evidence: sink,
     );
     expect(third.restarted, 1);
@@ -423,7 +423,7 @@ void main() {
           ),
         ],
       );
-      ResourceProvider factory(final String name) => name == 'pg' ? db : api;
+      ResourceProvider factory(String name) => name == 'pg' ? db : api;
 
       final first = await supervisor.converge(
         desired: desired,
@@ -444,7 +444,7 @@ void main() {
         evidence: sink,
       );
       expect(second.restarted, 2);
-      expect(second.plan.actions.map((final a) => a.componentId).toList(), [
+      expect(second.plan.actions.map((a) => a.componentId).toList(), [
         'db',
         'api',
       ]);
@@ -470,12 +470,12 @@ void main() {
       desired: const DesiredState(
         specs: [ComponentSpec(id: 'api', providerName: 'sh')],
       ),
-      factory: (final name) => api,
+      factory: (name) => api,
       evidence: sink,
     );
     expect(report.started, 1);
     expect(
-      report.plan.findings.map((final f) => f.code),
+      report.plan.findings.map((f) => f.code),
       contains('corruptRecord'),
     );
   });

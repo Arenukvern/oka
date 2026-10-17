@@ -17,7 +17,7 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
-  SupervisorRecord record(final String id) => SupervisorRecord(
+  SupervisorRecord record(String id) => SupervisorRecord(
     componentId: id,
     providerName: 'leased',
     shape: 'service',
@@ -51,7 +51,7 @@ void main() {
       '${temp.path}/records/$scope',
     ).listSync().whereType<File>().toList();
     expect(files.length, 1);
-    expect(files.every((final f) => !f.path.endsWith('.tmp')), isTrue);
+    expect(files.every((f) => !f.path.endsWith('.tmp')), isTrue);
   });
 
   test('scopes isolate projects on one machine', () {

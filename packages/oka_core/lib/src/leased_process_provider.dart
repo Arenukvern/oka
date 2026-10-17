@@ -76,7 +76,7 @@ final class LeasedProcessProvider implements ResourceProvider {
       const ProviderCapabilities(readinessProbe: true, durableIdentity: true);
 
   @override
-  Future<StartReport> start(final StartRequest request) async {
+  Future<StartReport> start(StartRequest request) async {
     if (request.mode == StartMode.attach) {
       throw StateError(
         'LeasedProcessProvider("$leaseId") owns what it spawns; attach is '
@@ -136,7 +136,7 @@ final class LeasedProcessProvider implements ResourceProvider {
     unawaited(
       process.exitCode.then(
         earlyExit.complete,
-        onError: (final Object _) => earlyExit.complete(-1),
+        onError: (Object _) => earlyExit.complete(-1),
       ),
     );
     final pumps = _pump(process, request.log, stdout, stderr);
@@ -206,7 +206,7 @@ final class LeasedProcessProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> inspect(final ResourceRef ref) async {
+  Future<Observation> inspect(ResourceRef ref) async {
     if (ref.pid == null) {
       return const Observation(
         state: ResourceState.unknown,
@@ -249,8 +249,8 @@ final class LeasedProcessProvider implements ResourceProvider {
 
   @override
   Future<StopReport> stop(
-    final ResourceRef ref, {
-    required final Duration grace,
+    ResourceRef ref, {
+    required Duration grace,
   }) async {
     final lease = await registry.read(leaseId);
     if (lease != null && lease.ownership == LeaseOwnership.borrowed) {
@@ -290,7 +290,7 @@ final class LeasedProcessProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> reconcile(final ResourceRef ref) async {
+  Future<Observation> reconcile(ResourceRef ref) async {
     // Report-only: reconciliation observes, it never signals (ADR-0018 §5).
     if (ref.pid != null) {
       try {
@@ -331,7 +331,7 @@ final class LeasedProcessProvider implements ResourceProvider {
     };
   }
 
-  Future<bool> _killSpawned(final Process process, final String? token) async {
+  Future<bool> _killSpawned(Process process, String? token) async {
     if (token == null) {
       // Never signal a live root without its spawn identity. A dead root
       // and empty observed subtree need no signals; an unavailable tree
@@ -364,11 +364,11 @@ final class LeasedProcessProvider implements ResourceProvider {
   /// mechanics) into typed outputs, honoring cancellation instead of
   /// abandoning the child.
   Future<Map<String, Object?>> _resolve(
-    final Readiness readiness,
-    final _LineBuffer stdout,
-    final _BoundedLog stderr,
-    final Completer<int> earlyExit,
-    final Cancellation cancellation,
+    Readiness readiness,
+    _LineBuffer stdout,
+    _BoundedLog stderr,
+    Completer<int> earlyExit,
+    Cancellation cancellation,
   ) async {
     switch (readiness) {
       case final HandshakeLine handshake:
@@ -442,11 +442,11 @@ final class LeasedProcessProvider implements ResourceProvider {
   }
 
   Future<String> _waitForLine(
-    final _LineBuffer buffer,
-    final _BoundedLog stderr,
-    final Completer<int> earlyExit,
-    final Cancellation cancellation,
-    final Pattern? pattern,
+    _LineBuffer buffer,
+    _BoundedLog stderr,
+    Completer<int> earlyExit,
+    Cancellation cancellation,
+    Pattern? pattern,
   ) async {
     while (true) {
       final line = buffer.next(pattern);
@@ -469,11 +469,11 @@ final class LeasedProcessProvider implements ResourceProvider {
   }
 
   Future<void> _waitFor(
-    final Completer<int> earlyExit,
-    final Cancellation cancellation,
-    final _BoundedLog stderr, {
-    required final Future<bool> Function() until,
-    required final String describe,
+    Completer<int> earlyExit,
+    Cancellation cancellation,
+    _BoundedLog stderr, {
+    required Future<bool> Function() until,
+    required String describe,
   }) async {
     while (true) {
       if (await until()) return;
@@ -498,17 +498,17 @@ final class LeasedProcessProvider implements ResourceProvider {
 }
 
 List<StreamSubscription<String>> _pump(
-  final Process process,
-  final LogTap? log,
-  final _LineBuffer stdout,
-  final _BoundedLog stderr,
+  Process process,
+  LogTap? log,
+  _LineBuffer stdout,
+  _BoundedLog stderr,
 ) {
   // Startup failures/jobs close these; ready services drain until exit.
   // ignore: cancel_subscriptions
   final stdoutSub = process.stdout
       .transform(utf8.decoder)
       .transform(const LineSplitter())
-      .listen((final line) {
+      .listen((line) {
         stdout.add(line);
         log?.add(line);
       });
@@ -516,7 +516,7 @@ List<StreamSubscription<String>> _pump(
   final stderrSub = process.stderr
       .transform(utf8.decoder)
       .transform(const LineSplitter())
-      .listen((final line) {
+      .listen((line) {
         stderr.add(line);
         log?.add(line);
       });
@@ -532,14 +532,14 @@ final class _LineBuffer {
   Stream<String> get stream => _stream.stream;
   Future<void> close() => _stream.close();
 
-  void add(final String line) {
+  void add(String line) {
     _buffer.add(line);
     if (_buffer.length > 4000) _buffer.removeAt(0);
     _stream.add(line);
   }
 
   /// The first buffered line matching [pattern] (null when none yet).
-  String? next(final Pattern? pattern) {
+  String? next(Pattern? pattern) {
     if (pattern == null) {
       return _buffer.isEmpty ? null : _buffer.removeAt(0);
     }
@@ -556,7 +556,7 @@ final class _BoundedLog {
   final _bytes = BytesBuilder(copy: false);
   var _size = 0;
 
-  void add(final String line) {
+  void add(String line) {
     if (_size >= 16 * 1024) return;
     final chunk = utf8.encode('$line\n');
     final room = 16 * 1024 - _size;

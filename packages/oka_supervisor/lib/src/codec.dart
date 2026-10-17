@@ -60,7 +60,7 @@ final class SpecCodec {
   /// wrong types, unknown kinds, duplicate ids, empty id/provider).
   /// Validation that needs a provider factory stays with
   /// [DesiredState.validate].
-  DesiredState decode(final String json) {
+  DesiredState decode(String json) {
     final Object? document;
     try {
       document = jsonDecode(json);
@@ -77,10 +77,10 @@ final class SpecCodec {
   ///
   /// Round-trip law: `decode(encode(d))` yields the same
   /// [ComponentSpec.revisionHash] per spec and the same readiness budget.
-  String encode(final DesiredState desired) =>
+  String encode(DesiredState desired) =>
       const JsonEncoder.withIndent('  ').convert(_encodeDocument(desired));
 
-  DesiredState _decodeDocument(final Map<String, Object?> document) {
+  DesiredState _decodeDocument(Map<String, Object?> document) {
     final versionValue = document['version'];
     if (versionValue is! int || versionValue != version) {
       throw SpecFormatException(
@@ -114,7 +114,7 @@ final class SpecCodec {
     return DesiredState(specs: specs, readinessBudget: budget);
   }
 
-  ComponentSpec _decodeSpec(final Map<String, Object?> value) {
+  ComponentSpec _decodeSpec(Map<String, Object?> value) {
     final id = value['id'];
     final provider = value['provider'] ?? value['providerName'];
     if (id is! String || id.isEmpty) {
@@ -139,8 +139,8 @@ final class SpecCodec {
   }
 
   SupervisionPolicy _decodePolicy(
-    final Map<String, Object?> spec,
-    final String id,
+    Map<String, Object?> spec,
+    String id,
   ) {
     final shape = _shapeOf(spec, id);
     final value = spec['policy'];
@@ -165,7 +165,7 @@ final class SpecCodec {
 
   /// The spec-level `shape` key — where [SpecCodec.encode] writes
   /// [SupervisionPolicy.shape] (the policy object carries only budgets).
-  SupervisionShape _shapeOf(final Map<String, Object?> spec, final String id) {
+  SupervisionShape _shapeOf(Map<String, Object?> spec, String id) {
     final shapeValue = spec['shape'];
     return switch (shapeValue) {
       null => SupervisionShape.service,
@@ -177,7 +177,7 @@ final class SpecCodec {
     };
   }
 
-  Trigger _decodeTrigger(final Object? value, final String id) {
+  Trigger _decodeTrigger(Object? value, String id) {
     if (value == null) return const NoTrigger();
     if (value is! Map<String, Object?>) {
       throw SpecFormatException('spec "$id": "trigger" must be an object');
@@ -230,7 +230,7 @@ final class SpecCodec {
     }
   }
 
-  Readiness? _decodeReadiness(final Object? value, final String at) {
+  Readiness? _decodeReadiness(Object? value, String at) {
     if (value == null) return null;
     if (value is! Map<String, Object?>) {
       throw SpecFormatException('$at: "readiness" must be an object or null');
@@ -321,7 +321,7 @@ final class SpecCodec {
     }
   }
 
-  Map<String, String> _decodeEnv(final Object? value, final String id) {
+  Map<String, String> _decodeEnv(Object? value, String id) {
     if (value == null) return const <String, String>{};
     if (value is! Map<String, Object?>) {
       throw SpecFormatException('spec "$id": "env" must be an object');
@@ -340,9 +340,9 @@ final class SpecCodec {
   }
 
   List<String> _stringList(
-    final Map<String, Object?> value,
-    final String key,
-    final String id,
+    Map<String, Object?> value,
+    String key,
+    String id,
   ) {
     final list = value[key];
     if (list == null) return const <String>[];
@@ -357,7 +357,7 @@ final class SpecCodec {
     return List.of(list.cast<String>());
   }
 
-  List<String> _optionalStringList(final Object? value) {
+  List<String> _optionalStringList(Object? value) {
     if (value == null) return const <String>[];
     if (value is! List<Object?>) {
       throw const SpecFormatException('"extensions" must be an array');
@@ -370,12 +370,12 @@ final class SpecCodec {
     return List.of(value.cast<String>());
   }
 
-  Pattern? _optionalPattern(final Object? value, final String at) {
+  Pattern? _optionalPattern(Object? value, String at) {
     if (value == null) return null;
     return _requiredPattern(value, at);
   }
 
-  Pattern _requiredPattern(final Object? value, final String at) {
+  Pattern _requiredPattern(Object? value, String at) {
     if (value is! String || value.isEmpty) {
       throw SpecFormatException('$at: "pattern" must be a non-empty string');
     }
@@ -383,10 +383,10 @@ final class SpecCodec {
   }
 
   int _intOf(
-    final Object? value,
-    final String key,
-    final String id, {
-    required final int fallback,
+    Object? value,
+    String key,
+    String id, {
+    required int fallback,
   }) {
     if (value == null) return fallback;
     if (value is! int || value < 0) {
@@ -397,13 +397,13 @@ final class SpecCodec {
     return value;
   }
 
-  Map<String, Object?> _encodeDocument(final DesiredState desired) => {
+  Map<String, Object?> _encodeDocument(DesiredState desired) => {
     'version': version,
     'readinessBudgetMs': desired.readinessBudget.inMilliseconds,
     'specs': [for (final spec in desired.specs) _encodeSpec(spec)],
   };
 
-  Map<String, Object?> _encodeSpec(final ComponentSpec spec) => {
+  Map<String, Object?> _encodeSpec(ComponentSpec spec) => {
     'id': spec.id,
     'provider': spec.providerName,
     'shape': spec.policy.shape.name,
@@ -422,7 +422,7 @@ final class SpecCodec {
     'env': Map<String, String>.of(spec.env),
   };
 
-  Map<String, Object?> _encodeTrigger(final Trigger trigger) =>
+  Map<String, Object?> _encodeTrigger(Trigger trigger) =>
       switch (trigger) {
         NoTrigger() => {'kind': 'none'},
         WatchTrigger(:final roots, :final extensions, :final debounce) => {
@@ -438,7 +438,7 @@ final class SpecCodec {
         },
       };
 
-  Map<String, Object?> _encodeReadiness(final Readiness readiness) =>
+  Map<String, Object?> _encodeReadiness(Readiness readiness) =>
       switch (readiness) {
         HandshakeLine(:final pattern, :final budget) => {
           'kind': 'handshakeLine',
@@ -483,7 +483,7 @@ final class SpecCodec {
         },
       };
 
-  String _patternText(final Pattern? pattern, final String at) {
+  String _patternText(Pattern? pattern, String at) {
     if (pattern is RegExp) return pattern.pattern;
     if (pattern is String) return pattern;
     throw SpecFormatException(

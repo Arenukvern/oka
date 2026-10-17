@@ -13,7 +13,7 @@ class TargetStepDescription {
   });
 
   /// Decodes from the `oka explain --json` payload shape.
-  factory TargetStepDescription.fromJson(final Map<String, dynamic> json) =>
+  factory TargetStepDescription.fromJson(Map<String, dynamic> json) =>
       TargetStepDescription(
         name: json['name']?.toString() ?? '',
         requires: [
@@ -55,7 +55,7 @@ class TargetChainDescription {
   });
 
   /// Decodes from the `oka explain --json` payload shape.
-  factory TargetChainDescription.fromJson(final Map<String, dynamic> json) =>
+  factory TargetChainDescription.fromJson(Map<String, dynamic> json) =>
       TargetChainDescription(
         name: json['name']?.toString() ?? '',
         description: json['description']?.toString() ?? '',
@@ -108,8 +108,8 @@ class TargetChainDescription {
 /// [TargetChainDescription.validationError] is the same composition-time
 /// failure a real `oka run <target>` would report before executing anything.
 TargetChainDescription describeTarget(
-  final Target target,
-  final BuildContext ctx,
+  Target target,
+  BuildContext ctx,
 ) {
   final steps = target.compile(ctx);
   final pipeline = Pipeline(steps);

@@ -18,15 +18,15 @@ class FakeLiveness implements ProcessLiveness {
   final killed = <int>[];
 
   @override
-  Future<bool> isAlive(final int pid) async => alive;
+  Future<bool> isAlive(int pid) async => alive;
 
   @override
-  Future<String?> identityToken(final int pid) async => token;
+  Future<String?> identityToken(int pid) async => token;
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async {
     killed.add(pid);
     return true;
@@ -34,12 +34,12 @@ class FakeLiveness implements ProcessLiveness {
 }
 
 ProcessLease lease({
-  final int pid = 4242,
-  final Map<String, String> identity = const {
+  int pid = 4242,
+  Map<String, String> identity = const {
     'avd': 'oka-emulator',
     processLeasePidTokenKey: 'tok-1',
   },
-  final LeaseOwnership ownership = LeaseOwnership.owned,
+  LeaseOwnership ownership = LeaseOwnership.owned,
 }) => ProcessLease(
   id: 'emulator-oka-emulator',
   pid: pid,
@@ -141,7 +141,7 @@ void main() {
       await registry.upsert(aFirst);
 
       final listed = await registry.list();
-      expect(listed.map((final l) => l.id).toList(), [
+      expect(listed.map((l) => l.id).toList(), [
         'a-first',
         'emulator-oka-emulator',
       ]);
@@ -152,7 +152,7 @@ void main() {
       final after = await registry.list();
       expect(after.length, 2);
       expect(
-        after.singleWhere((final l) => l.id == 'emulator-oka-emulator').pid,
+        after.singleWhere((l) => l.id == 'emulator-oka-emulator').pid,
         99,
       );
 
@@ -323,15 +323,15 @@ void main() {
 
 final class _ThrowingLiveness implements ProcessLiveness {
   @override
-  Future<bool> isAlive(final int pid) async => throw StateError('seam down');
+  Future<bool> isAlive(int pid) async => throw StateError('seam down');
 
   @override
-  Future<String?> identityToken(final int pid) async =>
+  Future<String?> identityToken(int pid) async =>
       throw StateError('seam down');
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async => throw StateError('seam down');
 }

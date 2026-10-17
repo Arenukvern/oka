@@ -21,7 +21,7 @@ final class _CliPlanner implements SessionStatePlanner<_CliHandle> {
   String get id => 'cli-planner';
 
   @override
-  SessionStatePlan<_CliHandle> plan(final SessionStateRequest request) =>
+  SessionStatePlan<_CliHandle> plan(SessionStateRequest request) =>
       SessionStatePlan(
         logicalResourceKey: 'cli:${request.sessionName}',
         namespace: SessionStateNamespace.project,
@@ -41,7 +41,7 @@ final class _CliSource implements SessionStateSource<_CliHandle> {
   String get id => 'cli-source';
 
   @override
-  Future<_CliHandle> restore(final SessionStateLease lease) async =>
+  Future<_CliHandle> restore(SessionStateLease lease) async =>
       _CliHandle(p.join(lease.rootPath, lease.relativePath));
 }
 
@@ -56,7 +56,7 @@ final class _CliProvision implements SessionStateProvisionStep<_CliHandle> {
   Set<Artifact<Object>> get provides => const {};
 
   @override
-  Future<void> run(final SessionStateContext<_CliHandle> context) async {}
+  Future<void> run(SessionStateContext<_CliHandle> context) async {}
 }
 
 final class _CliUnused implements SessionStateInspector<_CliHandle> {
@@ -65,7 +65,7 @@ final class _CliUnused implements SessionStateInspector<_CliHandle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_CliHandle> context,
+    SessionStateContext<_CliHandle> context,
   ) async => const SessionStateFinding(
     inspectorId: 'cli-unused',
     use: SessionStateUse.unused,
@@ -77,23 +77,23 @@ final class _CliLiveness implements ProcessLiveness {
   int aliveChecks = 0;
 
   @override
-  Future<bool> isAlive(final int processId) async {
+  Future<bool> isAlive(int processId) async {
     aliveChecks++;
     return processId == pid;
   }
 
   @override
-  Future<String?> identityToken(final int processId) async =>
+  Future<String?> identityToken(int processId) async =>
       processId == pid ? 'cli-current-owner' : null;
 
   @override
   Future<bool> kill(
-    final int processId, {
-    final Duration grace = const Duration(seconds: 3),
+    int processId, {
+    Duration grace = const Duration(seconds: 3),
   }) async => false;
 }
 
-SessionStateWorkflow<_CliHandle> _cliWorkflow(final String root) =>
+SessionStateWorkflow<_CliHandle> _cliWorkflow(String root) =>
     SessionStateWorkflow(
       id: 'test.cli-profile',
       version: 1,
@@ -378,7 +378,7 @@ void main() {
       workflows: const [],
       output: output.add,
       errorOutput: (_) {},
-      setExitCode: (final value) => commandExitCode = value,
+      setExitCode: (value) => commandExitCode = value,
     ).run(['list', '--json']);
 
     expect(commandExitCode, 1);

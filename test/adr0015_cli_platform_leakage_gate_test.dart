@@ -77,7 +77,7 @@ List<File> _cliFiles() => [
     ];
 
 /// Returns marker hits per file, with line:col positions for the message.
-Map<String, List<String>> _scan(final File file) {
+Map<String, List<String>> _scan(File file) {
   final hits = <String, List<String>>{};
   final lines = file.readAsLinesSync();
   for (var i = 0; i < lines.length; i++) {

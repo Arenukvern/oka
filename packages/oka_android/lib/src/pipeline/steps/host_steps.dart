@@ -30,7 +30,7 @@ class EnsureAndroidSdkStep extends BuildStep {
   String get name => 'ensure-android-sdk';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     try {
       await (toolchain ?? state.resolvedToolchain ?? ResolvedToolchain())
           .validatePackagingTools();
@@ -56,7 +56,7 @@ class ResolveAbisStep extends BuildStep {
   Set<Artifact<Object>> get provides => {abis};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     state.abis = resolveAbis(
       configAbis: ctx.config.android.abis,
       targetAbi: ctx.targetAbi,
@@ -72,8 +72,8 @@ class PluginPackagingStep extends BuildStep {
 
   PluginPackagingStep({
     this.toolchain,
-    final PluginDiscovery? pluginDiscovery,
-    final DependencyCache? dependencyCache,
+    PluginDiscovery? pluginDiscovery,
+    DependencyCache? dependencyCache,
     this.strictPlugins = true,
     this.excludePlugins = const [],
   }) : pluginDiscovery = pluginDiscovery ?? PluginDiscovery(),
@@ -94,7 +94,7 @@ class PluginPackagingStep extends BuildStep {
   String get name => 'plugin-packaging';
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('🔌 Discovering and packaging Flutter plugins...');
     var discovery = await pluginDiscovery.discover(ctx.projectPath);
     // ADR-0007: plugins contributed solely by dev_dependencies (e.g.
@@ -126,7 +126,7 @@ class PluginPackagingStep extends BuildStep {
     await cache.load();
     final pluginFp = await fingerprintInputs([
       ...discovery.androidPlugins.expand(
-        (final pl) => [
+        (pl) => [
           ...filesUnder(pl.path, extension: '.kt'),
           ...filesUnder(pl.path, extension: '.java'),
           ...filesUnder(pl.path, extension: '.gradle'),
@@ -140,7 +140,7 @@ class PluginPackagingStep extends BuildStep {
           .existsSync())
         '${ctx.projectPath}/.dart_tool/package_config.json',
     ], extras: [
-      'plugins:${discovery.androidPlugins.map((final p) => '${p.name}:${p.pluginClass}').join(',')}',
+      'plugins:${discovery.androidPlugins.map((p) => '${p.name}:${p.pluginClass}').join(',')}',
       'abis:${state.abis.join(',')}',
       'strict:$strictPlugins',
     ]);
@@ -153,7 +153,7 @@ class PluginPackagingStep extends BuildStep {
         for (final p in discovery.androidPlugins) p.name: p,
       };
       if (names.every(byName.containsKey)) {
-        final plugins = names.map((final n) {
+        final plugins = names.map((n) {
           final pl = byName[n]!;
           return PackagedPlugin(
             plugin: pl,
@@ -173,17 +173,17 @@ class PluginPackagingStep extends BuildStep {
           plugins: plugins,
           failed: const [],
           registrations: (cached['registrations'] as List)
-              .map((final e) => PluginRegistration(
+              .map((e) => PluginRegistration(
                     className: (e as Map)['className'] as String,
                     name: e['name'] as String,
                   ))
               .toList(),
-          allJavaSources: plugins.expand((final p) => p.javaSources).toList(),
-          allKotlinSources: plugins.expand((final p) => p.kotlinSources).toList(),
-          allJarDeps: plugins.expand((final p) => p.jarDeps).toSet().toList(),
+          allJavaSources: plugins.expand((p) => p.javaSources).toList(),
+          allKotlinSources: plugins.expand((p) => p.kotlinSources).toList(),
+          allJarDeps: plugins.expand((p) => p.jarDeps).toSet().toList(),
           nativeLibsByAbi: natives,
-          resDirs: plugins.expand((final p) => p.resDirs).toList(),
-          manifestPaths: plugins.expand((final p) => p.manifestPaths).toList(),
+          resDirs: plugins.expand((p) => p.resDirs).toList(),
+          manifestPaths: plugins.expand((p) => p.manifestPaths).toList(),
         );
         state.pluginDiscovery = discovery;
         state.packagedPlugins = result;
@@ -217,7 +217,7 @@ class PluginPackagingStep extends BuildStep {
     );
     if (packaged.failed.isNotEmpty && strictPlugins) {
       final msg = packaged.failed
-          .map((final f) => '${f.plugin.name}: ${f.failureReason}')
+          .map((f) => '${f.plugin.name}: ${f.failureReason}')
           .join('\n  - ');
       return StepResult.failure(
         'Failed to package required plugins for no-Gradle APK:\n  - $msg',
@@ -234,7 +234,7 @@ class PluginPackagingStep extends BuildStep {
 
     final registrations = packaged.registrations;
     if (registrations.isEmpty &&
-        discovery.androidPlugins.any((final p) => p.pluginClass != null)) {
+        discovery.androidPlugins.any((p) => p.pluginClass != null)) {
       return StepResult.failure(
         'GeneratedPluginRegistrant would be empty but Android plugins with '
         'pluginClass were discovered. Plugin packaging failed to produce '
@@ -253,9 +253,9 @@ class PluginPackagingStep extends BuildStep {
     // Persist for incremental reuse (per-plugin lists + aggregate natives).
     final persisted = <String, dynamic>{
       'registrations': registrations
-          .map((final r) => {'className': r.className, 'name': r.name})
+          .map((r) => {'className': r.className, 'name': r.name})
           .toList(),
-      'plugin_names': packaged.plugins.map((final p) => p.plugin.name).toList(),
+      'plugin_names': packaged.plugins.map((p) => p.plugin.name).toList(),
       'natives': packaged.nativeLibsByAbi,
     };
     for (final p in packaged.plugins) {
@@ -284,7 +284,7 @@ class HostCodegenStep extends BuildStep {
     this.manifestOverride,
     this.yamlDeeplinks = const [],
     this.resDirs = const [],
-    final IconConfig? iconConfig,
+    IconConfig? iconConfig,
   }) : iconConfig = iconConfig ?? const IconConfig();
   @override
   Set<Artifact<Object>> get requires => {registrations};
@@ -319,7 +319,7 @@ class HostCodegenStep extends BuildStep {
     IconConfig iconConfig,
     ManifestSpec? manifestOverride,
     List<String> resDirs,
-  }) _resolveHostOverrides(final PipelineState state) {
+  }) _resolveHostOverrides(PipelineState state) {
     final ov = state.pipelineOverrides;
     return (
       deeplinks: yamlDeeplinks.isNotEmpty
@@ -334,7 +334,7 @@ class HostCodegenStep extends BuildStep {
   }
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     print('📝 Generating Android host sources...');
     final host = _resolveHostOverrides(state);
     final hostDir = p.join(ctx.buildDir, 'host_java');
@@ -468,7 +468,7 @@ class HostCodegenStep extends BuildStep {
 
 /// Whether the merged res tree already defines a launcher icon under [name]
 /// (any `mipmap*/<name>.*`, e.g. migrated projects shipping real PNGs).
-Future<bool> _hasUserLauncherIcon(final String resDir, final String name) async {
+Future<bool> _hasUserLauncherIcon(String resDir, String name) async {
   final dir = Directory(resDir);
   if (!await dir.exists()) return false;
   await for (final e in dir.list()) {

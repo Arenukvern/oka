@@ -49,7 +49,7 @@ final class SupervisorRecord {
 
   /// Tolerant parse; throws [FormatException] on structurally broken JSON
   /// (surfaced as a corrupt-record finding by the snapshot, never silent).
-  SupervisorRecord.fromJson(final Map<String, Object?> json)
+  SupervisorRecord.fromJson(Map<String, Object?> json)
     : this(
         componentId: json['componentId']! as String,
         providerName: json['provider']! as String,
@@ -104,18 +104,18 @@ final class SupervisorRecord {
   final Map<String, Object?> outputs;
 
   SupervisorRecord copyWith({
-    final int? epoch,
-    final KillPolicy? killPolicy,
-    final DateTime? startedAt,
-    final int? restartCount,
-    final DateTime? windowStartedAt,
-    final int? pid,
-    final String? handle,
-    final String? identityToken,
-    final String? lastRun,
-    final int? port,
-    final Map<String, Object?>? outputs,
-    final bool clearProcess = false,
+    int? epoch,
+    KillPolicy? killPolicy,
+    DateTime? startedAt,
+    int? restartCount,
+    DateTime? windowStartedAt,
+    int? pid,
+    String? handle,
+    String? identityToken,
+    String? lastRun,
+    int? port,
+    Map<String, Object?>? outputs,
+    bool clearProcess = false,
   }) =>
       SupervisorRecord(
         componentId: componentId,
@@ -170,7 +170,7 @@ final class RegistrySnapshot {
   final List<SupervisorRecord> records;
   final List<String> corruptPaths;
 
-  SupervisorRecord? operator [](final String componentId) {
+  SupervisorRecord? operator [](String componentId) {
     for (final record in records) {
       if (record.componentId == componentId) return record;
     }
@@ -199,17 +199,17 @@ final class MachineRegistry {
 
   /// Scope directory name for [projectRoot]: 12 hex chars of the SHA-1
   /// of the canonical absolute path.
-  String scopeFor(final String projectRoot) {
+  String scopeFor(String projectRoot) {
     final canonical = p.canonicalize(projectRoot);
     final digest = sha1.convert(utf8.encode(canonical));
     return digest.toString().substring(0, 12);
   }
 
-  File _file(final String scope, final String componentId) => File(
+  File _file(String scope, String componentId) => File(
         p.join(root, 'records', scope, '$componentId.json'),
       );
 
-  SupervisorRecord? read(final String scope, final String componentId) {
+  SupervisorRecord? read(String scope, String componentId) {
     final file = _file(scope, componentId);
     if (!file.existsSync()) return null;
     return SupervisorRecord.fromJson(
@@ -219,7 +219,7 @@ final class MachineRegistry {
 
   /// Atomic upsert: write to a unique temp file in the same directory,
   /// then rename over the target (the process-lease pattern).
-  void upsert(final SupervisorRecord record, {required final String scope}) {
+  void upsert(SupervisorRecord record, {required String scope}) {
     final file = _file(scope, record.componentId);
     file.parent.createSync(recursive: true);
     File('${file.path}.${DateTime.now().microsecondsSinceEpoch}.$pid.tmp')
@@ -229,19 +229,19 @@ final class MachineRegistry {
       ..renameSync(file.path);
   }
 
-  void delete(final String scope, final String componentId) {
+  void delete(String scope, String componentId) {
     final file = _file(scope, componentId);
     if (file.existsSync()) file.deleteSync();
   }
 
   /// Every record in [scope], plus corrupt files as structured evidence.
-  RegistrySnapshot snapshot(final String scope) {
+  RegistrySnapshot snapshot(String scope) {
     final dir = Directory(p.join(root, 'records', scope));
     if (!dir.existsSync()) return const RegistrySnapshot(records: []);
     final records = <SupervisorRecord>[];
     final corrupt = <String>[];
     final entities = dir.listSync().toList()
-      ..sort((final a, final b) => a.path.compareTo(b.path));
+      ..sort((a, b) => a.path.compareTo(b.path));
     for (final entity in entities) {
       if (entity is! File || !entity.path.endsWith('.json')) continue;
       try {

@@ -48,7 +48,7 @@ class ToolSource {
   String toString() => qualified;
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is ToolSource && other.kind == kind && other.label == label;
 
   /// Hash of kind + label (equality is field-wise).
@@ -70,7 +70,7 @@ class ToolQuery {
   String toString() => name;
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is ToolQuery && other.name == name;
 
   /// Hash of the name (equality is name based).
@@ -107,7 +107,7 @@ class ResolvedTool {
   String toString() => '$name → $path (${source.qualified})';
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is ResolvedTool &&
       other.name == name &&
       other.path == path &&
@@ -193,7 +193,7 @@ class ToolchainException implements Exception {
 abstract interface class Toolchain {
   /// The policy for [query] as a value: ordered candidate sources, most
   /// preferred first.
-  List<ToolSource> describe(final ToolQuery query);
+  List<ToolSource> describe(ToolQuery query);
 
   /// Evaluate the policy for [query], returning both the result and the
   /// candidates tried (for errors and `oka doctor` output).
@@ -201,5 +201,5 @@ abstract interface class Toolchain {
   /// Never throws: a failed resolution is a [ToolResolution] with
   /// [ToolResolution.problem] set. Required tools go through `require` —
   /// implementations conventionally pair `resolve` with a throwing variant.
-  Future<ToolResolution> resolve(final ToolQuery query);
+  Future<ToolResolution> resolve(ToolQuery query);
 }

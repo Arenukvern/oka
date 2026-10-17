@@ -230,7 +230,7 @@ kKnownClassArtifacts = {
 /// - `NoClassDefFoundError: Failed resolution of: Lfoo/Bar;`
 /// - `NoClassDefFoundError: Lfoo/Bar;`
 /// - `ClassNotFoundException: Didn't find class "foo.Bar" on path: …`
-String? extractMissingClass(final String logText) {
+String? extractMissingClass(String logText) {
   final patterns = <RegExp>[
     RegExp(r'Failed resolution of:\s*(L[\w/$]+;)'),
     RegExp(r'NoClassDefFoundError:\s*(L[\w/$]+;)'),
@@ -247,7 +247,7 @@ String? extractMissingClass(final String logText) {
   return null;
 }
 
-String _descriptorToClassName(final String raw) {
+String _descriptorToClassName(String raw) {
   var s = raw.trim();
   if (s.startsWith('L') && s.endsWith(';')) {
     s = s.substring(1, s.length - 1);
@@ -258,7 +258,7 @@ String _descriptorToClassName(final String raw) {
 /// Maps a missing class to dependency suggestions.
 class MissingDependencyResolver {
 
-  MissingDependencyResolver({final String? cacheRoot})
+  MissingDependencyResolver({String? cacheRoot})
     : cacheRoot = cacheRoot ?? MavenResolver.defaultCacheRoot();
   final String cacheRoot;
 
@@ -269,7 +269,7 @@ class MissingDependencyResolver {
   ///    prefixes (longest match wins).
   /// 2. Cache scan: search cached jars under [cacheRoot] whose path matches
   ///    the package segments of the missing class.
-  Future<List<DependencySuggestion>> suggest(final String missingClass) async {
+  Future<List<DependencySuggestion>> suggest(String missingClass) async {
     final results = <DependencySuggestion>[];
 
     // 1. Longest-prefix known-class match.
@@ -302,11 +302,11 @@ class MissingDependencyResolver {
     }
 
     // Highest confidence first.
-    results.sort((final a, final b) => b.confidence.compareTo(a.confidence));
+    results.sort((a, b) => b.confidence.compareTo(a.confidence));
     return results;
   }
 
-  Future<List<DependencySuggestion>> _scanCache(final String pkgPath) async {
+  Future<List<DependencySuggestion>> _scanCache(String pkgPath) async {
     final out = <DependencySuggestion>[];
     final root = Directory(cacheRoot);
     if (!await root.exists()) return out;
@@ -324,7 +324,7 @@ class MissingDependencyResolver {
           if (v is Directory) versions.add(p.basename(v.path));
         }
         if (versions.isEmpty) continue;
-        versions.sort((final a, final b) {
+        versions.sort((a, b) {
           final pa = a.split('.').map(int.tryParse).toList();
           final pb = b.split('.').map(int.tryParse).toList();
           for (
@@ -357,8 +357,8 @@ class MissingDependencyResolver {
 
 /// Formats suggestions into user-facing guidance with copy-pasteable fixes.
 String formatSuggestions(
-  final String missingClass,
-  final List<DependencySuggestion> suggestions,
+  String missingClass,
+  List<DependencySuggestion> suggestions,
 ) {
   if (suggestions.isEmpty) {
     return 'No known Maven artifact found for "$missingClass".\n'

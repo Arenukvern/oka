@@ -98,11 +98,11 @@ final _okaRunParser = ArgParser()
 ///
 /// Exits with a non-zero code and a diagnostic on failure.
 Future<void> okaRun(
-  final List<String> args, {
-  required final Oka oka,
-  final String? projectPath,
-  final ArgParser? extraArgs,
-  final Future<void> Function(String projectPath)? registerCacheProject,
+  List<String> args, {
+  required Oka oka,
+  String? projectPath,
+  ArgParser? extraArgs,
+  Future<void> Function(String projectPath)? registerCacheProject,
 }) async {
   final parser = _okaRunParser;
   final results = parser.parse(args);
@@ -320,8 +320,8 @@ Future<void> registerCacheProjectBestEffort(
 /// compile failure as a per-target `error` entry instead of aborting the
 /// listing. Never executes anything — [describeTarget] is pure.
 Map<String, dynamic> _describeTargetSafely(
-  final Target t,
-  final BuildContext ctx,
+  Target t,
+  BuildContext ctx,
 ) {
   try {
     return describeTarget(t, ctx).toJson();
@@ -339,8 +339,8 @@ Map<String, dynamic> _describeTargetSafely(
 /// are preserved; keys in [override] win. Pure — used for the ADR-0010
 /// typed-Dart-config-over-yaml precedence.
 Map<String, dynamic> mergeConfigMaps(
-  final Map<String, dynamic> base,
-  final Map<String, dynamic> override,
+  Map<String, dynamic> base,
+  Map<String, dynamic> override,
 ) {
   if (override.isEmpty) return base;
   final out = Map<String, dynamic>.of(base);
@@ -358,8 +358,8 @@ Map<String, dynamic> mergeConfigMaps(
   return out;
 }
 
-Map<String, dynamic> _stringKeyed(final Map<dynamic, dynamic> m) =>
-    m.map((final k, final v) => MapEntry(k.toString(), v));
+Map<String, dynamic> _stringKeyed(Map<dynamic, dynamic> m) =>
+    m.map((k, v) => MapEntry(k.toString(), v));
 
 /// Resolves the project's Dart pipeline entrypoint (ADR-0006/0010):
 ///
@@ -370,7 +370,7 @@ Map<String, dynamic> _stringKeyed(final Map<dynamic, dynamic> m) =>
 /// Returns a project-relative path, or null when the project has no hook
 /// (full-YAML project or fresh project). Full-Dart projects (ADR-0010) have
 /// no oka.yaml at all — discovery makes them work without any YAML key.
-Future<String?> findPipelineEntrypoint(final String projectPath) async {
+Future<String?> findPipelineEntrypoint(String projectPath) async {
   final config = await loadOkaYaml(projectPath);
   final pipelineSection = config.toJson()['pipeline'];
   final explicit = pipelineSection is Map
@@ -386,13 +386,13 @@ Future<String?> findPipelineEntrypoint(final String projectPath) async {
   return null;
 }
 
-PlatformPipeline _selectPipeline(final Oka oka, final String platform) {
+PlatformPipeline _selectPipeline(Oka oka, String platform) {
   for (final p in oka.pipelines) {
     if (p.platform == platform) return p;
   }
   throw ArgumentError(
     'No pipeline for platform "$platform". Declared: '
-    '${oka.pipelines.map((final p) => p.platform).join(', ')}',
+    '${oka.pipelines.map((p) => p.platform).join(', ')}',
   );
 }
 
@@ -401,7 +401,7 @@ PlatformPipeline _selectPipeline(final Oka oka, final String platform) {
 /// Throws [TargetResolutionException] when `name` matches no declared
 /// target — the message lists the available targets, or explains that the
 /// composition root declares none.
-Target findTarget(final Oka oka, final String name) {
+Target findTarget(Oka oka, String name) {
   for (final t in oka.targets) {
     if (t.name == name) return t;
   }
@@ -414,14 +414,14 @@ Target findTarget(final Oka oka, final String name) {
   }
   throw TargetResolutionException(
     'target "$name" not found. Available targets: '
-    '${oka.targets.map((final t) => t.name).join(', ')}.',
+    '${oka.targets.map((t) => t.name).join(', ')}.',
   );
 }
 
 /// Validates every declared target name: lowercase identifier, unique, and
 /// never shadowing a reserved core verb (ADR-0015). Throws
 /// [TargetResolutionException] naming the first violation.
-void validateTargets(final Oka oka) {
+void validateTargets(Oka oka) {
   final seen = <String>{};
   for (final t in oka.targets) {
     final error = validateTargetName(t.name);
@@ -436,7 +436,7 @@ void validateTargets(final Oka oka) {
 
 /// Resolves and validates a requested target, exiting with a clean message
 /// on failure (used by `oka run <target>` dispatch).
-Target _resolveTarget(final Oka oka, final String name) {
+Target _resolveTarget(Oka oka, String name) {
   try {
     validateTargets(oka);
     return findTarget(oka, name);
@@ -447,7 +447,7 @@ Target _resolveTarget(final Oka oka, final String name) {
 }
 
 /// Loads and parses `oka.yaml` from [projectPath]. Missing file → [OkaConfig.empty].
-Future<OkaConfig> loadOkaYaml(final String projectPath) async {
+Future<OkaConfig> loadOkaYaml(String projectPath) async {
   final file = File('$projectPath/oka.yaml');
   if (await file.exists()) {
     return OkaConfig.fromJson(_yamlToJson(await _loadYamlAny(file)));
@@ -464,13 +464,13 @@ Future<OkaConfig> loadOkaYaml(final String projectPath) async {
   return OkaConfig.empty;
 }
 
-Future<dynamic> _loadYamlAny(final File file) async =>
+Future<dynamic> _loadYamlAny(File file) async =>
     loadYaml(await file.readAsString());
 
-dynamic _yamlToJson(final Object? value) {
+dynamic _yamlToJson(Object? value) {
   if (value is YamlMap) {
     return value.map(
-      (final k, final v) => MapEntry(k.toString(), _yamlToJson(v)),
+      (k, v) => MapEntry(k.toString(), _yamlToJson(v)),
     );
   } else if (value is YamlList) {
     return value.map(_yamlToJson).toList();
@@ -479,7 +479,7 @@ dynamic _yamlToJson(final Object? value) {
 }
 
 /// Expands `--dart-define-from-file` (JSON object of string values).
-Map<String, String> parseDartDefineFile(final String? path) {
+Map<String, String> parseDartDefineFile(String? path) {
   if (path == null || path.isEmpty) return const {};
   final file = File(path);
   if (!file.existsSync()) {
@@ -490,7 +490,7 @@ Map<String, String> parseDartDefineFile(final String? path) {
     throw FormatException('dart-define-from-file must be a JSON object', path);
   }
   return decoded.map(
-    (final k, final v) => MapEntry(k.toString(), v.toString()),
+    (k, v) => MapEntry(k.toString(), v.toString()),
   );
 }
 
@@ -499,7 +499,7 @@ Map<String, String> parseDartDefineFile(final String? path) {
 /// Parses `key=value` from a `--oka-target-arg` occurrence (ADR-0015).
 /// Valueless keys map to an empty string so targets can distinguish
 /// presence; `=` inside the value is kept.
-Map<String, String> _parseTargetArg(final String kv) {
+Map<String, String> _parseTargetArg(String kv) {
   final i = kv.indexOf('=');
   if (i <= 0) {
     throw ArgumentError('invalid --oka-target-arg "$kv" — expected key=value.');
@@ -507,7 +507,7 @@ Map<String, String> _parseTargetArg(final String kv) {
   return {kv.substring(0, i): kv.substring(i + 1)};
 }
 
-Map<String, String> _parseSingleDefine(final String define) {
+Map<String, String> _parseSingleDefine(String define) {
   final i = define.indexOf('=');
   if (i < 0) return {define: 'true'};
   return {define.substring(0, i): define.substring(i + 1)};
@@ -518,8 +518,8 @@ const _sessionStateProtocolSchema = 'oka.session-state.protocol.v1';
 const _sessionStateProtocolFramePrefix = '\x1eOKA_SESSION_STATE_V1:';
 
 Future<void> _runSessionStateProtocol(
-  final String encodedRequest,
-  final Oka oka,
+  String encodedRequest,
+  Oka oka,
 ) async {
   Map<String, Object?> response() => {
     'schema_version': _sessionStateProtocolSchema,
@@ -534,7 +534,7 @@ Future<void> _runSessionStateProtocol(
     final request = decoded.cast<String, Object?>();
     const knownFields = {'protocol_version', 'operation', 'lease_id', 'apply'};
     final unknownFields = request.keys.where(
-      (final key) => !knownFields.contains(key),
+      (key) => !knownFields.contains(key),
     );
     if (unknownFields.isNotEmpty) {
       throw FormatException(
@@ -588,7 +588,7 @@ Future<void> _runSessionStateProtocol(
         );
       }
       final matching = workflows.where(
-        (final workflow) =>
+        (workflow) =>
             workflow.id == lease.workflowId &&
             workflow.version == lease.workflowVersion,
       );

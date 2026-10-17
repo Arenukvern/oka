@@ -26,7 +26,7 @@ class AgcCredentials {
   /// Parses the credential file contents ([raw], UTF-8 JSON). Throws
   /// [FormatException] with an actionable message when required keys are
   /// missing — the message names the *expected keys*, never the values.
-  factory AgcCredentials.parse(final String raw) {
+  factory AgcCredentials.parse(String raw) {
     final Object? decoded;
     try {
       decoded = jsonDecode(raw);
@@ -48,7 +48,7 @@ class AgcCredentials {
       throw FormatException(
         'agconnect credentials file must contain non-empty "client_id" and '
         '"client_secret" keys (the AppGallery Connect API-client JSON); '
-        'found keys: ${decoded.keys.map((final k) => '"$k"').join(', ')}',
+        'found keys: ${decoded.keys.map((k) => '"$k"').join(', ')}',
       );
     }
     return AgcCredentials(clientId: clientId, clientSecret: clientSecret);
@@ -69,7 +69,7 @@ class AgcCredentials {
 
   /// Identity equality — credentials never compare by value.
   @override
-  bool operator ==(final Object other) => identical(this, other);
+  bool operator ==(Object other) => identical(this, other);
 
   /// Identity hash (pairs with the identity equality).
   @override

@@ -29,7 +29,7 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  LeasedProcessProvider providerFor(final ProcessCommand command) =>
+  LeasedProcessProvider providerFor(ProcessCommand command) =>
       LeasedProcessProvider(
         leaseId: 'test-api',
         command: command,
@@ -37,9 +37,9 @@ void main() {
       );
 
   Component componentFor(
-    final ResourceProvider provider, {
-    final Readiness? readiness,
-    final List<OutputRef<Object?>> provides = const [],
+    ResourceProvider provider, {
+    Readiness? readiness,
+    List<OutputRef<Object?>> provides = const [],
   }) => Component(
     id: 'test-api',
     provider: provider,
@@ -49,8 +49,8 @@ void main() {
   );
 
   StartRequest requestFor(
-    final Component component, {
-    final Cancellation? cancellation,
+    Component component, {
+    Cancellation? cancellation,
   }) => StartRequest(
     component: component,
     mode: StartMode.start,
@@ -230,7 +230,7 @@ void main() {
       ),
       throwsA(
         isA<StateError>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           allOf(contains('exited (code 3)'), contains('test-api')),
         ),

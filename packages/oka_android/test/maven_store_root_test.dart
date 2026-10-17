@@ -19,7 +19,7 @@ void main() {
     if (temp.existsSync()) await temp.delete(recursive: true);
   });
 
-  Map<String, String> envFor(final Directory home) => {
+  Map<String, String> envFor(Directory home) => {
     'HOME': home.path,
     'USERPROFILE': home.path,
     'OKA_CACHE': p.join(home.path, 'store'),
@@ -83,7 +83,7 @@ void main() {
         artifactId: 'sample',
         version: '1.0.0',
       );
-      final original = List<int>.generate(300, (final i) => i % 256);
+      final original = List<int>.generate(300, (i) => i % 256);
 
       await resolver.resolve(coord, fixtureBytes: original);
       // Warm hit works offline (fresh instance: no per-run memo).
@@ -95,7 +95,7 @@ void main() {
       // Corrupt the cache with same-size different bytes: the size-floor
       // heuristic alone would serve this; sha256 verification must not.
       await File(resolver.localPathFor(coord)).writeAsBytes(
-        List<int>.generate(300, (final i) => (i * 7) % 256),
+        List<int>.generate(300, (i) => (i * 7) % 256),
       );
 
       await expectLater(
@@ -108,7 +108,7 @@ void main() {
         ).resolve(coord),
         throwsA(
           predicate(
-            (final e) => e.toString().contains('network disabled'),
+            (e) => e.toString().contains('network disabled'),
             'throws "network disabled"',
           ),
         ),
@@ -126,14 +126,14 @@ void main() {
       );
       await resolver.resolve(
         coord,
-        fixtureBytes: List<int>.generate(300, (final i) => i % 256),
+        fixtureBytes: List<int>.generate(300, (i) => i % 256),
       );
       final warm = await MavenResolver(
         cacheRoot: p.join(home.path, 'maven'),
       ).resolve(coord);
       expect(
         File(warm.jarPath).readAsBytesSync(),
-        List<int>.generate(300, (final i) => i % 256),
+        List<int>.generate(300, (i) => i % 256),
       );
     });
   });

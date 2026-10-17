@@ -50,7 +50,7 @@ fi
 echo "fake-oka build ok"
 ''';
 
-Future<Directory> _withFakeOka(final String script) async {
+Future<Directory> _withFakeOka(String script) async {
   final dir = await Directory.systemTemp.createTemp('oka_harness_test');
   final scriptFile = File('${dir.path}/fake_oka')..writeAsStringSync(script);
   await Process.run('chmod', ['+x', scriptFile.path]);
@@ -60,7 +60,7 @@ Future<Directory> _withFakeOka(final String script) async {
 /// Polls the session tap for [needle] — stdout lines arrive as stream
 /// events, so a just-launched session's echo may lag the returned
 /// [LaunchedApp] by a few hundred milliseconds.
-Future<bool> tapContains(final LaunchedApp app, final String needle) async {
+Future<bool> tapContains(LaunchedApp app, String needle) async {
   for (var i = 0; i < 30; i++) {
     if (app.stdout.firstMatch(needle) != null) return true;
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -79,9 +79,9 @@ Future<bool> tapContains(final LaunchedApp app, final String needle) async {
 /// Polls [condition] every 100 ms until it holds; fails with [reason] on
 /// expiry so a hung wait names the observable instead of timing out darkly.
 Future<void> waitFor(
-  final bool Function() condition, {
-  final String reason = 'condition never held',
-  final Duration timeout = const Duration(seconds: 10),
+  bool Function() condition, {
+  String reason = 'condition never held',
+  Duration timeout = const Duration(seconds: 10),
 }) async {
   final deadline = DateTime.now().add(timeout);
   while (!condition()) {

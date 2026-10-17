@@ -26,7 +26,7 @@ import 'kernel_stack.dart';
 /// [DevSession], [DevFlow], [watchCommandStream]). The keyboard loop here
 /// is the one explicit interactive surface (never a build path).
 class DevCommand {
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     // Name convergence (ADR-0037 §6): `oka dev` IS the converged dev
     // session (same surface as `oka run dev`); the ADR-0011 android
     // daemon keeps its exact behavior under `oka dev android [...]`
@@ -47,7 +47,7 @@ class DevCommand {
   /// The ADR-0011 android daemon session, byte-for-byte the shipped
   /// surface (manifest preflight → device → attach --machine → control
   /// port), now one subcommand deeper.
-  Future<void> _runAndroidDaemon(final List<String> args) async {
+  Future<void> _runAndroidDaemon(List<String> args) async {
     final parser = ArgParser()
       ..addOption(
         'device',
@@ -279,9 +279,9 @@ class DevCommand {
   /// forwarding the session-parity flags. Install/relaunch/re-attach
   /// happen in the next [DevFlow] prepare round.
   Future<bool> _rebuild(
-    final String projectPath, {
-    required final ArgResults results,
-    required final RunSession session,
+    String projectPath, {
+    required ArgResults results,
+    required RunSession session,
   }) async {
     final entrypoint = await findPipelineEntrypoint(projectPath);
     if (entrypoint == null) {
@@ -330,12 +330,12 @@ class DevCommand {
   ///   (reload/restart/stop/detach/quit);
   /// * `--watch`: file watching → classification → commands (no keyboard).
   void _wireInput(
-    final StreamController<DevControlCommand> control, {
-    required final bool json,
-    required final bool watch,
-    required final String projectPath,
-    required final String? targetFile,
-    required final bool verbose,
+    StreamController<DevControlCommand> control, {
+    required bool json,
+    required bool watch,
+    required String projectPath,
+    required String? targetFile,
+    required bool verbose,
   }) {
     if (watch) {
       final changes = watchDevPaths(
@@ -344,14 +344,14 @@ class DevCommand {
       );
       watchCommandStream(
         changes: changes,
-        onEvent: (final c) {
+        onEvent: (c) {
           if (verbose || json) {
             print('👀 Watch: ${c.reasons.join('; ')}');
           }
         },
       ).listen(
         control.add,
-        onError: (final Object e) => stderr.writeln('❌ Watcher error: $e'),
+        onError: (Object e) => stderr.writeln('❌ Watcher error: $e'),
       );
     }
 
@@ -364,7 +364,7 @@ class DevCommand {
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen(
-            (final line) => control.add(_fromLine(line, onUnknown: _jsonUsage)),
+            (line) => control.add(_fromLine(line, onUnknown: _jsonUsage)),
           );
       return;
     }
@@ -372,7 +372,7 @@ class DevCommand {
       stdin.echoMode = false;
       stdin.lineMode = false;
       final buffer = <int>[];
-      stdin.listen((final bytes) {
+      stdin.listen((bytes) {
         buffer.addAll(bytes);
         while (buffer.isNotEmpty) {
           final byte = buffer.removeAt(0);
@@ -384,8 +384,8 @@ class DevCommand {
   }
 
   DevControlCommand _fromLine(
-    final String line, {
-    required final void Function() onUnknown,
+    String line, {
+    required void Function() onUnknown,
   }) {
     final c = devCommandFromLine(line);
     if (c == null) onUnknown();
@@ -400,7 +400,7 @@ class DevCommand {
   }
 }
 
-void _printUsage(final ArgParser parser) {
+void _printUsage(ArgParser parser) {
   print(
     'oka dev — build + install + launch + hot-reload attach session '
     '(ADR-0011)\n',

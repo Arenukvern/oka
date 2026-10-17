@@ -108,7 +108,7 @@ void main() {
       );
       expect(shellIssues(shell), isEmpty);
       expect(
-        shell.head.map((final e) => e.phase.order),
+        shell.head.map((e) => e.phase.order),
         [WebHeadPhase.preconnect.order, WebHeadPhase.storeSdk.order,
          WebHeadPhase.app.order],
       );

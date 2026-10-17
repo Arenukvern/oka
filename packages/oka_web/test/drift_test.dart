@@ -42,8 +42,8 @@ const _legacyHtml = '''
 /// Reads the current disk contents of an emitter's owned paths under
 /// [webDir] (null = missing) — the thin I/O helper around the pure gate.
 Map<String, String?> readOwnedPaths(
-  final ShellEmitter emitter,
-  final String webDir,
+  ShellEmitter emitter,
+  String webDir,
 ) => {
       for (final owned in emitter.ownedPaths)
         owned: () {
@@ -92,14 +92,14 @@ void main() {
       expect(report.isClean, isFalse);
       expect(report.drifts, hasLength(2));
       final indexDrift =
-          report.drifts.firstWhere((final d) => d.path == 'index.html');
+          report.drifts.firstWhere((d) => d.path == 'index.html');
       expect(indexDrift.message, allOf([
         contains('owned by the "generate" emitter'),
         contains('first difference'),
         contains('oka run web-shell'),
         contains('edit the composition'),
       ]));      final manifestDrift =
-          report.drifts.firstWhere((final d) => d.path == 'manifest.json');
+          report.drifts.firstWhere((d) => d.path == 'manifest.json');
       expect(manifestDrift.message, contains('missing on disk'));
     });
 
@@ -266,7 +266,7 @@ class _BuggyEmitter extends ShellEmitter {
   Set<String> get ownedPaths => const {'ghost.html'};
 
   @override
-  ShellOutput emit(final WebShell shell, {final String? existingIndexHtml}) =>
+  ShellOutput emit(WebShell shell, {String? existingIndexHtml}) =>
       const ShellOutput(files: {});
 }
 
@@ -282,7 +282,7 @@ class _NonIdempotentEmitter extends ShellEmitter {
   Set<String> get ownedPaths => const {'index.html'};
 
   @override
-  ShellOutput emit(final WebShell shell, {final String? existingIndexHtml}) {
+  ShellOutput emit(WebShell shell, {String? existingIndexHtml}) {
     _call++;
     return ShellOutput(
       files: {

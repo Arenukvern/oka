@@ -49,7 +49,7 @@ void main() {
 
     final first = await supervisor.converge(
       desired: desired,
-      factory: (final name) => provider,
+      factory: (name) => provider,
     );
     expect(first.started, 1);
     final record = supervisor.registry.read(supervisor.scope, 'demo');
@@ -59,7 +59,7 @@ void main() {
 
     final second = await supervisor.converge(
       desired: desired,
-      factory: (final name) => provider,
+      factory: (name) => provider,
     );
     expect(second.plan.actions, isEmpty);
     expect(second.plan.findings.single.code, 'ready');
@@ -101,7 +101,7 @@ void main() {
         ),
       ],
     );
-    ResourceProvider factory(final String name) => provider;
+    ResourceProvider factory(String name) => provider;
 
     final first = await supervisor.converge(desired: desired, factory: factory);
     expect(first.failedStarts, 1);
@@ -122,6 +122,6 @@ void main() {
 
     final third = await supervisor.converge(desired: desired, factory: factory);
     expect(third.plan.actions, isEmpty);
-    expect(third.plan.findings.map((final f) => f.code), contains('giveUp'));
+    expect(third.plan.findings.map((f) => f.code), contains('giveUp'));
   }, timeout: const Timeout(Duration(seconds: 30)));
 }

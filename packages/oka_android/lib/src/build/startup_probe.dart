@@ -27,7 +27,7 @@ const startupBeaconReturnedNeedle = '[oka-beacon] main returned';
 /// declaration is found — the probe refuses to guess, because a wrong call
 /// shape is a compile error in the generated wrapper.
 ({bool isAsync, bool takesArgs}) detectMainShape(
-  final String entrypointSource,
+  String entrypointSource,
 ) {
   final m = RegExp(
     r'(?:Future<[^>]*>|Future|void|Null)\s+main\s*\(',
@@ -68,9 +68,9 @@ const startupBeaconReturnedNeedle = '[oka-beacon] main returned';
 /// caches stay stable across runs. [entrypointPath] is resolved relative to
 /// [projectPath] when relative.
 String generateStartupBeaconEntrypoint({
-  required final String projectPath,
-  required final String entrypoint,
-  required final String buildDir,
+  required String projectPath,
+  required String entrypoint,
+  required String buildDir,
 }) {
   final realPath = p.isAbsolute(entrypoint)
       ? entrypoint

@@ -30,7 +30,7 @@ void main() {
 </manifest>
 ''';
 
-  Future<File> writeLibrary(final String name, final String xml) async {
+  Future<File> writeLibrary(String name, String xml) async {
     final file = File(p.join(tempDir.path, name));
     await file.writeAsString(xml);
     return file;

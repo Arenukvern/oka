@@ -132,7 +132,7 @@ class GhPagesDeployTarget extends PublishTarget {
   /// Stages the consumed directory artifact from typed config or the
   /// default `build/web` location.
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [
+  List<BuildStep> publishSteps(BuildContext ctx) => [
         StageWebDirectoryStep(
           artifactId: directoryArtifactId,
           sourceDir: sourceDir,
@@ -141,7 +141,7 @@ class GhPagesDeployTarget extends PublishTarget {
 
   /// The upload tail: [GhPagesUploadStep].
   @override
-  BuildStep uploadStep(final BuildContext ctx) => GhPagesUploadStep(this);
+  BuildStep uploadStep(BuildContext ctx) => GhPagesUploadStep(this);
 
   /// Typed-config validation issues (empty = valid). Pure. Git receives
   /// [branch]/[remote] as separate argv elements (no shell), but refs and
@@ -195,7 +195,7 @@ class GhPagesDeployTarget extends PublishTarget {
   /// ADR-0016 W1: pure deploy-posture lines for `oka explain --targets` —
   /// no I/O, no plan resolution (the artifact path resolves at run time).
   @override
-  List<String> explainDetails(final BuildContext ctx) {
+  List<String> explainDetails(BuildContext ctx) {
     final artifactLine = 'artifact: $artifactId '
         '(directory — ADR-0016 directory-artifact convention)';
     final dryRunLine = dryRun
@@ -229,12 +229,12 @@ extension GhPagesGitCommands on GhPagesDeployTarget {
 
   /// Existing branch: check out the remote branch detached in a temp
   /// worktree (`<worktreeDir>`).
-  List<String> worktreeAddRemoteBranchArgs(final String worktreeDir) =>
+  List<String> worktreeAddRemoteBranchArgs(String worktreeDir) =>
       ['worktree', 'add', '--detach', worktreeDir, '$remote/$branch'];
 
   /// First deploy (no remote branch yet): detach on the current HEAD; the
   /// step then creates an orphan branch inside the worktree.
-  List<String> worktreeAddHeadArgs(final String worktreeDir) =>
+  List<String> worktreeAddHeadArgs(String worktreeDir) =>
       ['worktree', 'add', '--detach', worktreeDir, 'HEAD'];
 
   /// First deploy: orphan branch (no history carried over).
@@ -254,7 +254,7 @@ extension GhPagesGitCommands on GhPagesDeployTarget {
   List<String> pushArgs() => ['push', remote, 'HEAD:refs/heads/$branch'];
 
   /// Worktree removal arguments (cleanup, run with `--force`).
-  List<String> worktreeRemoveArgs(final String worktreeDir) =>
+  List<String> worktreeRemoveArgs(String worktreeDir) =>
       ['worktree', 'remove', '--force', worktreeDir];
 
   /// Worktree prune arguments (cleanup of stale worktree metadata).
@@ -309,12 +309,12 @@ class GhPagesUploadStep extends BuildStep {
   /// resolve artifact/source → worktree setup → content sync → commit →
   /// push → cleanup. Fails actionably at each stage.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     final configIssues = target.validateConfig();
     if (configIssues.isNotEmpty) {
       return StepResult.failure(
         'GhPagesDeployTarget config is invalid:\n'
-        '${configIssues.map((final i) => '  - $i').join('\n')}',
+        '${configIssues.map((i) => '  - $i').join('\n')}',
       );
     }
 
@@ -347,8 +347,8 @@ class GhPagesUploadStep extends BuildStep {
 
     final env = gitEnvironment();
     Future<ProcOutcome> git(
-      final List<String> args, {
-      required final String cwd,
+      List<String> args, {
+      required String cwd,
     }) =>
         ctx.runner.run('git', args, workingDirectory: cwd, environment: env);
 
@@ -497,8 +497,8 @@ class GhPagesUploadStep extends BuildStep {
   /// Deterministic content sync: remove every worktree entry except the
   /// `.git` marker, then copy [source] recursively (skipping `.git`).
   static void _syncDirectory({
-    required final String source,
-    required final String into,
+    required String source,
+    required String into,
   }) {
     final root = Directory(into);
     for (final entity in root.listSync()) {
@@ -508,7 +508,7 @@ class GhPagesUploadStep extends BuildStep {
     _copyTree(Directory(source), into);
   }
 
-  static void _copyTree(final Directory dir, final String targetPath) {
+  static void _copyTree(Directory dir, String targetPath) {
     for (final entity in dir.listSync()) {
       final name = p.basename(entity.path);
       if (name == '.git') continue; // default ignore set

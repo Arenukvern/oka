@@ -26,7 +26,7 @@ List<int> _paddedJarBytes() {
 }
 
 Future<void> _seedStore(
-  final String cacheRoot, {
+  String cacheRoot, {
   required String coordinate,
 }) async {
   final parts = coordinate.split(':');
@@ -46,7 +46,7 @@ Future<void> _seedStore(
   ).writeAsBytes(_paddedJarBytes(), flush: true);
 }
 
-BuildContext _ctx(final String projectPath, final String buildDir) =>
+BuildContext _ctx(String projectPath, String buildDir) =>
     BuildContext(
       projectPath: projectPath,
       buildDir: buildDir,

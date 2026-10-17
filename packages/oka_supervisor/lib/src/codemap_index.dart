@@ -16,8 +16,8 @@ import 'spec.dart';
 final class CodemapIndexRecipe {
   CodemapIndexRecipe({
     required this.executable,
-    required final String projectRoot,
-    final String? receiptPath,
+    required String projectRoot,
+    String? receiptPath,
     this.scope,
     this.reconcilePeriod = const Duration(seconds: 5),
     this.pollPeriod = const Duration(milliseconds: 200),
@@ -103,7 +103,7 @@ final class CodemapIndexRecipe {
 
   DesiredState get desired => DesiredState(specs: [spec]);
 
-  CodemapIndexProvider provider({final ProcessLeaseRegistry? registry}) =>
+  CodemapIndexProvider provider({ProcessLeaseRegistry? registry}) =>
       CodemapIndexProvider(
         process: LeasedProcessProvider(
           leaseId: id,
@@ -129,11 +129,11 @@ final class CodemapIndexHealth {
   // Receipt parsing is a fallible observation, not object construction.
   // ignore: prefer_constructors_over_static_methods
   static CodemapIndexHealth read({
-    required final String receiptPath,
-    required final String projectRoot,
-    required final int? pid,
-    required final DateTime now,
-    required final Duration maxAge,
+    required String receiptPath,
+    required String projectRoot,
+    required int? pid,
+    required DateTime now,
+    required Duration maxAge,
   }) {
     try {
       final json = jsonDecode(File(receiptPath).readAsStringSync());
@@ -191,7 +191,7 @@ final class CodemapIndexProvider implements ResourceProvider {
     required this.projectRoot,
     required this.receiptPath,
     this.maxReceiptAge = const Duration(seconds: 45),
-    final DateTime Function()? clock,
+    DateTime Function()? clock,
   }) : clock = clock ?? (() => DateTime.now().toUtc());
 
   final LeasedProcessProvider process;
@@ -200,7 +200,7 @@ final class CodemapIndexProvider implements ResourceProvider {
   final Duration maxReceiptAge;
   final DateTime Function() clock;
 
-  CodemapIndexHealth health(final ResourceRef ref) => CodemapIndexHealth.read(
+  CodemapIndexHealth health(ResourceRef ref) => CodemapIndexHealth.read(
     receiptPath: receiptPath,
     projectRoot: projectRoot,
     pid: ref.pid,
@@ -211,15 +211,15 @@ final class CodemapIndexProvider implements ResourceProvider {
   @override
   ProviderCapabilities get capabilities => process.capabilities;
   @override
-  Future<StartReport> start(final StartRequest request) =>
+  Future<StartReport> start(StartRequest request) =>
       process.start(request);
   @override
   Future<StopReport> stop(
-    final ResourceRef ref, {
-    required final Duration grace,
+    ResourceRef ref, {
+    required Duration grace,
   }) => process.stop(ref, grace: grace);
   @override
-  Future<Observation> inspect(final ResourceRef ref) async {
+  Future<Observation> inspect(ResourceRef ref) async {
     final live = await process.reconcile(ref);
     if (live.state != ResourceState.ready) return live;
     final index = health(ref);
@@ -234,5 +234,5 @@ final class CodemapIndexProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> reconcile(final ResourceRef ref) => inspect(ref);
+  Future<Observation> reconcile(ResourceRef ref) => inspect(ref);
 }

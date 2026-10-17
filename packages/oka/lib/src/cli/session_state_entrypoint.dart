@@ -10,8 +10,8 @@ const _sessionStateProtocolFramePrefix = '\x1eOKA_SESSION_STATE_V1:';
 /// Returns null when no pipeline entrypoint is discoverable so commands can
 /// retain their first-party fallback behavior.
 Future<Map<String, Object?>?> runProjectSessionState({
-  required final String projectPath,
-  required final Map<String, Object?> request,
+  required String projectPath,
+  required Map<String, Object?> request,
 }) async {
   final entrypoint = await findPipelineEntrypoint(projectPath);
   if (entrypoint == null) return null;
@@ -28,7 +28,7 @@ Future<Map<String, Object?>?> runProjectSessionState({
 
   final frames = const LineSplitter()
       .convert(stdoutText)
-      .where((final line) => line.startsWith(_sessionStateProtocolFramePrefix))
+      .where((line) => line.startsWith(_sessionStateProtocolFramePrefix))
       .toList();
   if (frames.isEmpty) {
     throw const FormatException(

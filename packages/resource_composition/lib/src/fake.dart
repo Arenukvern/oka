@@ -63,7 +63,7 @@ final class FakeProvider implements ResourceProvider {
   var _nextPid = 4200;
 
   @override
-  Future<StartReport> start(final StartRequest request) async {
+  Future<StartReport> start(StartRequest request) async {
     starts.add(request);
     if (startError != null) {
       // ignore: only_throw_errors — the scripted error is caller-chosen.
@@ -101,12 +101,12 @@ final class FakeProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> inspect(final ResourceRef ref) async => observation;
+  Future<Observation> inspect(ResourceRef ref) async => observation;
 
   @override
   Future<StopReport> stop(
-    final ResourceRef ref, {
-    required final Duration grace,
+    ResourceRef ref, {
+    required Duration grace,
   }) async {
     stops.add(ref);
     return StopReport(
@@ -121,7 +121,7 @@ final class FakeProvider implements ResourceProvider {
   }
 
   @override
-  Future<Observation> reconcile(final ResourceRef ref) async {
+  Future<Observation> reconcile(ResourceRef ref) async {
     reconciles.add(ref);
     return observation;
   }

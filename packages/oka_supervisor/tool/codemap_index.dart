@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:oka_supervisor/oka_supervisor.dart';
 import 'package:resource_composition/resource_composition.dart';
 
-Future<void> main(final List<String> args) async {
+Future<void> main(List<String> args) async {
   try {
     final options = <String, String>{};
     var stop = false;
@@ -110,7 +110,7 @@ Future<void> main(final List<String> args) async {
         }),
       );
       if (!report.ok ||
-          report.plan.findings.any((final f) => f.code == 'giveUp')) {
+          report.plan.findings.any((f) => f.code == 'giveUp')) {
         exitCode = 1;
       }
       if (pass + 1 < passes) {

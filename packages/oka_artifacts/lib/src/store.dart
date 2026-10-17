@@ -99,7 +99,7 @@ final class _Entry {
     this.deltaSize,
   });
 
-  factory _Entry.fromJson(final Map<String, Object?> json) => _Entry(
+  factory _Entry.fromJson(Map<String, Object?> json) => _Entry(
     kind: json['kind']! as String,
     resultSha: json['resultSha']! as String,
     blobSha: json['blobSha'] as String?,
@@ -133,7 +133,7 @@ final class _Chain {
     required this.policy,
   });
 
-  factory _Chain.fromJson(final Map<String, Object?> json) => _Chain(
+  factory _Chain.fromJson(Map<String, Object?> json) => _Chain(
     name: json['name']! as String,
     codec: json['codec']! as String,
     policy: StorageStrategy.fromJson(json['policy']! as Map<String, Object?>),
@@ -176,14 +176,14 @@ final class ArtifactStore {
   final Directory root;
 
   Directory get _blobs => Directory(p.join(root.path, 'blobs'));
-  Directory _chainDir(final String name) =>
+  Directory _chainDir(String name) =>
       Directory(p.join(root.path, 'chains', _safe(name)));
 
-  File _chainFile(final String name) =>
+  File _chainFile(String name) =>
       File(p.join(_chainDir(name).path, 'chain.json'));
 
   /// Artifact names are store keys, not paths: one segment, no tricks.
-  String _safe(final String name) {
+  String _safe(String name) {
     if (name.isEmpty ||
         name.length > 128 ||
         !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$').hasMatch(name)) {
@@ -195,7 +195,7 @@ final class ArtifactStore {
     return name;
   }
 
-  String _shaOf(final List<int> bytes) => sha256.convert(bytes).toString();
+  String _shaOf(List<int> bytes) => sha256.convert(bytes).toString();
 
   /// Records one revision under [name] according to [policy]. Identical
   /// head content is a no-op ([RecordReceipt.unchanged]). A
@@ -203,11 +203,11 @@ final class ArtifactStore {
   /// the codec is unavailable, the ratio stops paying, the depth or
   /// cadence bound fires, or the chain is new.
   RecordReceipt record(
-    final List<int> bytes, {
-    required final String name,
-    required final StorageStrategy policy,
-    required final DeltaCodec codec,
-    final DateTime? now,
+    List<int> bytes, {
+    required String name,
+    required StorageStrategy policy,
+    required DeltaCodec codec,
+    DateTime? now,
   }) {
     _safe(name);
     final sha = _shaOf(bytes);
@@ -262,16 +262,16 @@ final class ArtifactStore {
   /// Returns the delta bytes to store, or null when this revision must
   /// be a snapshot.
   Uint8List? _deltaOrSnapshot({
-    required final List<int> bytes,
-    required final String sha,
-    required final _Chain? chain,
-    required final DeltaChain policy,
-    required final DeltaCodec codec,
+    required List<int> bytes,
+    required String sha,
+    required _Chain? chain,
+    required DeltaChain policy,
+    required DeltaCodec codec,
   }) {
     if (chain == null) return null; // first revision is always a snapshot
     if (!codec.isAvailable) return null;
     final deltasSinceSnapshot = chain.entries.reversed
-        .takeWhile((final e) => e.kind == 'delta')
+        .takeWhile((e) => e.kind == 'delta')
         .length;
     if (deltasSinceSnapshot >= policy.maxChainDepth) return null;
     if (deltasSinceSnapshot + 1 >= policy.orEvery) return null;
@@ -284,12 +284,12 @@ final class ArtifactStore {
   }
 
   void _writeSnapshot(
-    final String name,
-    final List<int> bytes,
-    final String sha,
-    final _Chain? chain,
-    final StorageStrategy policy,
-    final DeltaCodec codec,
+    String name,
+    List<int> bytes,
+    String sha,
+    _Chain? chain,
+    StorageStrategy policy,
+    DeltaCodec codec,
   ) {
     _blobs.createSync(recursive: true);
     final blob = File(p.join(_blobs.path, sha));
@@ -310,13 +310,13 @@ final class ArtifactStore {
   }
 
   void _appendDelta(
-    final String name,
-    final List<int> bytes,
-    final String sha,
-    final _Chain chain,
-    final DeltaChain policy,
-    final DeltaCodec codec,
-    final Uint8List deltaBytes,
+    String name,
+    List<int> bytes,
+    String sha,
+    _Chain chain,
+    DeltaChain policy,
+    DeltaCodec codec,
+    Uint8List deltaBytes,
   ) {
     final dir = _chainDir(name)..createSync(recursive: true);
     final n = chain.entries.length;
@@ -344,14 +344,14 @@ final class ArtifactStore {
   /// [codec] is required once the chain contains deltas; snapshot-only
   /// chains materialize without one.
   Materialization materialize({
-    required final String name,
-    final DeltaCodec? codec,
+    required String name,
+    DeltaCodec? codec,
   }) {
     final chain = _readChain(name);
     if (chain == null) {
       throw StateError('no artifact chain for "$name"');
     }
-    final hasDeltas = chain.entries.any((final e) => e.kind == 'delta');
+    final hasDeltas = chain.entries.any((e) => e.kind == 'delta');
     if (hasDeltas && (codec == null || !codec.isAvailable)) {
       throw ArtifactStoreCorruptException(name, [
         if (codec == null)
@@ -411,7 +411,7 @@ final class ArtifactStore {
   }
 
   /// Re-materializes the chain purely to check integrity.
-  VerifyReport verify({required final String name, final DeltaCodec? codec}) {
+  VerifyReport verify({required String name, DeltaCodec? codec}) {
     try {
       materialize(name: name, codec: codec);
       return const VerifyReport(ok: true);
@@ -421,11 +421,11 @@ final class ArtifactStore {
   }
 
   /// Human-oriented chain summary for `status`.
-  Map<String, Object?>? status({required final String name}) {
+  Map<String, Object?>? status({required String name}) {
     final chain = _readChain(name);
     if (chain == null) return null;
     final snapshots = chain.entries
-        .where((final e) => e.kind == 'snapshot')
+        .where((e) => e.kind == 'snapshot')
         .length;
     final deltas = chain.entries.length - snapshots;
     return {
@@ -446,12 +446,12 @@ final class ArtifactStore {
     return dir
         .listSync()
         .whereType<Directory>()
-        .map((final d) => p.basename(d.path))
+        .map((d) => p.basename(d.path))
         .toList()
       ..sort();
   }
 
-  _Chain? _readChain(final String name) {
+  _Chain? _readChain(String name) {
     final file = _chainFile(name);
     if (!file.existsSync()) return null;
     return _Chain.fromJson(
@@ -459,7 +459,7 @@ final class ArtifactStore {
     );
   }
 
-  void _writeChain(final _Chain chain) {
+  void _writeChain(_Chain chain) {
     final chainFile = _chainFile(chain.name);
     chainFile.parent.createSync(recursive: true);
     File('${chainFile.path}.tmp')
@@ -479,5 +479,5 @@ final class ArtifactStoreCorruptException implements Exception {
   @override
   String toString() =>
       'artifact chain "$name" is corrupt:\n'
-      '${problems.map((final p) => '  - $p').join('\n')}';
+      '${problems.map((p) => '  - $p').join('\n')}';
 }

@@ -34,7 +34,7 @@ void main() {
         () => t.applyInvocationArgs({'bogus': '1'}),
         throwsA(
           predicate(
-            (final e) => e.toString().contains('device=<serial>'),
+            (e) => e.toString().contains('device=<serial>'),
           ),
         ),
       );
@@ -66,5 +66,5 @@ class _NoArgsTarget extends Target {
   String get description => 'target without invocation args';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => const [];
+  List<BuildStep> compile(BuildContext ctx) => const [];
 }

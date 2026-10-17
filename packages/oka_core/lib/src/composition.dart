@@ -70,7 +70,7 @@ class Oka {
       if (target is! SessionStateWorkflowContributor) continue;
       final contributor = target as SessionStateWorkflowContributor;
       for (final workflow in contributor.sessionStateWorkflows) {
-        if (workflows.any((final existing) => identical(existing, workflow))) {
+        if (workflows.any((existing) => identical(existing, workflow))) {
           continue;
         }
         workflows.add(workflow);
@@ -103,5 +103,5 @@ abstract class PlatformPipeline {
   Map<String, dynamic> get configOverrides => const {};
 
   /// Composes and runs this pipeline for [ctx].
-  Future<StepResult> run(final BuildContext ctx);
+  Future<StepResult> run(BuildContext ctx);
 }

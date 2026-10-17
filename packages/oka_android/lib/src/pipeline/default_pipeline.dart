@@ -46,8 +46,8 @@ class ExtraDepsStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     // ADR-0010: constructor coordinates win; pipeline-level overrides fill in.
     final effective = coordinates.isNotEmpty
@@ -102,7 +102,7 @@ class ExtraDepsStep extends BuildStep {
     final natives = <String, List<String>>{...state.aarNativeLibsByAbi};
     final resDirs = <String>[...state.aarResDirs];
     for (final jar in selected) {
-      jar.nativeLibsByAbi.forEach((final abi, final paths) {
+      jar.nativeLibsByAbi.forEach((abi, paths) {
         natives.putIfAbsent(normalizeAbi(abi), () => []).addAll(paths);
       });
       for (final dir in jar.resDirs) {
@@ -111,19 +111,19 @@ class ExtraDepsStep extends BuildStep {
     }
     // Embedding-set winners are already on the classpath via androidxJars;
     // only genuinely extra artifacts become extra runtime jars.
-    final selectedPaths = selected.map((final jar) => jar.jarPath).toSet();
+    final selectedPaths = selected.map((jar) => jar.jarPath).toSet();
     // One version per artifact everywhere: the embedding list is narrowed to
     // the selected winners. A loser riding along on the classpath or in the
     // dex splits versions across the APK — camera-core 1.4.2 beside the
     // transitive 1.6.1 made CameraX's provider resolution fail at runtime
     // while every compile-time symbol resolved cleanly.
     state.androidxJars = state.androidxJars
-        .where((final jar) => selectedPaths.contains(jar.jarPath))
+        .where((jar) => selectedPaths.contains(jar.jarPath))
         .toList();
-    final keptPaths = state.androidxJars.map((final j) => j.jarPath).toSet();
+    final keptPaths = state.androidxJars.map((j) => j.jarPath).toSet();
     state.extraRuntimeJars = selected
-        .where((final jar) => !keptPaths.contains(jar.jarPath))
-        .map((final jar) => jar.jarPath)
+        .where((jar) => !keptPaths.contains(jar.jarPath))
+        .map((jar) => jar.jarPath)
         .toList();
     state.aarNativeLibsByAbi = natives;
     state.aarResDirs = resDirs;
@@ -133,7 +133,7 @@ class ExtraDepsStep extends BuildStep {
 
 /// Picks the highest resolved version per `groupId:artifactId`, keeping the
 /// result order deterministic (sorted by jar path).
-List<ResolvedJar> _selectLatestByArtifact(final Iterable<ResolvedJar> jars) {
+List<ResolvedJar> _selectLatestByArtifact(Iterable<ResolvedJar> jars) {
   final best = <String, ResolvedJar>{};
   for (final jar in jars) {
     final key = '${jar.coordinate.groupId}:${jar.coordinate.artifactId}';
@@ -148,7 +148,7 @@ List<ResolvedJar> _selectLatestByArtifact(final Iterable<ResolvedJar> jars) {
     }
   }
   return best.values.toList()
-    ..sort((final a, final b) => a.jarPath.compareTo(b.jarPath));
+    ..sort((a, b) => a.jarPath.compareTo(b.jarPath));
 }
 
 /// Processes local AAR files declared in `pipeline.local_aars`.
@@ -169,8 +169,8 @@ class LocalAarsStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     // ADR-0010: constructor paths win; pipeline-level overrides fill in.
     final effective = aarPaths.isNotEmpty
@@ -211,7 +211,7 @@ class LocalAarsStep extends BuildStep {
 
       // natives + res
       final payload = await extractAarPayload(bytes, workDir, verbose: verbose);
-      payload.nativeLibsByAbi.forEach((final abi, final paths) {
+      payload.nativeLibsByAbi.forEach((abi, paths) {
         natives.putIfAbsent(abi, () => []).addAll(paths);
       });
       resDirs.addAll(payload.resDirs);
@@ -238,8 +238,8 @@ class _LayoutOnlyStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final abis = resolveAbis(
       configAbis: ctx.config.android.abis,
@@ -277,13 +277,13 @@ class _LayoutOnlyStep extends BuildStep {
 /// Step order mirrors the historical FlutterApkBuilder.build() exactly —
 /// this is a behavior-preserving composition.
 Future<Pipeline> defaultApkPipeline(
-  final ResolvedToolchain toolchain, {
-  final bool verbose = false,
-  final bool layoutOnly = false,
-  final bool strictPlugins = true,
-  final bool allowNetwork = true,
-  final DependencyCache? dependencyCache,
-  final PipelineOverrides overrides = const PipelineOverrides(),
+  ResolvedToolchain toolchain, {
+  bool verbose = false,
+  bool layoutOnly = false,
+  bool strictPlugins = true,
+  bool allowNetwork = true,
+  DependencyCache? dependencyCache,
+  PipelineOverrides overrides = const PipelineOverrides(),
 }) async {
   final cache =
       dependencyCache ??
@@ -340,12 +340,12 @@ Future<Pipeline> defaultApkPipeline(
 /// (`--proto-format`), packaging (`base/` module + jarsigner v1) and layout
 /// validation.
 Future<Pipeline> defaultAabPipeline(
-  final ResolvedToolchain toolchain, {
-  final bool verbose = false,
-  final bool strictPlugins = true,
-  final bool allowNetwork = true,
-  final DependencyCache? dependencyCache,
-  final PipelineOverrides overrides = const PipelineOverrides(),
+  ResolvedToolchain toolchain, {
+  bool verbose = false,
+  bool strictPlugins = true,
+  bool allowNetwork = true,
+  DependencyCache? dependencyCache,
+  PipelineOverrides overrides = const PipelineOverrides(),
 }) async {
   final cache =
       dependencyCache ??

@@ -16,10 +16,10 @@ class ChainTarget extends Target {
   String get description => 'Test-only two-step target (assemble → sign)';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [AssembleStep(), SignStep()];
+  List<BuildStep> compile(BuildContext ctx) => [AssembleStep(), SignStep()];
 
   @override
-  List<String> explainDetails(final BuildContext ctx) => const [
+  List<String> explainDetails(BuildContext ctx) => const [
         'test detail: pure composition line',
       ];
 }
@@ -34,7 +34,7 @@ class AssembleStep extends BuildStep {
   Set<Artifact<Object>> get provides => {out};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
       Future.value(StepResult.success({out.id: 'assembled'}));
 }
 
@@ -48,11 +48,11 @@ class SignStep extends BuildStep {
   Set<Artifact<Object>> get requires => {input};
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) =>
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
       Future.value(StepResult.success());
 }
 
-Future<void> main(final List<String> args) => okaRun(
+Future<void> main(List<String> args) => okaRun(
       args,
       oka: const Oka(pipelines: [], targets: [ChainTarget()]),
     );

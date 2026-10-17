@@ -73,12 +73,12 @@ class CredentialRef {
 
   /// Diagnostic form for doctor and step diagnostics: the *path* may
   /// appear; a value never can (a ref holds none by construction).
-  String describe([final String? resolvedPath]) => resolvedPath == null
+  String describe([String? resolvedPath]) => resolvedPath == null
       ? 'CredentialRef($target/$kind)'
       : 'CredentialRef($target/$kind at $resolvedPath)';
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is CredentialRef &&
       other.target == target &&
       other.kind == kind &&
@@ -98,9 +98,9 @@ class CredentialRef {
 }
 
 /// Upper-snake-safe env fragment: `play-store` → `PLAY_STORE`.
-String _envSafe(final String s) =>
+String _envSafe(String s) =>
     s.toUpperCase().replaceAll(RegExp('[^A-Z0-9]'), '_');
 
 /// File-name-safe fragment: `service_account.json` → `service-account-json`.
-String _fileSafe(final String s) =>
+String _fileSafe(String s) =>
     s.toLowerCase().replaceAll(RegExp('[^a-z0-9]+'), '-');

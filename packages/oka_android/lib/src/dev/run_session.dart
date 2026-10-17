@@ -62,7 +62,7 @@ const int runSessionSchemaVersion = 1;
 /// whitespace-trimmed keys/values, sorted by key. `--dart-define=STORE=
 /// googlePlay` and `--dart-define-from-file` contents must normalize to the
 /// same map for flag parity.
-Map<String, String> normalizeDartDefines(final Map<String, String> defines) {
+Map<String, String> normalizeDartDefines(Map<String, String> defines) {
   final trimmed = <String, String>{
     for (final e in defines.entries) e.key.trim(): e.value.trim(),
   };
@@ -76,8 +76,8 @@ Map<String, String> normalizeDartDefines(final Map<String, String> defines) {
 /// `pairs` are raw `KEY=VALUE` strings (later wins on duplicate keys);
 /// `fileEntries` are the parsed key/values of a define-from-file JSON map.
 Map<String, String> mergeDartDefines({
-  final List<String> pairs = const [],
-  final Map<String, String> fileEntries = const {},
+  List<String> pairs = const [],
+  Map<String, String> fileEntries = const {},
 }) {
   final merged = <String, String>{...fileEntries};
   for (final pair in pairs) {
@@ -112,7 +112,7 @@ class RunSession {
 
   /// Parses a manifest, tolerating unknown fields (forward-compatible
   /// readers; writers are the same package that reads).
-  factory RunSession.fromJson(final Map<String, dynamic> json) {
+  factory RunSession.fromJson(Map<String, dynamic> json) {
     final schema = (json['schema'] as num?)?.toInt() ?? runSessionSchemaVersion;
     if (schema != runSessionSchemaVersion) {
       throw RunSessionException(
@@ -148,13 +148,13 @@ class RunSession {
 
   /// Loads and parses the manifest at [path]. Missing or corrupt manifests
   /// throw [RunSessionException] with the rebuild fix.
-  factory RunSession.load(final String path) => RunSession.loadFrom(path);
+  factory RunSession.load(String path) => RunSession.loadFrom(path);
 
   /// Loads through an injected repository. [load] remains the file-backed
   /// compatibility entry point.
   static RunSession loadFrom(
-    final String path, {
-    final RunManifestRepository repository = const FileRunManifestRepository(),
+    String path, {
+    RunManifestRepository repository = const FileRunManifestRepository(),
   }) {
     try {
       return RunSession.fromJson(repository.read(path));
@@ -174,8 +174,8 @@ class RunSession {
   /// Finds the manifest for [apkPath] (same directory, fixed name), or null
   /// when none was recorded (pre-H1 build).
   static RunSession? forApk(
-    final String apkPath, {
-    final RunManifestRepository repository = const FileRunManifestRepository(),
+    String apkPath, {
+    RunManifestRepository repository = const FileRunManifestRepository(),
   }) {
     final json = repository.readForArtifact(apkPath, runSessionFileName);
     return json == null ? null : RunSession.fromJson(json);
@@ -221,8 +221,8 @@ class RunSession {
 
   /// Writes the manifest to [path] (parent dirs created).
   Future<File> write(
-    final String path, {
-    final RunManifestRepository repository = const FileRunManifestRepository(),
+    String path, {
+    RunManifestRepository repository = const FileRunManifestRepository(),
   }) => repository.write(path, toJson());
 }
 
@@ -296,14 +296,14 @@ class SessionValidation {
 /// warn-and-continue: mismatches come back typed so the caller can refuse
 /// loudly.
 SessionValidation validateRunSession(
-  final RunSession session,
-  final RunSessionRequest request,
+  RunSession session,
+  RunSessionRequest request,
 ) {
   final mismatches = <SessionFieldMismatch>[];
   const String rebuild = 'rebuild: `oka build apk --debug` with these flags';
   const String align = 'align the `oka dev` flags with the recorded build';
 
-  String? of(final String? v) => (v == null || v.isEmpty) ? null : v;
+  String? of(String? v) => (v == null || v.isEmpty) ? null : v;
 
   final String? target = of(request.targetFile);
   if (target != null && target != session.targetFile) {
@@ -334,9 +334,9 @@ SessionValidation validateRunSession(
   if (defines != null && !mapEqualsStr(defines, session.dartDefines)) {
     final differing = <String>{
       ...defines.keys.where(
-        (final k) => session.dartDefines[k] != defines[k],
+        (k) => session.dartDefines[k] != defines[k],
       ),
-      ...session.dartDefines.keys.where((final k) => !defines.containsKey(k)),
+      ...session.dartDefines.keys.where((k) => !defines.containsKey(k)),
     }.toList()
       ..sort();
     mismatches.add(
@@ -365,17 +365,17 @@ SessionValidation validateRunSession(
 }
 
 /// Oka-branded mismatch error: names every differing field + the fix.
-String formatSessionMismatches(final List<SessionFieldMismatch> mismatches) =>
+String formatSessionMismatches(List<SessionFieldMismatch> mismatches) =>
     '❌ Session mismatch — refusing to start a dev session against this '
     'APK.\n'
     '   A mismatched attach compiles a kernel the running app cannot '
     'accept\n'
     '   (it fails at runtime, not at command time).\n'
-    '${mismatches.map((final m) => m.toString()).join('\n')}\n'
+    '${mismatches.map((m) => m.toString()).join('\n')}\n'
     '\n'
     '   The recorded session lives in run_session.json next to the APK.';
 
-bool mapEqualsStr(final Map<String, String> a, final Map<String, String> b) {
+bool mapEqualsStr(Map<String, String> a, Map<String, String> b) {
   if (a.length != b.length) return false;
   for (final e in a.entries) {
     if (b[e.key] != e.value) return false;
@@ -383,8 +383,8 @@ bool mapEqualsStr(final Map<String, String> a, final Map<String, String> b) {
   return true;
 }
 
-String definesToLine(final Map<String, String> defines) =>
-    defines.entries.map((final e) => '${e.key}=${e.value}').join(', ');
+String definesToLine(Map<String, String> defines) =>
+    defines.entries.map((e) => '${e.key}=${e.value}').join(', ');
 
 /// Thrown for missing/corrupt/unknown-schema manifests (fail closed).
 class RunSessionException implements Exception {
@@ -425,15 +425,15 @@ class DevSessionCheck {
 ///   build) → rebuild instructions;
 /// * recorded SDK path no longer holds a flutter binary.
 Future<DevSessionCheck> checkDevSession({
-  required final String projectPath,
-  final String? targetFile,
-  final List<String> dartDefinePairs = const [],
-  final String? dartDefineFromFile,
-  final String requestedBuildMode = 'debug',
-  final RunManifestRepository manifestRepository =
+  required String projectPath,
+  String? targetFile,
+  List<String> dartDefinePairs = const [],
+  String? dartDefineFromFile,
+  String requestedBuildMode = 'debug',
+  RunManifestRepository manifestRepository =
       const FileRunManifestRepository(),
-  final FlutterSdkProbe sdkProbe = const HostFlutterSdkProbe(),
-  final Future<String?> Function(String projectPath)? discoverApk,
+  FlutterSdkProbe sdkProbe = const HostFlutterSdkProbe(),
+  Future<String?> Function(String projectPath)? discoverApk,
 }) => DevSessionPreflight(
   manifestRepository: manifestRepository,
   sdkProbe: sdkProbe,
@@ -477,14 +477,14 @@ final class DevSessionPreflight {
 }
 
 Future<DevSessionCheck> _checkDevSession({
-  required final String projectPath,
-  required final RunManifestRepository manifestRepository,
-  required final FlutterSdkProbe sdkProbe,
-  required final Future<String?> Function(String projectPath) discoverApk,
-  final String? targetFile,
-  final List<String> dartDefinePairs = const [],
-  final String? dartDefineFromFile,
-  final String requestedBuildMode = 'debug',
+  required String projectPath,
+  required RunManifestRepository manifestRepository,
+  required FlutterSdkProbe sdkProbe,
+  required Future<String?> Function(String projectPath) discoverApk,
+  String? targetFile,
+  List<String> dartDefinePairs = const [],
+  String? dartDefineFromFile,
+  String requestedBuildMode = 'debug',
 }) async {
   final apk = await discoverApk(projectPath);
   if (apk == null) {
@@ -522,7 +522,7 @@ Future<DevSessionCheck> _checkDevSession({
         );
       }
       fileEntries = decoded.map(
-        (final k, final v) => MapEntry(k.toString(), v.toString()),
+        (k, v) => MapEntry(k.toString(), v.toString()),
       );
     } on FormatException catch (e) {
       return DevSessionCheck.refused(
@@ -597,7 +597,7 @@ Future<DevSessionCheck> _checkDevSession({
 /// must use the SDK that produced the APK's `flutter_assets`, never ambient
 /// PATH. Returns the platform-appropriate binary path; [exists] reports
 /// whether it is actually present.
-({String path, bool exists}) flutterBinaryForSdk(final String flutterSdkPath) {
+({String path, bool exists}) flutterBinaryForSdk(String flutterSdkPath) {
   final path = p.join(flutterSdkPath, 'bin',
       'flutter${Platform.isWindows ? '.bat' : ''}');
   return (path: path, exists: File(path).existsSync());
@@ -607,7 +607,7 @@ Future<DevSessionCheck> _checkDevSession({
 /// `<sdk>/bin/internal/engine.version` is authoritative and stable. Falls
 /// back to `flutter --version --machine` via the SDK's own binary (never
 /// PATH) when the file is absent (older SDK layouts).
-Future<String> readEngineRevisionFromSdk(final String flutterSdkPath) async =>
+Future<String> readEngineRevisionFromSdk(String flutterSdkPath) async =>
     (await const HostFlutterSdkProbe().inspect(flutterSdkPath)).engineRevision;
 
 /// Records `run_session.json` next to the packaged artifact (APK/AAB) at
@@ -638,8 +638,8 @@ class RecordRunSessionStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final artifactPath = state.apkPath;
     if (artifactPath == null || artifactPath.isEmpty) {

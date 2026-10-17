@@ -53,7 +53,7 @@ class StageWebDirectoryStep extends BuildStep {
   /// output) and records it in [PipelineState]; never touches the
   /// filesystem.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) {
     final path = sourceDir ?? _resolveStaged(ctx, state);
     if (path.isNotEmpty) state[artifactId] = path;
     return Future<StepResult>.value(StepResult.success());
@@ -61,7 +61,7 @@ class StageWebDirectoryStep extends BuildStep {
 
   /// State resolution (typed override already handled): an upstream
   /// artifact with [artifactId] wins over the default output layout.
-  String _resolveStaged(final BuildContext ctx, final PipelineState state) {
+  String _resolveStaged(BuildContext ctx, PipelineState state) {
     final existing = state[artifactId];
     if (existing is String && existing.isNotEmpty) return existing;
     return defaultWebOutput(ctx);
@@ -69,6 +69,6 @@ class StageWebDirectoryStep extends BuildStep {
 
   /// Flutter's default web output location: `<project>/build/web` (where
   /// `flutter build web` writes — keep in sync with FlutterWebBuildStep).
-  static String defaultWebOutput(final BuildContext ctx) =>
+  static String defaultWebOutput(BuildContext ctx) =>
       p.join(ctx.projectPath, 'build', 'web');
 }

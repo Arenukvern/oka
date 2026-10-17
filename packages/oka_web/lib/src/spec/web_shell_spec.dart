@@ -158,7 +158,7 @@ class PwaManifestSpec {
   final bool preferRelatedApplications;
 
   /// Applies [override] on top of these fields (null fields pass through).
-  PwaManifestSpec apply(final PwaManifestOverride override) => PwaManifestSpec(
+  PwaManifestSpec apply(PwaManifestOverride override) => PwaManifestSpec(
         name: override.name ?? name,
         shortName: override.shortName ?? shortName,
         startUrl: override.startUrl ?? startUrl,

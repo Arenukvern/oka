@@ -7,7 +7,7 @@ import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-BuildContext _ctx(final String projectPath) => BuildContext(
+BuildContext _ctx(String projectPath) => BuildContext(
       projectPath: projectPath,
       buildDir: p.join(projectPath, '.oka_cache', 'build', 'debug'),
       mode: BuildMode.debug,
@@ -18,9 +18,9 @@ BuildContext _ctx(final String projectPath) => BuildContext(
 /// Writes an executable shell script answering the adb calls (baked-in
 /// behavior — the `adr0015_device_target_test` pattern).
 Future<String> _fakeAdb(
-  final Directory dir,
-  final String name,
-  final String body,
+  Directory dir,
+  String name,
+  String body,
 ) async {
   final f = File(p.join(dir.path, name))
     ..writeAsStringSync('#!/bin/sh\n$body');
@@ -249,8 +249,8 @@ void main() {
         () => AdbTool(adbPath: bad).install('/x/app-debug.apk'),
         throwsA(
           isA<AdbToolException>()
-              .having((final e) => e.failure.kind, 'kind', 'signing-mismatch')
-              .having((final e) => e.toString(), 'toString',
+              .having((e) => e.failure.kind, 'kind', 'signing-mismatch')
+              .having((e) => e.toString(), 'toString',
                   contains('same key')),
         ),
       );
@@ -288,7 +288,7 @@ void main() {
         () => AdbTool(adbPath: adb).forwardTcp(devicePort: 1),
         throwsA(
           isA<AdbToolException>().having(
-            (final e) => e.failure.kind,
+            (e) => e.failure.kind,
             'kind',
             'device-offline',
           ),

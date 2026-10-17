@@ -18,7 +18,7 @@ import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-BuildContext _ctx(final String projectPath) => BuildContext(
+BuildContext _ctx(String projectPath) => BuildContext(
       projectPath: projectPath,
       buildDir: p.join(projectPath, '.oka_cache', 'build', 'debug'),
       mode: BuildMode.debug,
@@ -31,9 +31,9 @@ BuildContext _ctx(final String projectPath) => BuildContext(
 /// device steps make. Behavior is baked in at creation time — no env vars,
 /// no state.
 Future<String> _fakeTool(
-  final Directory dir,
-  final String name,
-  final String body,
+  Directory dir,
+  String name,
+  String body,
 ) async {
   final f = File(p.join(dir.path, name))
     ..writeAsStringSync('#!/bin/sh\n$body');
@@ -160,7 +160,7 @@ void main() {
       addTearDown(() => tools.delete(recursive: true));
     });
 
-    Future<StepResult> runTarget(final DeviceTarget target) {
+    Future<StepResult> runTarget(DeviceTarget target) {
       final pipeline = Pipeline(target.compile(_ctx(project.path)));
       final validationError = pipeline.validate();
       if (validationError != null) {

@@ -18,7 +18,7 @@ class SecretMaterialException implements Exception {
   @override
   String toString() =>
       'secret material leaked into $context:\n'
-      '${findings.map((final f) => '  - $f').join('\n')}';
+      '${findings.map((f) => '  - $f').join('\n')}';
 }
 
 /// Asserts [output] — any dumped text a target produces: a
@@ -33,10 +33,10 @@ class SecretMaterialException implements Exception {
 ///
 /// Throws [SecretMaterialException] naming every finding.
 void expectNoSecretMaterial(
-  final String output, {
-  final Iterable<CredentialRef> refs = const [],
-  final Iterable<Pattern> forbidden = const [],
-  final String context = 'output',
+  String output, {
+  Iterable<CredentialRef> refs = const [],
+  Iterable<Pattern> forbidden = const [],
+  String context = 'output',
 }) {
   final findings = <String>[];
   for (final ref in refs) {
@@ -63,17 +63,17 @@ void expectNoSecretMaterial(
   }
 }
 
-String _render(final Pattern p) => p is RegExp ? '/${p.pattern}/' : '"$p"';
+String _render(Pattern p) => p is RegExp ? '/${p.pattern}/' : '"$p"';
 
 /// Asserts a full [PipelineState] carries no secret material and respects
 /// the ADR-0014 value-type law (refs, booleans, numbers, plans, path/id
 /// strings only) — usable on *real-run* states too, where
 /// `auditPublishConformance` (dry-run only) does not reach.
 void expectStateRedacted(
-  final PipelineState state, {
-  final Iterable<CredentialRef> refs = const [],
-  final Iterable<Pattern> forbidden = const [],
-  final String context = 'PipelineState snapshot',
+  PipelineState state, {
+  Iterable<CredentialRef> refs = const [],
+  Iterable<Pattern> forbidden = const [],
+  String context = 'PipelineState snapshot',
 }) {
   final dump = StringBuffer();
   for (final entry in state.snapshot.entries) {

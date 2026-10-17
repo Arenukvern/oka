@@ -139,7 +139,7 @@ class ItchDeployTarget extends PublishTarget {
   /// Stages the consumed directory artifact from typed config or the
   /// default `build/web` location.
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [
+  List<BuildStep> publishSteps(BuildContext ctx) => [
         StageWebDirectoryStep(
           artifactId: directoryArtifactId,
           sourceDir: sourceDir,
@@ -148,7 +148,7 @@ class ItchDeployTarget extends PublishTarget {
 
   /// The upload tail: [ButlerUploadStep].
   @override
-  BuildStep uploadStep(final BuildContext ctx) => ButlerUploadStep(this);
+  BuildStep uploadStep(BuildContext ctx) => ButlerUploadStep(this);
 
   /// Typed-config validation issues (empty = valid). Pure. The push
   /// address is passed as a single argv element (oka never spawns a
@@ -158,7 +158,7 @@ class ItchDeployTarget extends PublishTarget {
   /// errors, before any tool runs.
   List<String> validateConfig() {
     final issues = <String>[];
-    void check(final String what, final String value) {
+    void check(String what, String value) {
       if (value.isEmpty) {
         issues.add('$what is empty — set it in the ItchDeployTarget typed '
             'config (butler cannot address a channel without it)');
@@ -192,7 +192,7 @@ class ItchDeployTarget extends PublishTarget {
   /// ADR-0016 W1: pure deploy-posture lines for `oka explain --targets` —
   /// no I/O, no plan resolution (the artifact path resolves at run time).
   @override
-  List<String> explainDetails(final BuildContext ctx) {
+  List<String> explainDetails(BuildContext ctx) {
     final artifactLine = 'artifact: $artifactId '
         '(directory — ADR-0016 directory-artifact convention)';
     final dryRunLine = dryRun
@@ -217,7 +217,7 @@ final RegExp _identifierPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
 extension ButlerCommands on ItchDeployTarget {
   /// ButlER push arguments (the executable is passed separately to the
   /// process runner): `push DIR USER/GAME:CHANNEL`.
-  List<String> pushArgs({required final String directory}) =>
+  List<String> pushArgs({required String directory}) =>
       ['push', directory, channelAddress];
 
   /// `--version` — availability probe before the real push.
@@ -238,7 +238,7 @@ extension ButlerCommands on ItchDeployTarget {
 class ButlerUploadStep extends BuildStep {
   /// Wraps [target]; [environment] defaults to the host environment
   /// (injectable for tests).
-  ButlerUploadStep(this.target, {final Map<String, String>? environment})
+  ButlerUploadStep(this.target, {Map<String, String>? environment})
       : environment = environment ?? Platform.environment;
 
   /// The deploy target whose config this step executes.
@@ -263,12 +263,12 @@ class ButlerUploadStep extends BuildStep {
   /// interactive input). Fails actionably on missing config/artifact/key
   /// or non-zero butler exit.
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     final configIssues = target.validateConfig();
     if (configIssues.isNotEmpty) {
       return StepResult.failure(
         'ItchDeployTarget config is invalid:\n'
-        '${configIssues.map((final i) => '  - $i').join('\n')}',
+        '${configIssues.map((i) => '  - $i').join('\n')}',
       );
     }
 

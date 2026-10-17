@@ -109,7 +109,7 @@ void main() {
           'com.google.android.gms:play-services-base': '/tmp/base.jar',
         },
       );
-      expect(step.provides.map((final a) => a.id), {
+      expect(step.provides.map((a) => a.id), {
         'gms-dep:com.android.billingclient:billing-ktx',
         'gms-dep:com.google.android.gms:play-services-base',
       });

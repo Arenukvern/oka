@@ -67,26 +67,26 @@ const defaultR8KeepRules = '''
 /// merge order is golden-testable: defaults first, app rules last (later
 /// rules override earlier ones in R8).
 String composeR8Rules({
-  final String base = defaultR8KeepRules,
-  final List<String> extraRules = const [],
+  String base = defaultR8KeepRules,
+  List<String> extraRules = const [],
 }) {
   if (extraRules.isEmpty) return base;
   return '$base\n# App-declared rules (AndroidBuild.r8Rules)\n'
-      '${extraRules.map((final rule) => '$rule\n').join()}';
+      '${extraRules.map((rule) => '$rule\n').join()}';
 }
 
 /// R8 version provisioned by oka (stable Google Maven release).
 const kR8Version = '9.4.24';
 
 /// Google Maven download URL for the standalone R8 jar.
-String r8MavenDownloadUrl({final String version = kR8Version}) =>
+String r8MavenDownloadUrl({String version = kR8Version}) =>
     'https://dl.google.com/android/maven2/'
     'com/android/tools/r8/$version/r8-$version.jar';
 
 /// Store key for the standalone R8 jar (ADR-0013/0028): identity is the
 /// download URL, so re-published artifacts change keys. The jar lives only
 /// in the store — no second copy under `~/.oka/tools` (ADR-0028 §1).
-ContentKey r8StoreKey({final String version = kR8Version}) =>
+ContentKey r8StoreKey({String version = kR8Version}) =>
     ContentKey.compute(
       category: 'r8',
       name: 'r8',
@@ -97,8 +97,8 @@ ContentKey r8StoreKey({final String version = kR8Version}) =>
 
 /// Absolute path of [version]'s R8 jar inside the shared artifact store.
 String storeR8JarPath({
-  final String version = kR8Version,
-  final Map<String, String>? environment,
+  String version = kR8Version,
+  Map<String, String>? environment,
 }) {
   final key = r8StoreKey(version: version);
   return p.join(
@@ -120,7 +120,7 @@ String okaR8ToolsDir() {
 }
 
 /// Default jar path for [version] under the oka tools directory.
-String defaultR8JarPath({final String version = kR8Version}) =>
+String defaultR8JarPath({String version = kR8Version}) =>
     p.join(okaR8ToolsDir(), 'r8-$version.jar');
 
 /// Java command launching the R8 CLI from [r8Path].
@@ -129,7 +129,7 @@ String defaultR8JarPath({final String version = kR8Version}) =>
 /// `java -jar` fails because the Maven artifact's manifest Main-Class
 /// (`SwissArmyKnife`) is absent from the published jar. A non-jar path is
 /// an `r8` wrapper binary.
-List<String> r8Command(final String r8Path, final List<String> args) =>
+List<String> r8Command(String r8Path, List<String> args) =>
     r8Path.toLowerCase().endsWith('.jar')
     ? ['java', '-cp', r8Path, 'com.android.tools.r8.R8', ...args]
     : [r8Path, ...args];
@@ -140,9 +140,9 @@ List<String> r8Command(final String r8Path, final List<String> args) =>
 /// [environment]/[home] are injectable so the toolchain policy can resolve
 /// against a test environment instead of the host's real state.
 Future<String?> findR8Jar({
-  final String? explicitPath,
-  final Map<String, String>? environment,
-  final String? home,
+  String? explicitPath,
+  Map<String, String>? environment,
+  String? home,
 }) async {
   final env = environment ?? Platform.environment;
   final homeDir = home ?? env['HOME'] ?? env['USERPROFILE'] ?? '';
@@ -164,8 +164,8 @@ Future<String?> findR8Jar({
 /// cache list/gc` sees it; OKA_CACHE shares it). Returns the stored jar
 /// path — no tools-dir copy is made (ADR-0028 §1).
 Future<String> installR8({
-  final String version = kR8Version,
-  final bool verbose = false,
+  String version = kR8Version,
+  bool verbose = false,
 }) async {
   final url = r8MavenDownloadUrl(version: version);
   final store = LocalArtifactStore();

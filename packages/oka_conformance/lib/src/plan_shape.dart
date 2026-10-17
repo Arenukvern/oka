@@ -15,7 +15,7 @@ class PlanShapeException implements Exception {
   @override
   String toString() =>
       'publish plan does not have the expected shape:\n'
-      '${mismatches.map((final m) => '  - $m').join('\n')}\n'
+      '${mismatches.map((m) => '  - $m').join('\n')}\n'
       'plan: ${plan.describeLines().join('\n  ')}';
 }
 
@@ -27,22 +27,22 @@ class PlanShapeException implements Exception {
 /// pass [exactMetadata] as `true` to require an exact map. [credentials]
 /// must match the plan's refs exactly (order included).
 void expectPlanShape(
-  final PublishPlan plan, {
-  final String? target,
-  final String? endpoint,
-  final String? track,
-  final String? artifactId,
-  final String? artifactPath,
-  final bool? dryRun,
-  final Map<String, String> metadata = const {},
-  final bool exactMetadata = false,
+  PublishPlan plan, {
+  String? target,
+  String? endpoint,
+  String? track,
+  String? artifactId,
+  String? artifactPath,
+  bool? dryRun,
+  Map<String, String> metadata = const {},
+  bool exactMetadata = false,
 
   /// Pass a non-empty list to assert the plan's credential refs exactly;
   /// null (the default) skips the credentials check.
-  final List<CredentialRef>? credentials,
+  List<CredentialRef>? credentials,
 }) {
   final m = <String>[];
-  void check(final String what, final Object? expected, final Object? actual) {
+  void check(String what, Object? expected, Object? actual) {
     if (expected != null && expected != actual) {
       m.add('$what: expected $expected, plan says $actual');
     }
@@ -96,9 +96,9 @@ void expectPlanShape(
 
 /// Asserts the plan renders as *describable text* (the agent-facing law):
 /// every listed fragment must appear in `plan.describeLines()`.
-void expectPlanDescribes(final PublishPlan plan, final List<String> fragments) {
+void expectPlanDescribes(PublishPlan plan, List<String> fragments) {
   final joined = plan.describeLines().join('\n');
-  final missing = fragments.where((final f) => !joined.contains(f)).toList();
+  final missing = fragments.where((f) => !joined.contains(f)).toList();
   if (missing.isNotEmpty) {
     throw PlanShapeException(
       plan: plan,

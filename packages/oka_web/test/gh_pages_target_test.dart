@@ -30,11 +30,11 @@ class _ScriptedRunner implements ProcessRunner {
 
   @override
   Future<ProcOutcome> run(
-    final String executable,
-    final List<String> arguments, {
-    final String? workingDirectory,
-    final Map<String, String>? environment,
-    final Duration? timeout,
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    Duration? timeout,
   }) {
     final call = _Call(executable, arguments, workingDirectory, environment);
     calls.add(call);
@@ -42,7 +42,7 @@ class _ScriptedRunner implements ProcessRunner {
   }
 
   List<List<String>> get argv =>
-      calls.map((final c) => [c.executable, ...c.arguments]).toList();
+      calls.map((c) => [c.executable, ...c.arguments]).toList();
 
   void assertNoCalls() {
     if (calls.isNotEmpty) fail('unexpected calls: $calls');
@@ -51,10 +51,10 @@ class _ScriptedRunner implements ProcessRunner {
 
 const ProcOutcome _ok = ProcOutcome(exitCode: 0, stdout: '', stderr: '');
 
-ProcOutcome _okOut(final String stdout) =>
+ProcOutcome _okOut(String stdout) =>
     ProcOutcome(exitCode: 0, stdout: stdout, stderr: '');
 
-BuildContext _ctx(final Directory tmp, {final ProcessRunner? runner}) =>
+BuildContext _ctx(Directory tmp, {ProcessRunner? runner}) =>
     BuildContext(
       projectPath: tmp.path,
       buildDir: p.join(tmp.path, '.oka_cache', 'build', 'debug'),
@@ -67,7 +67,7 @@ BuildContext _ctx(final Directory tmp, {final ProcessRunner? runner}) =>
 
 /// Creates a source directory with content (including a `.git` entry that
 /// must never be copied by the content sync).
-Directory _source(final Directory tmp) {
+Directory _source(Directory tmp) {
   final dir = Directory(p.join(tmp.path, 'source'))
     ..createSync(recursive: true);
   File(p.join(dir.path, 'index.html')).writeAsStringSync('<html></html>');
@@ -158,14 +158,14 @@ void main() {
       final chain = describeTarget(const GhPagesDeployTarget(), _ctx(tmp));
       expect(chain.isValid, isTrue, reason: chain.validationError);
       expect(
-        chain.steps.map((final s) => s.name).toList(),
+        chain.steps.map((s) => s.name).toList(),
         ['stage-web-dir', 'publish-plan'],
       );
     });
 
     test('dry run performs zero command execution (canary runner)',
         () async {
-      final runner = _ScriptedRunner((final _) => fail('must not run git'));
+      final runner = _ScriptedRunner((_) => fail('must not run git'));
       final state = PipelineState();
       final result =
           await Pipeline(const GhPagesDeployTarget().compile(_ctx(tmp, runner: runner)))
@@ -204,7 +204,7 @@ void main() {
     test('first deploy: orphan branch path — exact argv sequence', () async {
       final source = _source(tmp);
       final target = GhPagesDeployTarget(dryRun: false, sourceDir: source.path);
-      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
+      final runner = _ScriptedRunner((call) => switch (call.arguments.first) {
           'rev-parse' => const ProcOutcome(exitCode: 128, stdout: '', stderr: ''),
           'fetch' => const ProcOutcome(exitCode: 128, stdout: '', stderr: ''),
           'status' => _okOut('A  index.html\n'),
@@ -239,7 +239,7 @@ void main() {
           ['git', 'worktree', 'remove', '--force', worktreeDir],
           ['git', 'worktree', 'prune'],
         ],
-        reason: runner.calls.map((final c) => c.toString()).join('\n'),
+        reason: runner.calls.map((c) => c.toString()).join('\n'),
       );
 
       // cwd discipline: repo-level commands run in the project, worktree
@@ -278,7 +278,7 @@ void main() {
         () async {
       final source = _source(tmp);
       final target = GhPagesDeployTarget(dryRun: false, sourceDir: source.path);
-      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
+      final runner = _ScriptedRunner((call) => switch (call.arguments.first) {
           'rev-parse' => _ok,
           'status' => _okOut('M  index.html\n'),
           _ => _ok,
@@ -292,7 +292,7 @@ void main() {
       final worktreeDir =
           p.join(_ctx(tmp).buildDir, 'gh-pages', 'worktree');
       final worktreeAdds = runner.calls
-          .where((final c) => c.arguments.take(2).join(' ') == 'worktree add')
+          .where((c) => c.arguments.take(2).join(' ') == 'worktree add')
           .toList();
       expect(worktreeAdds, hasLength(1));
       expect(
@@ -300,11 +300,11 @@ void main() {
         ['worktree', 'add', '--detach', worktreeDir, 'origin/gh-pages'],
       );
       expect(
-        runner.calls.map((final c) => c.arguments.first),
+        runner.calls.map((c) => c.arguments.first),
         isNot(contains('fetch')),
       );
       expect(
-        runner.calls.map((final c) => c.arguments.first),
+        runner.calls.map((c) => c.arguments.first),
         isNot(contains('checkout')),
       );
     });
@@ -313,7 +313,7 @@ void main() {
         () async {
       final source = _source(tmp);
       final target = GhPagesDeployTarget(dryRun: false, sourceDir: source.path);
-      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
+      final runner = _ScriptedRunner((call) => switch (call.arguments.first) {
           'rev-parse' => _ok,
           'status' => _okOut(''),
           _ => _ok,
@@ -328,11 +328,11 @@ void main() {
         contains('nothing to publish'),
       );
       expect(
-        runner.calls.map((final c) => c.arguments.first),
+        runner.calls.map((c) => c.arguments.first),
         isNot(contains('push')),
       );
       expect(
-        runner.calls.map((final c) => c.arguments.first),
+        runner.calls.map((c) => c.arguments.first),
         isNot(contains('commit')),
       );
     });
@@ -344,7 +344,7 @@ void main() {
         sourceDir: source.path,
         subdirectory: 'assets',
       );
-      final runner = _ScriptedRunner((final call) => switch (call.arguments.first) {
+      final runner = _ScriptedRunner((call) => switch (call.arguments.first) {
           'rev-parse' => _ok,
           'status' => _okOut('A  app.js\n'),
           _ => _ok,
@@ -366,7 +366,7 @@ void main() {
         dryRun: false,
         sourceDir: p.join(tmp.path, 'does-not-exist'),
       );
-      final runner = _ScriptedRunner((final _) => fail('must not run git'));
+      final runner = _ScriptedRunner((_) => fail('must not run git'));
       final state = PipelineState();
       final result =
           await Pipeline(target.compile(_ctx(tmp, runner: runner)))

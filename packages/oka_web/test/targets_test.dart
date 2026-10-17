@@ -34,7 +34,7 @@ void main() {
         spec: WebShellSpec(title: 'Example'),
       );
       final steps = target.compile(ctx());
-      expect(steps.map((final s) => s.name).toList(),
+      expect(steps.map((s) => s.name).toList(),
           ['validate-web-shell', 'emit-web-shell']);
       expect(Pipeline(steps).validate(), isNull);
     });
@@ -47,7 +47,7 @@ void main() {
       expect(description.isValid, isTrue);
       expect(description.name, 'web-shell');
       expect(
-        description.steps.map((final s) => s.name).toList(),
+        description.steps.map((s) => s.name).toList(),
         ['validate-web-shell', 'emit-web-shell'],
       );
       // The emit step consumes the composed shell artifact.
@@ -123,7 +123,7 @@ void main() {
     test('compile produces the delegation step; chain validates', () {
       const target = WebBuildTarget(baseHref: '/games/');
       final steps = target.compile(ctx());
-      expect(steps.map((final s) => s.name).toList(),
+      expect(steps.map((s) => s.name).toList(),
           ['flutter-web-build']);
       expect(Pipeline(steps).validate(), isNull);
       final description = describeTarget(target, ctx());

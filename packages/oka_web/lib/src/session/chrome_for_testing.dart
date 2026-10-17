@@ -25,8 +25,8 @@ const kChromeForTestingVersionsUrl = 'https://googlechromelabs.github.io/chrome-
 /// Download URL for one CFT build. Versioned — the store key pins exactly
 /// what was downloaded.
 String chromeForTestingDownloadUrl({
-  required final String version,
-  required final String platform,
+  required String version,
+  required String platform,
 }) =>
     'https://storage.googleapis.com/chrome-for-testing-public/'
     '$version/$platform/chrome-$platform.zip';
@@ -34,8 +34,8 @@ String chromeForTestingDownloadUrl({
 /// Chrome-for-testing platform name for this host. Throws
 /// [UnsupportedError] on platforms CFT does not ship.
 String chromeForTestingPlatform({
-  final String? operatingSystem,
-  final Abi? abi,
+  String? operatingSystem,
+  Abi? abi,
 }) {
   final os = operatingSystem ?? Platform.operatingSystem;
   final hostAbi = abi ?? Abi.current();
@@ -56,7 +56,7 @@ String chromeForTestingPlatform({
 
 /// Path of the browser binary inside an extracted CFT archive, relative to
 /// the extraction root. Pure — golden-testable per platform.
-String chromeForTestingBinaryInArchive(final String platform) {
+String chromeForTestingBinaryInArchive(String platform) {
   switch (platform) {
     case 'mac-arm64':
     case 'mac-x64':
@@ -81,11 +81,11 @@ String chromeForTestingBinaryInArchive(final String platform) {
 /// Provisions and resolves a Chromium binary for browser sessions.
 class ChromeForTestingProvisioner {
   ChromeForTestingProvisioner({
-    final LocalArtifactStore? store,
-    final String? toolsRoot,
-    final String? platform,
-    final Future<String> Function(Uri url)? fetchText,
-    final Future<List<int>> Function(Uri url)? fetchBytes,
+    LocalArtifactStore? store,
+    String? toolsRoot,
+    String? platform,
+    Future<String> Function(Uri url)? fetchText,
+    Future<List<int>> Function(Uri url)? fetchBytes,
   }) : store = store ?? LocalArtifactStore(),
        toolsRoot =
            toolsRoot ?? _defaultToolsRoot(Platform.environment),
@@ -104,12 +104,12 @@ class ChromeForTestingProvisioner {
   final Future<String> Function(Uri url) fetchText;
   final Future<List<int>> Function(Uri url) fetchBytes;
 
-  static String _defaultToolsRoot(final Map<String, String> env) {
+  static String _defaultToolsRoot(Map<String, String> env) {
     final home = env['HOME'] ?? env['USERPROFILE'] ?? '.';
     return p.join(home, '.oka', 'tools', 'chrome-for-testing');
   }
 
-  static Future<String> _defaultFetchText(final Uri url) async {
+  static Future<String> _defaultFetchText(Uri url) async {
     final result = await Process.run('curl', [
       '-L',
       '-f',
@@ -122,7 +122,7 @@ class ChromeForTestingProvisioner {
     return result.stdout as String;
   }
 
-  static Future<List<int>> _defaultFetchBytes(final Uri url) async {
+  static Future<List<int>> _defaultFetchBytes(Uri url) async {
     final tmp = await Directory.systemTemp.createTemp('oka_cft_');
     final tempFile = p.join(tmp.path, 'download.bin');
     final result = await Process.run('curl', [
@@ -140,7 +140,7 @@ class ChromeForTestingProvisioner {
 
   /// Path the browser binary takes once extraction completed for
   /// [version]. Deterministic; used both to check and to produce.
-  String binaryPathInToolsRoot(final String version) => p.join(
+  String binaryPathInToolsRoot(String version) => p.join(
     toolsRoot,
     '$version-$platform',
     chromeForTestingBinaryInArchive(platform),
@@ -153,7 +153,7 @@ class ChromeForTestingProvisioner {
     if (!root.existsSync()) return null;
     final dirs =
         root.listSync(followLinks: false).whereType<Directory>().toList()
-          ..sort((final a, final b) => b.path.compareTo(a.path));
+          ..sort((a, b) => b.path.compareTo(a.path));
     for (final dir in dirs) {
       final candidate = p.join(
         dir.path,
@@ -183,7 +183,7 @@ class ChromeForTestingProvisioner {
 
   /// Downloads (or reuses from the artifact store) and extracts the Stable
   /// CFT build. Returns the browser binary path.
-  Future<String> provision({final void Function(String message)? log}) async {
+  Future<String> provision({void Function(String message)? log}) async {
     final say = log ?? print;
     final version = await resolveStableVersion();
     final url = chromeForTestingDownloadUrl(version: version, platform: platform);
@@ -246,9 +246,9 @@ class ChromeForTestingProvisioner {
   /// spawn failure, never be silently replaced by whatever Chrome the host
   /// happens to have.
   Future<String?> resolveBinary({
-    final String? explicitPath,
-    final Map<String, String>? environment,
-    final void Function(String message)? log,
+    String? explicitPath,
+    Map<String, String>? environment,
+    void Function(String message)? log,
   }) async {
     final env = environment ?? Platform.environment;
     if (explicitPath != null && explicitPath.trim().isNotEmpty) {
@@ -271,7 +271,7 @@ class ChromeForTestingProvisioner {
 
   /// Well-known system Chrome installs, checked last (the provisioned build
   /// is preferred: version-pinned, store-visible, hermetic).
-  String? findSystemChrome({final Map<String, String>? environment}) {
+  String? findSystemChrome({Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
     final home = env['HOME'] ?? env['USERPROFILE'] ?? '.';
     final candidates = <String>[

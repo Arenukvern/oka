@@ -9,10 +9,10 @@ import '../version.dart';
 import 'session_state_entrypoint.dart';
 
 /// Recursively converts YamlMap/YamlList to Map/List
-dynamic _yamlToJson(final Object? value) {
+dynamic _yamlToJson(Object? value) {
   if (value is YamlMap) {
     return value.map(
-      (final k, final v) => MapEntry(k.toString(), _yamlToJson(v)),
+      (k, v) => MapEntry(k.toString(), _yamlToJson(v)),
     );
   } else if (value is YamlList) {
     return value.map(_yamlToJson).toList();
@@ -127,8 +127,8 @@ class DoctorCommand {
           );
           final findings = (entry['findings'] as List? ?? const [])
               .whereType<Map<Object?, Object?>>()
-              .map((final finding) => finding.cast<String, Object?>())
-              .where((final finding) => finding['use'] != 'unused');
+              .map((finding) => finding.cast<String, Object?>())
+              .where((finding) => finding['use'] != 'unused');
           for (final finding in findings) {
             print(
               '    ${finding['use']}: ${finding['reason']} '

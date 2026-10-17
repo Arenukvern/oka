@@ -48,7 +48,7 @@ void main() {
       tap.waitFor('never', timeout: const Duration(milliseconds: 100)),
       throwsA(
         isA<TimeoutException>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           allOf(contains('app'), contains('line-2')),
         ),

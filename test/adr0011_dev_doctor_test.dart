@@ -29,12 +29,12 @@ const _manifest = '''
 /// with a fake recorded SDK that has a flutter binary, plus a fake adb
 /// that reports one ready device.
 Future<Directory> fixtureProject({
-  final bool withManifest = true,
-  final bool withApk = true,
-  final bool withBinary = true,
+  bool withManifest = true,
+  bool withApk = true,
+  bool withBinary = true,
 
   /// null → no adb script at all; `''` → empty device listing.
-  final String? deviceListing =
+  String? deviceListing =
       'List of devices attached\n'
       'emulator-5554\tdevice model:Pixel_5 transport_id:1\n',
 }) async {
@@ -166,7 +166,7 @@ void main() {
     );
     expect(r.ok, isTrue);
     expect(
-      r.lines.any((final l) => l.contains('device')),
+      r.lines.any((l) => l.contains('device')),
       isFalse,
       reason: r.lines.join('\n'),
     );

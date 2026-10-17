@@ -32,8 +32,8 @@ void main() {
         store: ArtifactStore(root: root),
       );
 
-  File artifactWith(final String tag) => File(p.join(temp.path, '$tag.bin'))
-    ..writeAsBytesSync(List.generate(4096, (final i) => tag.length + i % 251));
+  File artifactWith(String tag) => File(p.join(temp.path, '$tag.bin'))
+    ..writeAsBytesSync(List.generate(4096, (i) => tag.length + i % 251));
 
   test('put → status → materialize round-trips the head bytes', () async {
     final artifact = artifactWith('a');

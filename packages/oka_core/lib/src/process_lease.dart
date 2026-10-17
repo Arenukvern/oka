@@ -57,8 +57,8 @@ enum LeaseScope {
 
   /// Decodes a wire label; unknown values throw (fail-closed, the registry
   /// never guesses a scope).
-  static LeaseScope fromLabel(final String label) => LeaseScope.values
-      .firstWhere((final s) => s.label == label, orElse: () => throw _unknownLabel('LeaseScope', label, LeaseScope.values.map((final s) => s.label)));
+  static LeaseScope fromLabel(String label) => LeaseScope.values
+      .firstWhere((s) => s.label == label, orElse: () => throw _unknownLabel('LeaseScope', label, LeaseScope.values.map((s) => s.label)));
 }
 
 /// Ownership of a leased process (ADR-0018 §3): [owned] = this run spawned
@@ -76,14 +76,14 @@ enum LeaseOwnership {
   String get label => name;
 
   /// Decodes a wire label; unknown values throw (fail-closed).
-  static LeaseOwnership fromLabel(final String label) => LeaseOwnership.values
-      .firstWhere((final o) => o.label == label, orElse: () => throw _unknownLabel('LeaseOwnership', label, LeaseOwnership.values.map((final o) => o.label)));
+  static LeaseOwnership fromLabel(String label) => LeaseOwnership.values
+      .firstWhere((o) => o.label == label, orElse: () => throw _unknownLabel('LeaseOwnership', label, LeaseOwnership.values.map((o) => o.label)));
 }
 
 FormatException _unknownLabel(
-  final String type,
-  final String label,
-  final Iterable<String> accepted,
+  String type,
+  String label,
+  Iterable<String> accepted,
 ) =>
     FormatException(
       'Unknown $type label "$label" — accepted: ${accepted.join(', ')}.',
@@ -101,7 +101,7 @@ final class LeaseStopHint {
   const LeaseStopHint({required this.tool, this.args = const []});
 
   /// Decodes from the `stop_hint` JSON object.
-  factory LeaseStopHint.fromJson(final Object? json) {
+  factory LeaseStopHint.fromJson(Object? json) {
     final map = jsonDecodeMap(json);
     return LeaseStopHint(
       tool: jsonDecodeString(map['tool']),
@@ -119,7 +119,7 @@ final class LeaseStopHint {
   Map<String, Object?> toJson() => {'tool': tool, 'args': args};
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is LeaseStopHint && other.tool == tool && _listEquals(other.args, args);
 
   @override
@@ -179,7 +179,7 @@ final class ProcessLease {
   });
 
   /// Decodes from the ADR §1 JSON shape.
-  factory ProcessLease.fromJson(final Object? json) {
+  factory ProcessLease.fromJson(Object? json) {
     final map = jsonDecodeMap(json);
     final identityMap = jsonDecodeMap(map['identity']);
     return ProcessLease(
@@ -187,7 +187,7 @@ final class ProcessLease {
       pid: jsonDecodeInt(map['pid']),
       kind: jsonDecodeString(map['kind']),
       identity: identityMap.map(
-        (final k, final v) => MapEntry(k, jsonDecodeString(v)),
+        (k, v) => MapEntry(k, jsonDecodeString(v)),
       ),
       scope: LeaseScope.fromLabel(jsonDecodeString(map['scope'])),
       ownership: LeaseOwnership.fromLabel(jsonDecodeString(map['ownership'])),
@@ -198,7 +198,7 @@ final class ProcessLease {
   }
 
   /// Decodes from a JSON string.
-  factory ProcessLease.fromJsonString(final String source) =>
+  factory ProcessLease.fromJsonString(String source) =>
       ProcessLease.fromJson(jsonDecode(source));
 
   /// Stable identifier, e.g. `emulator-oka-emulator` — also the on-disk
@@ -251,10 +251,10 @@ final class ProcessLease {
   /// to flip [ownership] to `borrowed` (ADR-0018 §3: adopting a lease
   /// flips its ownership; nothing else changes).
   ProcessLease copyWith({
-    required final Map<String, String> identity,
-    final int? pid,
-    final LeaseOwnership? ownership,
-    final LeaseStopHint? stopHint,
+    required Map<String, String> identity,
+    int? pid,
+    LeaseOwnership? ownership,
+    LeaseStopHint? stopHint,
   }) =>
       ProcessLease(
         id: id,
@@ -269,7 +269,7 @@ final class ProcessLease {
       );
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is ProcessLease &&
       other.id == id &&
       other.pid == pid &&
@@ -299,8 +299,8 @@ final class ProcessLease {
       'ProcessLease($id, pid $pid, $kind, ${ownership.label}/${scope.label})';
 }
 
-bool _listEquals(final List<String> a, final List<String> b) =>
-    a.length == b.length && a.indexed.every((final e) => b[e.$1] == e.$2);
+bool _listEquals(List<String> a, List<String> b) =>
+    a.length == b.length && a.indexed.every((e) => b[e.$1] == e.$2);
 
-bool _mapEquals(final Map<String, String> a, final Map<String, String> b) =>
-    a.length == b.length && a.entries.every((final e) => b[e.key] == e.value);
+bool _mapEquals(Map<String, String> a, Map<String, String> b) =>
+    a.length == b.length && a.entries.every((e) => b[e.key] == e.value);

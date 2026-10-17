@@ -23,9 +23,9 @@ enum SessionStateNamespace {
 
   String get label => name;
 
-  static SessionStateNamespace fromLabel(final String label) =>
+  static SessionStateNamespace fromLabel(String label) =>
       SessionStateNamespace.values.firstWhere(
-        (final value) => value.label == label,
+        (value) => value.label == label,
         orElse: () =>
             throw FormatException('Unknown session-state namespace "$label".'),
       );
@@ -44,9 +44,9 @@ enum SessionStateRetention {
 
   String get label => name;
 
-  static SessionStateRetention fromLabel(final String label) =>
+  static SessionStateRetention fromLabel(String label) =>
       SessionStateRetention.values.firstWhere(
-        (final value) => value.label == label,
+        (value) => value.label == label,
         orElse: () =>
             throw FormatException('Unknown session-state retention "$label".'),
       );
@@ -62,9 +62,9 @@ enum SessionStateOwnership {
 
   String get label => name;
 
-  static SessionStateOwnership fromLabel(final String label) =>
+  static SessionStateOwnership fromLabel(String label) =>
       SessionStateOwnership.values.firstWhere(
-        (final value) => value.label == label,
+        (value) => value.label == label,
         orElse: () =>
             throw FormatException('Unknown session-state ownership "$label".'),
       );
@@ -78,9 +78,9 @@ enum SessionStateAcquisitionMode {
 
   String get label => name;
 
-  static SessionStateAcquisitionMode fromLabel(final String label) =>
+  static SessionStateAcquisitionMode fromLabel(String label) =>
       SessionStateAcquisitionMode.values.firstWhere(
-        (final value) => value.label == label,
+        (value) => value.label == label,
         orElse: () => throw FormatException(
           'Unknown session-state acquisition mode "$label".',
         ),
@@ -99,9 +99,9 @@ enum SessionStatePhase {
 
   String get label => name;
 
-  static SessionStatePhase fromLabel(final String label) =>
+  static SessionStatePhase fromLabel(String label) =>
       SessionStatePhase.values.firstWhere(
-        (final value) => value.label == label,
+        (value) => value.label == label,
         orElse: () =>
             throw FormatException('Unknown session-state phase "$label".'),
       );
@@ -117,9 +117,9 @@ enum SessionStateResourceKind {
 
   String get label => name;
 
-  static SessionStateResourceKind fromLabel(final String label) =>
+  static SessionStateResourceKind fromLabel(String label) =>
       SessionStateResourceKind.values.firstWhere(
-        (final value) => value.label == label,
+        (value) => value.label == label,
         orElse: () => throw FormatException(
           'Unknown session-state resource kind "$label".',
         ),
@@ -169,7 +169,7 @@ final class SessionStateLease {
     this.reservationMarkerAdjacent = false,
   });
 
-  factory SessionStateLease.fromJson(final Object? value) {
+  factory SessionStateLease.fromJson(Object? value) {
     if (value is! Map) {
       throw const FormatException(
         'Session-state record must be a JSON object.',
@@ -211,7 +211,7 @@ final class SessionStateLease {
       'reservation_marker_adjacent',
     };
     final unknownFields = map.keys.where(
-      (final key) => !knownFields.contains(key),
+      (key) => !knownFields.contains(key),
     );
     if (unknownFields.isNotEmpty) {
       throw FormatException(
@@ -476,8 +476,8 @@ final class SessionStateLease {
   };
 
   static String _requiredString(
-    final Map<String, Object?> map,
-    final String key,
+    Map<String, Object?> map,
+    String key,
   ) {
     final value = map[key];
     if (value is! String || value.isEmpty) {
@@ -486,7 +486,7 @@ final class SessionStateLease {
     return value;
   }
 
-  static int _requiredInt(final Map<String, Object?> map, final String key) {
+  static int _requiredInt(Map<String, Object?> map, String key) {
     final value = map[key];
     if (value is! int) {
       throw FormatException('Session-state field "$key" must be an integer.');
@@ -628,7 +628,7 @@ final class SessionStateContext<H> {
   SessionStateContext({
     required this.handle,
     required this.lease,
-    final Map<String, Object?> artifacts = const {},
+    Map<String, Object?> artifacts = const {},
   }) : artifacts = Map.of(artifacts);
 
   final H handle;
@@ -677,14 +677,14 @@ final class SessionStateWorkflowSession {
   /// Internal manager operation; callers must hold the resource lock and have
   /// passed the lease's safety checks before invoking provisioning.
   @internal
-  Future<void> provision(final SessionStateLease lease) => _provision(lease);
+  Future<void> provision(SessionStateLease lease) => _provision(lease);
 
-  Future<List<SessionStateFinding>> inspect(final SessionStateLease lease) =>
+  Future<List<SessionStateFinding>> inspect(SessionStateLease lease) =>
       _inspect(lease);
 
   Future<void> prepareCleanupStep(
-    final SessionStateLease lease,
-    final String stepId,
+    SessionStateLease lease,
+    String stepId,
   ) => _prepareCleanupStep(lease, stepId);
 }
 
@@ -737,15 +737,15 @@ final class SessionStateWorkflow<H> {
   /// Restores a typed handle once and exposes safe, type-erased operations to
   /// the registry-driven reconciler.
   Future<SessionStateWorkflowSession> restoreSession(
-    final SessionStateLease lease, {
-    final bool forReuse = false,
+    SessionStateLease lease, {
+    bool forReuse = false,
   }) async {
     final handle = await source.restore(lease).timeout(inspectionTimeout);
     final inspectorsForSession = forReuse
         ? reuseInspectors ?? inspectors
         : inspectors;
     return SessionStateWorkflowSession(
-      inspect: (final currentLease) async {
+      inspect: (currentLease) async {
         final context = SessionStateContext<H>(
           handle: handle,
           lease: currentLease,
@@ -778,7 +778,7 @@ final class SessionStateWorkflow<H> {
         }
         return List.unmodifiable(findings);
       },
-      provision: (final currentLease) async {
+      provision: (currentLease) async {
         final context = SessionStateContext<H>(
           handle: handle,
           lease: currentLease,
@@ -806,13 +806,13 @@ final class SessionStateWorkflow<H> {
           }
         }
       },
-      cleanupStepIds: cleanup.map((final step) => step.id).toList(),
-      prepareCleanupStep: (final currentLease, final stepId) async {
+      cleanupStepIds: cleanup.map((step) => step.id).toList(),
+      prepareCleanupStep: (currentLease, stepId) async {
         final context = SessionStateContext<H>(
           handle: handle,
           lease: currentLease,
         );
-        final step = cleanup.firstWhere((final item) => item.id == stepId);
+        final step = cleanup.firstWhere((item) => item.id == stepId);
         await step.prepare(context).timeout(cleanupTimeout);
       },
     );
@@ -838,7 +838,7 @@ final class SessionStateWorkflow<H> {
       issues.add('source id "$sourceId" is not path-safe.');
     }
     final ids = <String, String>{};
-    void claim(final String value, final String phase) {
+    void claim(String value, String phase) {
       if (!_validStableId(value)) {
         issues.add('$phase id "$value" is not path-safe.');
       }
@@ -861,7 +861,7 @@ final class SessionStateWorkflow<H> {
     final reuseInspectorsToValidate = reuseInspectors;
     if (reuseInspectorsToValidate != null) {
       for (final inspector in reuseInspectorsToValidate) {
-        if (inspectors.any((final item) => identical(item, inspector))) {
+        if (inspectors.any((item) => identical(item, inspector))) {
           continue;
         }
         claim(inspector.id, 'reuse inspector');
@@ -908,11 +908,11 @@ final class SessionStateWorkflow<H> {
   }
 }
 
-bool _validStableId(final String value) =>
+bool _validStableId(String value) =>
     RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$').hasMatch(value) &&
     value != '.' &&
     value != '..';
 
 /// Marker stored inside an Oka-created directory resource.
-String sessionStateOwnershipMarkerPath(final String resourcePath) =>
+String sessionStateOwnershipMarkerPath(String resourcePath) =>
     p.join(resourcePath, '.oka-state-owner.json');

@@ -70,7 +70,7 @@ void main() {
       linkAttempts: [
         // POSIX link(2) via `ln` — proves an injected link strategy wins
         // over copy and keeps its declared identity.
-        (final s, final d) {
+        (s, d) {
           final r = Process.runSync('ln', [s, d]);
           return r.exitCode == 0 ? MaterializationStrategy.hardlink : null;
         },

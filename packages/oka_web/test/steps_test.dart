@@ -17,11 +17,11 @@ class _RecordingRunner implements ProcessRunner {
 
   @override
   Future<ProcOutcome> run(
-    final String executable,
-    final List<String> arguments, {
-    final String? workingDirectory,
-    final Map<String, String>? environment,
-    final Duration? timeout,
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    Duration? timeout,
   }) async {
     lastExecutable = executable;
     lastArgs = arguments;
@@ -29,7 +29,7 @@ class _RecordingRunner implements ProcessRunner {
   }
 }
 
-BuildContext tempContext(final Directory temp, {final ProcessRunner? runner}) =>
+BuildContext tempContext(Directory temp, {ProcessRunner? runner}) =>
     BuildContext(
       projectPath: temp.path,
       buildDir: p.join(temp.path, '.oka', 'build'),
@@ -104,7 +104,7 @@ void main() {
     expect(zip.existsSync(), isTrue);
     final archive = ZipDecoder().decodeBytes(zip.readAsBytesSync());
     expect(
-      archive.map((final f) => f.name),
+      archive.map((f) => f.name),
       containsAll(['index.html', 'manifest.json', 'icons/Icon-192.png']),
     );
   });
@@ -126,7 +126,7 @@ void main() {
     expect(result.ok, isTrue, reason: result.error ?? '');
     final archive = ZipDecoder()
         .decodeBytes(File(p.join(temp.path, 'z.zip')).readAsBytesSync());
-    expect(archive.map((final f) => f.name).toList(),
+    expect(archive.map((f) => f.name).toList(),
         ['0.txt', 'a/1.txt', 'b/2.txt']);
     expect(state['out-zip'], p.join(temp.path, 'z.zip'));
   });

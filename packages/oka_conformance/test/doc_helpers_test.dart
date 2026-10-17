@@ -47,7 +47,7 @@ void main() {
       expect(
         () => expectPlanShape(plan, track: 'production'),
         throwsA(isA<PlanShapeException>().having(
-          (final e) => e.mismatches.join(' '),
+          (e) => e.mismatches.join(' '),
           'mismatches',
           contains('track: expected production, plan says internal'),
         )),
@@ -81,7 +81,7 @@ void main() {
           http.Request('GET', Uri.parse('https://api.example.test/other')),
         ),
         throwsA(isA<StateError>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           contains('unexpected HTTP request'),
         )),

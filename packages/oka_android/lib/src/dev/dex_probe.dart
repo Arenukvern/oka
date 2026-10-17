@@ -44,9 +44,9 @@ class DexProbeOutcome {
 /// (`kotlinx.atomicfu.AtomicFU`) or descriptor (`Lkotlinx/atomicfu/...;`)
 /// class names.
 Future<DexProbeOutcome> checkDexSymbols({
-  required final String apk,
-  required final List<String> queries,
-  final void Function(String message)? emit,
+  required String apk,
+  required List<String> queries,
+  void Function(String message)? emit,
 }) async {
   final out = emit ?? print;
 
@@ -79,8 +79,8 @@ Future<DexProbeOutcome> checkDexSymbols({
   for (final q in queries) {
     final descriptor = q.startsWith('L') ? q : 'L${q.replaceAll('.', '/')};';
     final hits = pools.entries
-        .where((final e) => e.value.contains(descriptor))
-        .map((final e) => e.key)
+        .where((e) => e.value.contains(descriptor))
+        .map((e) => e.key)
         .toList();
     if (hits.isEmpty) {
       failed = true;

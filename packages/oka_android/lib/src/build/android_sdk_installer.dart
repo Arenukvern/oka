@@ -16,9 +16,9 @@ const kOkaSdkMarkerName = '.oka_managed_sdk';
 /// Packages required for no-Gradle APK packaging (adb optional).
 List<String> packagingSdkPackages({
   // 35+ recommended: d8 34 NPE on Flutter embedding under modern JDKs
-  final String buildTools = '35.0.0',
-  final String platformApi = '34',
-  final List<String> extraPlatformApis = const ['35', '36'],
+  String buildTools = '35.0.0',
+  String platformApi = '34',
+  List<String> extraPlatformApis = const ['35', '36'],
 }) {
   final platforms = <String>{
     'platforms;android-$platformApi',
@@ -35,8 +35,8 @@ List<String> packagingSdkPackages({
 
 /// Command-line tools zip URL for the current host OS/arch.
 String commandLineToolsDownloadUrl({
-  final String? osOverride,
-  final String version = '11076708',
+  String? osOverride,
+  String version = '11076708',
 }) {
   final os = osOverride ??
       (Platform.isMacOS
@@ -68,9 +68,9 @@ class AndroidSdkInstallResult {
 class AndroidSdkInstaller {
 
   AndroidSdkInstaller({
-    final String? sdkRoot,
+    String? sdkRoot,
     this.verbose = false,
-    final Future<ProcessResult> Function(
+    Future<ProcessResult> Function(
       String executable,
       List<String> arguments, {
       String? workingDirectory,
@@ -106,9 +106,9 @@ class AndroidSdkInstaller {
 
   /// Bootstrap cmdline-tools + packaging packages.
   Future<AndroidSdkInstallResult> installPackagingSdk({
-    final String buildTools = '35.0.0',
-    final String platformApi = '34',
-    final bool acceptLicenses = true,
+    String buildTools = '35.0.0',
+    String platformApi = '34',
+    bool acceptLicenses = true,
   }) async {
     final packages = packagingSdkPackages(
       buildTools: buildTools,
@@ -195,7 +195,7 @@ class AndroidSdkInstaller {
   }
 
   /// Remove oka-managed SDK root. Refuses if marker missing.
-  Future<AndroidSdkInstallResult> cleanup({final bool force = false}) async {
+  Future<AndroidSdkInstallResult> cleanup({bool force = false}) async {
     final dir = Directory(sdkRoot);
     if (!await dir.exists()) {
       return AndroidSdkInstallResult(
@@ -284,7 +284,7 @@ class AndroidSdkInstaller {
     }
   }
 
-  Future<void> _acceptLicenses(final String sdkmanager) async {
+  Future<void> _acceptLicenses(String sdkmanager) async {
     // Pipe "y" repeatedly into sdkmanager --licenses
     final result = await runProcess(
       'bash',
@@ -299,13 +299,13 @@ class AndroidSdkInstaller {
   }
 }
 
-String shellQuote(final String s) {
+String shellQuote(String s) {
   if (!s.contains("'")) return "'$s'";
   return "'${s.replaceAll("'", r"'\''")}'";
 }
 
 /// True when aapt2, d8, zipalign, apksigner exist under [sdkRoot].
-Future<bool> packagingToolsPresent(final String sdkRoot) async {
+Future<bool> packagingToolsPresent(String sdkRoot) async {
   final buildTools = Directory(p.join(sdkRoot, 'build-tools'));
   if (!await buildTools.exists()) return false;
 

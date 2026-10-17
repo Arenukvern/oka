@@ -33,7 +33,7 @@ class CompileAndDexStep extends BuildStep {
   final List<String> resourceConfigs;
 
   /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
-  List<String> _effectiveResourceConfigs(final PipelineState state) =>
+  List<String> _effectiveResourceConfigs(PipelineState state) =>
       resourceConfigs.isNotEmpty
       ? resourceConfigs
       : (state.pipelineOverrides?.resourceConfigs ?? const []);
@@ -43,8 +43,8 @@ class CompileAndDexStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
@@ -63,9 +63,9 @@ class CompileAndDexStep extends BuildStep {
       }
     }
     final gradleFiles = (packaged?.plugins ?? const [])
-        .map((final p) => p.plugin.path)
+        .map((p) => p.plugin.path)
         .expand(
-          (final path) => [
+          (path) => [
             '$path/android/build.gradle',
             '$path/android/build.gradle.kts',
           ],
@@ -93,7 +93,7 @@ class CompileAndDexStep extends BuildStep {
         ...(packaged?.allKotlinSources ?? const []),
         ...(packaged?.resDirs ?? const []).expand(filesUnder),
         ...state.aarResDirs.expand(filesUnder),
-        ...state.androidxJars.map((final j) => j.jarPath),
+        ...state.androidxJars.map((j) => j.jarPath),
         ...state.extraRuntimeJars,
       ],
       extras: [
@@ -113,9 +113,9 @@ class CompileAndDexStep extends BuildStep {
     final cached = cache.hit(
       'compile-and-dex',
       compileFp,
-      validate: (final o) =>
+      validate: (o) =>
           (o['dex_files'] as List?)?.cast<String>().every(
-            (final f) => File(f).existsSync(),
+            (f) => File(f).existsSync(),
           ) ??
           false,
     );
@@ -134,7 +134,7 @@ class CompileAndDexStep extends BuildStep {
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
-        ...state.androidxJars.map((final j) => j.jarPath),
+        ...state.androidxJars.map((j) => j.jarPath),
         ...state.extraRuntimeJars,
       ],
       pluginJavaSources: packaged?.allJavaSources ?? const [],
@@ -181,13 +181,13 @@ class PackageAndSignStep extends BuildStep {
   String get name => 'package-and-sign';
 
   /// ADR-0010: constructor signing wins; pipeline-level overrides fill in.
-  SigningConfig? _effectiveSigning(final PipelineState state) =>
+  SigningConfig? _effectiveSigning(PipelineState state) =>
       signing ?? state.pipelineOverrides?.signing;
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     print('📱 Packaging APK...');
     // Merge AAR natives (Maven-resolved + local) into the plugin natives map.
@@ -197,7 +197,7 @@ class PackageAndSignStep extends BuildStep {
     final extraNatives = <String, List<String>>{
       ...state.packagedPlugins?.nativeLibsByAbi ?? const {},
     };
-    state.aarNativeLibsByAbi.forEach((final abi, final paths) {
+    state.aarNativeLibsByAbi.forEach((abi, paths) {
       final norm = normalizeAbi(abi);
       if (targetAbis.isNotEmpty && !targetAbis.contains(norm)) return;
       extraNatives.putIfAbsent(norm, () => []).addAll(paths);
@@ -241,15 +241,15 @@ class CompileProtoAndDexStep extends BuildStep {
   String get name => 'compile-proto-and-dex';
 
   /// ADR-0010: constructor value wins; pipeline-level overrides fill in.
-  List<String> _effectiveResourceConfigs(final PipelineState state) =>
+  List<String> _effectiveResourceConfigs(PipelineState state) =>
       resourceConfigs.isNotEmpty
       ? resourceConfigs
       : (state.pipelineOverrides?.resourceConfigs ?? const []);
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final packaged = state.packagedPlugins;
     // ADR-0007 auto-resolve: kotlinc self-install, java bump, version fallback.
@@ -268,9 +268,9 @@ class CompileProtoAndDexStep extends BuildStep {
       }
     }
     final gradleFiles = (packaged?.plugins ?? const [])
-        .map((final p) => p.plugin.path)
+        .map((p) => p.plugin.path)
         .expand(
-          (final path) => [
+          (path) => [
             '$path/android/build.gradle',
             '$path/android/build.gradle.kts',
           ],
@@ -298,7 +298,7 @@ class CompileProtoAndDexStep extends BuildStep {
         ...(packaged?.allKotlinSources ?? const []),
         ...(packaged?.resDirs ?? const []).expand(filesUnder),
         ...state.aarResDirs.expand(filesUnder),
-        ...state.androidxJars.map((final j) => j.jarPath),
+        ...state.androidxJars.map((j) => j.jarPath),
         ...state.extraRuntimeJars,
       ],
       extras: [
@@ -318,9 +318,9 @@ class CompileProtoAndDexStep extends BuildStep {
     final cached = cache.hit(
       'compile-proto-and-dex',
       compileFp,
-      validate: (final o) =>
+      validate: (o) =>
           (o['dex_files'] as List?)?.cast<String>().every(
-            (final f) => File(f).existsSync(),
+            (f) => File(f).existsSync(),
           ) ??
           false,
     );
@@ -339,7 +339,7 @@ class CompileProtoAndDexStep extends BuildStep {
       hostDir: state.hostDir!,
       embeddingJar: state.embeddingJar!,
       androidxJarPaths: [
-        ...state.androidxJars.map((final j) => j.jarPath),
+        ...state.androidxJars.map((j) => j.jarPath),
         ...state.extraRuntimeJars,
       ],
       pluginJavaSources: packaged?.allJavaSources ?? const [],
@@ -386,19 +386,19 @@ class PackageAndSignAabStep extends BuildStep {
   String get name => 'package-and-sign-aab';
 
   /// ADR-0010: constructor signing wins; pipeline-level overrides fill in.
-  SigningConfig? _effectiveSigningAab(final PipelineState state) =>
+  SigningConfig? _effectiveSigningAab(PipelineState state) =>
       signing ?? state.pipelineOverrides?.signing;
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     print('📦 Packaging App Bundle...');
     final extraNatives = <String, List<String>>{
       ...state.packagedPlugins?.nativeLibsByAbi ?? const {},
     };
-    state.aarNativeLibsByAbi.forEach((final abi, final paths) {
+    state.aarNativeLibsByAbi.forEach((abi, paths) {
       final norm = normalizeBundleAbi(abi);
       extraNatives.putIfAbsent(norm, () => []).addAll(paths);
     });
@@ -432,8 +432,8 @@ class ValidateAabLayoutStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final entries = await listAabEntries(state.apkPath!);
     final validation = validateAabPathSet(
@@ -478,8 +478,8 @@ class ValidateLayoutStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final entries = await listApkEntries(state.apkPath!);
     final validation = validatePathSet(

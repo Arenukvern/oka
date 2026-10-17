@@ -285,7 +285,7 @@ class DescribedTargetStep {
     required this.provides,
   });
 
-  factory DescribedTargetStep.fromJson(final Map<String, dynamic> json) =>
+  factory DescribedTargetStep.fromJson(Map<String, dynamic> json) =>
       DescribedTargetStep(
         name: json['name']?.toString() ?? '',
         requires: [
@@ -315,7 +315,7 @@ class DescribedTarget {
     this.error,
   });
 
-  factory DescribedTarget.fromJson(final Map<String, dynamic> json) =>
+  factory DescribedTarget.fromJson(Map<String, dynamic> json) =>
       DescribedTarget(
         name: json['name']?.toString() ?? '',
         description: json['description']?.toString() ?? '',
@@ -350,8 +350,8 @@ class DescribedTarget {
 /// answers with a JSON array of chains. Exits with the entrypoint's
 /// diagnostics when it fails to load.
 Future<List<DescribedTarget>> loadDescribedTargets({
-  required final String projectPath,
-  required final String entrypoint,
+  required String projectPath,
+  required String entrypoint,
 }) async {
   final proc = await Process.run(
     'dart',

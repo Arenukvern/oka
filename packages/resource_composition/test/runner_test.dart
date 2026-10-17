@@ -39,7 +39,7 @@ void main() {
     // collector first.
     final startedOrder = sink.events
         .whereType<ComponentStarting>()
-        .map((final e) => e.componentId)
+        .map((e) => e.componentId)
         .toList();
     expect(startedOrder, ['collector', 'agent']);
   });
@@ -65,7 +65,7 @@ void main() {
     );
     await runner.start();
     expect(
-      sink.events.map((final e) => e.kind.wire).toList(),
+      sink.events.map((e) => e.kind.wire).toList(),
       ['componentStarting', 'componentReady'],
     );
     final ready = sink.events.whereType<ComponentReady>().single;
@@ -98,9 +98,9 @@ void main() {
       runner.start(),
       throwsA(
         isA<CompositionRunException>()
-            .having((final e) => e.componentId, 'componentId', 'slow')
+            .having((e) => e.componentId, 'componentId', 'slow')
             .having(
-              (final e) => e.cause,
+              (e) => e.cause,
               'cause',
               TerminalCause.killedOnDeadline,
             ),
@@ -109,9 +109,9 @@ void main() {
 
     expect(quick.stops, hasLength(1), reason: 'reverse teardown of started');
     expect(slow.stops, isEmpty, reason: 'never-ready component has no ref');
-    final kinds = sink.events.map((final e) => e.kind.wire).toList();
+    final kinds = sink.events.map((e) => e.kind.wire).toList();
     expect(kinds, contains('readinessTimeout'));
-    expect(kinds.where((final k) => k == 'componentStopped'), hasLength(1));
+    expect(kinds.where((k) => k == 'componentStopped'), hasLength(1));
   });
 
   test('start failure stops started siblings and reports teardown notes '
@@ -157,7 +157,7 @@ void main() {
     await expectLater(
       runner.start(),
       throwsA(isA<CompositionRunException>().having(
-        (final e) => e.message,
+        (e) => e.message,
         'message',
         contains('collector.port'),
       )),
@@ -196,7 +196,7 @@ void main() {
     await runner.stopAll();
     final stopOrder = sink.events
         .whereType<ComponentStopped>()
-        .map((final e) => e.componentId)
+        .map((e) => e.componentId)
         .toList();
     expect(stopOrder, ['b', 'a']);
   });

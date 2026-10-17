@@ -29,7 +29,7 @@ final class ChromeProfilePlanner
 
   @override
   SessionStatePlan<ChromeProfileHandle> plan(
-    final SessionStateRequest request,
+    SessionStateRequest request,
   ) {
     final rootPath = request.metadata['state_root'];
     final relativePath = request.metadata['relative_path'];
@@ -95,7 +95,7 @@ final class ChromeProfileSource
   String get id => 'chrome-profile-source';
 
   @override
-  Future<ChromeProfileHandle> restore(final SessionStateLease lease) async =>
+  Future<ChromeProfileHandle> restore(SessionStateLease lease) async =>
       ChromeProfileHandle(p.join(lease.rootPath, lease.relativePath));
 }
 
@@ -115,7 +115,7 @@ final class VerifyChromeProfileCreated
 
   @override
   Future<void> run(
-    final SessionStateContext<ChromeProfileHandle> context,
+    SessionStateContext<ChromeProfileHandle> context,
   ) async {
     if (await FileSystemEntity.type(context.handle.path, followLinks: false) !=
         FileSystemEntityType.directory) {
@@ -142,7 +142,7 @@ final class ChromeProfileUseInspector
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<ChromeProfileHandle> context,
+    SessionStateContext<ChromeProfileHandle> context,
   ) => _inspectChromeProfileSingleton(
     context,
     liveness: liveness,
@@ -168,7 +168,7 @@ final class ChromeProfileLaunchInspector
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<ChromeProfileHandle> context,
+    SessionStateContext<ChromeProfileHandle> context,
   ) => _inspectChromeProfileSingleton(
     context,
     liveness: liveness,
@@ -178,10 +178,10 @@ final class ChromeProfileLaunchInspector
 }
 
 Future<SessionStateFinding> _inspectChromeProfileSingleton(
-  final SessionStateContext<ChromeProfileHandle> context, {
-  required final ProcessLiveness liveness,
-  required final String inspectorId,
-  required final bool allowLaunchWithDeadOwner,
+  SessionStateContext<ChromeProfileHandle> context, {
+  required ProcessLiveness liveness,
+  required String inspectorId,
+  required bool allowLaunchWithDeadOwner,
 }) async {
   final lockPath = p.join(context.handle.path, 'SingletonLock');
   final type = await FileSystemEntity.type(lockPath, followLinks: false);

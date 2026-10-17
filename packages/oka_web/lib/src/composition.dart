@@ -51,7 +51,7 @@ class WebShell {
       for (final c in contributions) ...c.head,
     ];
     final sorted = [...all]..sort(
-        (final a, final b) => a.phase.order.compareTo(b.phase.order),
+        (a, b) => a.phase.order.compareTo(b.phase.order),
       );
     return sorted;
   }
@@ -111,8 +111,8 @@ class WebShell {
   /// before anything is written (ADR-0016 W1 wires this into explain).
   List<String> describeLines() {
     final entries = head;
-    int countOf(final WebHeadPhase phase) =>
-        entries.where((final e) => e.phase == phase).length;
+    int countOf(WebHeadPhase phase) =>
+        entries.where((e) => e.phase == phase).length;
     final headSummary =
         '(${WebHeadPhase.preconnect.name}: ${countOf(WebHeadPhase.preconnect)}, '
         '${WebHeadPhase.storeSdk.name}: ${countOf(WebHeadPhase.storeSdk)}, '

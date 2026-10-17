@@ -36,10 +36,10 @@ class StepCache {
   /// [requiredOutputs] (file paths) still exist, and [validate] passes
   /// (used for list-valued outputs such as dex file lists); null otherwise.
   Map<String, dynamic>? hit(
-    final String step,
-    final String fingerprint, {
-    final List<String> requiredOutputs = const [],
-    final bool Function(Map<String, dynamic> outputs)? validate,
+    String step,
+    String fingerprint, {
+    List<String> requiredOutputs = const [],
+    bool Function(Map<String, dynamic> outputs)? validate,
   }) {
     final entry = _data[step] as Map<String, dynamic>?;
     if (entry == null) {
@@ -65,10 +65,10 @@ class StepCache {
   }
 
   Future<void> store(
-    final String step,
-    final String fingerprint,
-    final Map<String, dynamic> outputs, {
-    final Map<String, String>? inputDigests,
+    String step,
+    String fingerprint,
+    Map<String, dynamic> outputs, {
+    Map<String, String>? inputDigests,
   }) async {
     _data[step] = {
       'fingerprint': fingerprint,
@@ -84,7 +84,7 @@ class StepCache {
 
   /// Drops a step's entry (e.g. after a failed downstream step that may have
   /// consumed its outputs).
-  Future<void> invalidate(final String step) async {
+  Future<void> invalidate(String step) async {
     _data.remove(step);
     final f = _file;
     if (await f.exists()) {
@@ -97,16 +97,16 @@ class StepCache {
 /// extras (mode, defines, tool versions, …). Missing files hash as misses —
 /// never silently reuse.
 Future<String> fingerprintInputs(
-  final Iterable<String> paths, {
-  final Iterable<String> extras = const [],
+  Iterable<String> paths, {
+  Iterable<String> extras = const [],
 }) async =>
     (await fingerprintInputsDetailed(paths, extras: extras)).digest;
 
 /// [fingerprintInputs] plus the per-file digest map, for `oka why` (D4).
 Future<({String digest, Map<String, String> fileDigests})>
 fingerprintInputsDetailed(
-  final Iterable<String> paths, {
-  final Iterable<String> extras = const [],
+  Iterable<String> paths, {
+  Iterable<String> extras = const [],
 }) async {
   final sink = _HashSink();
   for (final extra in extras) {
@@ -141,20 +141,20 @@ fingerprintInputsDetailed(
 
 class _HashSink {
   final _output = _StringSink();
-  void add(final String s) => _output.write(s);
+  void add(String s) => _output.write(s);
   String get digest => sha256.convert(utf8.encode(_output.toString())).toString();
 }
 
 class _StringSink {
   final _sb = StringBuffer();
-  void write(final String s) => _sb.write(s);
+  void write(String s) => _sb.write(s);
   @override
   String toString() => _sb.toString();
 }
 
 /// Collects all files under [dir] (recursively), or returns empty when the
 /// dir does not exist.
-List<String> filesUnder(final String dir, {final String? extension}) {
+List<String> filesUnder(String dir, {String? extension}) {
   final d = Directory(dir);
   if (!d.existsSync()) return const [];
   final out = <String>[];
@@ -172,7 +172,7 @@ List<String> filesUnder(final String dir, {final String? extension}) {
 /// Prefers the project's own `.dart_tool/package_config.json`; when absent
 /// (pub workspaces resolve at the workspace root), walks up parent dirs.
 /// Returns null when no config exists anywhere up the tree.
-File? packageConfigFor(final String projectPath) {
+File? packageConfigFor(String projectPath) {
   var dir = Directory(projectPath).absolute;
   while (true) {
     final candidate = File(p.join(dir.path, '.dart_tool', 'package_config.json'));
@@ -187,8 +187,8 @@ File? packageConfigFor(final String projectPath) {
 /// a `package_config.json`. Hosted (`.pub-cache`) and SDK-bundled
 /// (`bin/cache/pkg`) packages are excluded — their contents are pinned by
 /// the config itself.
-List<String> pathDependencyRoots(final String packageConfigJson,
-    {final String? configDir}) {
+List<String> pathDependencyRoots(String packageConfigJson,
+    {String? configDir}) {
   final base = Uri.directory(configDir ?? Directory.current.path);
   final out = <String>[];
   final rootUriRe = RegExp(r'"rootUri":\s*"([^"]+)"');
@@ -220,7 +220,7 @@ List<String> pathDependencyRoots(final String packageConfigJson,
 /// `flutter assemble` compiles path dependencies into the kernel, so an edit
 /// in a sibling checkout (monorepo layout) must invalidate assemble/AOT
 /// step caches — without this the step cache serves a stale snapshot.
-List<String> pathDependencyInputs(final String projectPath) {
+List<String> pathDependencyInputs(String projectPath) {
   final config = packageConfigFor(projectPath);
   if (config == null) return const [];
   final json = config.readAsStringSync();

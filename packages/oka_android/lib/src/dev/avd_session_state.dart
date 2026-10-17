@@ -21,10 +21,10 @@ import 'adb_tool.dart';
 final class AndroidAvdHomeResolution {
   const AndroidAvdHomeResolution._({this.path, this.limitation});
 
-  factory AndroidAvdHomeResolution.resolved(final String path) =>
+  factory AndroidAvdHomeResolution.resolved(String path) =>
       AndroidAvdHomeResolution._(path: path);
 
-  factory AndroidAvdHomeResolution.unavailable(final String reason) =>
+  factory AndroidAvdHomeResolution.unavailable(String reason) =>
       AndroidAvdHomeResolution._(limitation: reason);
 
   final String? path;
@@ -38,9 +38,9 @@ final class AndroidAvdHomeResolution {
 /// guessed fallback. A directory is accepted only when it contains the
 /// selected AVD's `.ini` inventory entry.
 Future<AndroidAvdHomeResolution> resolveAndroidAvdHome({
-  required final String avdName,
-  final String? explicit,
-  final Map<String, String>? environment,
+  required String avdName,
+  String? explicit,
+  Map<String, String>? environment,
 }) async {
   final env = environment ?? Platform.environment;
   final List<String> candidates;
@@ -112,7 +112,7 @@ final class AndroidAvdPlanner implements SessionStatePlanner<AndroidAvdHandle> {
   String get id => 'android-avd-plan';
 
   @override
-  SessionStatePlan<AndroidAvdHandle> plan(final SessionStateRequest request) {
+  SessionStatePlan<AndroidAvdHandle> plan(SessionStateRequest request) {
     final nameValue = request.metadata['avd_name'];
     if (nameValue is! String || nameValue.trim().isEmpty) {
       throw ArgumentError('Android AVD request needs a non-empty avd_name.');
@@ -155,7 +155,7 @@ final class AndroidAvdSource implements SessionStateSource<AndroidAvdHandle> {
   String get id => 'android-avd-source';
 
   @override
-  Future<AndroidAvdHandle> restore(final SessionStateLease lease) async {
+  Future<AndroidAvdHandle> restore(SessionStateLease lease) async {
     final name = lease.metadata['avd_name'];
     if (name is! String || name.isEmpty) {
       throw FormatException(
@@ -207,7 +207,7 @@ final class AndroidAvdUseInspector
     return parseAdbDevices(result.stdout.toString());
   }
 
-  Future<String?> _readAvdName(final String serial) async {
+  Future<String?> _readAvdName(String serial) async {
     final result = await Process.run(adbPath ?? 'adb', [
       '-s',
       serial,
@@ -223,13 +223,13 @@ final class AndroidAvdUseInspector
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<AndroidAvdHandle> context,
+    SessionStateContext<AndroidAvdHandle> context,
   ) async {
     final devices = <AdbDevice>[];
     try {
       devices.addAll(await (listDevices ?? _listDevices)());
       for (final device in devices.where(
-        (final item) => item.id.startsWith('emulator-'),
+        (item) => item.id.startsWith('emulator-'),
       )) {
         final name = await (readAvdName ?? _readAvdName)(device.id);
         if (name == context.handle.name) {
@@ -264,7 +264,7 @@ final class AndroidAvdUseInspector
       details: {
         'avd_name': context.handle.name,
         'visible_emulator_count': devices
-            .where((final device) => device.id.startsWith('emulator-'))
+            .where((device) => device.id.startsWith('emulator-'))
             .length,
       },
     );
@@ -308,8 +308,8 @@ class RecordAndroidAvdInventoryStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final AndroidAvdHomeResolution resolution;
     try {

@@ -117,12 +117,12 @@ class DevControlServer {
   /// Binds `127.0.0.1:<port>` (port 0 → ephemeral; the chosen port is only
   /// known via [port] → runner-session.json) and starts accepting clients.
   static Future<DevControlServer> start({
-    required final DevControlSessionInfo info,
-    required final void Function(DevControlCommand command) onCommand,
-    final int port = 0,
-    final Duration reloadTimeout = const Duration(seconds: 30),
-    final Duration restartTimeout = const Duration(seconds: 60),
-    final Duration stopTimeout = const Duration(seconds: 30),
+    required DevControlSessionInfo info,
+    required void Function(DevControlCommand command) onCommand,
+    int port = 0,
+    Duration reloadTimeout = const Duration(seconds: 30),
+    Duration restartTimeout = const Duration(seconds: 60),
+    Duration stopTimeout = const Duration(seconds: 30),
   }) async {
     final serverSocket = await ServerSocket.bind(
       InternetAddress.loopbackIPv4,
@@ -140,15 +140,15 @@ class DevControlServer {
   }
 
   void _accept() {
-    _serverSocket.listen((final socket) {
+    _serverSocket.listen((socket) {
       _clients.add(socket);
       socket
           .map(utf8.decode)
           .transform(const LineSplitter())
           .listen(
-            (final line) => _handleLine(line, socket),
+            (line) => _handleLine(line, socket),
             onDone: () => _clients.remove(socket),
-            onError: (final Object _) => _clients.remove(socket),
+            onError: (Object _) => _clients.remove(socket),
           );
     });
   }
@@ -157,8 +157,8 @@ class DevControlServer {
   /// [DevSession.onResult]). Completes every pending request waiting on
   /// that event with the real outcome data.
   void handleSessionResult(
-    final String event,
-    final Map<String, Object?> data,
+    String event,
+    Map<String, Object?> data,
   ) {
     final waiting = _pending.remove(event);
     if (waiting == null) return;
@@ -174,7 +174,7 @@ class DevControlServer {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
-    for (final pending in _pending.values.expand((final l) => l)) {
+    for (final pending in _pending.values.expand((l) => l)) {
       pending.timer.cancel();
       if (!pending.completer.isCompleted) pending.completer.complete(null);
     }
@@ -192,7 +192,7 @@ class DevControlServer {
 
   // -- Request handling ------------------------------------------------------
 
-  void _handleLine(final String rawLine, final Socket socket) {
+  void _handleLine(String rawLine, Socket socket) {
     final line = rawLine.trim();
     if (line.isEmpty || _closed) return;
 
@@ -266,9 +266,9 @@ class DevControlServer {
   /// keyboard / stdin / watch sources use — the server never touches the
   /// daemon wire itself.
   Future<void> _handleOperation(
-    final String method,
-    final int id,
-    final Socket socket,
+    String method,
+    int id,
+    Socket socket,
   ) async {
     final (command, events, timeout) = switch (method) {
       'reload' => (
@@ -309,7 +309,7 @@ class DevControlServer {
       final (event, data) =
           await Future.any([
             for (final entry in completers.entries)
-              entry.value.future.then((final d) => (entry.key, d)),
+              entry.value.future.then((d) => (entry.key, d)),
           ]);
       if (data == null) {
         _respond(socket, {
@@ -337,10 +337,10 @@ class DevControlServer {
   /// the ACTUAL daemon result, with `fallback: true` when the attach-mode
   /// restart fallback (relaunch + re-attach) triggered.
   Map<String, Object?> _outcomeResponse(
-    final String method,
-    final String event,
-    final int id,
-    final Map<String, Object?> data,
+    String method,
+    String event,
+    int id,
+    Map<String, Object?> data,
   ) {
     switch (event) {
       case 'restart.fallback':
@@ -381,7 +381,7 @@ class DevControlServer {
     }
   }
 
-  void _respond(final Socket socket, final Map<String, Object?> response) {
+  void _respond(Socket socket, Map<String, Object?> response) {
     if (_closed || !_clients.contains(socket)) return;
     try {
       socket.write('${jsonEncode(response)}\n');

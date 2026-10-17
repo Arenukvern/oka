@@ -85,7 +85,7 @@ final class CodemapLane {
   /// Strict parse of one data-form spec: unknown keys and a malformed
   /// trigger fail with [FormatException], lane-named like codemap's
   /// own load-time validation.
-  factory CodemapLane.fromJson(final Map<String, Object?> json) {
+  factory CodemapLane.fromJson(Map<String, Object?> json) {
     final name = json['name'];
     final label = 'command lane ${name is String ? _quote(name) : '<unnamed>'}';
     final unknown = json.keys.toSet().difference(_laneKeys);
@@ -145,7 +145,7 @@ final class CodemapLane {
     if (runOnStart) 'run_on_start': true,
   };
 
-  void _checkTrigger(final Object? declared) {
+  void _checkTrigger(Object? declared) {
     if (declared == null) return;
     if (declared is! String || declared != trigger) {
       throw FormatException(
@@ -164,7 +164,7 @@ final class CodemapLaneSnapshot {
 
   /// Parses snapshot text; refuses an empty lane list and duplicate
   /// lane names (the runner refuses both at load).
-  factory CodemapLaneSnapshot.parse(final String text) {
+  factory CodemapLaneSnapshot.parse(String text) {
     final document = jsonDecode(text) as Map<String, Object?>;
     final rawLanes = document['lanes'];
     if (rawLanes is! List || rawLanes.isEmpty) {
@@ -175,7 +175,7 @@ final class CodemapLaneSnapshot {
     final lanes = <CodemapLane>[
       for (final entry in rawLanes) CodemapLane.fromJson(_entryMap(entry)),
     ];
-    final names = lanes.map((final lane) => lane.name).toSet();
+    final names = lanes.map((lane) => lane.name).toSet();
     if (names.length != lanes.length) {
       throw const FormatException('duplicate lane names in snapshot');
     }
@@ -192,7 +192,7 @@ final class CodemapLaneSnapshot {
   final String? declarationPath;
 }
 
-Map<String, Object?> _entryMap(final Object? entry) {
+Map<String, Object?> _entryMap(Object? entry) {
   if (entry is Map<String, Object?>) return entry;
   throw FormatException(
     'lane entry must be a mapping, got ${entry?.runtimeType ?? 'null'}',
@@ -257,7 +257,7 @@ class _ScanAccumulator {
 /// file is one capture; dotfiles are skipped) or a single file. Each
 /// capture may be a pretty-printed JSON document (a saved `--once`
 /// output) or a JSONL line stream (a redirected daemon log). Read-only.
-CodemapReceiptScan scanCodemapReceipts(final String path) {
+CodemapReceiptScan scanCodemapReceipts(String path) {
   final accumulator = _ScanAccumulator();
   final type = FileSystemEntity.typeSync(path);
   if (type == FileSystemEntityType.notFound) {
@@ -267,7 +267,7 @@ CodemapReceiptScan scanCodemapReceipts(final String path) {
       ? Directory(path).listSync()
       : <FileSystemEntity>[File(path)];
   final files = entities.whereType<File>().toList()
-    ..sort((final a, final b) => a.path.compareTo(b.path));
+    ..sort((a, b) => a.path.compareTo(b.path));
   for (final file in files) {
     if (p.basename(file.path).startsWith('.')) continue;
     _scanReceiptFile(file, accumulator);
@@ -279,7 +279,7 @@ CodemapReceiptScan scanCodemapReceipts(final String path) {
   );
 }
 
-void _scanReceiptFile(final File file, final _ScanAccumulator into) {
+void _scanReceiptFile(File file, _ScanAccumulator into) {
   final receivedAt = file.statSync().modified;
   final text = file.readAsStringSync();
   try {
@@ -300,10 +300,10 @@ void _scanReceiptFile(final File file, final _ScanAccumulator into) {
 }
 
 void _absorb(
-  final Object? decoded,
-  final String path,
-  final DateTime receivedAt,
-  final _ScanAccumulator into,
+  Object? decoded,
+  String path,
+  DateTime receivedAt,
+  _ScanAccumulator into,
 ) {
   final event = decoded is Map<String, Object?> ? decoded['event'] : null;
   if (event is String && event != 'run_receipt') {
@@ -395,7 +395,7 @@ final class CodemapProjection {
   /// True when any `overdue` / `unrun` / `corruptReceipt` finding
   /// exists — the `--check` gate.
   bool get needsAttention =>
-      findings.any((final finding) => _attentionCodes.contains(finding.code));
+      findings.any((finding) => _attentionCodes.contains(finding.code));
 }
 
 /// Pure projection: declared lanes + observed receipts → findings.
@@ -403,9 +403,9 @@ final class CodemapProjection {
 /// corrupt receipt only becomes the lane's finding when no valid
 /// receipt exists for it.
 List<CodemapLaneFinding> projectCodemapLaneFindings({
-  required final CodemapLaneSnapshot snapshot,
-  required final CodemapReceiptScan scan,
-  required final DateTime now,
+  required CodemapLaneSnapshot snapshot,
+  required CodemapReceiptScan scan,
+  required DateTime now,
 }) {
   final newest = <String, CodemapReceipt>{};
   for (final receipt in scan.receipts) {
@@ -417,7 +417,7 @@ List<CodemapLaneFinding> projectCodemapLaneFindings({
   final findings = <CodemapLaneFinding>[];
   for (final lane in snapshot.lanes) {
     final corrupt = scan.corrupt
-        .where((final entry) => entry.lane == lane.name)
+        .where((entry) => entry.lane == lane.name)
         .toList();
     final receipt = newest[lane.name];
     findings.add(_projectOne(lane, receipt, corrupt, now));
@@ -426,10 +426,10 @@ List<CodemapLaneFinding> projectCodemapLaneFindings({
 }
 
 CodemapLaneFinding _projectOne(
-  final CodemapLane lane,
-  final CodemapReceipt? receipt,
-  final List<CodemapCorruptReceipt> corrupt,
-  final DateTime now,
+  CodemapLane lane,
+  CodemapReceipt? receipt,
+  List<CodemapCorruptReceipt> corrupt,
+  DateTime now,
 ) {
   final cadenceS = lane.intervalS;
   final trigger = lane.trigger;
@@ -441,7 +441,7 @@ CodemapLaneFinding _projectOne(
         trigger: trigger,
         message:
             'receipt evidence unreadable: '
-            '${corrupt.map((final c) => c.path).join(', ')}',
+            '${corrupt.map((c) => c.path).join(', ')}',
       );
     }
     return CodemapLaneFinding(
@@ -490,9 +490,9 @@ CodemapLaneFinding _projectOne(
 /// counts orphan receipts. Read-only; [clock] defaults to
 /// [DateTime.now] so tests pin time.
 CodemapProjection projectCodemapLanes({
-  required final CodemapLaneSnapshot snapshot,
-  final String? receiptsPath,
-  final DateTime Function()? clock,
+  required CodemapLaneSnapshot snapshot,
+  String? receiptsPath,
+  DateTime Function()? clock,
 }) {
   final scan = receiptsPath == null
       ? const CodemapReceiptScan()
@@ -502,9 +502,9 @@ CodemapProjection projectCodemapLanes({
     scan: scan,
     now: (clock ?? DateTime.now)(),
   );
-  final declared = snapshot.lanes.map((final lane) => lane.name).toSet();
+  final declared = snapshot.lanes.map((lane) => lane.name).toSet();
   final orphans = scan.receipts
-      .where((final receipt) => !declared.contains(receipt.lane))
+      .where((receipt) => !declared.contains(receipt.lane))
       .length;
   return CodemapProjection(
     findings: findings,
@@ -517,7 +517,7 @@ CodemapProjection projectCodemapLanes({
 /// One JSON document: `{lanes: [{id, trigger, lastReceiptAt?, ageS?,
 /// finding: {code, message}}], receipts: {scanned, corrupt, orphan}}` —
 /// the wire shape for CLI `--json` and a future CI gate.
-String projectionJson(final CodemapProjection projection) =>
+String projectionJson(CodemapProjection projection) =>
     const JsonEncoder.withIndent('  ').convert({
       'lanes': [for (final finding in projection.findings) finding.toJson()],
       'receipts': {
@@ -528,7 +528,7 @@ String projectionJson(final CodemapProjection projection) =>
     });
 
 /// Aligned plain-text rendering for terminals.
-String renderProjection(final CodemapProjection projection) {
+String renderProjection(CodemapProjection projection) {
   final header =
       'codemap lanes: ${projection.findings.length} declared; receipts '
       'scanned=${projection.scanned} corrupt=${projection.corruptCount} '
@@ -548,7 +548,7 @@ String renderProjection(final CodemapProjection projection) {
     for (var column = 0; column < 5; column++)
       rows.fold(
         0,
-        (final max, final row) =>
+        (max, row) =>
             row[column].length > max ? row[column].length : max,
       ),
   ];
@@ -562,14 +562,14 @@ String renderProjection(final CodemapProjection projection) {
   ].join('\n');
 }
 
-String _humanAge(final int seconds) {
+String _humanAge(int seconds) {
   if (seconds < 60) return '${seconds}s';
   if (seconds < 3600) return '${seconds ~/ 60}m';
   if (seconds < 86400) return '${seconds ~/ 3600}h';
   return '${seconds ~/ 86400}d';
 }
 
-List<String> _strings(final Object? value, final String label) {
+List<String> _strings(Object? value, String label) {
   if (value == null) return const <String>[];
   if (value is! List) {
     throw FormatException('$label must be a list of strings');
@@ -583,7 +583,7 @@ List<String> _strings(final Object? value, final String label) {
   ];
 }
 
-List<String> _dotSuffixes(final Object? value, final String label) {
+List<String> _dotSuffixes(Object? value, String label) {
   final suffixes = _strings(value, '$label "extensions"');
   for (final suffix in suffixes) {
     if (!suffix.startsWith('.')) {
@@ -596,7 +596,7 @@ List<String> _dotSuffixes(final Object? value, final String label) {
   return suffixes;
 }
 
-String _string(final Object? value, final String label) {
+String _string(Object? value, String label) {
   final text = _optionalString(value, label);
   if (text == null || text.isEmpty) {
     throw FormatException('$label must be a non-empty string');
@@ -604,13 +604,13 @@ String _string(final Object? value, final String label) {
   return text;
 }
 
-String? _optionalString(final Object? value, final String label) {
+String? _optionalString(Object? value, String label) {
   if (value == null) return null;
   if (value is! String) throw FormatException('$label must be a string');
   return value;
 }
 
-int? _positiveInt(final Object? value, final String label) {
+int? _positiveInt(Object? value, String label) {
   if (value == null) return null;
   if (value is! int || value <= 0) {
     throw FormatException('$label must be a positive integer');
@@ -618,7 +618,7 @@ int? _positiveInt(final Object? value, final String label) {
   return value;
 }
 
-bool _optionalBool(final Object? value, final String label) {
+bool _optionalBool(Object? value, String label) {
   if (value == null) return false;
   if (value is! bool) {
     throw FormatException('$label "run_on_start" must be a boolean');
@@ -626,6 +626,6 @@ bool _optionalBool(final Object? value, final String label) {
   return value;
 }
 
-String _quote(final String text) => "'$text'";
+String _quote(String text) => "'$text'";
 
-List<String> _sorted(final Set<String> values) => values.toList()..sort();
+List<String> _sorted(Set<String> values) => values.toList()..sort();

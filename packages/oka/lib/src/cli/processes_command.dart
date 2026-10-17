@@ -11,7 +11,7 @@ import 'package:oka_core/oka_core.dart';
 /// recycled / identity-unknown). Inspection only — nothing is stopped or
 /// deleted here; `oka stop` and the L2 reconcile sweep mutate.
 class ProcessesCommand {
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     final parser = ArgParser()
       ..addFlag(
         'json',
@@ -34,7 +34,7 @@ class ProcessesCommand {
       exit(0);
     }
     // `oka processes` and `oka processes list` are the same verb.
-    final positional = results.rest.where((final a) => !a.startsWith('-'));
+    final positional = results.rest.where((a) => !a.startsWith('-'));
     if (positional.isNotEmpty && positional.first != 'list') {
       stderr.writeln(
         '❌ Unknown subcommand "${positional.first}" — '
@@ -67,7 +67,7 @@ class ProcessesCommand {
       print('No process leases recorded in this project.');
       return;
     }
-    final stale = entries.where((final e) => e.liveness.isStale).length;
+    final stale = entries.where((e) => e.liveness.isStale).length;
     for (final e in entries) {
       // ignore: avoid_print
       print(e.toLine());

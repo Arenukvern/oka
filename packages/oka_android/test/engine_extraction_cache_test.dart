@@ -7,7 +7,7 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-ArchiveFile _textFile(final String name, final String content) =>
+ArchiveFile _textFile(String name, String content) =>
     ArchiveFile(name, content.length, content.codeUnits);
 
 /// ADR-0028 §3: engine extraction is fingerprinted (StepCache), stored once
@@ -46,7 +46,7 @@ void main() {
     if (temp.existsSync()) await temp.delete(recursive: true);
   });
 
-  BuildContext contextFor(final String name) {
+  BuildContext contextFor(String name) {
     final project = temp.createTempSync(name);
     final buildDir = p.join(project.path, '.oka_cache', 'build', 'debug');
     Directory(buildDir).createSync(recursive: true);
@@ -80,9 +80,9 @@ void main() {
     expect(state.embeddingJar, endsWith('flutter_embedding_classes.jar'));
 
     final engineEntries = (await store.entries())
-        .where((final e) => e.key.category == 'engine')
+        .where((e) => e.key.category == 'engine')
         .toList();
-    expect(engineEntries.map((final e) => e.key.name), containsAll([
+    expect(engineEntries.map((e) => e.key.name), containsAll([
       'libflutter',
       'flutter-embedding',
     ]));
@@ -111,7 +111,7 @@ void main() {
       store: store,
     ).run(first, PipelineState()..abis = ['arm64-v8a']);
     final entriesBefore = (await store.entries())
-        .where((final e) => e.key.category == 'engine')
+        .where((e) => e.key.category == 'engine')
         .length;
 
     final second = contextFor('app_b');
@@ -126,7 +126,7 @@ void main() {
       'SO-BYTES',
     );
     final entriesAfter = (await store.entries())
-        .where((final e) => e.key.category == 'engine')
+        .where((e) => e.key.category == 'engine')
         .length;
     expect(entriesAfter, entriesBefore, reason: 'no new store entries');
   });

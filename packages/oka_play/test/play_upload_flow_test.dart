@@ -18,14 +18,14 @@ const String _tokenUrl = 'https://oauth2.googleapis.com/token';
 const String _apiBase = 'https://androidpublisher.googleapis.com';
 const String _packageName = 'dev.example.app';
 
-BuildContext _ctx(final Directory tmp) => BuildContext(
+BuildContext _ctx(Directory tmp) => BuildContext(
       projectPath: tmp.path,
       buildDir: p.join(tmp.path, 'build'),
       mode: BuildMode.release,
       config: OkaConfig.empty,
     );
 
-Directory _aabFile(final Directory tmp) {
+Directory _aabFile(Directory tmp) {
   final file = File(p.join(tmp.path, 'build', 'app-release.aab'))
     ..createSync(recursive: true)
     ..writeAsBytesSync(syntheticAabBytes);
@@ -34,7 +34,7 @@ Directory _aabFile(final Directory tmp) {
 
 /// Writes the synthetic service-account fixture to [tmp] and returns its
 /// path. The file lives in a system temp dir, never in the repo.
-String _writeServiceAccount(final Directory tmp) {
+String _writeServiceAccount(Directory tmp) {
   final file = File(p.join(tmp.path, 'sa', 'service-account.json'))
     ..createSync(recursive: true)
     ..writeAsStringSync(syntheticServiceAccountJson);
@@ -46,7 +46,7 @@ String _writeServiceAccount(final Directory tmp) {
 /// Route order matters: the more specific paths come first — the generic
 /// `'/edits'` fragment is a substring of every nested edit URL, so the
 /// edits-create route is last and checks the path shape.
-FakeHttpTransport _playTransport({final int commitStatus = 200}) {
+FakeHttpTransport _playTransport({int commitStatus = 200}) {
   final transport = FakeHttpTransport();
   // 1. JWT → OAuth token exchange (the assertion is signed locally by
   //    googleapis_auth with the synthetic key; the fake only answers).
@@ -68,7 +68,7 @@ FakeHttpTransport _playTransport({final int commitStatus = 200}) {
   // 4. edits.commit
   transport.route(
     url: ':commit',
-    handle: (final r) => ScriptedResponse(
+    handle: (r) => ScriptedResponse(
       status: commitStatus,
       json: commitStatus < 300
           ? {'id': 'synthetic-edit-id'}
@@ -83,14 +83,14 @@ FakeHttpTransport _playTransport({final int commitStatus = 200}) {
   // 5. edits.create (last — its URL fragment is nested in the others).
   transport.routeJson(
     url: '/edits',
-    json: (final r) =>
+    json: (r) =>
         r.url.path.endsWith('/edits') ? {'id': 'synthetic-edit-id'} : null,
   );
   return transport;
 }
 
 /// The exact ordered URLs of a successful upload.
-List<String> _expectedUrls(final String aabPath) {
+List<String> _expectedUrls(String aabPath) {
   const editsBase =
       '$_apiBase/androidpublisher/v3/applications/$_packageName/edits';
   const editUrl = '$editsBase/synthetic-edit-id';
@@ -109,10 +109,10 @@ void main() {
   late String aabPath;
 
   /// Case-insensitive header lookup (clients may normalize key case).
-  String? header(final Map<String, String> headers, final String name) =>
+  String? header(Map<String, String> headers, String name) =>
       headers.entries
-          .where((final e) => e.key.toLowerCase() == name)
-          .map((final e) => e.value)
+          .where((e) => e.key.toLowerCase() == name)
+          .map((e) => e.value)
           .firstOrNull;
 
   setUp(() async {
@@ -127,8 +127,8 @@ void main() {
   });
 
   PlayUploadStep step({
-    final FakeHttpTransport? transport,
-    final CredentialResolver? resolver,
+    FakeHttpTransport? transport,
+    CredentialResolver? resolver,
   }) =>
       PlayUploadStep(
         const PlayPublishTarget(
@@ -152,7 +152,7 @@ void main() {
 
       expect(result.ok, isTrue, reason: result.error);
       expect(
-        transport.requests.map((final r) => r.url.toString()).toList(),
+        transport.requests.map((r) => r.url.toString()).toList(),
         _expectedUrls(aabPath),
       );
 
@@ -190,7 +190,7 @@ void main() {
       expect(result.ok, isTrue, reason: result.error);
 
       final upload = transport.requests
-          .singleWhere((final r) => r.url.toString().contains('/bundles'));
+          .singleWhere((r) => r.url.toString().contains('/bundles'));
       expect(upload.body, syntheticAabBytes);
       expect(upload.headers['content-type'], 'application/octet-stream');
       expect(
@@ -206,7 +206,7 @@ void main() {
       await step(transport: transport).run(_ctx(tmp), state);
 
       final trackRequest = transport.requests
-          .singleWhere((final r) => r.url.path.contains('/tracks/'));
+          .singleWhere((r) => r.url.path.contains('/tracks/'));
       expect(trackRequest.url.path, endsWith('/tracks/internal'));
       final body = trackRequest.bodyJson! as Map;
       final release = (body['releases'] as List).single! as Map;
@@ -236,7 +236,7 @@ void main() {
       expect(result.ok, isTrue, reason: result.error);
 
       final trackRequest = transport.requests
-          .singleWhere((final r) => r.url.path.contains('/tracks/'));
+          .singleWhere((r) => r.url.path.contains('/tracks/'));
       final release = ((trackRequest.bodyJson! as Map)['releases'] as List)
           .single! as Map;
       expect(release['status'], 'inProgress');
@@ -274,7 +274,7 @@ void main() {
       // synthetic key) — but no request headers, and no state/result text,
       // may carry the raw synthetic key or its markers.
       final requestDump = transport.requests
-          .map((final r) => '${r.method} ${r.url} ${r.headers}')
+          .map((r) => '${r.method} ${r.url} ${r.headers}')
           .join('\n');
       expectNoSecretMaterial(
         requestDump,

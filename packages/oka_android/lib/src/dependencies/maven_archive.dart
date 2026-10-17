@@ -110,7 +110,7 @@ extractAarPayload(
 /// Idempotent write: re-extracting a cached AAR payload (warm builds) skips
 /// files whose on-disk size already matches instead of rewriting the same
 /// native blobs every build.
-Future<void> _writeIfChanged(final File output, final List<int> content) async {
+Future<void> _writeIfChanged(File output, List<int> content) async {
   await output.parent.create(recursive: true);
   if (await output.exists() && await output.length() == content.length) {
     return;

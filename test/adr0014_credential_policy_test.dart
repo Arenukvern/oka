@@ -69,14 +69,14 @@ void main() {
       await tmp.delete(recursive: true);
     });
 
-    CredentialResolver resolver([final Map<String, String> env = const {}]) =>
+    CredentialResolver resolver([Map<String, String> env = const {}]) =>
         CredentialResolver(environment: env, home: home);
 
     const ref = CredentialRef(target: 'play', kind: 'service-account-json');
 
     test('policyFor: ordered config → env → well-known, as data', () {
       expect(
-        resolver().policyFor(ref).map((final s) => s.kind),
+        resolver().policyFor(ref).map((s) => s.kind),
         [CredentialSourceKind.env, CredentialSourceKind.wellKnown],
       );
       expect(
@@ -88,7 +88,7 @@ void main() {
                 explicitPath: 'x.json',
               ),
             )
-            .map((final s) => s.kind),
+            .map((s) => s.kind),
         [
           CredentialSourceKind.config,
           CredentialSourceKind.env,
@@ -126,7 +126,7 @@ void main() {
       );
       expect(r.ok, isFalse);
       expect(r.problem, contains('missing/credential.json'));
-      expect(r.tried.map((final s) => s.kind), [CredentialSourceKind.config]);
+      expect(r.tried.map((s) => s.kind), [CredentialSourceKind.config]);
     });
 
     test('OKA_* env var naming an existing path resolves', () {
@@ -181,14 +181,14 @@ void main() {
       final r = resolver().resolve(ref);
       expect(r.ok, isFalse);
       // Only probed candidates are listed (the unset env var is not one).
-      expect(r.tried.map((final s) => s.kind).toList(),
+      expect(r.tried.map((s) => s.kind).toList(),
           [CredentialSourceKind.wellKnown]);
       expect(r.problem, isNotNull);
       // An env var set to a nonexistent path IS probed → listed.
       final probed = resolver({
         'OKA_PLAY_SERVICE_ACCOUNT_JSON': '/nowhere/sa.json',
       }).resolve(ref);
-      expect(probed.tried.map((final s) => s.kind).toList(),
+      expect(probed.tried.map((s) => s.kind).toList(),
           [CredentialSourceKind.env, CredentialSourceKind.wellKnown]);
       // Same remediation law as tools: the exception lists the fix.
       expect(
@@ -198,7 +198,7 @@ void main() {
         throwsA(
           isA<CredentialResolutionException>()
               .having(
-                (final e) => e.toString(),
+                (e) => e.toString(),
                 'message',
                 allOf(
                   contains('Tried (in order)'),
@@ -392,14 +392,14 @@ void main() {
       final inside = checkCredentialRepoHygiene(
         credentialPath: '/proj/credentials/sa.json',
         projectPath: '/proj',
-        isIgnored: (final path) => path.endsWith('sa.json'),
+        isIgnored: (path) => path.endsWith('sa.json'),
       );
       expect(inside.ok, isTrue);
       expect(inside.insideProject, isTrue);
       final tracked = checkCredentialRepoHygiene(
         credentialPath: '/proj/credentials/sa.json',
         projectPath: '/proj',
-        isIgnored: (final path) => false,
+        isIgnored: (path) => false,
       );
       expect(tracked.ok, isFalse);
       expect(tracked.message, contains('.gitignore'));
@@ -408,7 +408,7 @@ void main() {
       final outside = checkCredentialRepoHygiene(
         credentialPath: '/home/user/.oka/credentials/play/sa.json',
         projectPath: '/proj',
-        isIgnored: (final path) => false,
+        isIgnored: (path) => false,
       );
       expect(outside.ok, isTrue);
       expect(outside.insideProject, isFalse);

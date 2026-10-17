@@ -31,8 +31,8 @@ class FlutterApkBuilder {
   FlutterApkBuilder(
     this.toolchain, {
     this.verbose = false,
-    final FlutterAssembler? assembler,
-    final PluginDiscovery? pluginDiscovery,
+    FlutterAssembler? assembler,
+    PluginDiscovery? pluginDiscovery,
     this.dependencyCache,
     this.allowNetwork = true,
     this.layoutOnly = false,
@@ -53,7 +53,7 @@ class FlutterApkBuilder {
   /// When true (default strict), unsupported plugins abort the build.
   final bool strictPlugins;
 
-  Future<BuildArtifact> buildApk(final BuildContext ctx) async {
+  Future<BuildArtifact> buildApk(BuildContext ctx) async {
     final start = DateTime.now();
     final isAab = ctx.buildAab;
     try {
@@ -137,7 +137,7 @@ class FlutterApkBuilder {
 
   /// When a failure mentions a missing class, suggest the Maven artifact
   /// (ADR-0002 dependency recovery).
-  static Future<void> _printDependencyHint(final String errorText) async {
+  static Future<void> _printDependencyHint(String errorText) async {
     final missing = extractMissingClass(errorText);
     if (missing == null) return;
     try {

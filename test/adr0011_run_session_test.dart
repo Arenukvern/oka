@@ -68,7 +68,7 @@ final class FakeSdkProbe implements FlutterSdkProbe {
   }
 }
 
-BuildContext _ctx(final String projectPath) =>
+BuildContext _ctx(String projectPath) =>
     BuildContext(
       projectPath: projectPath,
       buildDir: p.join(projectPath, '.oka_cache', 'build', 'debug'),
@@ -200,7 +200,7 @@ void main() {
         () => RunSession.load(p.join(tmp.path, 'missing.json')),
         throwsA(
           isA<RunSessionException>().having(
-            (final e) => e.toString(),
+            (e) => e.toString(),
             'message',
             contains('oka build apk --debug'),
           ),
@@ -234,7 +234,7 @@ void main() {
         () => RunSession.load(path),
         throwsA(
           isA<RunSessionException>()
-              .having((final e) => e.toString(), 'message', contains('99')),
+              .having((e) => e.toString(), 'message', contains('99')),
         ),
       );
     });
@@ -498,9 +498,9 @@ void main() {
     }
 
     Future<DevSessionCheck> check({
-      final String? targetFile,
-      final List<String> pairs = const [],
-      final String? defineFromFile,
+      String? targetFile,
+      List<String> pairs = const [],
+      String? defineFromFile,
     }) => checkDevSession(
           projectPath: tmp.path,
           targetFile: targetFile,

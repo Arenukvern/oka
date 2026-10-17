@@ -46,7 +46,7 @@ void main() {
 
     /// Builds `<sdk>/bin/cache/artifacts/engine` with jars for the given
     /// variants; each jar carries a distinguishable libflutter.so payload.
-    Future<void> buildSdk(final Map<String, String> variants) async {
+    Future<void> buildSdk(Map<String, String> variants) async {
       final engineRoot = p.join(
         sdk.path,
         'bin',
@@ -124,7 +124,7 @@ void main() {
       final jars = await engine.ensureEngineJars(
         abis: ['arm64-v8a'],
         variant: '-release',
-        runProcess: (final exe, final args, {final workingDirectory}) {
+        runProcess: (exe, args, {workingDirectory}) {
           precacheCalled = true;
           throw StateError('precache must not run');
         },
@@ -144,7 +144,7 @@ void main() {
         final jars = await engine.ensureEngineJars(
           abis: ['arm64-v8a'],
           variant: '-release',
-          runProcess: (final exe, final args, {final workingDirectory}) async {
+          runProcess: (exe, args, {workingDirectory}) async {
             invocations.add([exe, ...args]);
             // Simulate the precache populating the release jar.
             Directory(releaseDir).createSync(recursive: true);
@@ -176,12 +176,12 @@ void main() {
           engine.ensureEngineJars(
             abis: ['arm64-v8a'],
             variant: '-release',
-            runProcess: (final exe, final args, {final workingDirectory}) =>
+            runProcess: (exe, args, {workingDirectory}) =>
                 Future.value(ProcessResult(0, 0, '', '')),
           ),
           throwsA(
             predicate(
-              (final e) =>
+              (e) =>
                   e is Exception &&
                   e.toString().contains('precache') &&
                   e.toString().contains('splash'),
@@ -198,12 +198,12 @@ void main() {
           engine.ensureEngineJars(
             abis: ['arm64-v8a'],
             variant: '-release',
-            runProcess: (final exe, final args, {final workingDirectory}) =>
+            runProcess: (exe, args, {workingDirectory}) =>
               Future.value(ProcessResult(0, 1, '', 'offline')),
           ),
           throwsA(
             predicate(
-              (final e) => e is Exception && e.toString().contains('offline'),
+              (e) => e is Exception && e.toString().contains('offline'),
             ),
           ),
         );
@@ -224,7 +224,7 @@ void main() {
 
     /// Pub-workspace layout: package_config at the workspace root, path dep
     /// referenced relatively, hosted dep under .pub-cache (excluded).
-    void writePackageConfig(final String json) {
+    void writePackageConfig(String json) {
       Directory(p.join(temp.path, '.dart_tool')).createSync(recursive: true);
       File(
         p.join(temp.path, '.dart_tool', 'package_config.json'),
@@ -269,10 +269,10 @@ void main() {
 
       final inputs = pathDependencyInputs(project.path);
       expect(
-        inputs.any((final f) => f.endsWith('my_dep/pubspec.yaml')),
+        inputs.any((f) => f.endsWith('my_dep/pubspec.yaml')),
         isTrue,
       );
-      expect(inputs.any((final f) => f.endsWith('my_dep/lib/core.dart')), isTrue);
+      expect(inputs.any((f) => f.endsWith('my_dep/lib/core.dart')), isTrue);
     });
 
     test('fingerprint changes when a path-dep source changes', () async {

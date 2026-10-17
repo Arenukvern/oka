@@ -59,8 +59,8 @@ const kBundletoolVersion = '1.17.0';
 /// Store key for the bundletool jar (ADR-0013/0028) so `oka cache list/gc`
 /// sees it and OKA_CACHE can share it.
 ContentKey bundletoolStoreKey({
-  final String version = kBundletoolVersion,
-  final String downloadUrl = kBundletoolDownloadUrl,
+  String version = kBundletoolVersion,
+  String downloadUrl = kBundletoolDownloadUrl,
 }) => ContentKey.compute(
   category: 'bundletool',
   name: 'bundletool',
@@ -70,7 +70,7 @@ ContentKey bundletoolStoreKey({
 );
 
 /// Absolute path of the bundletool jar inside the shared artifact store.
-String storeBundletoolJarPath({final Map<String, String>? environment}) {
+String storeBundletoolJarPath({Map<String, String>? environment}) {
   final key = bundletoolStoreKey();
   return p.join(
     LocalArtifactStore.defaultRoot(environment: environment),
@@ -81,7 +81,7 @@ String storeBundletoolJarPath({final Map<String, String>? environment}) {
 
 /// Locate a usable bundletool jar: explicit path, OKA env var, artifact
 /// store, oka tools dir, then PATH lookup for a `bundletool` wrapper.
-Future<String?> findBundletool({final String? explicitPath}) async {
+Future<String?> findBundletool({String? explicitPath}) async {
   final candidates = [
     if (explicitPath != null && explicitPath.isNotEmpty) explicitPath,
     Platform.environment['OKA_BUNDLETOOL_JAR'],
@@ -107,8 +107,8 @@ Future<String?> findBundletool({final String? explicitPath}) async {
 /// own their destination). Requires `curl` on PATH (same bootstrap pattern
 /// as cmdline-tools).
 Future<String> downloadBundletool({
-  final String? destPath,
-  final bool verbose = false,
+  String? destPath,
+  bool verbose = false,
 }) async {
   if (destPath != null) {
     await File(destPath).parent.create(recursive: true);
@@ -183,9 +183,9 @@ class BundletoolValidationResult {
 /// Oka's build path does not download bundletool implicitly. Callers that
 /// require it can treat `available == false` as a failure.
 Future<BundletoolValidationResult> validateAabWithBundletool({
-  required final String aabPath,
-  final String? bundletoolPath,
-  final bool verbose = false,
+  required String aabPath,
+  String? bundletoolPath,
+  bool verbose = false,
 }) async {
   final tool = await findBundletool(explicitPath: bundletoolPath);
   if (tool == null) {
@@ -214,13 +214,13 @@ Future<BundletoolValidationResult> validateAabWithBundletool({
 /// This exercises the same parsing/generation path Google Play uses, so a
 /// structurally invalid bundle fails here before upload.
 Future<BundletoolVerifyResult> verifyAabWithBundletool({
-  required final String aabPath,
-  required final String outputApksPath,
-  required final String keystorePath,
-  required final String keyAlias,
-  required final String keyPass,
-  final String? bundletoolPath,
-  final bool verbose = false,
+  required String aabPath,
+  required String outputApksPath,
+  required String keystorePath,
+  required String keyAlias,
+  required String keyPass,
+  String? bundletoolPath,
+  bool verbose = false,
 }) async {
   final tool = await findBundletool(explicitPath: bundletoolPath);
   if (tool == null) {
@@ -283,8 +283,8 @@ Future<BundletoolVerifyResult> verifyAabWithBundletool({
 /// Extract the universal APK from a `.apks` archive (it is a zip with
 /// `splits/universal.apk`).
 Future<String> extractUniversalApk(
-  final String apksPath,
-  final String destApkPath,
+  String apksPath,
+  String destApkPath,
 ) async {
   final bytes = await File(apksPath).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
@@ -313,10 +313,10 @@ Future<String> extractUniversalApk(
 /// calls this after a successful AAB build. [verify] and [keystore] are
 /// injectable for tests.
 Future<bool> verifyAabPostBuild(
-  final String aabPath, {
-  required final bool verbose,
-  final BundletoolVerifier? verify,
-  final Future<String> Function()? keystore,
+  String aabPath, {
+  required bool verbose,
+  BundletoolVerifier? verify,
+  Future<String> Function()? keystore,
 }) async {
   print('\n🔍 Verifying AAB with bundletool...');
   try {

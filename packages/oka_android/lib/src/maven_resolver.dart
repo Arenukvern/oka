@@ -113,7 +113,7 @@ List<MavenCoordinate> flutterEmbeddingAndroidXDeps() => const [
 /// Declarative Maven repository routing (ADR-0007): one authoritative
 /// group-prefix → host map instead of scattered hardcoded prefix checks.
 class MavenRepoRegistry {
-  MavenRepoRegistry({final List<({String prefix, MavenHost host})>? routes})
+  MavenRepoRegistry({List<({String prefix, MavenHost host})>? routes})
     : _router = MavenRepositoryRouter(routes: routes);
 
   /// Group prefixes hosted on Google Maven (dl.google.com/dl/android/maven2).
@@ -130,35 +130,35 @@ class MavenRepoRegistry {
 
   final MavenRepositoryRouter _router;
 
-  MavenHost hostFor(final String groupId) => _router.hostFor(groupId);
+  MavenHost hostFor(String groupId) => _router.hostFor(groupId);
 
   /// Ordered candidate URLs: primary host first, then the alternative
   /// store, then user repositories (vendor-only groups try user repos
   /// first). Deduplicated.
   List<String> candidatesFor(
-    final MavenCoordinate c, {
-    final List<String> userRepos = const [],
+    MavenCoordinate c, {
+    List<String> userRepos = const [],
   }) => _router.candidatesFor(c, userRepos: userRepos);
 }
 
 /// Builds a Maven URL for [coord] via the default [MavenRepoRegistry].
-String googleMavenUrl(final MavenCoordinate coord) =>
+String googleMavenUrl(MavenCoordinate coord) =>
     MavenRepoRegistry.instance.candidatesFor(coord).first;
 
 /// Extracts `classes.jar` bytes from an AAR (zip) archive.
 ///
 /// Returns null when the AAR is a metadata-only shell (no classes.jar).
-Uint8List? tryExtractClassesJarFromAar(final List<int> aarBytes) =>
+Uint8List? tryExtractClassesJarFromAar(List<int> aarBytes) =>
     archive.tryExtractClassesJarFromAar(aarBytes);
 
 /// Extracts `classes.jar` bytes from an AAR (zip) archive.
-Uint8List extractClassesJarFromAar(final List<int> aarBytes) =>
+Uint8List extractClassesJarFromAar(List<int> aarBytes) =>
     archive.extractClassesJarFromAar(aarBytes);
 
 /// Writes extracted classes.jar to [destJarPath]; returns path.
 Future<String> extractClassesJarToFile(
-  final List<int> aarBytes,
-  final String destJarPath,
+  List<int> aarBytes,
+  String destJarPath,
 ) => archive.extractClassesJarToFile(aarBytes, destJarPath);
 
 /// Result of resolving one coordinate to a local JAR path.
@@ -180,9 +180,9 @@ Future<
   })
 >
 extractAarPayload(
-  final List<int> aarBytes,
-  final String destDir, {
-  final bool verbose = false,
+  List<int> aarBytes,
+  String destDir, {
+  bool verbose = false,
 }) => archive.extractAarPayload(aarBytes, destDir, verbose: verbose);
 
 /// Resolves Maven coordinates to local jars (ADR-0007): repo routing,
@@ -191,7 +191,7 @@ extractAarPayload(
 /// parallel BFS.
 class MavenResolver {
   MavenResolver({
-    final String? cacheRoot,
+    String? cacheRoot,
     this.verbose = false,
     this.httpClient,
     this.allowNetwork = true,
@@ -214,7 +214,7 @@ class MavenResolver {
   /// use (ADR-0028); when the rename is impossible (cross-volume target,
   /// concurrent migration), the legacy root keeps resolving read-only —
   /// existing caches stay valid, nothing re-downloads.
-  static String defaultCacheRoot({final Map<String, String>? environment}) {
+  static String defaultCacheRoot({Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
     final storeMaven = p.join(
       LocalArtifactStore.defaultRoot(environment: env),
@@ -233,7 +233,7 @@ class MavenResolver {
   /// Same-volume rename of the legacy maven root into the store. Atomic: a
   /// concurrent migrator renames first and this call observes the missing
   /// source at the caller's `existsSync`.
-  static bool _migrateLegacyRoot(final String legacy, final String target) {
+  static bool _migrateLegacyRoot(String legacy, String target) {
     try {
       Directory(p.dirname(target)).createSync(recursive: true);
       Directory(legacy).renameSync(target);
@@ -260,7 +260,7 @@ class MavenResolver {
   /// User-declared repositories tried before/after built-in routing.
   final List<String> userRepos;
 
-  String localPathFor(final MavenCoordinate coord) => p.join(
+  String localPathFor(MavenCoordinate coord) => p.join(
     cacheRoot,
     coord.groupId.replaceAll('.', '/'),
     coord.artifactId,
@@ -268,7 +268,7 @@ class MavenResolver {
     coord.fileName,
   );
 
-  String jarPathFor(final MavenCoordinate coord) {
+  String jarPathFor(MavenCoordinate coord) {
     if (coord.packaging == 'jar') {
       return localPathFor(coord);
     }
@@ -287,9 +287,9 @@ class MavenResolver {
   /// [extraRepos] are tried before Google Maven / Maven Central.
   /// If packaging is aar and download 404s, retries as jar.
   Future<ResolvedJar> resolve(
-    final MavenCoordinate coord, {
-    final List<int>? fixtureBytes,
-    final List<String> extraRepos = const [],
+    MavenCoordinate coord, {
+    List<int>? fixtureBytes,
+    List<String> extraRepos = const [],
   }) {
     // Memoize per DependencyCache instance (per build): identical coordinates
     // requested by many plugins resolve once; concurrent requests share one
@@ -302,7 +302,7 @@ class MavenResolver {
     final fut = _resolveUncached(coord, fixtureBytes, extraRepos);
     _inflight[memoKey] = fut;
     return fut
-        .then((final r) {
+        .then((r) {
           _memo[memoKey] = r;
           return r;
         })
@@ -317,7 +317,7 @@ class MavenResolver {
   /// artifact's sha256 at download time, a mismatched cache file is
   /// corruption — report it and let the caller re-download. Entries without
   /// an index (pre-index legacy caches) keep the size-floor heuristic.
-  Future<bool> _warmHitIntact(final String artifactPath) async {
+  Future<bool> _warmHitIntact(String artifactPath) async {
     final indexFile = File(
       p.join(p.dirname(artifactPath), LocalArtifactStore.indexFileName),
     );
@@ -355,9 +355,9 @@ class MavenResolver {
   /// store entry (the whole version directory — artifact, classes jar and
   /// AAR payload — is the gc unit).
   Future<void> _registerStoreEntry(
-    final String artifactPath,
-    final MavenCoordinate coord,
-    final List<int> bytes,
+    String artifactPath,
+    MavenCoordinate coord,
+    List<int> bytes,
   ) async {
     try {
       final artifact = File(artifactPath);
@@ -383,9 +383,9 @@ class MavenResolver {
   }
 
   Future<ResolvedJar> _resolveUncached(
-    final MavenCoordinate coord,
-    final List<int>? fixtureBytes,
-    final List<String> extraRepos,
+    MavenCoordinate coord,
+    List<int>? fixtureBytes,
+    List<String> extraRepos,
   ) async {
     var working = coord;
     final jarPath = jarPathFor(working);
@@ -501,8 +501,8 @@ class MavenResolver {
   /// consumers — without this, cached AARs silently lose their native libs
   /// and the APK builds fine but crashes at runtime (`UnsatisfiedLinkError`).
   Future<ResolvedJar> _resolvedWithAarPayload(
-    final MavenCoordinate coord,
-    final String jarPath,
+    MavenCoordinate coord,
+    String jarPath,
   ) async {
     final aarPath = localPathFor(
       MavenCoordinate(
@@ -530,7 +530,7 @@ class MavenResolver {
 
   /// Payload extraction directory for a coordinate's AAR (`jni/` + `res/`),
   /// next to the stored artifact in the shared store.
-  String _payloadDirFor(final MavenCoordinate coord) => p.join(
+  String _payloadDirFor(MavenCoordinate coord) => p.join(
     cacheRoot,
     coord.groupId.replaceAll('.', '/'),
     coord.artifactId,
@@ -539,8 +539,8 @@ class MavenResolver {
   );
 
   Future<({MavenCoordinate coord, List<int> bytes})> _downloadArtifact(
-    final MavenCoordinate coord, {
-    final List<String> extraRepos = const [],
+    MavenCoordinate coord, {
+    List<String> extraRepos = const [],
   }) async {
     final candidates = <MavenCoordinate>[coord];
     // AndroidX multiplatform: real classes often live in *-android / *-jvm
@@ -602,8 +602,8 @@ class MavenResolver {
 
   /// Candidate URLs for [c]: built-in routing + user repositories.
   List<String> _candidateUrls(
-    final MavenCoordinate c,
-    final List<String> extraRepos,
+    MavenCoordinate c,
+    List<String> extraRepos,
   ) => repositoryRouter.candidatesFor(
     c,
     userRepos: [...userRepos, ...extraRepos],
@@ -611,7 +611,7 @@ class MavenResolver {
 
   /// Resolve the fixed Flutter embedding AndroidX set.
   Future<List<ResolvedJar>> resolveFlutterAndroidX({
-    final Map<String, List<int>> fixtures = const {},
+    Map<String, List<int>> fixtures = const {},
   }) async {
     final results = <ResolvedJar>[];
     for (final coord in flutterEmbeddingAndroidXDeps()) {
@@ -626,11 +626,11 @@ class MavenResolver {
   /// BFS isolation stays intact (one bad artifact never empties the
   /// classpath), but failures become observable instead of verbose-only.
   Future<List<ResolvedJar>> resolveWithTransitives(
-    final List<MavenCoordinate> roots, {
-    final List<String> extraRepos = const [],
-    final int maxDepth = 3,
-    final int maxArtifacts = 250,
-    final void Function(MavenCoordinate coord, Object error)? onFailure,
+    List<MavenCoordinate> roots, {
+    List<String> extraRepos = const [],
+    int maxDepth = 3,
+    int maxArtifacts = 250,
+    void Function(MavenCoordinate coord, Object error)? onFailure,
   }) async {
     final seen = <String>{};
     final out = <ResolvedJar>[];
@@ -658,7 +658,7 @@ class MavenResolver {
 
       final expansions = await Future.wait(
         level.map(
-          (final item) => _resolveAndExpand(
+          (item) => _resolveAndExpand(
             item,
             queue,
             seen,
@@ -697,12 +697,12 @@ class MavenResolver {
     })
   >
   _resolveAndExpand(
-    final ({MavenCoordinate c, int depth}) item,
-    final List<({MavenCoordinate c, int depth})> queue,
-    final Set<String> seen,
-    final List<String> extraRepos,
-    final int maxDepth, {
-    final void Function(MavenCoordinate coord, Object error)? onFailure,
+    ({MavenCoordinate c, int depth}) item,
+    List<({MavenCoordinate c, int depth})> queue,
+    Set<String> seen,
+    List<String> extraRepos,
+    int maxDepth, {
+    void Function(MavenCoordinate coord, Object error)? onFailure,
   }) async {
     try {
       final resolved = await resolve(item.c, extraRepos: extraRepos);
@@ -785,8 +785,8 @@ class MavenResolver {
   /// `NoClassDefFoundError: Lkotlinx/atomicfu/AtomicFU;`, which kills
   /// GeneratedPluginRegistrant and silently unregisters ALL plugins.
   Future<List<MavenCoordinate>> _fetchModuleDependencies(
-    final MavenCoordinate coord, {
-    final List<String> extraRepos = const [],
+    MavenCoordinate coord, {
+    List<String> extraRepos = const [],
   }) async {
     final moduleCoord = MavenCoordinate(
       groupId: coord.groupId,
@@ -816,8 +816,8 @@ class MavenResolver {
   }
 
   Future<List<MavenCoordinate>> _fetchPomDependencies(
-    final MavenCoordinate coord, {
-    final List<String> extraRepos = const [],
+    MavenCoordinate coord, {
+    List<String> extraRepos = const [],
   }) async {
     if (!allowNetwork) return const [];
     final pomCoord = MavenCoordinate(
@@ -846,7 +846,7 @@ class MavenResolver {
     // Version-less <dependency> entries (versions managed by a parent POM's
     // <dependencyManagement> or <properties>): fetch the parent once and
     // resolve versions from it.
-    final needsVersion = deps.any((final d) => d.version.isEmpty);
+    final needsVersion = deps.any((d) => d.version.isEmpty);
     if (!needsVersion) return deps;
 
     final parent = metadataParser.parent(pomXml);
@@ -866,7 +866,7 @@ class MavenResolver {
     final importsQueue = metadataParser
         .imports(parentXml)
         .map(
-          (final c) => MavenCoordinate(
+          (c) => MavenCoordinate(
             groupId: c.groupId,
             artifactId: c.artifactId,
             version: c.version.startsWith(r'${')
@@ -879,12 +879,12 @@ class MavenResolver {
             packaging: 'pom',
           ),
         )
-        .where((final c) => c.version.isNotEmpty)
+        .where((c) => c.version.isNotEmpty)
         .toList();
     if (verbose) {
       print(
         '   parent-managed: ${managed.length} entries; '
-        'imports: ${importsQueue.map((final c) => c.toString()).join(', ')}',
+        'imports: ${importsQueue.map((c) => c.toString()).join(', ')}',
       );
     }
     var bomGuard = 0;
@@ -896,7 +896,7 @@ class MavenResolver {
       if (verbose && bomXml == null) print('   BOM fetch failed: $bom');
       if (bomXml == null) continue;
       final props = metadataParser.properties(bomXml);
-      metadataParser.managedVersions(bomXml).forEach((final k, final v) {
+      metadataParser.managedVersions(bomXml).forEach((k, v) {
         managed[k] = v.startsWith(r'${')
             ? (v == r'${project.version}'
                   ? bom.version
@@ -919,7 +919,7 @@ class MavenResolver {
       parentProps.addAll(metadataParser.properties(gpXml));
       grandparent = metadataParser.parent(gpXml);
     }
-    String resolveVersion(final String v) {
+    String resolveVersion(String v) {
       if (v.startsWith(r'${') && v.endsWith('}')) {
         final key = v.substring(2, v.length - 1);
         return ownProps[key] ?? parentProps[key] ?? '';
@@ -928,7 +928,7 @@ class MavenResolver {
     }
 
     return deps
-        .map((final d) {
+        .map((d) {
           var v = d.version;
           if (v.isEmpty) {
             v = managed['${d.groupId}:${d.artifactId}'] ?? '';
@@ -940,14 +940,14 @@ class MavenResolver {
             version: v,
           );
         })
-        .where((final d) => d.version.isNotEmpty && !d.version.contains(r'${'))
+        .where((d) => d.version.isNotEmpty && !d.version.contains(r'${'))
         .toList();
   }
 
   /// Downloads (or reads cached) POM XML for [coord]; null when unavailable.
   Future<String?> _pomXml(
-    final MavenCoordinate coord,
-    final List<String> extraRepos,
+    MavenCoordinate coord,
+    List<String> extraRepos,
   ) async {
     final pomCoord = MavenCoordinate(
       groupId: coord.groupId,
@@ -971,21 +971,21 @@ class MavenResolver {
 }
 
 /// Extracts `<parent>` coordinates from a POM, when present.
-MavenCoordinate? parsePomParent(final String pomXml) =>
+MavenCoordinate? parsePomParent(String pomXml) =>
     const MavenMetadataParser().parent(pomXml);
 
 /// Extracts `<dependencyManagement><dependencies>` versions from a POM:
 /// map of `groupId:artifactId` → version.
-Map<String, String> parsePomManagedVersions(final String pomXml) =>
+Map<String, String> parsePomManagedVersions(String pomXml) =>
     const MavenMetadataParser().managedVersions(pomXml);
 
 /// Extracts BOM imports (`<type>pom</type><scope>import</scope>`) from a
 /// POM's dependencyManagement — their managed versions merge transitively.
-List<MavenCoordinate> parsePomImports(final String pomXml) =>
+List<MavenCoordinate> parsePomImports(String pomXml) =>
     const MavenMetadataParser().imports(pomXml);
 
 /// Extracts `<properties>` from a POM: map of property name → value.
-Map<String, String> parsePomProperties(final String pomXml) =>
+Map<String, String> parsePomProperties(String pomXml) =>
     const MavenMetadataParser().properties(pomXml);
 
 /// Parses runtime dependencies from Gradle module metadata JSON
@@ -1002,15 +1002,15 @@ Map<String, String> parsePomProperties(final String pomXml) =>
 /// `strictly`, in that order; entries without a resolvable version are
 /// skipped. Malformed JSON yields an empty list (best-effort by design —
 /// the POM graph remains the baseline).
-List<MavenCoordinate> parseModuleRuntimeDependencies(final String jsonText) =>
+List<MavenCoordinate> parseModuleRuntimeDependencies(String jsonText) =>
     const MavenMetadataParser().moduleRuntimeDependencies(jsonText);
 
 /// Extract compile/runtime dependencies from a Maven POM (minimal).
-List<MavenCoordinate> parsePomDependencies(final String pomXml) =>
+List<MavenCoordinate> parsePomDependencies(String pomXml) =>
     const MavenMetadataParser().dependencies(pomXml);
 
 /// Builds a minimal valid JAR (zip with empty META-INF) for tests.
-List<int> minimalJarBytes({final String entryName = 'META-INF/MANIFEST.MF'}) =>
+List<int> minimalJarBytes({String entryName = 'META-INF/MANIFEST.MF'}) =>
     archive.minimalJarBytes(entryName: entryName);
 
 /// Builds a minimal AAR containing classes.jar for tests.

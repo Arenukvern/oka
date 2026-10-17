@@ -39,8 +39,8 @@ class HuaweiStageAabStep extends BuildStep {
   /// existence check — dry-run law).
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final path = artifactPath ?? _resolveStaged(ctx, state);
     if (path.isNotEmpty) state[aabPath.id] = path;
@@ -50,7 +50,7 @@ class HuaweiStageAabStep extends BuildStep {
   /// State resolution (typed override already handled): an upstream
   /// `aab-path` wins over the Android build's shared `apk_path` slot;
   /// the fallback is oka's real AAB output path.
-  String _resolveStaged(final BuildContext ctx, final PipelineState state) {
+  String _resolveStaged(BuildContext ctx, PipelineState state) {
     final existing = state[aabPath.id];
     if (existing is String && existing.isNotEmpty) return existing;
     final androidAab = state['apk_path'];
@@ -60,7 +60,7 @@ class HuaweiStageAabStep extends BuildStep {
 
   /// oka's default AAB output location: `<buildDir>/aab/app-<mode>.aab`
   /// (matches `packageAndSignAab` in oka_android — keep in sync).
-  static String defaultAabPath(final BuildContext ctx) =>
+  static String defaultAabPath(BuildContext ctx) =>
       '${ctx.buildDir}${ctx.buildDir.endsWith('/') ? '' : '/'}'
       'aab/app-${ctx.mode.name}.aab';
 }
@@ -118,8 +118,8 @@ class AgcPublishStep extends BuildStep {
   /// actionably at each stage (never interactive).
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final artifactPath = state[HuaweiStageAabStep.aabPath.id] as String?;
     if (artifactPath == null || artifactPath.isEmpty) {
@@ -216,7 +216,7 @@ class AgcPublishStep extends BuildStep {
 /// Renders the submit payload as the exact JSON the real run would send
 /// (without release-note contents — those are files, resolved at publish
 /// time). Used by diagnostics and tests; never contains secrets.
-String describeSubmitPayload(final HuaweiReleaseConfig release) =>
+String describeSubmitPayload(HuaweiReleaseConfig release) =>
     const JsonEncoder.withIndent('  ').convert(
       release.submitPayload(
         releaseNoteContents: const <({String language, String content})>[],

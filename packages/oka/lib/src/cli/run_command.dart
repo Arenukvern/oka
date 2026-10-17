@@ -9,7 +9,7 @@ import 'kernel_stack.dart';
 class DeclaredTarget {
   const DeclaredTarget({required this.name, required this.description});
 
-  factory DeclaredTarget.fromJson(final Map<String, dynamic> json) =>
+  factory DeclaredTarget.fromJson(Map<String, dynamic> json) =>
       DeclaredTarget(
         name: json['name']?.toString() ?? '',
         description: json['description']?.toString() ?? '',
@@ -27,7 +27,7 @@ class DeclaredTarget {
 /// against its `Oka(targets: [...])` composition, validates the compiled
 /// steps, and runs them. Any flags after the target name are forwarded.
 class RunCommand {
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     final projectPath = Directory.current.path;
     final entrypoint = await findPipelineEntrypoint(projectPath);
 
@@ -81,8 +81,8 @@ class RunCommand {
   /// True when the project's entrypoint declares a target named [name].
   /// No entrypoint means nothing is declared.
   Future<bool> _declaresTarget(
-    final String name,
-    final String projectPath,
+    String name,
+    String projectPath,
   ) async {
     final entrypoint = await findPipelineEntrypoint(projectPath);
     if (entrypoint == null) return false;
@@ -90,7 +90,7 @@ class RunCommand {
       projectPath: projectPath,
       entrypoint: entrypoint,
     );
-    return targets.any((final t) => t.name == name);
+    return targets.any((t) => t.name == name);
   }
 }
 
@@ -99,8 +99,8 @@ class RunCommand {
 /// to a matching target or fails naming the available targets. When no
 /// entrypoint exists, says so and points at `oka init`.
 Future<void> dispatchUnknownVerb(
-  final String command,
-  final List<String> args,
+  String command,
+  List<String> args,
 ) async {
   final projectPath = Directory.current.path;
   final entrypoint = await findPipelineEntrypoint(projectPath);
@@ -112,7 +112,7 @@ Future<void> dispatchUnknownVerb(
     projectPath: projectPath,
     entrypoint: entrypoint,
   );
-  if (targets.any((final t) => t.name == command)) {
+  if (targets.any((t) => t.name == command)) {
     await delegateToTarget(
       projectPath: projectPath,
       entrypoint: entrypoint,
@@ -130,8 +130,8 @@ Future<void> dispatchUnknownVerb(
 /// `okaRun` answers with a JSON array of `{name, description}`. Exits with
 /// the entrypoint's diagnostics when it fails to load.
 Future<List<DeclaredTarget>> loadDeclaredTargets({
-  required final String projectPath,
-  required final String entrypoint,
+  required String projectPath,
+  required String entrypoint,
 }) async {
   final proc = await Process.run(
     'dart',
@@ -159,10 +159,10 @@ Future<List<DeclaredTarget>> loadDeclaredTargets({
 /// Spawns `dart run <entrypoint> --oka-run-target <name>` and exits with its
 /// code (same delegation path as `oka build`, ADR-0006/0010).
 Future<void> delegateToTarget({
-  required final String projectPath,
-  required final String entrypoint,
-  required final String targetName,
-  required final List<String> args,
+  required String projectPath,
+  required String entrypoint,
+  required String targetName,
+  required List<String> args,
 }) async {
   final proc = await Process.run(
     'dart',
@@ -177,7 +177,7 @@ Future<void> delegateToTarget({
 
 /// Formats the discovered-targets listing appended to dispatch errors
 /// (ADR-0015). With no declared targets, points at the composition root.
-String targetsMessage(final List<DeclaredTarget> targets) {
+String targetsMessage(List<DeclaredTarget> targets) {
   if (targets.isEmpty) {
     return '   This project declares no targets. Add them to the Oka\n'
         '   composition root (tool/oka_pipeline.dart): Oka(targets: [...])\n'
@@ -192,14 +192,14 @@ String targetsMessage(final List<DeclaredTarget> targets) {
 
 /// Unknown-verb error naming the available targets (ADR-0015).
 String unknownVerbMessage(
-  final String command,
-  final List<DeclaredTarget> targets,
+  String command,
+  List<DeclaredTarget> targets,
 ) =>
     '❌ Unknown command: $command\n${targetsMessage(targets)}';
 
 /// Error for a command that cannot be a target because the project has no
 /// entrypoint — points at `oka init` (ADR-0015).
-String noEntrypointMessage(final String command) =>
+String noEntrypointMessage(String command) =>
     '❌ Unknown command: $command\n'
     '   No project entrypoint found (expected tool/oka_pipeline.dart or\n'
     '   bin/oka_pipeline.dart). Project targets live there — run `oka init`\n'

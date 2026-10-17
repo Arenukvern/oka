@@ -28,7 +28,7 @@ class ExtraAssetsStep extends BuildStep {
   String get name => 'extra-assets';
 
   /// Parses `pipeline.extra_assets` entries from decoded oka.yaml maps.
-  static List<({String from, String to})> parse(final List<dynamic> raw) {
+  static List<({String from, String to})> parse(List<dynamic> raw) {
     final out = <({String from, String to})>[];
     for (final e in raw) {
       if (e is Map) {
@@ -46,7 +46,7 @@ class ExtraAssetsStep extends BuildStep {
   }
 
   @override
-  Future<StepResult> run(final BuildContext ctx, final PipelineState state) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     // ADR-0010: constructor entries win; pipeline-level overrides fill in.
     final effective = entries.isNotEmpty
         ? entries
@@ -79,7 +79,7 @@ class ExtraAssetsStep extends BuildStep {
     return StepResult.success();
   }
 
-  Future<void> _copyTree(final Directory source, final Directory dest) async {
+  Future<void> _copyTree(Directory source, Directory dest) async {
     await dest.create(recursive: true);
     await for (final e in source.list(recursive: true, followLinks: false)) {
       final rel = p.relative(e.path, from: source.path);
@@ -119,7 +119,7 @@ class DeeplinkConfig {
   final String host;
   final String pathPrefix;
 
-  static DeeplinkConfig? fromMap(final Map<dynamic, dynamic> map) {
+  static DeeplinkConfig? fromMap(Map<dynamic, dynamic> map) {
     final scheme = map['scheme']?.toString() ?? '';
     // host is optional: custom-scheme deeplinks (e.g. myapp://callback)
     // have no host; https deeplinks require one.
@@ -151,7 +151,7 @@ class DeeplinkConfig {
             </intent-filter>''';
   }
 
-  static List<DeeplinkConfig> parse(final List<dynamic> raw) {
+  static List<DeeplinkConfig> parse(List<dynamic> raw) {
     final out = <DeeplinkConfig>[];
     for (final e in raw) {
       if (e is Map) {

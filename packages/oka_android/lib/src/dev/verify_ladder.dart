@@ -66,7 +66,7 @@ class RungVerdict {
 
   // Mirrors RungVerdict.encodeLine.
   // ignore: prefer_constructors_over_static_methods
-  static RungVerdict fromJson(final Map<String, dynamic> json) =>
+  static RungVerdict fromJson(Map<String, dynamic> json) =>
       RungVerdict(
         json['rung']! as String,
         RungStatus.values.byName(json['status']! as String),
@@ -96,8 +96,8 @@ typedef AdbInvoker =
     Future<ProcessResult> Function(String adb, List<String> args);
 
 Future<ProcessResult> _defaultAdb(
-  final String adb,
-  final List<String> args,
+  String adb,
+  List<String> args,
 ) => Process.run(adb, args);
 
 /// Shared plumbing for rung steps: resolve adb, invoke, record verdict.
@@ -118,14 +118,14 @@ abstract class RungStep extends BuildStep {
   @override
   Set<Artifact<Object>> get provides => {verificationVerdicts};
 
-  ResolvedToolchain _toolchain(final PipelineState state) =>
+  ResolvedToolchain _toolchain(PipelineState state) =>
       toolchain ?? state.resolvedToolchain ?? ResolvedToolchain();
 
-  Future<String> findAdb(final PipelineState state) async =>
+  Future<String> findAdb(PipelineState state) async =>
       adbPath ?? await _toolchain(state).findAdb();
 
   /// Records the verdict into the report artifact.
-  void record(final PipelineState state, final RungVerdict verdict) {
+  void record(PipelineState state, RungVerdict verdict) {
     state.addVerificationVerdict(verdict.encodeLine());
     // ignore: avoid_print
     print(verdict);
@@ -135,7 +135,7 @@ abstract class RungStep extends BuildStep {
 // ── Pure helpers (unit-tested without a device) ────────────────────────
 
 /// Parses `Total frames rendered: N` out of `dumpsys gfxinfo` output.
-int parseRenderedFrames(final String gfxinfoOutput) {
+int parseRenderedFrames(String gfxinfoOutput) {
   final m = RegExp(
     r'Total frames rendered:\s*(\d+)',
   ).firstMatch(gfxinfoOutput);
@@ -149,10 +149,10 @@ int parseRenderedFrames(final String gfxinfoOutput) {
 /// line contains "Application Not Responding" (a systemui ANR wedges the
 /// whole display and poisons every other observation).
 RungVerdict evaluateDeviceHealth({
-  required final String bootCompleted,
-  required final double loadAvg1,
-  required final bool anrInFocus,
-  final double maxLoad = 16,
+  required String bootCompleted,
+  required double loadAvg1,
+  required bool anrInFocus,
+  double maxLoad = 16,
 }) {
   if (bootCompleted.trim() != '1') {
     return RungVerdict(
@@ -213,8 +213,8 @@ class ArtifactProvenanceRungStep extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final apk = state[apkPath.id] as String?;
     if (apk == null || !File(apk).existsSync()) {
@@ -293,8 +293,8 @@ class SnapshotPairingRungStep extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final check = const SnapshotEnginePairingCheck().check(
       ArtifactCheckContext(ctx, state),
@@ -337,8 +337,8 @@ class DeviceHealthRungStep extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final String adb;
     try {
@@ -402,8 +402,8 @@ class ProcessAliveRungStep extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final packageName = state['device_package'] as String? ?? '';
     if (packageName.isEmpty) {
@@ -466,8 +466,8 @@ class DartMainBeaconRungStep extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     if (!expectBeacon) {
       record(
@@ -533,8 +533,8 @@ class FirstFrameRungStep extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final packageName = state['device_package'] as String? ?? '';
     if (packageName.isEmpty) {
@@ -599,8 +599,8 @@ class LogcatSignaturesRungStep extends RungStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final adb = await findAdb(state);
     final r = await runAdb(adb, adbLogcatDumpArgs(serial: deviceId));
@@ -644,7 +644,7 @@ class LogcatSignaturesRungStep extends RungStep {
           'fix': first.signature.fix,
           if (first.signature.evidence.isNotEmpty)
             'evidence': first.signature.evidence,
-          'matches': matches.map((final m) => m.toJson()).toList(),
+          'matches': matches.map((m) => m.toJson()).toList(),
         },
       ),
     );
@@ -666,12 +666,12 @@ class VerificationReportStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final verdicts = state.verificationVerdicts
         .map(
-          (final line) =>
+          (line) =>
               RungVerdict.fromJson(jsonDecode(line) as Map<String, dynamic>),
         )
         .toList();
@@ -687,21 +687,21 @@ class VerificationReportStep extends BuildStep {
       print('   $v');
     }
     final failed = verdicts
-        .where((final v) => v.status == RungStatus.failed)
+        .where((v) => v.status == RungStatus.failed)
         .toList();
     final inconclusive = verdicts
-        .where((final v) => v.status == RungStatus.inconclusiveDevice)
+        .where((v) => v.status == RungStatus.inconclusiveDevice)
         .toList();
     if (failed.isNotEmpty) {
       return StepResult.failure(
         'verification failed at: '
-        '${failed.map((final v) => v.rung).join(', ')}',
+        '${failed.map((v) => v.rung).join(', ')}',
       );
     }
     if (inconclusive.isNotEmpty) {
       return StepResult.failure(
         'verification INCONCLUSIVE — device/host unhealthy '
-        '(${inconclusive.map((final v) => v.detail).join('; ')}). '
+        '(${inconclusive.map((v) => v.detail).join('; ')}). '
         'Fix the device or use a fresh one; results from this state are '
         'not evidence.',
       );

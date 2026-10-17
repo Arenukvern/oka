@@ -76,10 +76,10 @@ final class SupervisorPlan {
   bool get isEmpty => actions.isEmpty;
 
   int get startCount =>
-      actions.where((final a) => a.kind == SupervisorActionKind.start).length;
+      actions.where((a) => a.kind == SupervisorActionKind.start).length;
 
   int get restartCount => actions
-      .where((final a) => a.kind == SupervisorActionKind.restart)
+      .where((a) => a.kind == SupervisorActionKind.restart)
       .length;
 
   /// Deterministic rendering for CLI surfaces and tests.
@@ -108,10 +108,10 @@ final class SupervisorPlan {
 /// start this supervisor performed are judged from the record — the
 /// provider guaranteed nothing is running, so no probe is needed.
 SupervisorPlan planConvergence({
-  required final DesiredState desired,
-  required final RegistrySnapshot snapshot,
-  required final Map<String, Observation> observations,
-  required final DateTime now,
+  required DesiredState desired,
+  required RegistrySnapshot snapshot,
+  required Map<String, Observation> observations,
+  required DateTime now,
 }) {
   final specs = desired.byId();
   final findings = <SupervisorFinding>[];
@@ -151,12 +151,12 @@ SupervisorPlan planConvergence({
 }
 
 void _planOne({
-  required final ComponentSpec spec,
-  required final SupervisorRecord? record,
-  required final Observation? observation,
-  required final DateTime now,
-  required final List<SupervisorAction> actions,
-  required final List<SupervisorFinding> findings,
+  required ComponentSpec spec,
+  required SupervisorRecord? record,
+  required Observation? observation,
+  required DateTime now,
+  required List<SupervisorAction> actions,
+  required List<SupervisorFinding> findings,
 }) {
   final policy = spec.policy;
   final drift = record != null && record.revisionHash != spec.revisionHash;
@@ -361,10 +361,10 @@ void _planOne({
 /// components consumed at start time, so owned dependents re-converge in
 /// the same pass (unowned ones get a finding).
 void _cascadeRestForOne(
-  final Map<String, ComponentSpec> specs,
-  final RegistrySnapshot snapshot,
-  final List<SupervisorAction> actions,
-  final List<SupervisorFinding> findings,
+  Map<String, ComponentSpec> specs,
+  RegistrySnapshot snapshot,
+  List<SupervisorAction> actions,
+  List<SupervisorFinding> findings,
 ) {
   var changed = true;
   final restarts = {
@@ -402,28 +402,28 @@ void _cascadeRestForOne(
 /// Actions apply in the desired state's dependency order: stable
 /// topological order over the spec graph (ties keep declaration order).
 void _orderTopologically(
-  final Map<String, ComponentSpec> specs,
-  final List<SupervisorAction> actions,
+  Map<String, ComponentSpec> specs,
+  List<SupervisorAction> actions,
 ) {
   final position = <String, int>{
     for (final entry in specs.keys.toList().asMap().entries)
       entry.value: entry.key,
   };
-  int rank(final String id) {
+  int rank(String id) {
     // Depth from roots: deps first; simple memoized DFS (graphs are tiny).
     final seen = <String>{};
-    int depth(final String current) {
+    int depth(String current) {
       if (!seen.add(current)) return 0;
       final deps = specs[current]?.dependsOn ?? const <String>[];
       return deps.isEmpty
           ? 0
-          : 1 + deps.map(depth).reduce((final a, final b) => a > b ? a : b);
+          : 1 + deps.map(depth).reduce((a, b) => a > b ? a : b);
     }
 
     return depth(id);
   }
 
-  actions.sort((final a, final b) {
+  actions.sort((a, b) {
     final byDepth = rank(a.componentId).compareTo(rank(b.componentId));
     if (byDepth != 0) return byDepth;
     final byPosition = (position[a.componentId] ?? 0).compareTo(
@@ -434,9 +434,9 @@ void _orderTopologically(
 }
 
 bool _budgetLeft(
-  final SupervisorRecord record,
-  final SupervisionPolicy policy,
-  final DateTime now,
+  SupervisorRecord record,
+  SupervisionPolicy policy,
+  DateTime now,
 ) {
   final windowExpired =
       now.difference(record.windowStartedAt) > policy.restartWindow;

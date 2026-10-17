@@ -13,15 +13,15 @@ final class _ProfileHandle {
 
 final class _Liveness implements ProcessLiveness {
   @override
-  Future<bool> isAlive(final int pid) async => false;
+  Future<bool> isAlive(int pid) async => false;
 
   @override
-  Future<String?> identityToken(final int pid) async => 'token-$pid';
+  Future<String?> identityToken(int pid) async => 'token-$pid';
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async => false;
 }
 
@@ -34,7 +34,7 @@ final class _Planner implements SessionStatePlanner<_ProfileHandle> {
   String get id => 'cleanup-retry-planner';
 
   @override
-  SessionStatePlan<_ProfileHandle> plan(final SessionStateRequest request) =>
+  SessionStatePlan<_ProfileHandle> plan(SessionStateRequest request) =>
       SessionStatePlan(
         logicalResourceKey: 'cleanup-retry:${request.sessionName}',
         namespace: SessionStateNamespace.project,
@@ -54,7 +54,7 @@ final class _Source implements SessionStateSource<_ProfileHandle> {
   String get id => 'cleanup-retry-source';
 
   @override
-  Future<_ProfileHandle> restore(final SessionStateLease lease) async =>
+  Future<_ProfileHandle> restore(SessionStateLease lease) async =>
       _ProfileHandle(p.join(lease.rootPath, lease.relativePath));
 }
 
@@ -70,7 +70,7 @@ final class _CreateProfile
   Set<Artifact<Object>> get provides => const {};
 
   @override
-  Future<void> run(final SessionStateContext<_ProfileHandle> context) async {
+  Future<void> run(SessionStateContext<_ProfileHandle> context) async {
     await Directory(context.handle.path).create(recursive: true);
   }
 }
@@ -81,7 +81,7 @@ final class _UnusedInspector implements SessionStateInspector<_ProfileHandle> {
 
   @override
   Future<SessionStateFinding> inspect(
-    final SessionStateContext<_ProfileHandle> context,
+    SessionStateContext<_ProfileHandle> context,
   ) async => const SessionStateFinding(
     inspectorId: 'cleanup-retry-unused',
     use: SessionStateUse.unused,
@@ -96,7 +96,7 @@ final class _JournaledCleanup
 
   @override
   Future<void> prepare(
-    final SessionStateContext<_ProfileHandle> context,
+    SessionStateContext<_ProfileHandle> context,
   ) async {
     final evidenceDirectory = Directory(
       p.join(context.lease.rootPath, '.cleanup-retry-evidence'),
@@ -117,7 +117,7 @@ final class _FailOnceDurableCleanup
 
   @override
   Future<void> prepare(
-    final SessionStateContext<_ProfileHandle> context,
+    SessionStateContext<_ProfileHandle> context,
   ) async {
     final evidenceDirectory = Directory(
       p.join(context.lease.rootPath, '.cleanup-retry-evidence'),
@@ -139,7 +139,7 @@ final class _FailOnceDurableCleanup
   }
 }
 
-SessionStateWorkflow<_ProfileHandle> _workflow(final String root) =>
+SessionStateWorkflow<_ProfileHandle> _workflow(String root) =>
     SessionStateWorkflow(
       id: 'test.cleanup-retry',
       version: 1,
@@ -217,12 +217,12 @@ void main() {
         contains(
           isA<SessionStateFinding>()
               .having(
-                (final finding) => finding.inspectorId,
+                (finding) => finding.inspectorId,
                 'inspector',
                 'cleanup-retry-unused',
               )
               .having(
-                (final finding) => finding.use,
+                (finding) => finding.use,
                 'use',
                 SessionStateUse.unused,
               ),
@@ -249,12 +249,12 @@ void main() {
         contains(
           isA<SessionStateFinding>()
               .having(
-                (final finding) => finding.inspectorId,
+                (finding) => finding.inspectorId,
                 'inspector',
                 'cleanup-retry-unused',
               )
               .having(
-                (final finding) => finding.use,
+                (finding) => finding.use,
                 'use',
                 SessionStateUse.unused,
               ),
@@ -311,12 +311,12 @@ void main() {
         contains(
           isA<SessionStateFinding>()
               .having(
-                (final finding) => finding.inspectorId,
+                (finding) => finding.inspectorId,
                 'inspector',
                 'cleanup-retry-unused',
               )
               .having(
-                (final finding) => finding.use,
+                (finding) => finding.use,
                 'use',
                 SessionStateUse.unused,
               ),
@@ -345,7 +345,7 @@ void main() {
         'yes',
       );
       expect(
-        await recoveredRegistry.inspect().then((final s) => s.leases),
+        await recoveredRegistry.inspect().then((s) => s.leases),
         isEmpty,
       );
     },

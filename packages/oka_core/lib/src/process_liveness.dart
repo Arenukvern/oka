@@ -58,9 +58,9 @@ enum KillIdentity {
 ///
 /// Pure with respect to the injected seam — scripted fakes in tests.
 Future<KillIdentity> verifyKillIdentity(
-  final ProcessLiveness liveness,
-  final int pid,
-  final String? recordedToken,
+  ProcessLiveness liveness,
+  int pid,
+  String? recordedToken,
 ) async {
   if (pid <= 0) return KillIdentity.unknown;
   final String? current;
@@ -82,18 +82,18 @@ Future<KillIdentity> verifyKillIdentity(
 /// host OS.
 abstract interface class ProcessLiveness {
   /// Whether a process with OS id [pid] is currently alive.
-  Future<bool> isAlive(final int pid);
+  Future<bool> isAlive(int pid);
 
   /// An identity token that changes when the OS reuses [pid] for a
   /// different process — the process start time (or equivalent). Null when
   /// the process is not alive or the token is unobtainable.
-  Future<String?> identityToken(final int pid);
+  Future<String?> identityToken(int pid);
 
   /// Stops [pid] after verifying its identity. Unix hosts try SIGTERM, wait
   /// up to [grace], then SIGKILL if still alive; Windows uses the process
   /// termination available through Dart's `Process.killPid`. Returns false
   /// when the process could not be safely stopped.
-  Future<bool> kill(final int pid, {final Duration grace});
+  Future<bool> kill(int pid, {Duration grace});
 }
 
 /// Default [ProcessLiveness]: `ps` / `kill -0` on macOS, `/proc/<pid>` on
@@ -106,7 +106,7 @@ final class HostProcessLiveness implements ProcessLiveness {
   static const WindowsProcessLiveness _windows = WindowsProcessLiveness();
 
   @override
-  Future<bool> isAlive(final int pid) async {
+  Future<bool> isAlive(int pid) async {
     if (pid <= 0) return false;
     if (Platform.isWindows) return _windows.isAlive(pid);
     if (Platform.isLinux) return Directory('/proc/$pid').existsSync();
@@ -115,7 +115,7 @@ final class HostProcessLiveness implements ProcessLiveness {
   }
 
   @override
-  Future<String?> identityToken(final int pid) async {
+  Future<String?> identityToken(int pid) async {
     if (pid <= 0) return null;
     if (Platform.isWindows) return _windows.identityToken(pid);
     if (Platform.isLinux) {
@@ -135,8 +135,8 @@ final class HostProcessLiveness implements ProcessLiveness {
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async {
     if (pid <= 0) return false;
     if (Platform.isWindows) return _windows.kill(pid, grace: grace);
@@ -185,13 +185,13 @@ final class WindowsProcessLiveness implements ProcessLiveness {
   final ProcessCommandRunner? commandRunner;
 
   Future<ProcessResult> _runCommand(
-    final String executable,
-    final List<String> arguments,
+    String executable,
+    List<String> arguments,
   ) =>
       commandRunner?.call(executable, arguments) ??
       Process.run(executable, arguments);
 
-  Future<WindowsProcessSnapshot> _snapshot(final int pid) async {
+  Future<WindowsProcessSnapshot> _snapshot(int pid) async {
     if (pid <= 0) throw ArgumentError.value(pid, 'pid', 'Must be positive');
     final result = await _runCommand('powershell.exe', [
       '-NoLogo',
@@ -218,21 +218,21 @@ final class WindowsProcessLiveness implements ProcessLiveness {
   }
 
   @override
-  Future<bool> isAlive(final int pid) async {
+  Future<bool> isAlive(int pid) async {
     if (pid <= 0) return false;
     return (await _snapshot(pid)).isAlive;
   }
 
   @override
-  Future<String?> identityToken(final int pid) async {
+  Future<String?> identityToken(int pid) async {
     if (pid <= 0) return null;
     return (await _snapshot(pid)).identityToken;
   }
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async {
     if (pid <= 0) return false;
     final String? originalIdentity;
@@ -304,7 +304,7 @@ final class WindowsProcessSnapshot {
 /// Malformed output and incomplete identities return null. The record format
 /// is `alive|<MachineGuid>|<boot ISO timestamp>|<creation ISO timestamp>` or
 /// `missing|<MachineGuid>|<boot ISO timestamp>|`.
-WindowsProcessSnapshot? parseWindowsProcessProbeOutput(final String output) {
+WindowsProcessSnapshot? parseWindowsProcessProbeOutput(String output) {
   final lines = output.trim().split(RegExp(r'\r?\n'));
   if (lines.length != 1) return null;
   final fields = lines.single.split('|');
@@ -334,7 +334,7 @@ WindowsProcessSnapshot? parseWindowsProcessProbeOutput(final String output) {
   );
 }
 
-String? _parseWindowsMachineId(final String value) {
+String? _parseWindowsMachineId(String value) {
   if (!RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   ).hasMatch(value)) {
@@ -343,7 +343,7 @@ String? _parseWindowsMachineId(final String value) {
   return value.toLowerCase();
 }
 
-DateTime? _parseWindowsUtcTimestamp(final String value) {
+DateTime? _parseWindowsUtcTimestamp(String value) {
   if (!value.endsWith('Z')) return null;
   final parsed = DateTime.tryParse(value);
   return parsed?.isUtc == true ? parsed : null;
@@ -355,7 +355,7 @@ DateTime? _parseWindowsUtcTimestamp(final String value) {
 /// registry value scopes those times to this Windows installation. The
 /// script emits a single machine-readable line and exits unsuccessfully if
 /// any identity source cannot be read.
-String windowsProcessProbeScript(final int pid) {
+String windowsProcessProbeScript(int pid) {
   if (pid <= 0) throw ArgumentError.value(pid, 'pid', 'Must be positive');
   return _windowsProcessProbeTemplate.replaceFirst('__PID__', '$pid');
 }
@@ -387,7 +387,7 @@ $created = $process.CreationDate.ToUniversalTime().ToString('o')
 /// the comm field may contain spaces and parentheses, so parsing splits
 /// after the *last* `)` — field 3 (state) is the first token after it, and
 /// starttime is field 22, i.e. index 19 from there.
-String? parseLinuxProcStatStarttime(final String stat) {
+String? parseLinuxProcStatStarttime(String stat) {
   final close = stat.lastIndexOf(')');
   if (close < 0) return null;
   final afterComm = stat.substring(close + 1).trim();
@@ -403,8 +403,8 @@ String? parseLinuxProcStatStarttime(final String stat) {
 /// the boot UUID prevents a stale pre-reboot lease from matching a recycled
 /// PID after restart.
 String? linuxProcessIdentityToken({
-  required final String bootId,
-  required final String stat,
+  required String bootId,
+  required String stat,
 }) {
   final normalizedBootId = bootId.trim();
   final startTicks = parseLinuxProcStatStarttime(stat);

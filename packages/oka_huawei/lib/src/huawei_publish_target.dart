@@ -137,7 +137,7 @@ class HuaweiPublishTarget extends PublishTarget {
 
   /// Staging steps: the Huawei AAB stage with the typed path override.
   @override
-  List<BuildStep> publishSteps(final BuildContext ctx) => [
+  List<BuildStep> publishSteps(BuildContext ctx) => [
     HuaweiStageAabStep(artifactPath: artifactPath),
     if (!dryRun && verifyArtifact)
       HuaweiArtifactVerificationStep(
@@ -149,7 +149,7 @@ class HuaweiPublishTarget extends PublishTarget {
   /// The upload tail: [AgcPublishStep] with the release config and
   /// credential reference.
   @override
-  BuildStep uploadStep(final BuildContext ctx) => AgcPublishStep(
+  BuildStep uploadStep(BuildContext ctx) => AgcPublishStep(
     release: release,
     credentialRef: _credentialRef(credentialPath),
     endpoints: endpoints,
@@ -166,7 +166,7 @@ class HuaweiPublishTarget extends PublishTarget {
 
 /// The credential reference specialized with the target's explicit path
 /// (a const ref cannot carry a runtime path).
-CredentialRef _credentialRef(final String? explicitPath) => CredentialRef(
+CredentialRef _credentialRef(String? explicitPath) => CredentialRef(
   target: HuaweiPublishTarget.agconnectCredentials.target,
   kind: HuaweiPublishTarget.agconnectCredentials.kind,
   explicitPath: explicitPath,

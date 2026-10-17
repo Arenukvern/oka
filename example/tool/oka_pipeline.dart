@@ -73,7 +73,7 @@ List<BuildStep> _aabTail() => [
   RecordRunSessionStep(),
 ];
 
-Future<void> main(final List<String> args) {
+Future<void> main(List<String> args) {
   // `oka build aab` forwards `--aab`; pick the packaging tail accordingly.
   // (Explicit step lists bypass AndroidPipeline's buildAab default — a
   // composed pipeline owns APK-vs-AAB itself.)
@@ -202,8 +202,8 @@ class BuildInfoStampStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final out = File('${ctx.buildDir}/assemble/flutter_assets/build_info.txt');
     await out.parent.create(recursive: true);
@@ -226,8 +226,8 @@ class PrintChecksumStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final apk = state.apkPath;
     if (apk == null) return StepResult.failure('no apk staged');

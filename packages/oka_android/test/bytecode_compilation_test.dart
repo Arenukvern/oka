@@ -231,7 +231,7 @@ void main() {
         expect(args, containsAllInOrder(['a.jar', 'b.jar']));
         // Only flags that exist in the R8 CLI — a regression here is a broken
         // release build on every machine.
-        expect(args.where((final a) => a.startsWith('--')).toSet(), const {
+        expect(args.where((a) => a.startsWith('--')).toSet(), const {
           '--release',
           '--output',
           '--min-api',

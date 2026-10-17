@@ -36,7 +36,7 @@ class DebugCommand {
   ///
   /// ADR-0015: the probe implementation lives in `oka_android`
   /// (`checkDexSymbols`); this verb only parses args and delegates.
-  Future<void> _runDex(final List<String> args) async {
+  Future<void> _runDex(List<String> args) async {
     final parser = ArgParser()
       ..addMultiOption(
         'find',

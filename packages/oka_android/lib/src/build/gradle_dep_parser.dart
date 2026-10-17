@@ -44,7 +44,7 @@ class ParsedGradleDep {
   String toString() => coordinate;
 
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is ParsedGradleDep &&
       other.groupId == groupId &&
       other.artifactId == artifactId &&
@@ -82,7 +82,7 @@ final _coordPatterns = <RegExp>[
 /// Declarations found inside `if (...) { ... }` / `else { ... }` blocks are
 /// flagged [ParsedGradleDep.inConditional] with the enclosing group id.
 /// All coordinate patterns are single-line, so scopes are tracked line-wise.
-List<ParsedGradleDep> parseGradleDependencies(final String gradleSource) {
+List<ParsedGradleDep> parseGradleDependencies(String gradleSource) {
   final found = <ParsedGradleDep>{};
   // Scope stack: one entry per open brace; 0 = unconditional scope,
   // >0 = inside if/else group with that id.
@@ -122,7 +122,7 @@ List<ParsedGradleDep> parseGradleDependencies(final String gradleSource) {
       scopes.add(lastClosedIfGroup > 0 ? lastClosedIfGroup : 0);
     }
 
-    final innermostGroup = scopes.lastWhere((final g) => g > 0, orElse: () => 0);
+    final innermostGroup = scopes.lastWhere((g) => g > 0, orElse: () => 0);
 
     for (final re in _coordPatterns) {
       for (final m in re.allMatches(line)) {
@@ -184,16 +184,16 @@ List<ParsedGradleDep> parseGradleDependencies(final String gradleSource) {
 /// [deps] from several gradle files must carry distinct
 /// [ParsedGradleDep.conditionalGroup] ids per file (re-map before calling).
 List<ParsedGradleDep> dedupeConditionalDeps(
-  final List<ParsedGradleDep> deps, {
-  final String pluginName = '',
-  final void Function(String notice)? onNotice,
+  List<ParsedGradleDep> deps, {
+  String pluginName = '',
+  void Function(String notice)? onNotice,
 }) {
   final kept = <ParsedGradleDep>[];
   final droppedInGroup = <int, List<ParsedGradleDep>>{};
   for (final dep in deps) {
     if (dep.inConditional &&
         kept.any(
-          (final k) => k.conditionalGroup == dep.conditionalGroup,
+          (k) => k.conditionalGroup == dep.conditionalGroup,
         )) {
       droppedInGroup
           .putIfAbsent(dep.conditionalGroup, () => [])
@@ -206,12 +206,12 @@ List<ParsedGradleDep> dedupeConditionalDeps(
     final who = pluginName.isEmpty ? '' : '$pluginName: ';
     for (final entry in droppedInGroup.entries) {
       final winner = kept.firstWhere(
-        (final k) => k.conditionalGroup == entry.key,
+        (k) => k.conditionalGroup == entry.key,
       );
       onNotice(
         'ℹ️  ${who}conditional if/else dependency variants collapsed: '
         'keeping ${winner.coordinate} (gradle default branch); skipping '
-        '${entry.value.map((final d) => d.coordinate).join(", ")}',
+        '${entry.value.map((d) => d.coordinate).join(", ")}',
       );
     }
   }
@@ -219,7 +219,7 @@ List<ParsedGradleDep> dedupeConditionalDeps(
 }
 
 /// Extract custom maven repository URLs from gradle text.
-List<String> parseMavenRepositoryUrls(final String gradleSource) {
+List<String> parseMavenRepositoryUrls(String gradleSource) {
   final urls = <String>[];
   final re = RegExp(r'''url\s*(?:=\s*)?uri\(?\s*["']([^"']+)["']''');
   final re2 = RegExp(r'''maven\s*\{\s*url\s+["']([^"']+)["']''');

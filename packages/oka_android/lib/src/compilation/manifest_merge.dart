@@ -24,8 +24,8 @@ import 'package:xml/xml.dart';
 ///
 /// Returns the number of elements added.
 int mergeLibraryManifestsInto({
-  required final String appManifestPath,
-  required final Iterable<String> libraryManifestPaths,
+  required String appManifestPath,
+  required Iterable<String> libraryManifestPaths,
 }) {
   final appFile = File(appManifestPath);
   final appDocument = XmlDocument.parse(appFile.readAsStringSync());
@@ -46,9 +46,9 @@ int mergeLibraryManifestsInto({
   final additions = <(XmlElement, XmlElement)>[];
 
   void mergeInto(
-    final XmlElement target,
-    final Iterable<String> tags,
-    final XmlDocument library,
+    XmlElement target,
+    Iterable<String> tags,
+    XmlDocument library,
   ) {
     for (final tag in tags) {
       final existing = {
@@ -57,7 +57,7 @@ int mergeLibraryManifestsInto({
       // Library manifests nest components under <application>, so search
       // all descendants; app-manifest dedupe reads direct children only.
       for (final element in library.rootElement.findAllElements(tag)) {
-        if (element.getAttribute('node', namespace: toolsNamespaceUri) ==
+        if (element.getAttribute('node', namespaceUri: toolsNamespaceUri) ==
             'remove') {
           continue;
         }
@@ -65,7 +65,7 @@ int mergeLibraryManifestsInto({
         if (existing.contains(key)) continue;
         // Gradle would substitute manifest placeholders (${applicationId});
         // aapt2 cannot, and a literal placeholder breaks at install time.
-        final name = element.getAttribute('name', namespace: androidNamespaceUri);
+        final name = element.getAttribute('name', namespaceUri: androidNamespaceUri);
         if (name != null && name.contains(r'${')) {
           stderr.writeln(
             'oka: manifest merge skipped ${element.name.qualified} '
@@ -99,7 +99,7 @@ int mergeLibraryManifestsInto({
     mergeInto(application, applicationChildTags, library);
   }
 
-  void addPair(final (XmlElement, XmlElement) pair) =>
+  void addPair((XmlElement, XmlElement) pair) =>
       pair.$1.children.add(pair.$2);
   additions.forEach(addPair);
   if (additions.isNotEmpty) {
@@ -132,8 +132,8 @@ const applicationChildTags = <String>[
 /// `android:name` when present, otherwise a sorted attribute signature so
 /// nameless elements (e.g. `<uses-feature android:glEsVersion="…">`) merge
 /// deterministically and re-runs stay idempotent.
-String elementMergeKey(final XmlElement element) {
-  final name = element.getAttribute('name', namespace: androidNamespaceUri);
+String elementMergeKey(XmlElement element) {
+  final name = element.getAttribute('name', namespaceUri: androidNamespaceUri);
   if (name != null) return name;
   final parts = [
     for (final a in element.attributes) '${a.name.qualified}=${a.value}',
@@ -145,9 +145,9 @@ String elementMergeKey(final XmlElement element) {
 /// manifest does not declare the tools namespace, so copied attributes with
 /// that prefix render as unbound prefixes and fail aapt2 link — and they
 /// are Gradle-merger directives anyway, meaningless to aapt2.
-XmlElement _stripToolsAttributes(final XmlElement element) {
-  void strip(final XmlElement e) => e.attributes.removeWhere(
-        (final a) =>
+XmlElement _stripToolsAttributes(XmlElement element) {
+  void strip(XmlElement e) => e.attributes.removeWhere(
+        (a) =>
             a.name.namespaceUri == toolsNamespaceUri || a.name.prefix == 'tools',
       );
   strip(element);

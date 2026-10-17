@@ -21,10 +21,10 @@ void main() {
   const spec = ComponentSpec(id: 'api', providerName: 'process');
 
   SupervisorRecord record(
-    final String id, {
-    final String revisionHash = 'aaaaaaaaaaaa',
-    final int restartCount = 0,
-    final String? lastRun,
+    String id, {
+    String revisionHash = 'aaaaaaaaaaaa',
+    int restartCount = 0,
+    String? lastRun,
   }) => SupervisorRecord(
     componentId: id,
     providerName: 'process',

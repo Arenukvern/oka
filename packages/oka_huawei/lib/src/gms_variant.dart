@@ -74,7 +74,7 @@ class HuaweiBuildVariant {
 
   /// Field-wise equality.
   @override
-  bool operator ==(final Object other) =>
+  bool operator ==(Object other) =>
       other is HuaweiBuildVariant &&
       other.android == android &&
       other.overrides == overrides;

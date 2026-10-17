@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 const kSupportedAbis = ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
 
 /// Maps oka / Flutter ABI names to APK `lib/<abi>/` directory names.
-String normalizeAbi(final String abi) {
+String normalizeAbi(String abi) {
   switch (abi.toLowerCase().trim()) {
     case 'android-arm64':
     case 'arm64':
@@ -36,8 +36,8 @@ String normalizeAbi(final String abi) {
 /// If [targetAbi] is non-empty, it is used alone (after normalization).
 /// Otherwise [configAbis] is used; if empty, defaults to `arm64-v8a`.
 List<String> resolveAbis({
-  required final List<String> configAbis,
-  final String targetAbi = '',
+  required List<String> configAbis,
+  String targetAbi = '',
 }) {
   if (targetAbi.trim().isNotEmpty) {
     return [normalizeAbi(targetAbi)];
@@ -66,8 +66,8 @@ List<String> resolveAbis({
 /// boots to the splash and never runs Dart `main()` — see
 /// `docs/evidence/android-release-engine-pairing-2026-09-27.mdx`.
 String engineArtifactDirForVariant(
-  final String abi, {
-  required final String variant,
+  String abi, {
+  required String variant,
 }) {
   engineVariantOrThrow(variant);
   final String platform;
@@ -87,12 +87,12 @@ String engineArtifactDirForVariant(
 /// Canonical engine variant suffixes (debug, profile, release).
 const engineVariants = ['', '-profile', '-release'];
 
-String engineVariantOrThrow(final String variant) {
+String engineVariantOrThrow(String variant) {
   if (!engineVariants.contains(variant)) {
     throw ArgumentError.value(
       variant,
       'variant',
-      'expected one of ${engineVariants.map((final v) => "'$v'").join(', ')}',
+      'expected one of ${engineVariants.map((v) => "'$v'").join(', ')}',
     );
   }
   return variant;
@@ -127,7 +127,7 @@ class ApkLayoutValidation {
 }
 
 /// Collect relative paths under [root] (posix-style).
-Future<Set<String>> listRelativePaths(final Directory root) async {
+Future<Set<String>> listRelativePaths(Directory root) async {
   final paths = <String>{};
   if (!await root.exists()) {
     return paths;
@@ -143,8 +143,8 @@ Future<Set<String>> listRelativePaths(final Directory root) async {
 
 /// Validates a staging directory that mirrors APK internal paths.
 Future<ApkLayoutValidation> validateStagingLayout(
-  final String stagingDir, {
-  final ApkLayoutSpec spec = const ApkLayoutSpec(),
+  String stagingDir, {
+  ApkLayoutSpec spec = const ApkLayoutSpec(),
 }) async {
   final paths = await listRelativePaths(Directory(stagingDir));
   return validatePathSet(paths, spec: spec);
@@ -152,14 +152,14 @@ Future<ApkLayoutValidation> validateStagingLayout(
 
 /// Validates paths already listed (e.g. from `unzip -l`).
 ApkLayoutValidation validatePathSet(
-  final Iterable<String> paths, {
-  final ApkLayoutSpec spec = const ApkLayoutSpec(),
+  Iterable<String> paths, {
+  ApkLayoutSpec spec = const ApkLayoutSpec(),
 }) {
-  final normalized = paths.map((final e) => e.replaceAll(r'\', '/')).toSet();
+  final normalized = paths.map((e) => e.replaceAll(r'\', '/')).toSet();
   final missing = <String>[];
   final present = <String>[];
 
-  void check(final String label, final bool Function() ok) {
+  void check(String label, bool Function() ok) {
     if (ok()) {
       present.add(label);
     } else {
@@ -172,7 +172,7 @@ ApkLayoutValidation validatePathSet(
       'classes.dex',
       () =>
           normalized.contains('classes.dex') ||
-          normalized.any((final p) => p.endsWith('/classes.dex')),
+          normalized.any((p) => p.endsWith('/classes.dex')),
     );
   }
   // Multi-dex: if any classesN.dex was staged, all should be present in path set
@@ -182,7 +182,7 @@ ApkLayoutValidation validatePathSet(
     check(
       'assets/flutter_assets/',
       () => normalized.any(
-        (final p) =>
+        (p) =>
             p == 'assets/flutter_assets' ||
             p.startsWith('assets/flutter_assets/'),
       ),
@@ -195,7 +195,7 @@ ApkLayoutValidation validatePathSet(
       so,
       () =>
           normalized.contains(so) ||
-          normalized.any((final p) => p.endsWith('/lib/$abi/libflutter.so')),
+          normalized.any((p) => p.endsWith('/lib/$abi/libflutter.so')),
     );
     if (spec.requireLibapp) {
       final appSo = 'lib/$abi/libapp.so';
@@ -203,7 +203,7 @@ ApkLayoutValidation validatePathSet(
         appSo,
         () =>
             normalized.contains(appSo) ||
-            normalized.any((final p) => p.endsWith('/lib/$abi/libapp.so')),
+            normalized.any((p) => p.endsWith('/lib/$abi/libapp.so')),
       );
     }
   }
@@ -217,7 +217,7 @@ ApkLayoutValidation validatePathSet(
 
 /// Collect all multi-dex outputs from a d8 directory (`classes.dex`,
 /// `classes2.dex`, …). Sorted so `classes.dex` comes first.
-Future<List<String>> listDexOutputs(final String dexDir) async {
+Future<List<String>> listDexOutputs(String dexDir) async {
   final dir = Directory(dexDir);
   if (!await dir.exists()) return const [];
   final files = <String>[];
@@ -228,7 +228,7 @@ Future<List<String>> listDexOutputs(final String dexDir) async {
       files.add(e.path);
     }
   }
-  files.sort((final a, final b) {
+  files.sort((a, b) {
     final na = p.basename(a);
     final nb = p.basename(b);
     if (na == 'classes.dex') return -1;
@@ -246,13 +246,13 @@ Future<List<String>> listDexOutputs(final String dexDir) async {
 /// - per-ABI `libflutter.so` from [libflutterByAbi]
 /// - optional per-ABI `libapp.so` from [libappByAbi]
 Future<void> stageApkLayout({
-  required final String stagingDir,
-  final String? dexFile,
-  final List<String> dexFiles = const [],
-  final String? flutterAssetsDir,
-  final Map<String, String> libflutterByAbi = const {},
-  final Map<String, String> libappByAbi = const {},
-  final String? resourcesApk,
+  required String stagingDir,
+  String? dexFile,
+  List<String> dexFiles = const [],
+  String? flutterAssetsDir,
+  Map<String, String> libflutterByAbi = const {},
+  Map<String, String> libappByAbi = const {},
+  String? resourcesApk,
 }) async {
   final root = Directory(stagingDir);
   if (await root.exists()) {
@@ -319,7 +319,7 @@ Future<void> stageApkLayout({
 /// Used for unit tests and as a last-mile packager when resources are already
 /// linked. Real device installs still need proper aapt2-linked resources when
 /// using Android framework resource IDs.
-Future<void> zipStagingToApk(final String stagingDir, final String apkPath) async {
+Future<void> zipStagingToApk(String stagingDir, String apkPath) async {
   final archive = Archive();
   // Deterministic artifact bytes (ADR-0007): entry order follows sorted
   // relative paths, not filesystem directory order.
@@ -341,27 +341,27 @@ Future<void> zipStagingToApk(final String stagingDir, final String apkPath) asyn
 }
 
 /// Read entry names from an APK/zip file.
-Future<List<String>> listApkEntries(final String apkPath) async {
+Future<List<String>> listApkEntries(String apkPath) async {
   final bytes = await File(apkPath).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
   return archive
-      .where((final f) => f.isFile)
-      .map((final f) => f.name.replaceAll(r'\', '/'))
+      .where((f) => f.isFile)
+      .map((f) => f.name.replaceAll(r'\', '/'))
       .toList();
 }
 
 /// Extract multi-dex entry names from an APK listing (`classes.dex`,
 /// `classes2.dex`, …).
-List<String> multiDexEntries(final Iterable<String> apkPaths) => apkPaths
-      .map((final e) => e.replaceAll(r'\', '/'))
+List<String> multiDexEntries(Iterable<String> apkPaths) => apkPaths
+      .map((e) => e.replaceAll(r'\', '/'))
       .where(
-        (final e) =>
+        (e) =>
             e == 'classes.dex' || RegExp(r'(^|/)classes\d+\.dex$').hasMatch(e),
       )
-      .map((final e) => e.contains('/') ? e.split('/').last : e)
+      .map((e) => e.contains('/') ? e.split('/').last : e)
       .toSet()
       .toList()
-    ..sort((final a, final b) {
+    ..sort((a, b) {
       if (a == 'classes.dex') return -1;
       if (b == 'classes.dex') return 1;
       return a.compareTo(b);
@@ -369,7 +369,7 @@ List<String> multiDexEntries(final Iterable<String> apkPaths) => apkPaths
 
 /// Search raw DEX bytes for a UTF-8 needle (class descriptors often appear
 /// as plain strings, e.g. `Lio/flutter/plugins/GeneratedPluginRegistrant;`).
-bool dexBytesContainString(final List<int> dexBytes, final String needle) {
+bool dexBytesContainString(List<int> dexBytes, String needle) {
   if (needle.isEmpty) return false;
   final n = needle.codeUnits;
   if (n.length > dexBytes.length) return false;
@@ -384,12 +384,12 @@ bool dexBytesContainString(final List<int> dexBytes, final String needle) {
 }
 
 /// Convert Java FQCN to a DEX type descriptor used in string tables.
-String javaClassToDexDescriptor(final String fullyQualifiedClass) => 'L${fullyQualifiedClass.replaceAll('.', '/')};';
+String javaClassToDexDescriptor(String fullyQualifiedClass) => 'L${fullyQualifiedClass.replaceAll('.', '/')};';
 
 /// True if any of the given DEX blobs contains [fullyQualifiedClass].
 bool anyDexContainsClass(
-  final Iterable<List<int>> dexBlobs,
-  final String fullyQualifiedClass,
+  Iterable<List<int>> dexBlobs,
+  String fullyQualifiedClass,
 ) {
   final desc = javaClassToDexDescriptor(fullyQualifiedClass);
   final simple = fullyQualifiedClass.split('.').last;
@@ -404,7 +404,7 @@ bool anyDexContainsClass(
 }
 
 /// Read all multi-dex blobs from an APK zip.
-Future<Map<String, List<int>>> readApkDexBlobs(final String apkPath) async {
+Future<Map<String, List<int>>> readApkDexBlobs(String apkPath) async {
   final bytes = await File(apkPath).readAsBytes();
   final archive = ZipDecoder().decodeBytes(bytes);
   final out = <String, List<int>>{};
@@ -418,7 +418,7 @@ Future<Map<String, List<int>>> readApkDexBlobs(final String apkPath) async {
   return out;
 }
 
-Future<void> _copyDirectory(final Directory source, final Directory destination) async {
+Future<void> _copyDirectory(Directory source, Directory destination) async {
   await destination.create(recursive: true);
   await for (final entity in source.list(recursive: true, followLinks: false)) {
     final relativePath = p.relative(entity.path, from: source.path);

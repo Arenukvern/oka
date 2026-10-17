@@ -21,8 +21,8 @@ typedef PlayAuthClientFactory =
     );
 
 Future<http.Client> _googleAuthClientFactory(
-  final Map<String, dynamic> serviceAccountJson,
-  final http.Client baseClient,
+  Map<String, dynamic> serviceAccountJson,
+  http.Client baseClient,
 ) => gauth.clientViaServiceAccount(
   gauth.ServiceAccountCredentials.fromJson(serviceAccountJson),
   [androidPublisherScope],
@@ -46,9 +46,9 @@ Future<http.Client> _googleAuthClientFactory(
 class PlayUploadStep extends BuildStep {
   PlayUploadStep(
     this.target, {
-    final CredentialResolver? credentialResolver,
+    CredentialResolver? credentialResolver,
     this.httpClient,
-    final PlayAuthClientFactory? authClientFactory,
+    PlayAuthClientFactory? authClientFactory,
   }) : credentialResolver = credentialResolver ?? CredentialResolver.platform(),
        authClientFactory = authClientFactory ?? _googleAuthClientFactory;
 
@@ -89,8 +89,8 @@ class PlayUploadStep extends BuildStep {
   /// AAB file, invalid config, or API errors.
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final aabPath = state[StageAabStep.aab.id] as String?;
     if (aabPath == null || aabPath.isEmpty) {
@@ -112,7 +112,7 @@ class PlayUploadStep extends BuildStep {
     if (configIssues.isNotEmpty) {
       return StepResult.failure(
         'PlayPublishTarget config is invalid:\n'
-        '${configIssues.map((final i) => '  - $i').join('\n')}',
+        '${configIssues.map((i) => '  - $i').join('\n')}',
       );
     }
 

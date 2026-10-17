@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 
 /// `dart run bin/oka_artifacts.dart` — the store's CLI seam (ADR-0043):
 /// put (record + optional pointer), materialize, verify, status.
-Future<void> main(final List<String> args) async {
+Future<void> main(List<String> args) async {
   if (args.isEmpty) {
     stdout.writeln(_usage);
     return;
@@ -80,10 +80,10 @@ Future<void> main(final List<String> args) async {
 }
 
 void _put(
-  final ArtifactStore store,
-  final DeltaCodec? codec,
-  final ArgResults results,
-  final List<String> args,
+  ArtifactStore store,
+  DeltaCodec? codec,
+  ArgResults results,
+  List<String> args,
 ) {
   final name = results['name'] as String?;
   final path = args.length > 1 ? args[1] : null;
@@ -132,10 +132,10 @@ void _put(
 }
 
 void _materialize(
-  final ArtifactStore store,
-  final DeltaCodec? codec,
-  final ArgResults results,
-  final List<String> args,
+  ArtifactStore store,
+  DeltaCodec? codec,
+  ArgResults results,
+  List<String> args,
 ) {
   final name = results['name'] as String? ?? (args.length > 1 ? args[1] : null);
   if (name == null) {
@@ -167,10 +167,10 @@ void _materialize(
 }
 
 void _verify(
-  final ArtifactStore store,
-  final DeltaCodec? codec,
-  final ArgResults results,
-  final List<String> args,
+  ArtifactStore store,
+  DeltaCodec? codec,
+  ArgResults results,
+  List<String> args,
 ) {
   final name = results['name'] as String? ?? (args.length > 1 ? args[1] : null);
   if (name == null) {
@@ -197,15 +197,15 @@ void _verify(
         : (report.ok
               ? 'ok: $name'
               : 'corrupt: $name\n'
-                    '${report.problems.map((final p) => '  - $p').join('\n')}'),
+                    '${report.problems.map((p) => '  - $p').join('\n')}'),
   );
   if (!report.ok) exitCode = 1;
 }
 
 void _status(
-  final ArtifactStore store,
-  final ArgResults results,
-  final List<String> args,
+  ArtifactStore store,
+  ArgResults results,
+  List<String> args,
 ) {
   final name = results['name'] as String? ?? (args.length > 1 ? args[1] : null);
   if (name != null) {
@@ -217,7 +217,7 @@ void _status(
   stdout.writeln(names.isEmpty ? 'store is empty' : names.join('\n'));
 }
 
-String _pretty(final Map<String, Object?> value) =>
+String _pretty(Map<String, Object?> value) =>
     const JsonEncoder.withIndent('  ').convert(value);
 
 const String _usage =

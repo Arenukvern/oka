@@ -37,9 +37,9 @@ final class SessionStateCommand {
   final void Function(String) _errorOutput;
   final void Function(int) _setExitCode;
 
-  static void _setProcessExitCode(final int value) => exitCode = value;
+  static void _setProcessExitCode(int value) => exitCode = value;
 
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     final parser = ArgParser()
       ..addFlag('json', negatable: false, help: 'Emit one JSON report.')
       ..addFlag('apply', negatable: false, help: 'Apply eligible cleanup.')
@@ -221,12 +221,12 @@ final class SessionStateCommand {
     }
     if (report.issues.isNotEmpty ||
         selected.any(
-          (final entry) => entry.disposition == SessionStateDisposition.error,
+          (entry) => entry.disposition == SessionStateDisposition.error,
         ) ||
         (apply &&
             (command == 'close' || command == 'forget') &&
             selected.any(
-              (final entry) =>
+              (entry) =>
                   entry.disposition == SessionStateDisposition.retained ||
                   entry.disposition == SessionStateDisposition.eligible,
             ))) {
@@ -235,11 +235,11 @@ final class SessionStateCommand {
   }
 
   Future<bool> _delegate(
-    final String command,
-    final List<String> positional, {
-    required final bool apply,
-    required final bool json,
-    required final bool verbose,
+    String command,
+    List<String> positional, {
+    required bool apply,
+    required bool json,
+    required bool verbose,
   }) async {
     final Map<String, Object?>? result;
     try {
@@ -298,11 +298,11 @@ final class SessionStateCommand {
 
     final entries = (result['entries'] as List? ?? const [])
         .whereType<Map<Object?, Object?>>()
-        .map((final entry) => entry.cast<String, Object?>())
+        .map((entry) => entry.cast<String, Object?>())
         .toList();
     final issues = (result['issues'] as List? ?? const [])
         .whereType<Map<Object?, Object?>>()
-        .map((final issue) => issue.cast<String, Object?>())
+        .map((issue) => issue.cast<String, Object?>())
         .toList();
     final missingLease =
         (command == 'inspect' || command == 'close' || command == 'forget') &&
@@ -346,11 +346,11 @@ final class SessionStateCommand {
       );
     }
     if (issues.isNotEmpty ||
-        entries.any((final entry) => entry['disposition'] == 'error') ||
+        entries.any((entry) => entry['disposition'] == 'error') ||
         (apply &&
             (command == 'close' || command == 'forget') &&
             entries.any(
-              (final entry) =>
+              (entry) =>
                   entry['disposition'] == 'retained' ||
                   entry['disposition'] == 'eligible',
             ))) {
@@ -360,13 +360,13 @@ final class SessionStateCommand {
   }
 
   void _printDelegatedReport(
-    final Map<String, Object?> report,
-    final List<Map<String, Object?>> entries,
-    final List<Map<String, Object?>> issues, {
-    required final bool verbose,
-    required final bool showDeletionSafetyNote,
-    required final String operation,
-    required final bool requireCompletedAction,
+    Map<String, Object?> report,
+    List<Map<String, Object?>> entries,
+    List<Map<String, Object?>> issues, {
+    required bool verbose,
+    required bool showDeletionSafetyNote,
+    required String operation,
+    required bool requireCompletedAction,
   }) {
     final summary = (report['summary'] as Map?)?.cast<String, Object?>() ?? {};
     _output(
@@ -410,7 +410,7 @@ final class SessionStateCommand {
       _errorOutput('Registry issue at ${issue['path']}: ${issue['message']}');
     }
     if (report['applied'] != true &&
-        entries.any((final entry) => entry['disposition'] == 'eligible')) {
+        entries.any((entry) => entry['disposition'] == 'eligible')) {
       _output(
         'No changes made. Re-run with --apply to apply eligible actions.',
       );
@@ -418,7 +418,7 @@ final class SessionStateCommand {
     if (report['applied'] == true &&
         requireCompletedAction &&
         entries.any(
-          (final entry) =>
+          (entry) =>
               entry['disposition'] == 'retained' ||
               entry['disposition'] == 'eligible',
         )) {
@@ -429,7 +429,7 @@ final class SessionStateCommand {
     }
   }
 
-  Future<void> _resume(final String leaseId, {required final bool json}) async {
+  Future<void> _resume(String leaseId, {required bool json}) async {
     try {
       final lease = await _registry.read(leaseId);
       if (lease == null) {
@@ -438,7 +438,7 @@ final class SessionStateCommand {
         );
       }
       final matching = _workflows.where(
-        (final workflow) =>
+        (workflow) =>
             workflow.id == lease.workflowId &&
             workflow.version == lease.workflowVersion,
       );
@@ -481,7 +481,7 @@ final class SessionStateCommand {
     }
   }
 
-  Future<void> _list({required final bool json}) async {
+  Future<void> _list({required bool json}) async {
     final SessionStateRegistrySnapshot snapshot;
     try {
       snapshot = await _registry.inspect();
@@ -498,8 +498,8 @@ final class SessionStateCommand {
         'leases': snapshot.leases.length,
         'registry_issues': snapshot.issues.length,
       },
-      'leases': snapshot.leases.map((final lease) => lease.toJson()).toList(),
-      'issues': snapshot.issues.map((final issue) => issue.toJson()).toList(),
+      'leases': snapshot.leases.map((lease) => lease.toJson()).toList(),
+      'issues': snapshot.issues.map((issue) => issue.toJson()).toList(),
     };
     if (json) {
       _writeJson('session-state.inventory', value);
@@ -523,19 +523,19 @@ final class SessionStateCommand {
   }
 
   void _printReport(
-    final _SessionStateCommandReport result, {
-    required final bool verbose,
-    required final bool requireCompletedAction,
-    required final bool showDeletionSafetyNote,
-    required final String operation,
+    _SessionStateCommandReport result, {
+    required bool verbose,
+    required bool requireCompletedAction,
+    required bool showDeletionSafetyNote,
+    required String operation,
   }) {
     final report = result.report;
     _output(
       'Session-state $operation ${report.applied ? 'applied' : 'preview'}: '
       '${result.entries.length} lease(s), '
-      '${result.entries.where((final e) => e.disposition == SessionStateDisposition.eligible).length} '
+      '${result.entries.where((e) => e.disposition == SessionStateDisposition.eligible).length} '
       'eligible, ${report.forgottenCount} forgotten, '
-      '${result.entries.where((final e) => e.disposition == SessionStateDisposition.retained).length} '
+      '${result.entries.where((e) => e.disposition == SessionStateDisposition.retained).length} '
       'retained, ${report.issues.length} registry issue(s).',
     );
     if (showDeletionSafetyNote) {
@@ -564,7 +564,7 @@ final class SessionStateCommand {
     }
     if (!report.applied &&
         result.entries.any(
-          (final entry) =>
+          (entry) =>
               entry.disposition == SessionStateDisposition.eligible,
         )) {
       _output(
@@ -574,7 +574,7 @@ final class SessionStateCommand {
     if (report.applied &&
         requireCompletedAction &&
         result.entries.any(
-          (final entry) =>
+          (entry) =>
               entry.disposition == SessionStateDisposition.retained ||
               entry.disposition == SessionStateDisposition.eligible,
         )) {
@@ -585,7 +585,7 @@ final class SessionStateCommand {
     }
   }
 
-  void _writeJson(final String event, final Map<String, Object?> params) {
+  void _writeJson(String event, Map<String, Object?> params) {
     _output(
       jsonEncode({
         'scope': 'session-state',
@@ -608,6 +608,6 @@ final class _SessionStateCommandReport {
 
   Map<String, Object?> toJson() => {
     ...report.toJson(),
-    'entries': entries.map((final entry) => entry.toJson()).toList(),
+    'entries': entries.map((entry) => entry.toJson()).toList(),
   };
 }

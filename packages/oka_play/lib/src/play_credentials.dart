@@ -15,8 +15,8 @@ const String playServiceAccountKind = 'service-account-json';
 /// 2. `OKA_PLAY_SERVICE_ACCOUNT_JSON` env var naming a *path*;
 /// 3. `~/.oka/credentials/play/service-account-json`.
 CredentialRef playServiceAccountRef({
-  final String? explicitPath,
-  final String? envVar,
+  String? explicitPath,
+  String? envVar,
 }) => CredentialRef(
   target: 'play',
   kind: playServiceAccountKind,
@@ -52,7 +52,7 @@ class ServiceAccountFormatException implements Exception {
 /// needed for the JWT signing (in memory only — never in
 /// [PipelineState], logs, or plans). A wrong shape fails naming the
 /// missing fields — values are never echoed.
-Map<String, dynamic> parseServiceAccountJson(final String contents) {
+Map<String, dynamic> parseServiceAccountJson(String contents) {
   final Object? decoded;
   try {
     decoded = jsonDecode(contents);
@@ -68,7 +68,7 @@ Map<String, dynamic> parseServiceAccountJson(final String contents) {
   }
   final map = Map<String, dynamic>.from(decoded as Map);
   final missing = requiredServiceAccountFields
-      .where((final f) => map[f] is! String)
+      .where((f) => map[f] is! String)
       .toList();
   if (missing.isNotEmpty) {
     throw ServiceAccountFormatException(

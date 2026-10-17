@@ -60,11 +60,11 @@ class ArtifactCheckContext {
   final PipelineState state;
 
   /// Staged `libflutter.so` for [abi] (normalized), or null.
-  String? libflutterFor(final String abi) =>
+  String? libflutterFor(String abi) =>
       state.libflutterByAbi[normalizeAbi(abi)];
 
   /// Staged `libapp.so` for [abi] (normalized), or null (debug builds).
-  String? libappFor(final String abi) => state.libappByAbi[normalizeAbi(abi)];
+  String? libappFor(String abi) => state.libappByAbi[normalizeAbi(abi)];
 }
 
 /// One artifact validation. Implementations must be deterministic and
@@ -82,7 +82,7 @@ abstract interface class ArtifactCheck {
 /// feature string (e.g. `product no-asan …`); in the engine it appears as a
 /// standalone string. Both may sit near ELF note build-ids, so candidates
 /// are intersected rather than trusted on sight.
-List<String> extractDartSnapshotVersionCandidates(final List<int> bytes) {
+List<String> extractDartSnapshotVersionCandidates(List<int> bytes) {
   final text = latin1.decode(bytes, allowInvalid: true);
   final re = RegExp('(?<![0-9a-f])([0-9a-f]{32})(?![0-9a-f])');
   final candidates = <String>{};
@@ -120,7 +120,7 @@ class SnapshotEnginePairingCheck implements ArtifactCheck {
 
   @override
   Future<ArtifactCheckVerdict> check(
-    final ArtifactCheckContext context,
+    ArtifactCheckContext context,
   ) async {
     final abi = context.state.abis.isEmpty
         ? 'arm64-v8a'
@@ -185,12 +185,12 @@ class EngineVariantMatchesModeCheck implements ArtifactCheck {
 
   @override
   Future<ArtifactCheckVerdict> check(
-    final ArtifactCheckContext context,
+    ArtifactCheckContext context,
   ) async {
     final variant = context.state.provenanceFacts
         .cast<ProvenanceFact?>()
         .firstWhere(
-          (final f) => f!.key == factEngineVariant,
+          (f) => f!.key == factEngineVariant,
           orElse: () => null,
         )
         ?.value as String?;
@@ -246,15 +246,15 @@ class ProvenanceCompletenessCheck implements ArtifactCheck {
 
   @override
   Future<ArtifactCheckVerdict> check(
-    final ArtifactCheckContext context,
+    ArtifactCheckContext context,
   ) async {
     final record = context.state.provenanceFacts;
-    final present = record.map((final f) => f.key).toSet();
+    final present = record.map((f) => f.key).toSet();
     final required = <String>[
       ...requiredFacts,
       if (context.ctx.mode.isRelease) ...releaseOnlyFacts,
     ];
-    final missing = required.where((final k) => !present.contains(k)).toList();
+    final missing = required.where((k) => !present.contains(k)).toList();
     if (missing.isEmpty) {
       return ArtifactCheckVerdict.ok(name, '${present.length} fact(s)');
     }
@@ -290,8 +290,8 @@ class ValidateArtifactStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     if (checks.isEmpty) return StepResult.success();
     final context = ArtifactCheckContext(ctx, state);
@@ -300,7 +300,7 @@ class ValidateArtifactStep extends BuildStep {
       final verdict = await check.check(context);
       verdicts.add(verdict);
     }
-    final failed = verdicts.where((final v) => !v.passed).toList();
+    final failed = verdicts.where((v) => !v.passed).toList();
     for (final v in verdicts) {
       // Skips are noise in normal builds; show them only when verbose or
       // when something already failed (they may explain why).
@@ -317,14 +317,14 @@ class ValidateArtifactStep extends BuildStep {
     }
     return StepResult.failure(
       'artifact validation failed — refusing to package:\n'
-      '${failed.map((final v) => '  $v').join('\n')}',
+      '${failed.map((v) => '  $v').join('\n')}',
     );
   }
 }
 
 /// Extracts the Dart snapshot build id recorded by the AOT step (a thin
 /// helper so verify rungs and checks agree on extraction).
-Future<String?> stagedAotBuildId(final PipelineState state) async {
+Future<String?> stagedAotBuildId(PipelineState state) async {
   final abi = state.abis.isEmpty ? 'arm64-v8a' : normalizeAbi(state.abis.first);
   final libapp = state.libappByAbi[normalizeAbi(abi)];
   if (libapp == null || !File(libapp).existsSync()) return null;
@@ -335,9 +335,9 @@ Future<String?> stagedAotBuildId(final PipelineState state) async {
 }
 
 /// JSON encoding helper shared with verify rungs.
-String encodeVerdictLine(final Map<String, Object?> verdict) =>
+String encodeVerdictLine(Map<String, Object?> verdict) =>
     jsonEncode(verdict);
 
 /// Relative-path helper re-exported for step diagnostics.
-String buildRelative(final String projectPath, final String path) =>
+String buildRelative(String projectPath, String path) =>
     p.relative(path, from: projectPath);

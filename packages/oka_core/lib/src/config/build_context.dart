@@ -69,7 +69,7 @@ class BuildContext {
 
   /// Decodes from the runner/CLI context payload (unknown mode strings
   /// fall back to [BuildMode.debug]).
-  factory BuildContext.fromJson(final Object? json) {
+  factory BuildContext.fromJson(Object? json) {
     final map = jsonDecodeMap(json);
     final modeStr = jsonDecodeString(map['mode']);
     return BuildContext(
@@ -155,9 +155,9 @@ class BuildContext {
   /// Pipeline event sink (null → events dropped; CLI pipes to stdout).
   final void Function(PipelineEvent event)? onEvent;
 
-  static Map<String, String> _decodeDefines(final Object? raw) {
+  static Map<String, String> _decodeDefines(Object? raw) {
     if (raw is Map) {
-      return raw.map((final k, final v) => MapEntry(k.toString(), v.toString()));
+      return raw.map((k, v) => MapEntry(k.toString(), v.toString()));
     }
     return const {};
   }
@@ -166,10 +166,10 @@ class BuildContext {
   ProcessRunner get runner => processRunner ?? const SystemProcessRunner();
 
   /// Emits a progress message as a [PipelineLog] event.
-  void log(final String message) => onEvent?.call(PipelineLog(message));
+  void log(String message) => onEvent?.call(PipelineLog(message));
 
   /// Emits a [BuildWarning] — does not fail the build.
-  void warn(final String message) => onEvent?.call(BuildWarning(message));
+  void warn(String message) => onEvent?.call(BuildWarning(message));
 
   /// Effective Flutter entrypoint: [targetOverride] wins over oka.yaml.
   String get entrypoint => targetOverride.isNotEmpty
@@ -199,24 +199,24 @@ class BuildContext {
   };
 
   BuildContext copyWith({
-    final ProcessRunner? processRunner,
-    final void Function(PipelineEvent event)? onEvent,
-    final String? projectPath,
-    final String? buildDir,
-    final BuildMode? mode,
-    final OkaConfig? config,
-    final String? cacheDir,
-    final String? tempDir,
-    final String? flutterSdkPath,
-    final String? androidSdkPath,
-    final bool? verbose,
-    final String? flavor,
-    final String? targetAbi,
-    final bool? buildAab,
-    final bool? verifyAab,
-    final Map<String, String>? dartDefines,
-    final String? targetOverride,
-    final DateTime? buildTimestamp,
+    ProcessRunner? processRunner,
+    void Function(PipelineEvent event)? onEvent,
+    String? projectPath,
+    String? buildDir,
+    BuildMode? mode,
+    OkaConfig? config,
+    String? cacheDir,
+    String? tempDir,
+    String? flutterSdkPath,
+    String? androidSdkPath,
+    bool? verbose,
+    String? flavor,
+    String? targetAbi,
+    bool? buildAab,
+    bool? verifyAab,
+    Map<String, String>? dartDefines,
+    String? targetOverride,
+    DateTime? buildTimestamp,
   }) => BuildContext(
     projectPath: projectPath ?? this.projectPath,
     buildDir: buildDir ?? this.buildDir,
@@ -247,7 +247,7 @@ class BuildContext {
 /// Extension type for build artifacts.
 extension type const BuildArtifact(Map<String, dynamic> value) {
   /// Decodes from the artifact payload map.
-  factory BuildArtifact.fromJson(final Object? json) =>
+  factory BuildArtifact.fromJson(Object? json) =>
       BuildArtifact(jsonDecodeMap(json));
 
   /// Output file path (APK or AAB).

@@ -9,10 +9,10 @@ import 'package:test/test.dart';
 final _repoRoot = Directory.current.path;
 const _protocolFramePrefix = '\x1eOKA_SESSION_STATE_V1:';
 
-Map<String, Object?> _protocolResponse(final String stdout) {
+Map<String, Object?> _protocolResponse(String stdout) {
   final frames = const LineSplitter()
       .convert(stdout)
-      .where((final line) => line.startsWith(_protocolFramePrefix))
+      .where((line) => line.startsWith(_protocolFramePrefix))
       .toList();
   if (frames.length != 1) {
     throw FormatException(
@@ -31,7 +31,7 @@ void main() {
   late SessionStateHostIdentity hostIdentity;
   late String cliPath;
 
-  Future<ProcessResult> entrypointCall(final Map<String, Object?> request) =>
+  Future<ProcessResult> entrypointCall(Map<String, Object?> request) =>
       Process.run(
         'dart',
         [
@@ -44,7 +44,7 @@ void main() {
         environment: {...Platform.environment, 'HOME': home.path},
       );
 
-  Future<ProcessResult> cli(final List<String> args) => Process.run(
+  Future<ProcessResult> cli(List<String> args) => Process.run(
     'dart',
     ['run', cliPath, ...args],
     workingDirectory: sandbox.path,
@@ -78,10 +78,10 @@ void main() {
   });
 
   SessionStateLease lease({
-    required final String id,
-    required final String workflowId,
-    required final int workflowVersion,
-    required final String rootPath,
+    required String id,
+    required String workflowId,
+    required int workflowVersion,
+    required String rootPath,
   }) {
     final now = DateTime.now().toUtc();
     return SessionStateLease(
@@ -133,7 +133,7 @@ void main() {
           (entries.single as Map<String, Object?>)['findings']! as List;
       expect(
         findings
-            .map((final finding) => (finding as Map<String, Object?>)['reason'])
+            .map((finding) => (finding as Map<String, Object?>)['reason'])
             .toList(),
         contains('inspected by the project entrypoint workflow'),
       );
@@ -189,7 +189,7 @@ void main() {
       expect(missingEntry['disposition'], 'retained');
       expect(
         (missingEntry['findings']! as List).cast<Map<String, Object?>>().map(
-          (final finding) => finding['reason'],
+          (finding) => finding['reason'],
         ),
         contains(
           'workflow test.not-composed@1 is not composed in this invocation.',
@@ -226,7 +226,7 @@ void main() {
       expect(versionEntry['disposition'], 'retained');
       expect(
         (versionEntry['findings']! as List).cast<Map<String, Object?>>().map(
-          (final finding) => finding['reason'],
+          (finding) => finding['reason'],
         ),
         contains(
           'workflow test.project-session-state@8 is not composed in this invocation.',
@@ -382,7 +382,7 @@ void main() {
   test(
     'project protocol rejects missing, duplicate, and malformed frames',
     () async {
-      Future<FormatException> callWithMode(final String mode) async {
+      Future<FormatException> callWithMode(String mode) async {
         try {
           await runProjectSessionState(
             projectPath: sandbox.path,

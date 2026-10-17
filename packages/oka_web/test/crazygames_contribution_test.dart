@@ -76,7 +76,7 @@ const String _legacyCrazyGamesHtml = r'''
 </html>
 ''';
 
-WebScriptEntry? _script(final WebShell shell, final String? src) {
+WebScriptEntry? _script(WebShell shell, String? src) {
   for (final entry in shell.head) {
     if (entry is WebScriptEntry && entry.src == src) return entry;
   }
@@ -120,9 +120,9 @@ void main() {
     test('storeSdk entries sort before every app entry in shell.head', () {
       final head = _shell.head;
       final sdkIndex =
-          head.indexWhere((final e) => e.phase == WebHeadPhase.storeSdk);
+          head.indexWhere((e) => e.phase == WebHeadPhase.storeSdk);
       final firstAppIndex =
-          head.indexWhere((final e) => e.phase == WebHeadPhase.app);
+          head.indexWhere((e) => e.phase == WebHeadPhase.app);
       expect(sdkIndex, greaterThanOrEqualTo(0));
       if (firstAppIndex >= 0) expect(firstAppIndex, greaterThan(sdkIndex));
     });
@@ -141,7 +141,7 @@ void main() {
         () {
       final lines = _shell.describeLines();
       final entryLine = lines
-          .firstWhere((final l) => l.contains('crazygames-sdk-v3.js'));
+          .firstWhere((l) => l.contains('crazygames-sdk-v3.js'));
       expect(
         entryLine,
         contains('requiredSdkGlobal=CrazyGames'),
@@ -255,7 +255,7 @@ void main() {
             .emit(_shell, existingIndexHtml: withoutMarkers),
         throwsA(
           isA<ShellInjectionException>().having(
-            (final e) => e.message,
+            (e) => e.message,
             'message',
             allOf([
               contains('no head markers'),

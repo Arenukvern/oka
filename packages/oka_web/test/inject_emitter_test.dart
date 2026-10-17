@@ -99,7 +99,7 @@ void main() {
     final output =
         const InjectShellEmitter().emit(shell, existingIndexHtml: _legacyHtml);
     expect(
-      output.notes.any((final n) => n.contains('body region left untouched')),
+      output.notes.any((n) => n.contains('body region left untouched')),
       isTrue,
     );
     final beforeBody = _legacyHtml
@@ -115,7 +115,7 @@ void main() {
       () => const InjectShellEmitter().emit(_shell),
       throwsA(
         isA<ShellInjectionException>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           allOf([
             contains('index.html not found'),
@@ -150,7 +150,7 @@ void main() {
           .emit(_shell, existingIndexHtml: withoutHeadMarkers),
       throwsA(
         isA<ShellInjectionException>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           allOf(
             contains('no head markers'),
@@ -179,7 +179,7 @@ void main() {
           .emit(_shell, existingIndexHtml: withoutBodyMarkers),
       throwsA(
         isA<ShellInjectionException>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           allOf(
             contains('no body markers'),
@@ -220,7 +220,7 @@ void main() {
           .emit(_shell, existingIndexHtml: unbalanced),
       throwsA(
         isA<ShellInjectionException>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           allOf(
             contains('unbalanced head marker pair'),
@@ -245,7 +245,7 @@ void main() {
           const InjectShellEmitter().emit(_shell, existingIndexHtml: inverted),
       throwsA(
         isA<ShellInjectionException>().having(
-          (final e) => e.message,
+          (e) => e.message,
           'message',
           contains('markers are inverted'),
         ),

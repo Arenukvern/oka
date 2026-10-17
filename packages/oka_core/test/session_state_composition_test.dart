@@ -10,7 +10,7 @@ final class _Planner implements SessionStatePlanner<_Handle> {
   String get id => 'composition-test-planner';
 
   @override
-  SessionStatePlan<_Handle> plan(final SessionStateRequest request) =>
+  SessionStatePlan<_Handle> plan(SessionStateRequest request) =>
       throw UnimplementedError();
 }
 
@@ -21,7 +21,7 @@ final class _Source implements SessionStateSource<_Handle> {
   String get id => 'composition-test-source';
 
   @override
-  Future<_Handle> restore(final SessionStateLease lease) =>
+  Future<_Handle> restore(SessionStateLease lease) =>
       throw UnimplementedError();
 }
 
@@ -42,7 +42,7 @@ final class _ContributingTarget extends Target
   String get description => 'Contributes test workflows';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => const [];
+  List<BuildStep> compile(BuildContext ctx) => const [];
 }
 
 final class _PlainTarget extends Target {
@@ -55,12 +55,12 @@ final class _PlainTarget extends Target {
   String get description => 'Does not contribute workflows';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => const [];
+  List<BuildStep> compile(BuildContext ctx) => const [];
 }
 
 SessionStateWorkflow<_Handle> _workflow({
-  final String id = 'composition-test',
-  final int version = 1,
+  String id = 'composition-test',
+  int version = 1,
 }) => SessionStateWorkflow(
   id: id,
   version: version,

@@ -20,7 +20,7 @@ void main() {
   late Directory sandbox;
   late String relBin;
 
-  Future<ProcessResult> okaCli(final List<String> args) => Process.run('dart', [
+  Future<ProcessResult> okaCli(List<String> args) => Process.run('dart', [
     'run',
     relBin,
     ...args,

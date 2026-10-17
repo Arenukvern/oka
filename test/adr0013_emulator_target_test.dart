@@ -22,7 +22,7 @@ class FakeRunner {
   final sent = <String>[];
   ScriptedReply reply = (_, _) => ProcessResult(0, 0, '', '');
 
-  Future<ProcessResult> call(final String exe, final List<String> args) async {
+  Future<ProcessResult> call(String exe, List<String> args) async {
     sent.add([exe, ...args].join(' '));
     return reply(exe, args);
   }
@@ -36,8 +36,8 @@ bool _adbAndEmulatorOnPath() {
   final dirs =
       Platform.environment['PATH']?.split(Platform.isWindows ? ';' : ':') ??
       const [];
-  bool has(final String cmd) => dirs.any(
-    (final d) =>
+  bool has(String cmd) => dirs.any(
+    (d) =>
         File('$d/$cmd').existsSync() || File('$d/$cmd.exe').existsSync(),
   );
   return has('adb') && has('emulator');
@@ -347,7 +347,7 @@ void main() {
     test('compiles to ensure-avd + boot-emulator + inventory recording', () {
       const t = EmulatorTarget(apiLevel: 35);
       final steps = t.compile(_ctx());
-      expect(steps.map((final s) => s.name), [
+      expect(steps.map((s) => s.name), [
         'ensure-avd',
         'boot-emulator',
         'record-android-avd-inventory',

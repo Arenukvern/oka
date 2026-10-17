@@ -35,7 +35,7 @@ void main() {
         contributions: [contribution],
       ).head;
       expect(
-        head.map((final e) => e.phase).toList(),
+        head.map((e) => e.phase).toList(),
         [
           WebHeadPhase.preconnect,
           WebHeadPhase.preconnect,
@@ -90,7 +90,7 @@ void main() {
         contributions: [first, second],
       ).head;
       expect(
-        head.whereType<WebScriptEntry>().map((final e) => e.src),
+        head.whereType<WebScriptEntry>().map((e) => e.src),
         ['https://a.example/sdk.js', 'https://b.example/sdk.js'],
       );
     });
@@ -168,12 +168,12 @@ void main() {
       ],
     );
     final lines = shell.describeLines();
-    expect(lines.any((final l) => l.contains('shell: "X"')), isTrue);
-    expect(lines.any((final l) => l.contains('preconnect: 1')), isTrue);
-    expect(lines.any((final l) => l.contains('storeSdk: 1')), isTrue);
-    expect(lines.any((final l) => l.contains('body entries: 1')), isTrue);
+    expect(lines.any((l) => l.contains('shell: "X"')), isTrue);
+    expect(lines.any((l) => l.contains('preconnect: 1')), isTrue);
+    expect(lines.any((l) => l.contains('storeSdk: 1')), isTrue);
+    expect(lines.any((l) => l.contains('body entries: 1')), isTrue);
     expect(
-      lines.any((final l) => l.contains('preconnect — WebLinkEntry')),
+      lines.any((l) => l.contains('preconnect — WebLinkEntry')),
       isTrue,
     );
   });

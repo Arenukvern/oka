@@ -22,15 +22,15 @@ class FakeLiveness implements ProcessLiveness {
   final killed = <int>[];
 
   @override
-  Future<bool> isAlive(final int pid) async => alive;
+  Future<bool> isAlive(int pid) async => alive;
 
   @override
-  Future<String?> identityToken(final int pid) async => token;
+  Future<String?> identityToken(int pid) async => token;
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async {
     killed.add(pid);
     if (killSucceeds) alive = false;
@@ -39,11 +39,11 @@ class FakeLiveness implements ProcessLiveness {
 }
 
 ProcessLease lease({
-  final String id = 'emulator-oka-emulator',
-  final int pid = 4242,
-  final String? token = 'tok-1',
-  final LeaseOwnership ownership = LeaseOwnership.owned,
-  final LeaseStopHint stopHint = const LeaseStopHint(
+  String id = 'emulator-oka-emulator',
+  int pid = 4242,
+  String? token = 'tok-1',
+  LeaseOwnership ownership = LeaseOwnership.owned,
+  LeaseStopHint stopHint = const LeaseStopHint(
     tool: 'adb',
     args: ['-s', 'emulator-5554', 'emu', 'kill'],
   ),
@@ -78,7 +78,7 @@ void main() {
     liveness: liveness,
   );
 
-  Future<LeaseStopOutcome> stop(final String id, {final bool force = false}) =>
+  Future<LeaseStopOutcome> stop(String id, {bool force = false}) =>
       stopLease(
         temp.path,
         id,
@@ -86,7 +86,7 @@ void main() {
         force: force,
         stopVerifyGrace: const Duration(milliseconds: 100),
         pollInterval: const Duration(milliseconds: 10),
-        runProcess: (final exe, final args) async {
+        runProcess: (exe, args) async {
           hintRuns.add([exe, ...args].join(' '));
           return ProcessResult(0, 0, '', '');
         },
@@ -217,7 +217,7 @@ void main() {
         force: true,
         stopVerifyGrace: const Duration(milliseconds: 100),
         pollInterval: const Duration(milliseconds: 10),
-        runProcess: (final exe, final args) async {
+        runProcess: (exe, args) async {
           hintRuns.add([exe, ...args].join(' '));
           return ProcessResult(0, 0, '', '');
         },
@@ -241,7 +241,7 @@ void main() {
           liveness: liveness,
           stopVerifyGrace: const Duration(milliseconds: 100),
           pollInterval: const Duration(milliseconds: 10),
-          runProcess: (final exe, final args) async {
+          runProcess: (exe, args) async {
             hintRuns.add([exe, ...args].join(' '));
             liveness.alive = false;
             return ProcessResult(0, 0, '', '');
@@ -439,7 +439,7 @@ void main() {
         liveness: liveness,
         stopOrphans: true,
         stopVerifyGrace: const Duration(milliseconds: 100),
-        runProcess: (final exe, final args) async {
+        runProcess: (exe, args) async {
           hintRuns.add([exe, ...args].join(' '));
           return ProcessResult(0, 0, '', '');
         },

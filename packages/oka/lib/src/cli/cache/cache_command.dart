@@ -40,8 +40,8 @@ class CacheCommandError implements Exception {
 /// Cache inspection command (ADR-0013).
 class CacheCommand {
   CacheCommand({
-    final void Function(String message)? out,
-    final LocalArtifactStore? store,
+    void Function(String message)? out,
+    LocalArtifactStore? store,
     this.inventory,
     this.environment,
     this.currentDirectory,
@@ -75,7 +75,7 @@ class CacheCommand {
     usageError: CacheCommandError.new,
   );
 
-  Future<void> run(final List<String> args) async {
+  Future<void> run(List<String> args) async {
     if (args.isEmpty ||
         (args.first.startsWith('-') &&
             !['--help', '-h'].contains(args.first))) {
@@ -94,7 +94,7 @@ class CacheCommand {
       case 'clean':
         await _prune(rest);
       case 'schema':
-        if (rest.any((final arg) => arg != '--json')) {
+        if (rest.any((arg) => arg != '--json')) {
           throw const CacheCommandError(64, 'Usage: oka cache schema');
         }
         _schema();
@@ -136,7 +136,7 @@ class CacheCommand {
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help');
 
   Future<CacheWorkspace> _storage(
-    final ArgResults results, {
+    ArgResults results, {
     List<String>? savedProjects,
     bool inspection = false,
   }) async {
@@ -168,7 +168,7 @@ class CacheCommand {
     );
   }
 
-  List<String> _targetArgs(final ArgResults results) => [
+  List<String> _targetArgs(ArgResults results) => [
     if (results['project'] != null) ...[
       '--project',
       results['project'] as String,
@@ -201,7 +201,7 @@ class CacheCommand {
     }
   }
 
-  Future<void> _stats(final List<String> args) async {
+  Future<void> _stats(List<String> args) async {
     final parser = _storageParser()
       ..addMultiOption(
         'kind',
@@ -274,7 +274,7 @@ class CacheCommand {
     );
     _out('Logical file bytes; filesystem allocation may differ.');
     final locations = [...report.locations]
-      ..sort((final a, final b) => b.sizeBytes.compareTo(a.sizeBytes));
+      ..sort((a, b) => b.sizeBytes.compareTo(a.sizeBytes));
     for (final entry
         in kinds.isNotEmpty
             ? <StorageMeasurement>[]
@@ -297,7 +297,7 @@ class CacheCommand {
       }
     }
     _out(
-      '\n${report.locations.any((final e) => !e.complete) ? 'At least ' : ''}'
+      '\n${report.locations.any((e) => !e.complete) ? 'At least ' : ''}'
       '${_formatBytes(report.totalBytes)} across discovered locations.',
     );
     if (locations.length > 8 && !details) {
@@ -363,7 +363,7 @@ class CacheCommand {
     }
   }
 
-  Future<void> _prune(final List<String> args) async {
+  Future<void> _prune(List<String> args) async {
     final parser = _storageParser()
       ..addMultiOption(
         'scope',
@@ -667,12 +667,12 @@ class CacheCommand {
     );
   }
 
-  Duration? _parseDuration(final String raw) => parseCacheDuration(raw);
+  Duration? _parseDuration(String raw) => parseCacheDuration(raw);
 
   /// Parses bytes or K/M/G/T, KB and KiB-style suffixes (binary multiples).
-  int? _parseSize(final String raw) => parseCacheSize(raw);
+  int? _parseSize(String raw) => parseCacheSize(raw);
 
-  String _formatBytes(final int bytes) {
+  String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     if (bytes < 1024 * 1024 * 1024) {

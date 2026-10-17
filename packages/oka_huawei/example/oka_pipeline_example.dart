@@ -45,7 +45,7 @@ const HuaweiBuildVariant variant = HuaweiBuildVariant(
   ),
 );
 
-Future<void> main(final List<String> args) => okaRun(
+Future<void> main(List<String> args) => okaRun(
       args,
       oka: Oka(
         pipelines: [

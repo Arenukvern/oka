@@ -86,7 +86,7 @@ class DeviceTarget extends Target {
       'for failure signatures';
 
   @override
-  List<BuildStep> compile(final BuildContext ctx) => [
+  List<BuildStep> compile(BuildContext ctx) => [
         ResolveNewestApkStep(explicitApk: apk),
         if (!noInstall)
           InstallApkStep(
@@ -115,7 +115,7 @@ class DeviceTarget extends Target {
   Set<String> get supportedInvocationArgs => const {'device'};
 
   @override
-  DeviceTarget applyInvocationArgs(final Map<String, String> args) {
+  DeviceTarget applyInvocationArgs(Map<String, String> args) {
     final unknown = args.keys.toSet().difference(supportedInvocationArgs);
     if (unknown.isNotEmpty) {
       throw ArgumentError(

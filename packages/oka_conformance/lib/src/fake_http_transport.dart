@@ -121,15 +121,15 @@ class FakeHttpTransport extends http.BaseClient {
   }) =>
       route(
         url: url,
-        handle: (final r) => ScriptedResponse(status: status, json: json(r)),
+        handle: (r) => ScriptedResponse(status: status, json: json(r)),
       );
 
   /// Route sugar: reply with a fixed JSON body.
   void routeJsonAlways({required Pattern url, required Object? json}) =>
-      routeJson(url: url, json: (final _) => json);
+      routeJson(url: url, json: (_) => json);
 
   @override
-  Future<http.StreamedResponse> send(final http.BaseRequest request) async {
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final bodyBytes = await _drain(request);
     final recorded = RecordedRequest(
       method: request.method,
@@ -157,7 +157,7 @@ class FakeHttpTransport extends http.BaseClient {
 
   /// Strings match as substrings (a URL fragment such as the host+path is
   /// enough); other patterns match via [Pattern.allMatches].
-  static bool _matches(final Pattern pattern, final String urlText) {
+  static bool _matches(Pattern pattern, String urlText) {
     final p = pattern;
     if (p is String) return urlText.contains(p);
     return p.allMatches(urlText).isNotEmpty;
@@ -165,7 +165,7 @@ class FakeHttpTransport extends http.BaseClient {
 
   /// Body bytes of [request]: direct for [http.Request], drained from
   /// the finalized stream for wrapped/streamed requests.
-  static Future<List<int>> _drain(final http.BaseRequest request) async {
+  static Future<List<int>> _drain(http.BaseRequest request) async {
     if (request is http.Request) return request.bodyBytes;
     // Auth wrappers (e.g. googleapis_auth's AuthenticatedClient) re-wrap
     // requests with streamed bodies — drain the finalized stream.

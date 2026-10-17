@@ -27,9 +27,9 @@ void main() {
 
   tearDown(() => temp.deleteSync(recursive: true));
 
-  List<int> kernelish(final String seed, final int size) => List.generate(
+  List<int> kernelish(String seed, int size) => List.generate(
     size,
-    (final i) => (seed.codeUnitAt(i % seed.length) * 31 + i) % 256,
+    (i) => (seed.codeUnitAt(i % seed.length) * 31 + i) % 256,
   );
 
   test('zstd delta round-trips through a chain of edits', () {

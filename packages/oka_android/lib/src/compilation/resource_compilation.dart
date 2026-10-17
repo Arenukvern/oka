@@ -110,7 +110,7 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
     final libraryManifests = [
       for (final resDir in compiledZipByDir.keys)
         p.join(p.dirname(resDir), 'AndroidManifest.xml'),
-    ]..removeWhere((final f) => !File(f).existsSync());
+    ]..removeWhere((f) => !File(f).existsSync());
     if (libraryManifests.isNotEmpty && File(manifest).existsSync()) {
       final merged = mergeLibraryManifestsInto(
         appManifestPath: manifest,
@@ -186,11 +186,11 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
 }
 
 Future<void> _generateLibraryRClasses({
-  required final String aapt2,
-  required final String androidJar,
-  required final Map<String, String> compiledZipByDir,
-  required final String generatedSourcesDir,
-  required final AndroidProcessRunner processRunner,
+  required String aapt2,
+  required String androidJar,
+  required Map<String, String> compiledZipByDir,
+  required String generatedSourcesDir,
+  required AndroidProcessRunner processRunner,
 }) async {
   if (compiledZipByDir.isEmpty) return;
   stdout.writeln(

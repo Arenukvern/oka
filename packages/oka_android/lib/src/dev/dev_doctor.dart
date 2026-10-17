@@ -42,10 +42,10 @@ class DevDoctorReport {
 /// environments without a device expectation (CI) — the device check is
 /// the only one that needs adb to exist.
 Future<DevDoctorReport> devLoopDoctorChecks({
-  required final String projectPath,
-  final ResolvedToolchain? toolchain,
-  final String? adbPath,
-  final bool checkDevice = true,
+  required String projectPath,
+  ResolvedToolchain? toolchain,
+  String? adbPath,
+  bool checkDevice = true,
 }) async {
   final lines = <String>[];
 
@@ -101,7 +101,7 @@ Future<DevDoctorReport> devLoopDoctorChecks({
       adbPath: adbPath ?? await (toolchain ?? ResolvedToolchain()).findAdb(),
     );
     final devices = await tool.devices();
-    final ready = devices.where((final d) => d.ready).toList();
+    final ready = devices.where((d) => d.ready).toList();
     if (ready.isEmpty) {
       lines.add(
         '  ⚠️  dev session: no ready device — connect one (USB debugging) '
@@ -110,7 +110,7 @@ Future<DevDoctorReport> devLoopDoctorChecks({
       return DevDoctorReport(ok: false, blocking: false, lines: lines);
     }
     lines.add(
-      '  ✅ device: ${ready.map((final d) => d.id).join(', ')} ready for '
+      '  ✅ device: ${ready.map((d) => d.id).join(', ')} ready for '
       'attach',
     );
   } on Exception catch (e) {

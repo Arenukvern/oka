@@ -45,10 +45,10 @@ class FakeLiveness implements ProcessLiveness {
   final List<int> killed = [];
 
   @override
-  Future<bool> isAlive(final int pid) async => alive;
+  Future<bool> isAlive(int pid) async => alive;
 
   @override
-  Future<String?> identityToken(final int pid) async {
+  Future<String?> identityToken(int pid) async {
     if (unidentifiablePids.contains(pid)) return null;
     if (pid == realIdentityPid) {
       return const HostProcessLiveness().identityToken(pid);
@@ -58,8 +58,8 @@ class FakeLiveness implements ProcessLiveness {
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async {
     killed.add(pid);
     alive = false;
@@ -67,7 +67,7 @@ class FakeLiveness implements ProcessLiveness {
   }
 }
 
-BuildContext ctx(final Directory temp, {final String? buildDir}) =>
+BuildContext ctx(Directory temp, {String? buildDir}) =>
     BuildContext(
       projectPath: temp.path,
       buildDir: buildDir ?? p.join(temp.path, '.oka_cache', 'build', 'debug'),
@@ -162,7 +162,7 @@ void main() {
   });
 
   group('chromeSessionIssues', () {
-    BrowserSessionSpec specWithProtocol(final DebugProtocol protocol) =>
+    BrowserSessionSpec specWithProtocol(DebugProtocol protocol) =>
         BrowserSessionSpec(
           binaryPath: '/usr/bin/google-chrome',
           debugProtocol: protocol,
@@ -271,7 +271,7 @@ void main() {
         'artifacts follow the ADR-0017 §2 convention', () {
       const target = ChromeSessionTarget(spec: spec);
       final steps = target.compile(ctx(temp));
-      expect(steps.map((final s) => s.name).toList(), [
+      expect(steps.map((s) => s.name).toList(), [
         'ensure-chrome-session',
       ]);
       expect(Pipeline(steps).validate(), isNull);
@@ -279,7 +279,7 @@ void main() {
       final step = steps.single as EnsureChromeSessionStep;
       expect(step.handleArtifact.id, 'session-chrome-main-handle');
       expect(step.portArtifact.id, 'session-chrome-main-cdp-port');
-      expect(step.provides.map((final a) => a.id).toSet(), {
+      expect(step.provides.map((a) => a.id).toSet(), {
         step.handleArtifact.id,
         step.portArtifact.id,
       });
@@ -324,8 +324,8 @@ void main() {
             profilePersistence: ProfilePersistence.persistent,
           ),
           pollInterval: const Duration(milliseconds: 1),
-          probe: (final url) async => ++probes == 1 ? null : readyBody,
-          startProcess: (final executable, final args) async {
+          probe: (url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (executable, args) async {
             launchArgs = args;
             return FakeSessionProcess(37);
           },
@@ -354,12 +354,12 @@ void main() {
       final step = EnsureChromeSessionStep(
         stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(binaryPath: binaryPath, debugPort: 9222),
-        probe: (final url) async {
+        probe: (url) async {
           probes++;
           probedUrl = url;
           return readyBody;
         },
-        startProcess: (final exe, final args) async {
+        startProcess: (exe, args) async {
           spawns++;
           return FakeSessionProcess(1);
         },
@@ -398,11 +398,11 @@ void main() {
           bootTimeout: Duration(seconds: 5),
         ),
         pollInterval: const Duration(milliseconds: 1),
-        probe: (final url) async {
+        probe: (url) async {
           probes++;
           return probes < 3 ? null : readyBody;
         },
-        startProcess: (final exe, final args) async {
+        startProcess: (exe, args) async {
           spawned.add(args);
           final process = FakeSessionProcess(4242);
           processes.add(process);
@@ -450,13 +450,13 @@ void main() {
             profilePersistence: ProfilePersistence.persistent,
           ),
           pollInterval: const Duration(milliseconds: 1),
-          probe: (final url) async {
+          probe: (url) async {
             probes++;
             // The first probe is the reuse check — it must miss so the
             // spawn path is exercised.
             return probes == 1 ? null : readyBody;
           },
-          startProcess: (final exe, final args) async {
+          startProcess: (exe, args) async {
             spawns++;
             profileDir = args[1].split('=').last;
             return FakeSessionProcess(7);
@@ -491,8 +491,8 @@ void main() {
             profilePersistence: ProfilePersistence.persistent,
           ),
           pollInterval: const Duration(milliseconds: 1),
-          probe: (final url) async => ++repeatProbes == 1 ? null : readyBody,
-          startProcess: (final exe, final args) async {
+          probe: (url) async => ++repeatProbes == 1 ? null : readyBody,
+          startProcess: (exe, args) async {
             expect(args[1], '--user-data-dir=$profileDir');
             return FakeSessionProcess(9);
           },
@@ -554,8 +554,8 @@ void main() {
             profilePersistence: ProfilePersistence.persistent,
           ),
           pollInterval: const Duration(milliseconds: 1),
-          probe: (final url) async => ++probes == 1 ? null : readyBody,
-          startProcess: (final exe, final args) async {
+          probe: (url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (exe, args) async {
             expect(args[1], '--user-data-dir=$profileDir');
             return FakeSessionProcess(11);
           },
@@ -593,8 +593,8 @@ void main() {
             profilePersistence: ProfilePersistence.persistent,
           ),
           pollInterval: const Duration(milliseconds: 1),
-          probe: (final url) async => ++probes == 1 ? null : readyBody,
-          startProcess: (final exe, final args) async {
+          probe: (url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (exe, args) async {
             expect(args[1], '--user-data-dir=$profileDir');
             return FakeSessionProcess(8);
           },
@@ -652,8 +652,8 @@ void main() {
             profilePersistence: ProfilePersistence.persistent,
           ),
           pollInterval: const Duration(milliseconds: 1),
-          probe: (final url) async => ++probes == 1 ? null : readyBody,
-          startProcess: (final exe, final args) async {
+          probe: (url) async => ++probes == 1 ? null : readyBody,
+          startProcess: (exe, args) async {
             expect(args[1], '--user-data-dir=$profileDir');
             return FakeSessionProcess(10);
           },
@@ -690,8 +690,8 @@ void main() {
         ),
         pollInterval: const Duration(milliseconds: 10),
         killGrace: const Duration(milliseconds: 5),
-        probe: (final url) async => null,
-        startProcess: (final exe, final args) async {
+        probe: (url) async => null,
+        startProcess: (exe, args) async {
           final process = FakeSessionProcess(1717);
           processes.add(process);
           return process;
@@ -753,11 +753,11 @@ void main() {
           ),
           pollInterval: const Duration(milliseconds: 1),
           killGrace: const Duration(milliseconds: 5),
-          probe: (final url) async {
+          probe: (url) async {
             probes++;
             return null;
           },
-          startProcess: (final exe, final args) async => process,
+          startProcess: (exe, args) async => process,
           liveness: liveness,
           leaseRegistry: registry,
         );
@@ -807,8 +807,8 @@ void main() {
           ),
           pollInterval: const Duration(milliseconds: 1),
           killGrace: const Duration(milliseconds: 5),
-          probe: (final url) async => null,
-          startProcess: (final exe, final args) async => process,
+          probe: (url) async => null,
+          startProcess: (exe, args) async => process,
           liveness: liveness,
           leaseRegistry: registry,
         );
@@ -838,8 +838,8 @@ void main() {
       final step = EnsureChromeSessionStep(
         stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(binaryPath: '/does/not/exist'),
-        probe: (final url) async => null,
-        startProcess: (final exe, final args) async =>
+        probe: (url) async => null,
+        startProcess: (exe, args) async =>
             throw FileSystemException('No such file or directory', exe),
       );
       final result = await step.run(ctx(temp), PipelineState());
@@ -858,8 +858,8 @@ void main() {
       final step = EnsureChromeSessionStep(
         stateRegistry: stateRegistry,
         spec: const BrowserSessionSpec(binaryPath: '/does/not/exist'),
-        probe: (final url) async => null,
-        startProcess: (final exe, final args) async =>
+        probe: (url) async => null,
+        startProcess: (exe, args) async =>
             throw StateError('starter failed'),
       );
 
@@ -885,11 +885,11 @@ void main() {
           launchFlags: ['--user-data-dir=/evil'],
           debugProtocol: DebugProtocol.webdriver,
         ),
-        probe: (final url) async {
+        probe: (url) async {
           probes++;
           return null;
         },
-        startProcess: (final exe, final args) async {
+        startProcess: (exe, args) async {
           spawns++;
           return FakeSessionProcess(1);
         },
@@ -940,7 +940,7 @@ void main() {
       final step = StopChromeSessionStep(
         liveness: liveness,
         leaseRegistry: registry,
-        killProcess: (final pidValue) {
+        killProcess: (pidValue) {
           killed.add(pidValue);
           liveness.alive = false;
           return true;
@@ -1111,9 +1111,9 @@ void main() {
           debugPort: 9223,
         ),
         pollInterval: const Duration(milliseconds: 10),
-        probe: (final url) async =>
+        probe: (url) async =>
             probes++ == 0 ? null : '{"Browser": "Chrome/126"}',
-        startProcess: (final exe, final args) async {
+        startProcess: (exe, args) async {
           final process = FakeSessionProcess(1717);
           processes.add(process);
           return process;
@@ -1157,7 +1157,7 @@ void main() {
           profilePersistence: ProfilePersistence.persistent,
         ),
         pollInterval: const Duration(milliseconds: 10),
-        probe: (final url) async => '{"Browser": "Chrome/126"}',
+        probe: (url) async => '{"Browser": "Chrome/126"}',
         liveness: liveness,
         leaseRegistry: registry,
       );
@@ -1176,7 +1176,7 @@ void main() {
             debugPort: 9223,
           ),
           pollInterval: const Duration(milliseconds: 10),
-          probe: (final url) async => '{"Browser": "Chrome/126"}',
+          probe: (url) async => '{"Browser": "Chrome/126"}',
           liveness: liveness,
           leaseRegistry: registry,
         );
@@ -1215,7 +1215,7 @@ void main() {
           debugPort: 9223,
         ),
         pollInterval: const Duration(milliseconds: 10),
-        probe: (final url) async => '{"Browser": "Chrome/126"}',
+        probe: (url) async => '{"Browser": "Chrome/126"}',
         liveness: liveness,
         leaseRegistry: registry,
       );
@@ -1244,7 +1244,7 @@ void main() {
           ),
           pollInterval: const Duration(milliseconds: 10),
           killGrace: const Duration(milliseconds: 5),
-          probe: (final url) async {
+          probe: (url) async {
             // Probe call #1 is the reuse check (before spawn + lease write);
             // readiness probes (#2+) run after the lease is recorded — flip
             // the token there to simulate pid recycling mid-readiness.
@@ -1252,7 +1252,7 @@ void main() {
             liveness.token = 'tok-RECYCLED';
             return null;
           },
-          startProcess: (final exe, final args) async =>
+          startProcess: (exe, args) async =>
               FakeSessionProcess(1717),
           liveness: liveness,
           leaseRegistry: registry,

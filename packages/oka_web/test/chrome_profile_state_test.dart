@@ -11,26 +11,26 @@ final class _ScriptedLiveness implements ProcessLiveness {
   final bool alive;
 
   @override
-  Future<bool> isAlive(final int pid) async => alive;
+  Future<bool> isAlive(int pid) async => alive;
 
   @override
-  Future<String?> identityToken(final int pid) async => 'token-$pid';
+  Future<String?> identityToken(int pid) async => 'token-$pid';
 
   @override
   Future<bool> kill(
-    final int pid, {
-    final Duration grace = const Duration(seconds: 3),
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
   }) async => false;
 }
 
 SessionStateContext<ChromeProfileHandle> _context(
-  final String profilePath, {
-  final int? processPid,
-  final String? processPidToken,
-  final int ownerPid = 1,
-  final SessionStateAcquisitionMode acquisitionMode =
+  String profilePath, {
+  int? processPid,
+  String? processPidToken,
+  int ownerPid = 1,
+  SessionStateAcquisitionMode acquisitionMode =
       SessionStateAcquisitionMode.created,
-  final Map<String, Object?> metadata = const {},
+  Map<String, Object?> metadata = const {},
 }) {
   final now = DateTime.utc(2026);
   return SessionStateContext(

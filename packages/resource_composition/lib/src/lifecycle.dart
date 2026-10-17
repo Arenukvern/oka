@@ -70,10 +70,10 @@ final class Lifecycle {
   final StopLadder stop;
 
   Lifecycle copyWith({
-    final ResourceScope? scope,
-    final CrashPolicy? onCrash,
-    final IdentityRequirement? identity,
-    final StopLadder? stop,
+    ResourceScope? scope,
+    CrashPolicy? onCrash,
+    IdentityRequirement? identity,
+    StopLadder? stop,
   }) =>
       Lifecycle(
         scope: scope ?? this.scope,

@@ -54,7 +54,7 @@ const deviceFailureSignatures = <String, String>{
 ///
 /// Pure — unit-tested independently of the tool. Missing keys are simply
 /// absent from the map; callers decide whether that is fatal.
-Map<String, String> parseAapt2Badging(final String output) {
+Map<String, String> parseAapt2Badging(String output) {
   final out = <String, String>{};
   for (final line in output.split('\n')) {
     if (line.startsWith('package:')) {
@@ -71,7 +71,7 @@ Map<String, String> parseAapt2Badging(final String output) {
 
 /// Scans a device log dump for [deviceFailureSignatures]
 /// (case-insensitive). Returns the subset of signatures found.
-Map<String, String> scanLogForFailureSignatures(final String log) {
+Map<String, String> scanLogForFailureSignatures(String log) {
   final found = <String, String>{};
   final lowered = log.toLowerCase();
   for (final entry in deviceFailureSignatures.entries) {
@@ -88,14 +88,14 @@ Map<String, String> scanLogForFailureSignatures(final String log) {
 /// Nothing here calls the deprecated locator wrapper — provisioning of a
 /// missing adb goes through the store-backed AndroidDeviceProvisioner.
 ResolvedToolchain _resolveToolchain(
-  final ResolvedToolchain? injected,
-  final PipelineState state,
+  ResolvedToolchain? injected,
+  PipelineState state,
 ) =>
     injected ?? state.resolvedToolchain ?? ResolvedToolchain();
 
 /// Newest APK across `.oka_cache/build/*/app-*.apk` (including the
 /// `*-aab` sibling layout), or null when none exists.
-Future<String?> findNewestBuiltApk(final String projectPath) async {
+Future<String?> findNewestBuiltApk(String projectPath) async {
   final candidates = <String>[];
   final buildRoot = Directory(
     p.join(projectPath, '.oka_cache', 'build'),
@@ -115,7 +115,7 @@ Future<String?> findNewestBuiltApk(final String projectPath) async {
   }
   if (candidates.isEmpty) return null;
   candidates.sort(
-    (final a, final b) =>
+    (a, b) =>
         File(b).lastModifiedSync().compareTo(File(a).lastModifiedSync()),
   );
   return candidates.first;
@@ -137,8 +137,8 @@ class ResolveNewestApkStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     if (explicitApk != null) {
       if (!File(explicitApk!).existsSync()) {
@@ -182,8 +182,8 @@ class InstallApkStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final apk = state[apkPath.id]! as String;
     final String adb;
@@ -260,8 +260,8 @@ class LaunchAppStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final apk = state[apkPath.id]! as String;
     var badging = const <String, String>{};
@@ -301,15 +301,15 @@ class LaunchAppStep extends BuildStep {
     return StepResult.success({'device_package': packageName});
   }
 
-  Future<String> _findAdb(final PipelineState state) => adbPath != null
+  Future<String> _findAdb(PipelineState state) => adbPath != null
       ? Future.value(adbPath)
       : _resolveToolchain(toolchain, state).findAdb();
 
   /// Minimal `aapt2 dump badging` reader ([parseAapt2Badging]). An absent
   /// aapt2 yields an empty map — the caller reports the actionable error.
   Future<Map<String, String>> _badging(
-    final String apk,
-    final PipelineState state,
+    String apk,
+    PipelineState state,
   ) async {
     String? aapt2;
     if (aapt2Path != null) {
@@ -361,8 +361,8 @@ class LogcatScanStep extends BuildStep {
 
   @override
   Future<StepResult> run(
-    final BuildContext ctx,
-    final PipelineState state,
+    BuildContext ctx,
+    PipelineState state,
   ) async {
     final packageName =
         (state['device_package'] as String?) ?? '';
@@ -402,7 +402,7 @@ class LogcatScanStep extends BuildStep {
     return StepResult.failure('device smoke test failed — $why');
   }
 
-  Future<String?> _pidOf(final String adb, final String packageName) async {
+  Future<String?> _pidOf(String adb, String packageName) async {
     final r = await Process.run(
       adb,
       [...adbSerialArgs(deviceId), 'shell', 'pidof', packageName],
@@ -411,10 +411,10 @@ class LogcatScanStep extends BuildStep {
   }
 
   void _report({
-    required final String packageName,
-    required final String? pid,
-    required final Map<String, String> scan,
-    required final List<SignatureMatch> matches,
+    required String packageName,
+    required String? pid,
+    required Map<String, String> scan,
+    required List<SignatureMatch> matches,
   }) {
     print('');
     if (pid != null && pid.isNotEmpty) {
