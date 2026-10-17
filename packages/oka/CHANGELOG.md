@@ -4,6 +4,13 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.8.1](https://github.com/Arenukvern/oka/compare/v0.8.0...v0.8.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* drop extraneous final parameter modifiers in oka_dart_kernel tool scripts ([a973f87](https://github.com/Arenukvern/oka/commit/a973f870bd29555bd84315b880456f0953a05049))
+
 ## [0.8.0](https://github.com/Arenukvern/oka/compare/v0.7.0...v0.8.0) (2026-10-17)
 
 
