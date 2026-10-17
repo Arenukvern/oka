@@ -4,6 +4,31 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## 0.7.0
+
+### Added
+
+- **Declarative supervisor (ADR-0040/0041).** `oka_supervisor` package:
+  crash-only `Supervisor.converge`, plan JSON (`SpecCodec`), advisory
+  `MachineRegistry`, and `oka supervisor status|apply|check` CLI verbs.
+- **Anchored interval triggers** for supervisor jobs (`IntervalTrigger.at`
+  wall-clock anchors).
+- **Artifact store (ADR-0043).** `oka_artifacts` with delta chains;
+  `oka artifacts` CLI (`put` / `materialize` / `verify`).
+- **Live watcher command lanes (ADR-0038)** and Dart-first lane authoring.
+- **Dev-session lanes:** watch-on-save default, asset sync/evict, shader
+  bundle reinit in the asset lane (ADR-0037 follow-ups).
+
+### Fixed
+
+- Atomic runner-session publish and torn-read tolerant poll (`oka dev`).
+- CLI help points at `https://github.com/arenukvern/oka`.
+
+### Documentation
+
+- Supervisor, artifacts, and OSS onboarding guides; newcomer FAQ; release
+  manifest gate in `check-contracts`.
+
 ## 0.6.0
 
 ### Added

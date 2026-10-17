@@ -6,7 +6,7 @@ description: >-
   diff... -> snapshot only" storage shape for dills, AOT snapshots and
   any other build artifact class, with zstd --patch-from as the default
   codec behind a seam.
-version: 0.6.0 # x-release-please-version
+version: 0.7.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_artifacts
 issue_tracker: https://github.com/Arenukvern/oka/issues
