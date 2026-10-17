@@ -36,8 +36,10 @@
 /// "what" seam and [chromeWebMcp] the first-party profile.
 library;
 
+export 'src/bundle/web_bundle_cache_policy.dart';
+export 'src/bundle/web_bundle_manifest.dart';
 export 'src/bundle/web_bundle_snapshot.dart';
-
+export 'src/bundle/web_isolation_policy.dart';
 export 'src/composition.dart';
 export 'src/contribution.dart';
 export 'src/drift.dart';
@@ -48,8 +50,8 @@ export 'src/emitters/render.dart';
 export 'src/publish/gh_pages_deploy_target.dart';
 export 'src/publish/itch_deploy_target.dart';
 export 'src/publish/stage_web_dir_step.dart';
-export 'src/session/browser_session_spec.dart';
 export 'src/session/browser_page_session.dart';
+export 'src/session/browser_session_spec.dart';
 export 'src/session/chrome_for_testing.dart';
 export 'src/session/chrome_profile_state.dart';
 export 'src/session/chrome_session_diagnostics.dart';
@@ -63,8 +65,3 @@ export 'src/steps/flutter_web_build_step.dart';
 export 'src/steps/web_zip_step.dart';
 export 'src/targets/web_targets.dart';
 export 'src/validation.dart';
-
-export 'src/bundle/web_bundle_manifest.dart';
-export 'src/bundle/web_bundle_cache_policy.dart';
-
-export 'src/bundle/web_isolation_policy.dart';

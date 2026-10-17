@@ -22,7 +22,7 @@ void main() {
     temp = await Directory.systemTemp.createTemp('oka-dir-lock-');
   });
 
-  tearDown(() async {
+  tearDown(() {
     if (temp.existsSync()) temp.deleteSync(recursive: true);
   });
 

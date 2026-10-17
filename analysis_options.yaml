@@ -8,6 +8,9 @@ analyzer:
     # in its own checkout after `flutter pub get`, not by the workspace.
     - examples/**
     - build/**
+    # Generated evidence and dogfood probe outputs (packages/*/output/):
+    # retained artifacts, not maintained source.
+    - "**/output/**"
     - android/**
     - ios/**
     - web/**

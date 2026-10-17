@@ -9,8 +9,8 @@
 library;
 
 export 'src/codec.dart';
-export 'src/codemap_projection.dart';
 export 'src/codemap_index.dart';
+export 'src/codemap_projection.dart';
 export 'src/converge.dart';
 export 'src/planner.dart';
 export 'src/registry.dart';
