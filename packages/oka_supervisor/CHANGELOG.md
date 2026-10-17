@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- Codemap index worker supervision (ADR 0045).
+
 ## 0.7.0
 
 ### Added

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.0
 
 - Bound aggregate direct process observations with configurable
   `observationBudget` (default two seconds); count startup identity time against

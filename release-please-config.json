@@ -54,6 +54,22 @@
         },
         {
           "type": "generic",
+          "path": "packages/resource_composition/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_artifacts/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_supervisor/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_harness/pubspec.yaml"
+        },
+        {
+          "type": "generic",
           "path": "packages/oka/lib/src/version.dart"
         },
         {

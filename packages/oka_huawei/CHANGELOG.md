@@ -4,6 +4,10 @@ All notable changes to this package are documented here. The release train
 is repo-wide: versions move with the root `VERSION` (see
 `tool/release/check_version_sync.sh`).
 
+## 0.8.0
+
+- Part of the 0.8.0 train: Dart SDK floors ^3.13.0 (extraneous `final` parameter modifiers dropped); no package-specific changes.
+
 ## 0.7.0
 
 - Release train alignment with `oka` 0.7.0.
