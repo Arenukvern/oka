@@ -176,6 +176,6 @@ Examples:
   oka get android-sdk         # Bootstrap packaging SDK
   oka doctor                  # Check system setup
 
-For more information, visit https://github.com/yourusername/oka
+For more information, visit https://github.com/arenukvern/oka
 ''');
 }
