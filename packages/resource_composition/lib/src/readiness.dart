@@ -80,6 +80,35 @@ final class TcpConnect extends Readiness {
   String describe() => 'tcp connect $host:$port';
 }
 
+/// An on-disk artifact that must be at least as new as its source roots.
+///
+/// Declares terminal/AOT freshness (seat.exe, CLI binaries, similar) so
+/// supervisors and shims share one dialect: presence alone is not ready when
+/// watched sources are newer. Probe mechanics stay provider-side.
+final class ArtifactFresh extends Readiness {
+  const ArtifactFresh({
+    required this.artifactPath,
+    required this.sourceRoots,
+    this.extensions = const <String>['dart'],
+    super.budget,
+  });
+
+  /// Built binary or snapshot path.
+  final String artifactPath;
+
+  /// Source trees whose newer mtimes make [artifactPath] stale.
+  final List<String> sourceRoots;
+
+  /// File extensions considered for staleness (empty = any file).
+  final List<String> extensions;
+
+  @override
+  String describe() =>
+      'artifact fresh: $artifactPath'
+      ' <- ${sourceRoots.join('|')}'
+      '${extensions.isEmpty ? '' : ' [${extensions.join('|')}]'}';
+}
+
 /// All of the given conditions must hold. Budgets compose: the outer
 /// budget (when set) bounds the whole conjunction; unset inner budgets
 /// inherit it. Composition-time validation rejects empty and nested

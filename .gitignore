@@ -43,3 +43,7 @@ example/pubspec_overrides.yaml
 
 # Skill Steward benchmark evidence (machine-local)
 .steward/benchmark-summaries/*.json
+
+# Kernel frontend probe scratch (dated exploration output; bytes stay out
+# of git per the artifacts guide).
+/packages/oka_dart_kernel/output/

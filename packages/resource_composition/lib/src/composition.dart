@@ -303,6 +303,21 @@ List<CompositionIssue> _readinessIssues(
       }
     case HandshakeLine() || LogPattern() || TcpConnect():
       break;
+    case ArtifactFresh(:final artifactPath, :final sourceRoots):
+      if (artifactPath.trim().isEmpty) {
+        issues.add(CompositionIssue(
+          code: 'invalidReadiness',
+          componentId: componentId,
+          message: 'ArtifactFresh artifactPath must be non-empty',
+        ));
+      }
+      if (sourceRoots.isEmpty) {
+        issues.add(CompositionIssue(
+          code: 'invalidReadiness',
+          componentId: componentId,
+          message: 'ArtifactFresh sourceRoots must be non-empty',
+        ));
+      }
   }
   return issues;
 }
