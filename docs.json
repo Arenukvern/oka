@@ -68,6 +68,10 @@
           "href": "/start_here/quick_recipes"
         },
         {
+          "title": "FAQ (newcomers)",
+          "href": "/FAQ"
+        },
+        {
           "title": "Docs Map",
           "href": "/start_here/docs_map"
         },
@@ -119,6 +123,14 @@
         {
           "title": "Design FAQ",
           "href": "/guides/design_faq"
+        },
+        {
+          "title": "Supervisor",
+          "href": "/guides/supervisor"
+        },
+        {
+          "title": "Artifacts",
+          "href": "/guides/artifacts"
         }
       ]
     },
@@ -168,7 +180,7 @@
         },
         {
           "title": "Changelog",
-          "href": "https://github.com/Arenukvern/oka/blob/main/CHANGELOG.md"
+          "href": "https://github.com/Arenukvern/oka/blob/main/packages/oka/CHANGELOG.md"
         },
         {
           "title": "Security",

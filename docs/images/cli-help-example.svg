@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="ctitle cdesc">
+  <title id="ctitle">Example: oka command overview</title>
+  <desc id="cdesc">Stylized terminal showing primary oka CLI commands.</desc>
+  <rect width="640" height="360" rx="12" fill="#1e1e1e"/>
+  <rect x="0" y="0" width="640" height="28" rx="12" fill="#323232"/>
+  <circle cx="18" cy="14" r="6" fill="#ff5f57"/>
+  <circle cx="38" cy="14" r="6" fill="#febc2e"/>
+  <circle cx="58" cy="14" r="6" fill="#28c840"/>
+  <text x="80" y="19" fill="#9e9e9e" font-family="ui-monospace,monospace" font-size="11">terminal</text>
+  <text x="24" y="58" fill="#4ec9b0" font-family="ui-monospace,monospace" font-size="13">$ oka explain --targets</text>
+  <text x="24" y="82" fill="#d4d4d4" font-family="ui-monospace,monospace" font-size="12">  device · publish-play (dry-run) · &</text>
+  <text x="24" y="114" fill="#4ec9b0" font-family="ui-monospace,monospace" font-size="13">$ oka build apk --release</text>
+  <text x="24" y="138" fill="#d4d4d4" font-family="ui-monospace,monospace" font-size="12">  ’ .oka_cache/build/release/app-release.apk</text>
+  <text x="24" y="170" fill="#4ec9b0" font-family="ui-monospace,monospace" font-size="13">$ oka doctor</text>
+  <text x="24" y="194" fill="#6a9955" font-family="ui-monospace,monospace" font-size="12">   Flutter SDK · Android SDK · pipeline entrypoint</text>
+  <text x="24" y="234" fill="#808080" font-family="ui-monospace,monospace" font-size="11">Commands: init · build · explain · dev · run · doctor · compare · get · cache</text>
+</svg>

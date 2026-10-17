@@ -1,5 +1,9 @@
 # Oka — one code for every platform build
 
+<p align="center">
+  <img src="docs/images/oka-banner.svg" alt="Oka: one typed Dart file, no Gradle, Flutter Android builds" width="720" />
+</p>
+
 [![skills.sh](https://skills.sh/b/arenukvern/oka)](https://skills.sh/arenukvern/oka)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-docs.page-02569B)](https://docs.page/arenukvern/oka)
@@ -14,6 +18,19 @@
 > Dart file you own: `oka init` → `oka build apk` → `oka run device`.
 > No daemon, no AGP, no YAML sprawl. Stores (Play / AppGallery / RuStore /
 > web) and multiple developer accounts are just more values in the same file.
+
+**Who it's for:** Flutter teams and release engineers who want a single
+inspectable build surface; agents and CI that need `oka explain` and
+actionable errors. Not a full Gradle/AGP emulator — see
+[FAQ](docs/FAQ.md) and [charter](docs/start_here/why_this_repo_matters.mdx).
+
+| | |
+|---|---|
+| [60-second start](#60-second-start) | Install, bootstrap SDK, first APK |
+| [Pick your path](#pick-your-path) | Dev loop, release, stores, web, live patch |
+| [FAQ](docs/FAQ.md) | Newcomer questions (repo-grounded) |
+| [Docs site](https://docs.page/arenukvern/oka) | Guides, recipes, design FAQ |
+| [Contributing](#contributing) | `just check-contracts`, ADRs, all-contributors |
 
 ---
 
@@ -241,6 +258,16 @@ with `oka init --from-yaml`. Precedence: defaults < `oka.yaml` < Dart config
 
 ## How it works
 
+<p align="center">
+  <img src="docs/images/pipeline-flow.svg" alt="Diagram: oka_pipeline.dart to flutter assemble and Android SDK tools, output APK or AAB" width="720" />
+</p>
+
+<p align="center">
+  <img src="docs/images/cli-help-example.svg" alt="Example terminal session: oka explain, build, and doctor" width="560" />
+</p>
+
+Source: [`docs/images/pipeline-flow.mmd`](docs/images/pipeline-flow.mmd) (Mermaid).
+
 1. Host checks + codegen (manifest, `MainActivity`, adaptive vector icons)
 2. `flutter assemble` (assets / kernel / AOT) — **never** `flutter build apk`
 3. Engine `libflutter.so` extraction from the Flutter cache
@@ -272,6 +299,9 @@ in one file.
 
 ## FAQ
 
+Short answers live in **[docs/FAQ.md](docs/FAQ.md)** (also on the
+[docs site](https://docs.page/arenukvern/oka/FAQ)). Highlights:
+
 **Do I need Gradle?** No — ever. The default path never falls back to
 `flutter build apk` (enforced by tests). What you give up is listed honestly:
 no full AGP compatibility (AIDL, RenderScript, data binding, NDK); some
@@ -291,7 +321,8 @@ data); `oka cache clean` previews before deleting.
 and as writable by agents as by humans. `oka.yaml` covers the 90% case and
 its growth is frozen ([ADR-0010](docs/decisions/0010-typed-dart-project-config.mdx)).
 
-More: [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq).
+Design rationale: [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq).
+Agents: [`llms.txt`](llms.txt) and [`AGENTS.md`](AGENTS.md).
 
 ## Packages
 
@@ -314,6 +345,7 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 
 | I want to… | Read |
 |---|---|
+| Newcomer questions | [FAQ](docs/FAQ.md) · [docs.page/FAQ](https://docs.page/arenukvern/oka/FAQ) |
 | Copy-paste the common loops | [Quick recipes](https://docs.page/arenukvern/oka/start_here/quick_recipes) |
 | Run/build/test/configure | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
 | Publish to stores, set up accounts | [Publishing](https://docs.page/arenukvern/oka/guides/publishing) · [Accounts & stores](https://docs.page/arenukvern/oka/guides/accounts_and_stores) |
@@ -327,10 +359,12 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 ## Contributing
 
 Contributions of any kind welcome — code, docs, examples, bug reports, ideas.
-See the [contribution guide](https://docs.page/arenukvern/oka/contributing/contribution_guide);
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
+[contribution guide](https://docs.page/arenukvern/oka/contributing/contribution_guide);
 use conventional commits (`feat:`, `fix:`, `docs:`) and run
-`just check-contracts` before merging. Agents: start from
-[`AGENTS.md`](AGENTS.md).
+`just check-contracts` before merging. Please follow the
+[Code of Conduct](CODE_OF_CONDUCT.md). Agents: start from
+[`AGENTS.md`](AGENTS.md) or [`llms.txt`](llms.txt).
 
 ## Contributors
 
@@ -360,4 +394,6 @@ See [`SECURITY.md`](SECURITY.md). Please report vulnerabilities privately.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Changelog:
+[`packages/oka/CHANGELOG.md`](packages/oka/CHANGELOG.md) (index:
+[`CHANGELOG.md`](CHANGELOG.md)).

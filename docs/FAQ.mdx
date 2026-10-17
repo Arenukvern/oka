@@ -1,0 +1,94 @@
+---
+title: FAQ (newcomers)
+---
+
+# FAQ (newcomers)
+
+![Oka banner](./images/oka-banner.svg)
+
+Quick answers for people landing on the project for the first time. For design
+rationale, see the [Design FAQ](/guides/design_faq).
+
+![Android pipeline overview](./images/pipeline-flow.svg)
+
+The Markdown source for this page also lives in the repo as
+[`docs/FAQ.md`](https://github.com/Arenukvern/oka/blob/main/docs/FAQ.md) (easy
+to link from GitHub).
+
+## Who is oka for?
+
+- **Flutter teams** who want one typed, copyable Android build config instead of
+  Gradle DSL + XML sprawl.
+- **Release engineers** shipping APK/AAB with signing, R8, and optional store
+  targets (dry-run by default).
+- **Agents and CI** that need `oka explain`, `oka debug step`, and failures that
+  name the fix — start from [`AGENTS.md`](https://github.com/Arenukvern/oka/blob/main/AGENTS.md).
+
+## What do I need installed?
+
+| Tool | When |
+| --- | --- |
+| Dart 3.12+ | `dart pub global activate oka` |
+| Flutter | `oka build`, `oka dev`, `oka run device` |
+| Android SDK | `oka get android-sdk` or an existing SDK |
+
+```bash
+oka doctor
+```
+
+Contributor setup: [Contribution guide](/contributing/contribution_guide).
+
+## How is this different from `flutter build apk`?
+
+Success on the default path **never** uses `flutter build apk` or Gradle. Oka
+calls `flutter assemble` and Android SDK tools directly (ADR-0001). You trade
+full AGP plugin compatibility for a single inspectable pipeline.
+
+## Where is configuration?
+
+1. `oka.yaml` / `pubspec.yaml` `oka:` section  
+2. `tool/oka_pipeline.dart`  
+3. CLI flags  
+
+See [Build & configuration](/guides/build_and_config).
+
+## Caches and outputs
+
+- Outputs: `.oka_cache/build/`
+- Shared store: under `~/.oka/` — `oka cache` inventories it
+
+[Cache storage guide](/guides/cache_storage)
+
+## Platforms
+
+- **Android** — full no-Gradle pipeline and dev loop  
+- **Web** — shell station + deploy targets; compile delegated to Flutter  
+- **Stores** — `oka_play`, `oka_huawei`, `oka_rustore` as composed targets  
+- **iOS/desktop** — criteria-gated ([charter](/start_here/why_this_repo_matters))
+
+## Gradle migration
+
+You do not need Gradle for `oka build`. [Gradle migration](/guides/gradle_migration)
+
+## Stores and credentials
+
+Targets are declared in `tool/oka_pipeline.dart`; publish commands default to
+dry-run. [Publishing](/guides/publishing) ·
+[Accounts & stores](/guides/accounts_and_stores)
+
+## `oka dev` vs `oka run device`
+
+- `oka run device` — install, launch, log scan (one shot)  
+- `oka dev` — hot reload session (Dart-only changes without rebuild)
+
+## Live update (experimental)
+
+Requires an oka checkout; not on pub.dev. [Live update](/guides/live_update)
+
+## Contributing & security
+
+[Contributing](/contributing/contribution_guide) ·
+[Security policy](https://github.com/Arenukvern/oka/blob/main/SECURITY.md) ·
+[Code of conduct](https://github.com/Arenukvern/oka/blob/main/CODE_OF_CONDUCT.md)
+
+Changelog: [`packages/oka/CHANGELOG.md`](https://github.com/Arenukvern/oka/blob/main/packages/oka/CHANGELOG.md)

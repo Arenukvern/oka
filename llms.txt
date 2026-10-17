@@ -1,0 +1,39 @@
+# Oka — LLM / agent orientation
+
+> Declarative, compositional build system for Flutter Android (no Gradle default path).
+> One typed Dart file (`tool/oka_pipeline.dart`) composes pipelines and targets.
+
+## Start here (agents)
+
+- AGENTS.md — router map, non-negotiables, command index
+- docs/FAQ.md — newcomer questions (grounded in repo)
+- docs/guides/build_and_config.mdx — how to run, build, configure
+- docs/guides/design_faq.mdx — why decisions were made
+- docs/start_here/quick_recipes.mdx — copy-paste command loops
+
+## Invariants (do not violate)
+
+- Default build success must never use `flutter build apk` or Gradle (ADR-0001).
+- Only one Android build path (no cargo-apk hybrid; ADR-0009).
+- Docs link to code; they do not paraphrase implementation as SSOT.
+
+## Primary CLI (packages/oka/bin/oka.dart)
+
+init, explain, why, build, compare, debug, run, dev, doctor, get, clean, cache,
+launch, live, ship, processes, stop, session-state, supervisor, artifacts
+
+## Repository layout
+
+- packages/oka — CLI
+- packages/oka_core — contracts (pipeline, artifacts)
+- packages/oka_android — Android pipeline
+- packages/oka_play, oka_huawei, oka_rustore, oka_web — distribution targets
+- example/ — full reference app; examples/ — learning ladder
+
+## Contributor gates
+
+just install && just lint && just test && just check-contracts
+
+## Human docs site
+
+https://docs.page/arenukvern/oka

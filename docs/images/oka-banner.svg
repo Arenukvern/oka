@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 200" role="img" aria-labelledby="title desc">
+  <title id="title">Oka  one code for every platform build</title>
+  <desc id="desc">Banner: declarative Dart build config flowing into Android SDK tools without Gradle.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#02569B"/>
+      <stop offset="100%" stop-color="#013a6b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#54C5F8"/>
+      <stop offset="100%" stop-color="#29B6F6"/>
+    </linearGradient>
+  </defs>
+  <rect width="920" height="200" rx="16" fill="url(#bg)"/>
+  <text x="48" y="88" fill="#ffffff" font-family="system-ui,Segoe UI,sans-serif" font-size="52" font-weight="700">Oka</text>
+  <text x="48" y="128" fill="#B3E5FC" font-family="system-ui,Segoe UI,sans-serif" font-size="22" font-weight="500">One typed Dart file · No Gradle · Flutter Android builds</text>
+  <rect x="48" y="148" width="200" height="6" rx="3" fill="url(#accent)"/>
+  <!-- config box -->
+  <rect x="560" y="40" width="140" height="56" rx="8" fill="#0d3d6b" stroke="#54C5F8" stroke-width="2"/>
+  <text x="580" y="74" fill="#E3F2FD" font-family="ui-monospace,monospace" font-size="13">oka_pipeline.dart</text>
+  <!-- arrow -->
+  <path d="M710 68 H780" stroke="#54C5F8" stroke-width="3" marker-end="url(#none)"/>
+  <polygon points="778,64 790,68 778,72" fill="#54C5F8"/>
+  <!-- tools -->
+  <rect x="800" y="32" width="72" height="72" rx="8" fill="#0d3d6b" stroke="#81D4FA" stroke-width="2"/>
+  <text x="812" y="58" fill="#E3F2FD" font-family="ui-monospace,monospace" font-size="11">aapt2</text>
+  <text x="812" y="74" fill="#E3F2FD" font-family="ui-monospace,monospace" font-size="11">d8</text>
+  <text x="812" y="90" fill="#E3F2FD" font-family="ui-monospace,monospace" font-size="11">sign</text>
+</svg>

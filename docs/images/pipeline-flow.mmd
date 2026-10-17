@@ -1,0 +1,20 @@
+%% Source for the Android no-Gradle pipeline (see pipeline-flow.svg)
+flowchart TB
+  subgraph plan["Plan (no tools)"]
+    P["tool/oka_pipeline.dart"]
+    E["oka explain / --dry-run"]
+    G["BuildStep graph\nrequires → provides"]
+    P --> E --> G
+  end
+  subgraph build["oka build apk | aab"]
+    C["Codegen + manifest"]
+    F["flutter assemble\n(never flutter build apk)"]
+    M["Plugin packaging +\nMaven/AAR resolve"]
+    D["aapt2 · javac/kotlinc · d8"]
+    Z["zipalign · apksigner"]
+    C --> F --> M --> D --> Z
+  end
+  G --> C
+  Z --> O[".oka_cache/build/\nAPK or AAB + oka-provenance.json"]
+  O --> R["oka run device"]
+  O --> V["oka dev / oka run verify"]

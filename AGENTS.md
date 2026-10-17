@@ -30,6 +30,7 @@ follow links.
 | Ship store-free patches invisibly / run the air channel | `docs/decisions/0037-air-channel-invisible-patches.mdx` (accepted, implemented: `oka ship` derives everything from the working tree incl. snapshot-from-build; `UpdateClient`/`planChain` resolve chains vs snapshots; signed channels; gates G-AC1..8 done, G-AC9 ADR-gated) |
 | Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
 | Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
+| Newcomer FAQ (what / who / prerequisites) | `docs/FAQ.md`, `llms.txt` |
 | Run/understand live update (first steps → JIT dev loop → AOT production, dangers) | `docs/guides/live_update.mdx` |
 | Dev session with watch-on-save + r/R on macOS/web (`oka dev` = `oka run dev`; android daemon = `oka dev android`) | `docs/guides/live_update.mdx` → "The converged session"; gate: `packages/oka_dart_kernel/tool/gate_run_dev.sh` |
 | Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`, `oka session-state`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |

@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a capability — design forks may need an ADR first
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [Why this repo matters](https://docs.page/arenukvern/oka/start_here/why_this_repo_matters)
+        before large proposals. Changes that settle architecture trade-offs need an
+        ADR in `docs/decisions/` (see `AGENTS.md`).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to build or automate?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: APIs, CLI verbs, or docs you have in mind
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Gradle, flutter build, other tools, or smaller workarounds
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Android build pipeline
+        - CLI / agent surface
+        - Store publish targets
+        - Web shell / deploy
+        - Live update (experimental)
+        - Docs / DX
+        - Other

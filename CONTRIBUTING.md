@@ -2,6 +2,9 @@
 
 Full guide lives in the docs: **[Contribution guide](docs/contributing/contribution_guide.mdx)**.
 
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Please be
+respectful and constructive in issues, reviews, and discussions.
+
 Install Dart 3.13 or newer and `just` for the contributor tooling. Flutter and the Android SDK are
 required for real Android build tests.
 

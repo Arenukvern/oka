@@ -1,5 +1,7 @@
 # Oka — no-Gradle Flutter Android builds
 
+![Oka banner](./images/oka-banner.svg)
+
 Oka is a Dart CLI that replaces Gradle for Flutter Android builds. It runs
 `flutter assemble` and invokes Android SDK tools (`aapt2`, `javac`, `d8`,
 `zipalign`, `apksigner`) directly — no Gradle daemon, no AGP, no 30-second
@@ -8,6 +10,10 @@ configuration tax on every build.
 The whole build config is **one typed Dart file you own**
 (`tool/oka_pipeline.dart`) — stores, developer accounts, and branded
 variants are just more values in it.
+
+![Build pipeline (no Gradle)](./images/pipeline-flow.svg)
+
+New here? Read the [FAQ (newcomers)](/FAQ) before diving into ADRs.
 
 ## Choose your path
 

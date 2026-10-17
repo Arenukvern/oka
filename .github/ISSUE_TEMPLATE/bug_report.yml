@@ -1,0 +1,74 @@
+name: Bug report
+description: Something broke in oka or the docs — reproducible steps help a lot
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please redact signing keys, service account JSON,
+        and any secrets from logs.
+
+        Security issues: use [GitHub security advisories](https://github.com/Arenukvern/oka/security/advisories/new), not this form.
+
+  - type: input
+    id: version
+    attributes:
+      label: Oka version
+      description: Output of `oka --version` or the git commit if running from source
+      placeholder: "0.6.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Host OS
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: flutter
+    attributes:
+      label: Flutter version (if applicable)
+      placeholder: flutter --version
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Commands you ran, from which directory
+      placeholder: |
+        cd example
+        oka build apk --release
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Include relevant log excerpts or `oka doctor` output
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Quick checks
+      options:
+        - label: I ran `oka doctor` and noted any failures in the report
+          required: false
+        - label: I searched existing issues for a duplicate
+          required: false
