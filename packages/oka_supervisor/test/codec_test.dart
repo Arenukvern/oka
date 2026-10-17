@@ -421,8 +421,8 @@ void main() {
     });
 
     test('anchored nextRunAfter keeps the wall clock', () {
-      final daily = IntervalTrigger(
-        period: const Duration(days: 1),
+      const daily = IntervalTrigger(
+        period: Duration(days: 1),
         at: '03:00',
       );
       // Ran Monday 15:00 -> next due is Tuesday 03:00 (period elapsed AND
