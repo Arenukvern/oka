@@ -7,7 +7,7 @@ description: >-
   reviewing capability boundaries or preventing mixed-responsibility files.
 license: MIT
 metadata:
-  version: 1.6.0
+  version: 1.7.0
   author: Arenukvern
 compatibility:
   - dart
@@ -76,6 +76,7 @@ Paths are workspace-relative; follow public exports when modules move.
 | Browser targets and profiles | `packages/oka_web/lib/src/session/` |
 | Store publishing | `packages/oka_play/`, `packages/oka_huawei/` |
 | Release inventory and synchronization | `tool/release/train.dart` and thin shell wrappers |
+| pub.dev train publishing and post-publish gates | `tool/release/publish_packages.sh`, `.github/workflows/pub_publish.yml`, `tool/ci/check_package_consumer.sh` |
 
 ## Maintenance checks
 
@@ -90,7 +91,10 @@ Paths are workspace-relative; follow public exports when modules move.
   [architecture_eval.md](references/architecture_eval.md) for behavior evaluation;
   structural validation alone does not prove skill behavior.
 - Versions follow `tool/release/train.dart`; run `just check-contracts`.
-  Publishing/tagging remains an explicit task.
+  Publishing/tagging remains an explicit task — the pub.dev release runbook
+  (tag-triggered GitHub Actions publishing, rerun and propagation rules,
+  manual fallback and first-publish closure, automated-publishing config) is
+  in [publishing.md](references/publishing.md).
 
 ## Docs and distribution
 
