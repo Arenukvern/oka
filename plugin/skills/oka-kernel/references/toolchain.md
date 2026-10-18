@@ -302,8 +302,9 @@ Three real external products, one composition (`LivePatchSpec` →
   directory; `reloadSources` details carry `receivedLibraryCount` /
   `loadedLibraryCount` — check them.
 
-Agent surface (ADR-0036 Tier 2, implemented): `oka_update/live_agent.dart`
-declares `oka.live.patch` / `oka.live.watch` / `oka.live.verify` —
+Agent surface (ADR-0036 Tier 2, implemented):
+`packages/oka_update/lib/src/live/agent.dart` declares `oka.live.patch` /
+`oka.live.watch` / `oka.live.verify` —
 descriptors carry the `SurfaceActionDescriptor` shape (UAI 0.2.0);
 `runLiveVerb(name, args, host)` dispatches into the session API and every
 verb returns receipt JSON. Embeddings provide `LiveVerbHost` (compile +

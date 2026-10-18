@@ -163,47 +163,13 @@ metadata. Diagnostics never reconciles leases, stops processes or deletes data.
 
 ## Clean cache without removing managed session state
 
-Use `oka session-state` for managed browser-profile state; cache pruning is not
-session cleanup:
-
-```bash
-oka session-state list
-oka session-state inspect <id> --verbose
-oka session-state resume <id>                 # explicit failed-provision retry
-oka session-state reconcile                 # preview only
-oka session-state reconcile --apply         # remove eligible ephemeral state
-oka session-state close <id>                # preview explicit close
-oka session-state close <id> --apply
-oka session-state forget <id>               # preview record-only recovery
-oka session-state forget <id> --apply       # remove the record only
-```
-
-Reconciliation applies only to Oka-owned ephemeral resources with positive
-unused findings. Persistent state, active or uncertain profiles, and registry
-issues are retained. `oka cache clean` preserves browser profiles and session
-records. The legacy `oka clean` cleans unrelated cache contents while preserving
-registered managed resources and their reservation markers. If the registry
-cannot be inspected safely, contains issues, or a registered resource or marker
-path cannot be resolved safely, `oka clean` refuses before deleting cache
-contents rather than guessing. It does not substitute for `session-state close`.
-When session-state paths are present, cleanup output notes that this protection
-is path-based: it prevents ordinary cleanup from selecting known active or
-disposing state, but it is not a security boundary against another process
-running as the same user and racing filesystem checks with deletion.
-
-Managed Chrome profile creation works on Windows and uses the parent directory's
-inherited ACL. `dart:io` does not inspect or verify those ACLs. POSIX managed
-directories continue to be restricted to mode `0700` on Linux/macOS. All
-destructive session-state directory cleanup remains report-only on Windows;
-Windows profile creation does not enable Windows cleanup.
-
-When cleanup is retained or refused, inspect the lease with `--verbose`, close
-the browser normally, then preview again. Use `oka cache --details --kind
-session --kind browser-profile` for related inventory records and `oka doctor`
-or `oka processes list` to investigate process leases. Do not manually remove
-profiles or registry entries to bypass an unknown-use or ownership finding.
-Use `forget` only when the recorded directory is confirmed absent; it removes
-the registry pointer, not any profile data or marker.
+`oka cache clean` preserves browser profiles and session records — cache
+pruning is not session cleanup. Managed browser-profile state is handled by
+`oka session-state` and its six subcommands (`list`, `inspect`, `resume`,
+`reconcile`, `close`, `forget`); that protection is path-based, not a
+security boundary. The full manual — refusal semantics, Windows limits,
+retained-state recovery and workflow composition — lives in
+[process lifecycle](process_lifecycle).
 
 ### Workflow composition and CLI code loading
 

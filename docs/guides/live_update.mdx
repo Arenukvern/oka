@@ -63,7 +63,7 @@ oka dev android   # the ADR-0011 daemon (manifest + attach + control port)
 | `--json` | oka | receipts as JSON lines (agents) |
 
 macOS and web are proven on last_answer (`tool/gate_run_dev.sh`); the
-the android surface stays `oka dev android` (ADR-0011 daemon) until oka owns a
+android surface stays `oka dev android` (ADR-0011 daemon) until oka owns a
 device build path. AOT dev rehearsal is the `slotSwap` lane
 (`gate_aot_slots.sh`) — a different, bounded contract.
 
@@ -286,90 +286,78 @@ unbounded AOT revision streams, and **live asset freshness** (the
 engine's asset mapping cache ignores `ext.flutter.evict` on macOS — an
 engine seam, flutter has the same ceiling; ADR-0037 §6b).
 
-Agents don't need shell for the loop: `oka_update/live_agent.dart`
-declares `oka.live.patch` / `oka.live.watch` / `oka.live.verify`
-(descriptors + dispatch, receipt JSON out) — ADR-0036.
+Agents don't need shell for the loop:
+`packages/oka_update/lib/src/live/agent.dart` declares `oka.live.patch` /
+`oka.live.watch` / `oka.live.verify` (descriptors + dispatch, receipt JSON
+out) — ADR-0036.
 
 ### Watcher lifecycle
 
 `oka_live_watch.dart --parent-pid <pid>` exits when the given launcher dies, so a
 SIGKILLed launcher cannot orphan a hot lane pointing at a dead VM (the harness
-launcher passes its own pid; ADR 0063 in the harness repo for the ownership
-counterpart).
+launcher passes its own pid; the ownership counterpart is ADR 0063 in the
+external ecsai_harness repo — a harness ADR, not an oka one).
 
 ### Background browser posture
 
-The experimental `oka run dev --platform web --open-browser` launcher defaults to
-headless. Use `--browser-visible` when a visible window is explicitly wanted;
-`--browser-headless` remains supported. Programmatic consumers can override the
-existing `BrowserSessionSpec`. A detached process is not a nonactivation contract:
-avoid implicit `Page.bringToFront` on a headed/borrowed browser. Native application
-launch policy belongs to the platform launcher; AppKit supports `activates=false`
-independently of visibility. Widget focus and background frame readiness remain
-separate qualification responsibilities.
+- `oka run dev --platform web --open-browser` defaults to headless;
+  `--browser-visible` opts into a visible window, `--browser-headless` stays
+  supported, and programmatic consumers override `BrowserSessionSpec`.
+- A detached process is not a nonactivation contract: avoid implicit
+  `Page.bringToFront` on a headed/borrowed browser.
+- Native application launch policy belongs to the platform launcher; AppKit
+  supports `activates=false` independently of visibility.
 
 ### One web reload owner
 
-For a serving Flutter process, compile and apply belong to that process. The dev
-runner injects one `WebDwdsTarget.platformReload` operation and waits for new
-command output. It does not also call DWDS reloadSources. Direct DWDS remains the
-already-compiled revision lane. A serialized signal target without an acknowledged
-owner refuses before dispatch; compose the owner through target overrides.
-
-The consumer cohort in ecsly/tool/visualization_dev_cohort checks method, compatible
-signature and imported-library changes while retaining the document/runtime. Its
-first trial exposed duplicate definitions despite changing state; runtime errors
-therefore fail the trial. Stock retained frontend protocol studies are reproduced
-with `dart run packages/oka_dart_kernel/tool/frontend_session_cohort.dart FLUTTER_SDK NEW_EVIDENCE`.
-These compiler-only receipts are separate from native VM reload compatibility.
-The one-shot frontend now requires exit zero, a matching zero-error terminal and
-a nonempty expected artifact; error dills are not admitted.
-
-The acknowledged dev owner uses no fixed signal-settle delay. In the recorded
-three-edit consumer trial, later signature/import code effects were observed in
-about 222 ms with unchanged runtime and no exceptions; initial edit and cold
-preparation remain separate costs. This is a bounded compatibility observation.
+- For a serving Flutter process, compile and apply belong to that process:
+  the dev runner injects one `WebDwdsTarget.platformReload` operation and
+  waits for new command output; it does not also call DWDS `reloadSources`.
+  Direct DWDS remains the already-compiled-revision lane.
+- A serialized signal target without an acknowledged owner refuses before
+  dispatch; compose the owner through target overrides.
+- The one-shot frontend requires exit zero, a matching zero-error terminal
+  and a nonempty expected artifact; error dills are not admitted. Stock
+  retained frontend-protocol studies reproduce with `dart run
+  packages/oka_dart_kernel/tool/frontend_session_cohort.dart FLUTTER_SDK
+  NEW_EVIDENCE` — compiler-only receipts, separate from native VM reload
+  compatibility.
+- Bounded consumer-cohort compatibility observations (method/signature/import
+  edits with the runtime retained) are work-journal material:
+  [visualization delivery journal](../evidence/visualization-delivery-2026-10-14.mdx).
 
 ### Renderer-independent preview reuse
 
-Choose the retained layer explicitly. `BrowserPageSession.browserHttpUrl` exposes
-the discovery endpoint for another page attachment through
-`BrowserSessionSpec(debugPort: endpoint.port)`. Close borrowers before the owner.
-Reuse preserves the original process lease; page stop observes removal instead
-of treating the close acknowledgement as completion. The API defaults to headless;
-headed/native activation remains a separate platform qualification.
-
-Keeping only the browser warm still boots a new Flutter engine in every page.
-For composable Flutter previews, a consuming app can use public multi-view
-embedding to mount independently addressed worlds in one resident engine. Keep
-that application/world lifecycle in the consumer, with Oka owning process/session
-composition. Data document updates can retain the world as well and require no
-compiler invocation. Renderer choice can be injected by the consumer; none of
-these lifecycle boundaries requires flutter_scene. The package-owned ecsly
-visualization scaffold defaults to Flutter painting. Measured workloads and
-remaining limits are in [visualization delivery](../validation/visualization_delivery.md).
+- `BrowserPageSession.browserHttpUrl` exposes the discovery endpoint; attach
+  another page through `BrowserSessionSpec(debugPort: endpoint.port)`. Close
+  borrowers before the owner. Reuse preserves the original process lease;
+  page stop observes removal instead of treating the close acknowledgement
+  as completion.
+- Keeping only the browser warm still boots a new Flutter engine in every
+  page. Composable Flutter previews use public multi-view embedding in the
+  consuming app: oka owns process/session composition, the consumer owns the
+  application/world lifecycle. Data-document updates retain the world and
+  require no compiler invocation.
+- Renderer choice is injectable by the consumer; none of these lifecycle
+  boundaries requires flutter_scene. Measured workloads and remaining
+  limits: [visualization delivery journal](../evidence/visualization-delivery-2026-10-14.mdx).
 
 ### Attach the native dev loop to an existing app
 
-The experimental native runner accepts `--native-vm-uri HTTP_URI` with
-`--platform macos`. The URI explicitly addresses an already running debug app;
-Oka attaches one Flutter compiler instead of launching a new app. The original
-launcher keeps app ownership. `r [file]` uses that serving tool for compile and
-apply, and `q` detaches the compiler rather than stopping the app. Arguments
-after `--` are forwarded to Flutter attach. The SDK's attach options differ from
-run options (for example, it has no --no-pub). Dependency resolution occurs
-explicitly before attachment. Web or mismatched-device use refuses during parse.
-
-VmJitTarget can also accept an injected `platformReload` owner. In that mode it
-skips DevFS/kernel staging and dispatches no additional VM reload; it checks
-isolate continuity and leaves code-effect verification to probes/the consumer.
-Both standalone attachment and integrated CLI have real source-edit/continuity/
-detach trials. In the CLI trial, q exits Oka with code 0 while the original app
-remains readable; its launcher subsequently verifies app teardown without focus
-activation. Quit delegates to the adapter once, and the runner closes only its
-own target wires. Caller-injected targets remain caller-owned. Failures and the
-earlier locked-desktop refusal are retained in the delivery record. The native
-cohort also verifies compatible signature/import reloads, restart into a new
-runtime, and a subsequent reload before detach. Runtime extension registration
-can follow the restart receipt; observers must wait for the fresh app state.
-Broader workloads remain unqualified; this is not a default native-launch change.
+- `--native-vm-uri <http-uri>` with `--platform macos` explicitly addresses
+  an already-running debug app: oka attaches one Flutter compiler instead of
+  launching a new app, the original launcher keeps app ownership, `r [file]`
+  uses that serving tool for compile and apply, and `q` detaches the
+  compiler rather than stopping the app. Arguments after `--` are forwarded
+  to Flutter attach (attach has its own option surface — no `--no-pub`);
+  dependency resolution happens explicitly before attachment; web or
+  mismatched-device use refuses during parse.
+- `VmJitTarget` also accepts an injected `platformReload` owner: it skips
+  DevFS/kernel staging and dispatches no additional VM reload, checks
+  isolate continuity, and leaves code-effect verification to probes/the
+  consumer.
+- Quit delegates to the adapter once and the runner closes only its own
+  target wires; caller-injected targets remain caller-owned. Broader
+  workloads remain unqualified — this is not a default native-launch change.
+  Trial receipts, including failures:
+  [visualization delivery journal](../evidence/visualization-delivery-2026-10-14.mdx).

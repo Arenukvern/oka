@@ -4,6 +4,22 @@ Answers here are grounded in the current repository — behavior lives in code
 and tests; deeper “why” questions go to the
 [Design FAQ](guides/design_faq.mdx) on the docs site.
 
+Oka in one sentence: **one typed Dart surface to build, run, patch,
+supervise, and distribute apps — that humans and agents operate
+identically.**
+
+## How mature is each part?
+
+| Pillar | Maturity |
+| --- | --- |
+| **Build** (no-Gradle APK/AAB) | Production — on pub.dev |
+| **Distribute** (stores, accounts, web shells) | Production — on pub.dev |
+| **Update** (live patching, `oka ship`) | Gate-proven experimental — runs from an oka repo checkout |
+| **Operate** (supervisor, processes, artifacts) | Production at supervisor ladder rung L0 — on pub.dev |
+
+The [roadmap](start_here/roadmap.mdx) explains what advances each tier and
+what gates it.
+
 ## Who is oka for?
 
 - **Flutter teams** tired of Gradle/AGP overhead and scattered Android config

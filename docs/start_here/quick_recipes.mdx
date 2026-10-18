@@ -125,6 +125,44 @@ directly, set `FlutterBuild(startupProbe: true)` in the composition root and
 signatures compose the same way. Cache staleness questions:
 `oka why release-aot`. Docs: [ADR-0029](../decisions/0029-build-provenance-and-verification-ladder).
 
+## Operate: supervisor, processes, artifacts
+
+```bash
+# Declarative supervision: author plan.json (SpecCodec), then
+oka supervisor apply plan.json   # one converge pass — no resident daemon
+oka supervisor status --json     # recorded process state as data
+oka supervisor check plan.json   # plan-vs-records drift gate (CI-friendly)
+```
+
+```bash
+oka processes list --json        # every lease oka recorded (emulators, browsers, daemons)
+oka stop <lease-id>              # graceful, identity-verified teardown
+oka session-state list           # durable browser/emulator state
+```
+
+```bash
+oka artifacts put release.bin    # store bytes content-addressed; git keeps a pointer
+oka artifacts materialize release.bin   # recreate bytes anywhere (delta chains)
+oka artifacts verify release.bin # integrity check
+```
+
+Guides: [Supervisor](../guides/supervisor),
+[Process lifecycle](../guides/process_lifecycle),
+[Artifacts](../guides/artifacts).
+
+## Ship a store-free patch (experimental, checkout)
+
+Requires the live-update stack from an oka repo checkout. Derives a signed
+patch from the working tree and publishes it to a channel (git branch or
+static host); installed clients resolve chains against snapshots:
+
+```bash
+oka ship --publish-git . --git-branch oka-channel
+# derive + publish from the working tree; also: --project <dir>, --channel-dir <dir>
+```
+
+Docs: [Live update](../guides/live_update), ADR-0037.
+
 ## Tests & lint
 
 ```bash

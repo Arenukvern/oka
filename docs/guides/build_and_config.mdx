@@ -243,7 +243,8 @@ Three device-flow surfaces, one story — `oka launch` is an alias of
 the VM-service session steps, through the same validated pipeline
 machinery. (The bare `oka dev` is the converged desktop/web session —
 [ADR-0037 §6c](../decisions/0037-air-channel-invisible-patches).)
-History and phase evidence: [hot_reload_plan](hot_reload_plan).
+History and phase evidence:
+[hot_reload_plan](../archive/hot_reload_plan).
 
 ```bash
 oka build apk --debug          # 1. oka owns assemble → package → sign;
@@ -273,6 +274,56 @@ against the recorded `run_session.json` and refuses mismatches naming the
 differing fields; the session flutter binary always comes from the recorded
 SDK path, never `PATH`. Profile/release refuse loudly — debug (JIT) only.
 Readiness: `oka doctor` (manifest, recorded-SDK binary, device ready).
+
+### Dev session wiring (editors & agents)
+
+Out-of-process tools (editors, the flutter MCP toolkit's `OkaDevSession`
+adapter) must drive reload/restart through the **owning** `oka dev android`
+session — the only compile-capable channel. A late-attached VM-service
+connection cannot compile: `ServiceRegistered` events never replay
+already-registered services, so reloads sent straight over the VM wire are
+**silent no-ops**. The delegation channel exists for exactly this.
+
+1. **Run the session with the channel on:** `oka dev android
+   --control-port <port>` (omit the flag for an ephemeral port).
+2. **Discover the session:** read the spec-v2
+   `.flutter_mcp/runner-session.json` under the project while the session
+   runs. All fields are required; `schema` is `1` (readers reject unknown
+   schema values); `runner` (`"oka-dev"`) is display metadata. The file is
+   deleted on session exit — absent means no live session. `vm_service_uri`
+   is the forwarded, host-reachable endpoint (the same line
+   `.oka_cache/dev/vm.uri` carries); `control_port` is the delegation
+   channel; `pid` detects a dead owner.
+3. **Reads** (widgets, screenshots, evaluate) go through the toolkit's
+   connection override with the exact URI from the file:
+   `connection: {"mode": "uri", "uri": "<vm_service_uri>"}` — never
+   `host:port` as `targetId` (it loses the tokenized VM path); URI-shaped
+   `targetId` values are also accepted.
+4. **Delegate reload/restart/stop through the control port:** raw TCP to
+   `127.0.0.1:<control_port>`, JSON lines, no auth — a localhost-only dev
+   tool. `{"id": 1, "method": "reload"}` →
+   `{"id": 1, "ok": true, "result": {}}` carries the actual daemon outcome;
+   `restart` answers `"fallback": true` when the relaunch + re-attach
+   fallback triggered; errors are per-id
+   (`{"id": …, "ok": false, "error": "<fix>"}`); malformed JSON and
+   unknown methods answer in-band and keep the connection open; `status`
+   answers from session metadata. On EOF, re-read
+   `runner-session.json` — a new session owns new `vm_service_uri` and
+   `control_port` values.
+
+Further reload gotchas: the session must use the flutter SDK that produced
+the APK's `flutter_assets` (keyed off the engine revision resolved in
+`flutter_assemble.dart`); headless emulators/CI need software rendering
+flags to avoid GPU faults; the daemon protocol is not a semver contract —
+feature-detect, tolerate unknown fields, and keep the protocol adapter the
+only file allowed to know daemon wire details; never wrap `flutter run`'s
+default path (it invokes Gradle for APK assembly) — only machine-mode
+consumption of a prebuilt APK or attach.
+
+Evidence: `test/adr0011_control_server_test.dart` drives the server over
+real loopback sockets (reload → real daemon outcome; restart fallback;
+stop; status; malformed input per-id errors; sequential clients;
+schema-rejection + write-on-ready/clear-on-exit lifecycle).
 
 ## ⚡ Incremental build cache
 
@@ -317,7 +368,9 @@ stable-identity rules: [accounts & stores guide](accounts_and_stores).
 
 ## 🔧 Build Pipeline Station (ADR 0002)
 
-Default order (composed in `lib/src/pipeline/default_pipeline.dart`):
+Default order (composed in
+`packages/oka_android/lib/src/pipeline/default_pipeline.dart`; the File
+column below is relative to `packages/oka_android/lib/src/pipeline/`):
 
 | # | Step | File |
 |---|------|------|
@@ -336,7 +389,8 @@ Default order (composed in `lib/src/pipeline/default_pipeline.dart`):
 | 13 | `validate-layout` | `steps/tool_steps.dart` |
 
 Shared tool logic (aapt2/javac/d8/zipalign/apksigner invocations) lives in
-`lib/src/pipeline/toolchain.dart`. Config precedence: built-in defaults <
+`packages/oka_android/lib/src/pipeline/toolchain.dart`. Config precedence:
+built-in defaults <
 `oka.yaml` `pipeline:` section < Dart composition (a user-built `Pipeline`
 always wins).
 
@@ -362,15 +416,18 @@ Oka auto-suggests the Maven artifact on build failure. To resolve manually:
 oka get dep androidx.window:window:1.3.0
 ```
 This caches the artifact and prints the exact `oka.yaml` snippet. Mapping
-table: `lib/src/build/dependency_suggest.dart` (`kKnownClassArtifacts`) —
+table: `packages/oka_android/lib/src/build/dependency_suggest.dart`
+(`kKnownClassArtifacts`) —
 add new entries there when you discover gaps. A `NoClassDefFoundError` in a
 plugin class followed by ALL plugins failing to register usually means a
 dependency that only Gradle module metadata declares (`.module`, not the
 POM) — e.g. `androidx.camera` needs `kotlinx-atomicfu`; oka parses `.module`
-runtime deps (`parseModuleRuntimeDependencies` in `lib/src/maven_resolver.dart`).
+runtime deps (`parseModuleRuntimeDependencies` in
+`packages/oka_android/lib/src/maven_resolver.dart`).
 
 **Q: Where is the default AndroidX embedding dependency set?**
-`flutterEmbeddingAndroidXDeps()` in `lib/src/build/dependency_cache.dart`.
+`flutterEmbeddingAndroidXDeps()` in
+`packages/oka_android/lib/src/maven_resolver.dart`.
 Edit only when adding artifacts needed by *every* Flutter host;
 project-specific ones belong in `pipeline.extra_deps`.
 
@@ -395,7 +452,7 @@ Oka extracts classes.jar (dex input), `jni/<abi>/*.so` natives (staged to
 `lib/<abi>/`), and `res/**` XML (merged into aapt2 compile). Resource-only
 AARs (no classes.jar) are supported. The same extraction happens
 automatically for Maven AARs (`extractAarPayload` in
-`lib/src/build/dependency_cache.dart`).
+`packages/oka_android/lib/src/dependencies/maven_archive.dart`).
 
 **Q: How do I set the launcher icon?**
 ```yaml
@@ -411,7 +468,8 @@ Vector-first: no PNG tooling; works on API 26+. Generated resources use
 `name` (default `ic_launcher`). Two user-owned paths: ship your own icons
 via `pipeline.res_dirs` (oka skips generation when the merged res tree
 already defines the icon), or set `manifest_ref` to opt out entirely.
-Implementation: `lib/src/build/launcher_icon.dart`.
+Implementation:
+`packages/oka_android/lib/src/build/launcher_icon.dart`.
 
 **Q: How do I add deeplinks?**
 ```yaml
@@ -431,7 +489,7 @@ adb shell am start -a android.intent.action.VIEW \
 
 **Q: Install fails with `-124: resources.arsc ... uncompressed and aligned`?**
 The packager must store `resources.arsc` uncompressed (`zipStagingToApk` in
-`lib/src/build/apk_layout.dart`) and zipalign with `-p 4`. Both are wired;
+`packages/oka_android/lib/src/build/apk_layout.dart`) and zipalign with `-p 4`. Both are wired;
 if regressed, device installs on Android 11+ fail.
 
 **Q: App crashes at launch with missing classes but tests pass?**
@@ -444,7 +502,8 @@ Developer options → Revoke USB debugging authorizations → replug.
 
 **Q: kotlinc fails with JDK version errors?**
 Kotlin 2.1 rejects JDK 25+; `kotlinJavaEnvironment()` in
-`lib/src/pipeline/toolchain.dart` probes for JDK 17–21 automatically.
+`packages/oka_android/lib/src/compilation/bytecode_compilation.dart`
+probes for JDK 17–21 automatically.
 
 ## 🪜 Verification Station (ADR-0029)
 

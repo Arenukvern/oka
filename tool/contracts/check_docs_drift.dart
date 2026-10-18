@@ -34,12 +34,48 @@ List<String> missingSidebarEntries(Directory root) {
       if (path.isEmpty) {
         path = 'index.mdx';
       } else if (!path.split('/').last.contains('.')) {
-        path = '$path.mdx';
+        // Extension-less hrefs resolve to .mdx first, then .md (the FAQ
+        // canonical is docs/FAQ.md).
+        final mdx = File('${root.path}/docs/$path.mdx');
+        path = mdx.existsSync() ? '$path.mdx' : '$path.md';
       }
       if (!File('${root.path}/docs/$path').existsSync()) missing.add(href);
     }
   }
   return missing;
+}
+
+/// Living docs must cite monorepo paths (`packages/<pkg>/lib/src/...`),
+/// never the pre-monorepo root-relative form. ADRs, evidence, and archive
+/// pages are historical records — they may describe where code lived at
+/// the time and are exempt.
+List<String> rootLevelLibCitations(Directory root) {
+  final offenders = <String>[];
+  final docFiles = <File>[
+    File('${root.path}/README.md'),
+    File('${root.path}/AGENTS.md'),
+    File('${root.path}/llms.txt'),
+  ];
+  for (final dir in ['guides', 'start_here']) {
+    final d = Directory('${root.path}/docs/$dir');
+    if (!d.existsSync()) continue;
+    docFiles.addAll(
+      d.listSync(recursive: true).whereType<File>().where(
+            (f) => f.path.endsWith('.md') || f.path.endsWith('.mdx'),
+          ),
+    );
+  }
+  for (final file in docFiles) {
+    if (!file.existsSync()) continue;
+    final lines = file.readAsLinesSync();
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.contains('lib/src/') && !line.contains('packages/')) {
+        offenders.add('${file.path}:${i + 1}');
+      }
+    }
+  }
+  return offenders;
 }
 
 String _formatList(Iterable<String> values) =>
@@ -82,6 +118,29 @@ void main() {
   final missing = missingSidebarEntries(root);
   if (missing.isNotEmpty) {
     _fail('docs.json sidebar entries missing files: ${_formatList(missing)}');
+  }
+
+  // docs.page serves everything under docs/ — exactly one FAQ (the .md
+  // canonical) and no internal work-log lanes may exist in the public tree.
+  if (File('${root.path}/docs/FAQ.mdx').existsSync()) {
+    _fail(
+      'docs drift: docs/FAQ.mdx exists — docs/FAQ.md is the canonical FAQ; '
+      'docs.page would serve the twin and the two would drift',
+    );
+  }
+  if (Directory('${root.path}/docs/validation').existsSync()) {
+    _fail(
+      'docs drift: docs/validation/ exists — internal work-logs must not be '
+      'publicly served; move them to docs/evidence/ (condensed) or out of docs/',
+    );
+  }
+
+  final citations = rootLevelLibCitations(root);
+  if (citations.isNotEmpty) {
+    _fail(
+      'docs drift: root-relative lib/src/ citations (pre-monorepo paths) in: '
+      '${_formatList(citations)} — cite packages/<pkg>/lib/src/... instead',
+    );
   }
   stdout.writeln('check_docs_drift: docs are in sync');
 }

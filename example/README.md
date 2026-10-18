@@ -1,16 +1,31 @@
-# example
+# example — the full oka reference app
 
-A new Flutter project.
+This is oka's reference Flutter app: every build feature composed in one
+project-owned file, [`tool/oka_pipeline.dart`](tool/oka_pipeline.dart) —
+Android pipeline, manifest/deeplink overrides, extra deps and assets,
+adaptive icons, store publish targets, web shell, and the verification
+targets. It is the canonical copy-paste source the docs link to.
 
-## Getting Started
+Prefer small steps? Climb the [examples ladder](../examples) instead —
+six minimal projects, smallest first.
 
-This project is a starting point for a Flutter application.
+## Run it
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+oka explain                # the validated build plan — zero tools invoked
+oka build apk --debug      # → .oka_cache/build/debug/app-debug.apk
+oka run device             # install → launch → failure-signature scan
+oka explain --targets      # every declared target (device, verify, publish…)
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Release and stores:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+oka build apk --release          # AOT + R8 + signed, provenance included
+oka run verify                   # prove the release actually starts
+oka run publish-play             # dry-run plan — flip dryRun: false when ready
+```
+
+Requires the `oka` CLI (`dart pub global activate oka`) and an Android SDK
+(`oka get android-sdk` bootstraps one into `~/.oka/android-sdk`).

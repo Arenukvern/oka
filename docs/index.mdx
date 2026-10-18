@@ -1,33 +1,47 @@
-# Oka — no-Gradle Flutter Android builds
+# Oka — one typed Dart surface to build, run, patch, and distribute apps
 
 ![Oka banner](./images/oka-banner.svg)
 
-Oka is a Dart CLI that replaces Gradle for Flutter Android builds. It runs
-`flutter assemble` and invokes Android SDK tools (`aapt2`, `javac`, `d8`,
-`zipalign`, `apksigner`) directly — no Gradle daemon, no AGP, no 30-second
-configuration tax on every build.
+Oka is a declarative application platform. Its build pillar replaces Gradle
+for Flutter Android: it runs `flutter assemble` and invokes Android SDK
+tools (`aapt2`, `javac`, `d8`, `zipalign`, `apksigner`) directly — no
+Gradle daemon, no AGP, no 30-second configuration tax on every build. The
+same laws carry the other pillars: live patching for running programs, a
+declarative supervisor for processes, and a content-addressed artifact
+store.
 
-The whole build config is **one typed Dart file you own**
-(`tool/oka_pipeline.dart`) — stores, developer accounts, and branded
-variants are just more values in it.
+The whole config is **one typed Dart file you own** (`tool/oka_pipeline.dart`)
+— stores, developer accounts, branded variants, and publish targets are
+just more values in it.
 
 ![Build pipeline (no Gradle)](./images/pipeline-flow.svg)
 
 New here? Read the [FAQ (newcomers)](/FAQ) before diving into ADRs.
+
+## The four pillars
+
+| Pillar | What it does | Maturity |
+| --- | --- | --- |
+| **Build** | No-Gradle APK/AAB, provenance, byte-equivalence gates | Production (pub.dev, 0.8.0) |
+| **Distribute** | Play / AppGallery / RuStore / web stores, multi-account, white-label — dry-run by default | Production (pub.dev) |
+| **Update** | Live per-unit patching of running programs; `oka run dev`, `oka ship` air channel | Gate-proven experimental (checkout) |
+| **Operate** | Supervisor, process leases, session-state, artifact store with delta chains | Production at ladder rung L0 |
 
 ## Choose your path
 
 | Audience | Start here |
 | --- | --- |
 | Build an app now | [Quick recipes](/start_here/quick_recipes) |
-| Learn by building (simplest → stores → live patch) | [Examples ladder](https://github.com/Arenukvern/oka/tree/main/examples) |
+| Learn by building (hello app → stores → live patch) | [Examples ladder](https://github.com/Arenukvern/oka/tree/main/examples) |
+| Configure a build | [Build & configuration guide](/guides/build_and_config) |
 | Publish to Google Play / AppGallery / RuStore | [Publishing guide](/guides/publishing) |
 | Multiple store accounts, white-label builds | [Accounts & stores guide](/guides/accounts_and_stores) |
 | Ship a web app to stores / hosting | [Web shell station guide](/guides/web_shell_station) |
-| Manage spawned processes (emulators, browsers) / stop leaks | [Process lifecycle guide](/guides/process_lifecycle) |
+| Patch running apps / ship store-free updates | [Live update guide](/guides/live_update) |
 | Declare local daemons / jobs (one-shot converge) | [Supervisor guide](/guides/supervisor) |
+| Manage spawned processes (emulators, browsers) / stop leaks | [Process lifecycle guide](/guides/process_lifecycle) |
+| Keep build binaries out of git | [Artifacts guide](/guides/artifacts) |
 | Operate oka as an AI agent | [`AGENTS.md`](https://github.com/Arenukvern/oka/blob/main/AGENTS.md) — the agent router |
-| Configure a build | [Build & configuration guide](/guides/build_and_config) |
 | Understand the project | [Why this repo matters](/start_here/why_this_repo_matters) |
 
 ## Highlights
@@ -38,12 +52,16 @@ New here? Read the [FAQ (newcomers)](/FAQ) before diving into ADRs.
   tools run.
 - **Stores & accounts as values** — Play, AppGallery, RuStore, web deploy
   targets; dry-run by default; per-account credentials by path.
+- **Live updates that work** — per-unit patching of running programs,
+  gate-proven on macOS/Android/web and three real products; `oka ship`
+  publishes signed store-free channels.
+- **Declarative operations** — supervisor plans converge once, process
+  leases make every spawned emulator/browser stoppable, artifacts stay out
+  of git behind content-addressed pointers.
 - **Plugin packaging** — Flutter plugin sources, Maven/AAR dependencies
   (natives + resources included), `GeneratedPluginRegistrant`.
 - **Fast settings** — extra deps (`extra_deps`), extra assets, deeplinks,
   adaptive vector launcher icons: all declarative.
-- **AAB support** — hand-assembled App Bundles with optional bundletool
-  verification.
 - **Dependency recovery** — runtime missing-class crashes map back to Maven
   artifacts automatically.
 
@@ -55,6 +73,8 @@ cd example && oka build apk
 
 ## Status
 
-Experimental but actively used. See the
+Production for build and distribution (12 packages on pub.dev, automated
+release train); gate-proven experimental for the live-update stack (runs
+from a checkout); supervisor at adoption rung L0. See the
 [phase checklist](/PHASE_CHECKLIST) for what is proven by tests, and the
 [roadmap](/start_here/roadmap) for what's next.

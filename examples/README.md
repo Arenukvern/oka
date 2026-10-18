@@ -1,6 +1,6 @@
 # Examples ladder — learn oka by building
 
-Six runnable projects, smallest first. Each has a five-minute README and a
+Six steps, smallest first. Each has a five-minute README and a
 `tool/oka_pipeline.dart` you can copy into your own app verbatim.
 
 | Step | You learn | Prereqs |
@@ -11,6 +11,11 @@ Six runnable projects, smallest first. Each has a five-minute README and a
 | [04 stores & accounts](04_stores_accounts) | Play + AppGallery + RuStore targets, two Play accounts, white-label brands | 03 |
 | [05 web stores](05_web_stores) | Typed web shell, GitHub Pages + itch.io deploy | Dart, Flutter |
 | [06 live patch](06_live_patch) | Patch a running app via the air channel (`oka ship`) | the oka repo checkout |
+
+Steps 01–05 are runnable in place. Step 06 is a guided demo: the live-update
+stack is checkout-only (`oka_dart_kernel`/`oka_update` are not on pub.dev),
+so its README walks you through `packages/oka_dart_kernel/example/live_showcase/`
+inside this repo rather than a standalone project.
 
 The one rule across all of them: **the build config is Dart you own.** No
 plugin DSLs, no hidden defaults — everything below is copy-paste and

@@ -1,4 +1,4 @@
-# Oka — one code for every platform build
+# Oka — one typed Dart surface to build, run, patch, and distribute apps
 
 <p align="center">
   <img src="docs/images/oka-banner.svg" alt="Oka: one typed Dart file, no Gradle, Flutter Android builds" width="720" />
@@ -14,25 +14,38 @@
 <a title="Discord" href="https://discord.com/invite/y54DpJwmAn" ><img src="https://img.shields.io/discord/696688204476055592.svg" /></a>
 [![maintained with Skill Steward](https://raw.githubusercontent.com/Arenukvern/skill_steward/main/docs/brand/assets/svg/badge-light.svg)](https://github.com/Arenukvern/skill_steward)
 
-> **TL;DR** — Oka replaces Gradle for Flutter Android builds with one typed
-> Dart file you own: `oka init` → `oka build apk` → `oka run device`.
-> No daemon, no AGP, no YAML sprawl. Stores (Play / AppGallery / RuStore /
-> web) and multiple developer accounts are just more values in the same file.
+> **TL;DR** — Oka is a declarative application platform: one typed Dart file
+> you own (`tool/oka_pipeline.dart`) composes the whole loop — build without
+> Gradle, run on devices, patch running programs live, supervise processes,
+> and publish to stores. Humans and agents operate it identically: every
+> operation has a plan you can read (`oka explain`), a probe you can run
+> (`oka debug step`), and failures that name the fix.
+> `oka init` → `oka build apk` → `oka run device`.
 
 **Who it's for:** Flutter teams and release engineers who want a single
 inspectable build surface; agents and CI that need `oka explain` and
-actionable errors. Not a full Gradle/AGP emulator — see
-[FAQ](docs/FAQ.md) and [charter](docs/start_here/why_this_repo_matters.mdx).
+actionable errors; anyone shipping store-free updates to installed apps.
+Not a full Gradle/AGP emulator — see [FAQ](docs/FAQ.md) and
+[charter](docs/start_here/why_this_repo_matters.mdx).
 
-| | |
-|---|---|
-| [60-second start](#60-second-start) | Install, bootstrap SDK, first APK |
-| [Pick your path](#pick-your-path) | Dev loop, release, stores, web, live patch |
-| [FAQ](docs/FAQ.md) | Newcomer questions (repo-grounded) |
-| [Docs site](https://docs.page/arenukvern/oka) | Guides, recipes, design FAQ |
-| [Contributing](#contributing) | `just check-contracts`, ADRs, all-contributors |
+## Four pillars, one surface
 
----
+Oka started as a no-Gradle Android build system. The same laws — typed
+values, validated plans, evidence over demos — now carry three more
+pillars, each at a different, honestly-labeled maturity:
+
+| Pillar | What it does | Maturity |
+|---|---|---|
+| **Build** | No-Gradle APK/AAB: `flutter assemble` + direct SDK tools, provenance on every artifact, byte-equivalence gates | **Production** — on pub.dev (v0.8.0) |
+| **Distribute** | Play / AppGallery / RuStore / web stores, multiple developer accounts, white-label brands — dry-run by default | **Production** — on pub.dev |
+| **Update** | Live per-unit patching of **running** programs: the `oka run dev` session, `oka ship` store-free air channel, AOT slots | **Gate-proven experimental** — runs from a checkout |
+| **Operate** | Declarative supervisor, process leases, session-state, content-addressed artifact store with delta chains | **Production** — supervisor at adoption rung L0 |
+
+The design laws are constant across pillars: configuration is typed Dart
+you own, every chain validates before any tool runs, and *an agent can set
+up and fix things from oka's messages alone*. The full north star,
+invariants, and expansion gates live in the
+[charter](docs/start_here/why_this_repo_matters.mdx).
 
 ## Why oka is different
 
@@ -84,9 +97,9 @@ Migrating an existing Gradle app? [Migration guide](https://docs.page/arenukvern
 ## Pick your path
 
 Every path below is the same two moves: **add values to
-`tool/oka_pipeline.dart`, run `oka run <target>`.** Start anywhere.
+`tool/oka_pipeline.dart`, run `oka`.** Start anywhere.
 
-### 1. Daily dev loop — hot reload without Gradle
+### Build 1 — Daily dev loop: hot reload without Gradle
 
 ```bash
 oka build apk --debug   # once
@@ -98,7 +111,7 @@ oka dev --watch --json  # agents: Dart edits auto-reload; native edits print
 Hot reload is Dart-only — native/res/manifest changes need a rebuild
 ([ADR-0011](docs/decisions/0011-hot-reload-run-loop.mdx)).
 
-### 2. Release builds — proven, not hoped
+### Build 2 — Release builds: proven, not hoped
 
 ```bash
 oka build apk --release          # AOT + R8 + signed (mapping.txt included)
@@ -111,7 +124,7 @@ Every artifact carries `oka-provenance.json` (engine + snapshot hashes); a
 wrong engine/snapshot pairing fails the build instead of hanging the device
 on a splash screen ([ADR-0029](docs/decisions/0029-build-provenance-and-verification-ladder.mdx)).
 
-### 3. Stores — one app, many stores
+### Distribute 3 — Stores: one app, many stores
 
 Publish targets are project-declared values, **dry-run by default**: the plan
 prints endpoint, track, artifact, and metadata with zero HTTP and zero
@@ -137,7 +150,7 @@ Credentials are **file paths**, never values: typed config →
 `OKA_<TARGET>_*` env var → `~/.oka/credentials/<target>/`. Full console
 setup: [Publishing guide](https://docs.page/arenukvern/oka/guides/publishing).
 
-### 4. Multiple accounts & white-labeling — same app, different owners
+### Distribute 4 — Multiple accounts & white-labeling
 
 One codebase → many branded, store-separated apps. Two `PlayPublishTarget`s
 with distinct names, package ids, and service accounts is all it takes:
@@ -169,7 +182,7 @@ brand (different `packageName`/`applicationId`, keystore, icon) and pick it
 in `main()` from your own flag — it's a program, not a DSL. Recipes and
 caveats: [Accounts & stores guide](https://docs.page/arenukvern/oka/guides/accounts_and_stores).
 
-### 5. Web — shell station, not a platform
+### Distribute 5 — Web: shell station, not a platform
 
 Per-store `web/index.html` as typed, drift-checked Dart. One composition, no
 per-store branches ([ADR-0016](docs/decisions/0016-web-shell-station-store-contributions.mdx)):
@@ -184,13 +197,15 @@ targets: const [
 
 Guide: [Web shell station](https://docs.page/arenukvern/oka/guides/web_shell_station).
 
-### 6. Live patching — shipped behind the checkout, research preview on pub
+### Update 6 — Live patching: change running programs
 
 The kernel/update stack (`oka_dart_kernel` + `oka_update`) applies changes to
 **running** Dart programs — and ships patches to installed ones without a
 store ([ADR-0037](docs/decisions/0037-air-channel-invisible-patches.mdx)).
-Gate-proven on macOS/linux/android/web and three real products. A full live
-apply lands in **0.57 s**; AOT deltas compile ~94x faster than JIT.
+Proven by the gate harness across macOS/linux/android/web and three real
+products (the oka CLI itself, an MCP stdio server, a Flutter desktop app).
+A full live apply lands in **0.57 s**; AOT deltas compile ~94x faster than
+JIT.
 
 ```bash
 oka run dev --platform macos --project <app>   # r = oka's delta lane, R = restart
@@ -200,12 +215,32 @@ packages/oka_dart_kernel/example/live_showcase/run.sh   # 30 s demo
 
 Works today: the dev session (macOS/web) with watch-on-save, asset sync,
 and live shader recompiles; invisible patch authoring; signed channels;
-migration chains with snapshot fallback; the boot watchdog. Not yet: the
-android dev session, live freshness for already-loaded assets (engine
-seam), per-unit AOT over the air (research line, ADR-gated). The stack is
-not on pub.dev — it runs from an oka repo checkout.
+migration chains with snapshot fallback; the boot watchdog; command lanes on
+the watcher. Not yet: the android dev session convergence, live freshness
+for already-loaded assets (engine seam), per-unit AOT over the air
+(research line, ADR-gated). The update stack itself is not on pub.dev — it
+runs from an oka repo checkout; everything it patches can be a plain pub
+app.
 
 Guide: [Live update](docs/guides/live_update.mdx).
+
+### Operate 7 — Supervise, lease, store
+
+```bash
+oka supervisor apply plan.json   # one converge pass over a declared plan
+oka supervisor status --json     # recorded process state as data
+oka supervisor check plan.json   # plan-vs-records drift gate for CI
+oka processes list --json        # every lease oka recorded (emulators, browsers, daemons)
+oka stop <lease-id>              # graceful, identity-verified teardown
+oka artifacts put out.bin        # content-addressed store; git keeps a pointer
+oka artifacts materialize out.bin # recreate bytes anywhere (delta chains, ~0.03% deltas)
+```
+
+Supervisor plans are versioned JSON (`SpecCodec`); the shipped rung is
+one-shot converge — no resident daemon (that is ADR-0042, proposed and
+gated). Guides: [Supervisor](https://docs.page/arenukvern/oka/guides/supervisor) ·
+[Process lifecycle](https://docs.page/arenukvern/oka/guides/process_lifecycle) ·
+[Artifacts](https://docs.page/arenukvern/oka/guides/artifacts).
 
 ## The agent surface
 
@@ -215,10 +250,15 @@ This is what "AI-native" means — every operation is checkable and scriptable:
 |---|---|
 | `oka explain` / `oka build --dry-run` | The validated plan: steps, artifacts, signing, versions — zero tools invoked |
 | `oka explain --targets` | Every project-declared target with its compiled step chain |
+| `oka why <step>` | Step-cache forensics: fingerprinted inputs, which changed, what's uncovered |
 | `oka debug step <name>` | One pipeline step re-run against `.oka_cache` — 10-minute loops become 30-second probes |
 | `oka compare a.apk b.apk` | Byte-equivalence gate — refactors prove, not claim |
 | `oka cache --json` / `oka cache clean` | Storage inventory and reclaimable totals as data |
+| `oka run dev --json` | Dev-session receipts: reload/restart events as structured lines |
+| `oka ship` | Derive + publish a store-free patch from the working tree (checkout) |
 | `oka supervisor status --json` / `check plan.json` | Recorded process state and the plan-vs-records drift gate as data |
+| `oka processes --json` / `oka stop` | Process leases as data; graceful identity-verified teardown |
+| `oka session-state list/inspect/resume` | Durable browser/emulator state as inspectable data |
 | `oka_artifacts` (package CLI: put/materialize/verify) | Build artifacts as pointers + delta chains — git stays small, LFS optional |
 | `oka doctor` | Full environment + build-health audit, secret-tier checks included |
 
@@ -283,7 +323,8 @@ validated before any tool runs. Canonical copyable config:
 ## Learn by building: the examples ladder
 
 Start at [examples/](examples/) and climb — each step is a small, runnable
-project with a five-minute README:
+project with a five-minute README (step 6 is a guided demo that runs from
+this checkout):
 
 | Step | You learn |
 |---|---|
@@ -292,7 +333,7 @@ project with a five-minute README:
 | [03 release](examples/03_release_signing) | Release signing, R8, `oka run verify` |
 | [04 stores & accounts](examples/04_stores_accounts) | Play + AppGallery + RuStore, two Play accounts, white-label brands |
 | [05 web stores](examples/05_web_stores) | Web shell, GitHub Pages, itch.io |
-| [06 live patch](examples/06_live_patch) | Patch a running app via the air channel |
+| [06 live patch](examples/06_live_patch) | Patch a running app via the air channel (demo runs from this checkout) |
 
 The full reference app remains [example/](example/) — every feature composed
 in one file.
@@ -310,8 +351,9 @@ plugins with complex native code fail loudly instead of silently
 
 **Which platforms?** Android is the deepest (APK + AAB, full dev loop). Web
 gets the configuration/distribution layer (shell station + deploy targets);
-its compile stays `flutter build web`. iOS/desktop are criteria-gated, not
-calendar-driven — depth before breadth.
+its compile stays `flutter build web`. The update stack already patches
+plain Dart programs on macOS/linux/web. iOS/desktop builds are
+criteria-gated, not calendar-driven — depth before breadth.
 
 **Where's the cache?** Project outputs in `.oka_cache/`, shared store in
 `~/.oka/store`. `oka cache` inventories everything (including emulator
@@ -326,18 +368,25 @@ Agents: [`llms.txt`](llms.txt) and [`AGENTS.md`](AGENTS.md).
 
 ## Packages
 
-| Package | Purpose |
-|---|---|
-| [`oka`](https://pub.dev/packages/oka) | CLI + agent surface |
-| [`oka_core`](https://pub.dev/packages/oka_core) | Platform-agnostic contracts: pipeline, artifacts, typed config |
-| [`oka_android`](https://pub.dev/packages/oka_android) | Android pipelines, toolchain, plugin packaging |
-| [`oka_play`](https://pub.dev/packages/oka_play) | Google Play publish target |
-| [`oka_huawei`](https://pub.dev/packages/oka_huawei) | AppGallery Connect target (GMS-free variant + upload) |
-| [`oka_rustore`](https://pub.dev/packages/oka_rustore) | RuStore target (readiness + verification; adapter-supplied upload) |
-| [`oka_web`](https://pub.dev/packages/oka_web) | Web shell station + deploy targets |
-| [`oka_conformance`](https://pub.dev/packages/oka_conformance) | The contract suite every target must pass |
-| `oka_supervisor`, `oka_artifacts`, `resource_composition` | Governance stack: process supervision, artifact storage (pointers + delta chains), composition substrate |
-| `oka_dart_kernel`, `oka_update`, `oka_harness` | Live-patching / harness stack (experimental, not on pub) |
+Twelve packages ride the automated release train on pub.dev; the live-update
+kernel stack is checkout-only while its API settles.
+
+| Package | Pub | Purpose |
+|---|---|---|
+| [`oka`](https://pub.dev/packages/oka) | ✅ | CLI + agent surface |
+| [`oka_core`](https://pub.dev/packages/oka_core) | ✅ | Platform-agnostic contracts: pipeline, artifacts, typed config |
+| [`oka_android`](https://pub.dev/packages/oka_android) | ✅ | Android pipelines, toolchain, plugin packaging |
+| [`oka_play`](https://pub.dev/packages/oka_play) | ✅ | Google Play publish target |
+| [`oka_huawei`](https://pub.dev/packages/oka_huawei) | ✅ | AppGallery Connect target (GMS-free variant + upload) |
+| [`oka_rustore`](https://pub.dev/packages/oka_rustore) | ✅ | RuStore target (readiness + verification; adapter-supplied upload) |
+| [`oka_web`](https://pub.dev/packages/oka_web) | ✅ | Web shell station + deploy targets |
+| [`oka_conformance`](https://pub.dev/packages/oka_conformance) | ✅ | The contract suite every target must pass |
+| [`oka_supervisor`](https://pub.dev/packages/oka_supervisor) | ✅ | Declarative supervisor: pure planner + crash-only converge |
+| [`oka_artifacts`](https://pub.dev/packages/oka_artifacts) | ✅ | Content-addressed artifact store with delta chains |
+| [`oka_harness`](https://pub.dev/packages/oka_harness) | ✅ | Device E2E targets over oka dev sessions |
+| [`resource_composition`](https://pub.dev/packages/resource_composition) | ✅ | Zero-dependency resource composition contracts |
+| `oka_dart_kernel` | checkout | Kernel-graph partitioning + live-patch gates (ADR-0032) |
+| `oka_update` | checkout | Patch-unit authoring/planner surface (ADR-0031) |
 
 ## Documentation
 
@@ -350,10 +399,12 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 | Run/build/test/configure | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
 | Publish to stores, set up accounts | [Publishing](https://docs.page/arenukvern/oka/guides/publishing) · [Accounts & stores](https://docs.page/arenukvern/oka/guides/accounts_and_stores) |
 | Ship a web app | [Web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station) |
+| Patch running apps / ship updates | [Live update](https://docs.page/arenukvern/oka/guides/live_update) |
 | Govern daemons, watchers, automations | [Supervisor guide](https://docs.page/arenukvern/oka/guides/supervisor) |
-| Migrate from Gradle | [Migration guide](https://docs.page/arenukvern/oka/guides/gradle_migration) |
+| Manage processes, emulators, browsers | [Process lifecycle](https://docs.page/arenukvern/oka/guides/process_lifecycle) |
 | Keep build binaries out of git | [Artifacts guide](https://docs.page/arenukvern/oka/guides/artifacts) |
 | Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
+| Where oka is going | [Roadmap](https://docs.page/arenukvern/oka/start_here/roadmap) |
 | Check phase status | [`docs/PHASE_CHECKLIST.mdx`](docs/PHASE_CHECKLIST.mdx) |
 
 ## Contributing

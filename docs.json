@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.page/schema.json",
   "name": "Oka",
-  "description": "No-Gradle build system for Flutter Android: flutter assemble + direct Android SDK tools for 3-5x faster incremental builds.",
+  "description": "One typed Dart surface to build, run, patch, supervise, and distribute apps — declarative, agent-operable, no Gradle on the default Android build path.",
   "github": "https://github.com/Arenukvern/oka",
   "theme": {
     "defaultTheme": "system",
@@ -109,7 +109,7 @@
           "href": "/guides/web_shell_station"
         },
         {
-          "title": "Live Update (experimental)",
+          "title": "Live Update & Air Channel",
           "href": "/guides/live_update"
         },
         {
@@ -138,32 +138,8 @@
       "group": "Decisions",
       "pages": [
         {
-          "title": "Overview",
+          "title": "ADR index (0000–0046)",
           "href": "/decisions/index"
-        },
-        {
-          "title": "0000 — Adopt ADRs + doc lattice",
-          "href": "/decisions/0000-adopt-adr-and-doc-lattice"
-        },
-        {
-          "title": "0001 — No-Gradle default build path",
-          "href": "/decisions/0001-no-gradle-default-build-path"
-        },
-        {
-          "title": "0002 — Composable build pipeline",
-          "href": "/decisions/0002-composable-build-pipeline"
-        },
-        {
-          "title": "0003 — Vector-first launcher icons",
-          "href": "/decisions/0003-vector-first-launcher-icons"
-        },
-        {
-          "title": "0004 — No-Gradle AAB bundle",
-          "href": "/decisions/0004-no-gradle-aab-bundle"
-        },
-        {
-          "title": "0005 — Release tooling + plugin distribution",
-          "href": "/decisions/0005-release-tooling-and-plugin-distribution"
         }
       ]
     },

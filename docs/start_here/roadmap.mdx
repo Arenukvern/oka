@@ -1,14 +1,16 @@
 # Roadmap — where oka is going and why
 
-Oka is a declarative, compositional, AI-native build system: **one code for
-every platform build**. Android is the first platform and the deepest proof
-— a no-Gradle pipeline that turns a platform build into typed Dart values
-you compose, inspect, and fix ([why this matters](why_this_repo_matters)).
-The roadmap is the continuation of that bet: every next step either
-**hardens the platform oka already owns**, **extends it to a new platform**
-under the same laws, or **opens an extension surface** without giving up
-the invariants (no Gradle, validated plans, agent-operable failure
-messages).
+Oka is a declarative, compositional, AI-native application platform: **one
+typed Dart surface to build, run, patch, supervise, and distribute apps**.
+The four pillars are at different, honestly-labeled maturities — build and
+distribute are production (12 packages on pub.dev), update is
+gate-proven experimental, operate is at supervisor ladder rung L0
+([why this matters](why_this_repo_matters)). The roadmap is the
+continuation of that bet: every next step either **hardens a pillar oka
+already owns**, **advances an adoption ladder rung**, **extends the model
+to a new platform**, or **opens an extension surface** — without giving up
+the invariants (no Gradle on the default path, validated plans,
+agent-operable failure messages).
 
 This page is the why; the what-and-what-gates-it lives in the
 [phase checklist](../PHASE_CHECKLIST), and the standing decisions behind
@@ -21,8 +23,8 @@ and evidence exist.
 Work is grouped by horizon, not by date:
 
 - **Now** — unblocked and code-ready: the design exists, the tests exist,
-  and only an external input (credentials, CI runners) or a small, honest
-  polish stands between the current state and new evidence.
+  and only an external input (credentials, CI runners, device evidence) or
+  a bounded wiring stands between the current state and new evidence.
 - **Next** — visible, but gated: each item needs a design checkpoint or an
   ADR before code, because it forks the architecture (a new platform, a
   background process, an ecosystem surface).
@@ -32,92 +34,125 @@ Work is grouped by horizon, not by date:
 
 ## Now
 
-- **Real store uploads.** `oka_play` and `oka_huawei` compile to validated
-  dry-run plans today; `oka_rustore` now provides the typed AAB/signature
-  readiness target, while its live upload adapter remains future work.
-  Flipping the implemented upload tails to real uploads needs maintainer
-  credentials plus one live upload each as evidence. This turns ADR-0014
-  from "proven offline" into "proven shipped".
-- **CI emulator tier.** The dev-loop evidence (`oka run device` →
-  `oka dev` → reload/restart) is real but machine-local. Running it on a
-  KVM-capable CI runner makes the dev loop a regression gate instead of a
-  one-time transcript. The emulator lifecycle is now composable
-  (`oka run emulator`, `EmulatorTarget` — create-if-missing, idempotent
-  boot, serial artifact), so the CI tier composes the same target.
-- **Chrome session targets (S0, ADR-0017).** Browser sessions as
-  composable targets in `oka_web` — the second instance of the
-  `EmulatorTarget` ensure-running pattern (typed spec, idempotent boot,
-  handle artifacts) — replacing the launch-script glue consumer repos use
-  today for pinned-flag (WebMCP) and headless testing. Gate: ADR-0017.
-- **`oka dev --control-port` (delegation channel) — shipped.** The
-  loopback JSON-lines control server maps reload / restart / stop / status
-  onto the owning flutter-tool daemon session (the only compile-capable
-  channel; late-attach VM-service reloads are silent no-ops), with
-  discovery per the frozen spec v2 Dart dev session contract and no-auth
-  localhost binding documented as such. The spec-v2 runner-session file
-  (`<project>/.flutter_mcp/runner-session.json` — sibling of the
-  toolkit's `state.json`, overridable via the toolkit's
-  `--runner-session-file`; written at `session.ready` with the
-  `runner: "oka-dev"` display field, deleted on every exit path) makes
-  oka the FIRST CONFORMING RUNNER: the toolkit never learns oka's name —
-  its adapter consumes the file. Evidence:
-  `test/adr0011_control_server_test.dart` (real loopback sockets against
-  the scripted-fake session), the runner-session lifecycle in
-  `test/adr0011_dev_session_test.dart`, and the editor wiring in
-  `docs/guides/hot_reload_plan.mdx`.
-- **Doctor and cache policy.** Extend the secret audit where real gaps show up.
-  Cache last-use tracking would require new metadata and a policy decision;
-  existing timestamps are creation/modification times. Storage inspection and
-  explicit pruning are covered by [the cache guide](../guides/cache_storage).
-- **Close the leakage ratchet.** One flagged flag name
-  (`--skip-badging`) is the last exception in the ADR-0015 platform-
-  leakage gate; ratify or deprecate it and the boundary is clean by
-  construction.
+**Update pillar — close the ladder (ADR-0031/0032/0034/0035/0037).**
+Everything through G-AC8 is gate-proven ([live update](../guides/live_update)
+has the status matrix). In dependency order:
+
+- **`oka run dev --platform android`** — every piece exists (oka builds the
+  debug APK, the daemon — `oka dev android` — owns install/launch, the
+  device lane applies deltas + syncs assets over DevFS); wiring them into
+  the converged session retires the bridge subcommand.
+- **`oka build` emits the head snapshot** — each platform target's build
+  output registered so `oka ship` stages it automatically (closes
+  G-AC6's "without a flag" wording; rides ADR-0030 composition).
+- **Analyzer-backed unit fingerprints** (ADR-0034 G4) — replaces the
+  prototype declaration-line fingerprints that fail closed on exotic
+  declarations.
+- **Web in-app adoption + unit generator** (ADR-0031 gate 1) — the
+  bootstrap that consumes the channel at page load, plus barrels/registry
+  codegen.
+- **oka owns the macOS build path** — the same move the android station
+  made: parse the Xcode project into a declarative build graph, drive
+  xcodebuild + the flutter macos assemble backend directly, record
+  provenance, and let `oka run dev --platform macos` launch the oka-built
+  binary.
+
+**Operate pillar — earn the next rungs.**
+
+- **Supervisor L0 evidence month.** The R1 planner/converge and the L0 CLI
+  are shipped; the R2 resident rung's entry criteria (ADR-0042) need ≥2
+  consumers recording for a month. Keep the harness and dfp bridges
+  recording; wire the harness bridge into the beat carrier as an opt-in.
+- **R8 release shrinking — live-device evidence** (ADR-0023/0024 work).
+  Real-R8 release builds are implemented and fixture-tested; remaining
+  gates: a production app's release AAB with runtime smoke, a retrace
+  check, and mapping-upload evidence with a Play release.
+- **Delivery verification wiring** (ADR-0023 §3) — wire the verifier in a
+  real release composition and record one device-spec split run per store
+  family as evidence.
+- **Real store uploads** — `oka_play` and `oka_huawei` have implemented
+  upload tails; flipping them to live uploads needs maintainer credentials
+  plus one live upload each as evidence. `oka_rustore` ships readiness +
+  verification; its upload adapter is future work.
+
+**Fast loops for agents (new direction, evidence first).**
+
+- **Resident test/eval lanes on the kernel substrate.** Cold `dart` pays a
+  ~8–15x latency tax against Node for trivial invocations (CFE kernel load
+  + whole-library compile on every run) — measured, with the fix
+  demonstrated in the harness repo: a resident-VM verify lane and an eval
+  daemon bring warm evaluations to **~50 ms**, beating Node's ~250 ms
+  (`docs/evidence/dart-loop-latency-2026-10`). `oka_dart_kernel` already
+  owns the resident-kernel + delta-compile pieces; the open work is the
+  resident aggregate-kernel **test runner** (single frontend-server
+  session, incremental deltas, fresh isolates per suite) and an
+  `oka eval`-style surface. This is the "eliminate the restart" thesis
+  applied to the pillar agents feel most: feedback latency.
+
+**Platform/infra (carried over).**
+
+- **CI emulator tier.** The dev-loop evidence is real but machine-local; a
+  KVM-capable CI runner makes it a regression gate. The emulator lifecycle
+  is composable (`EmulatorTarget`), so the CI tier composes the same
+  target.
+- **Doctor and cache policy.** Extend the secret audit where real gaps show
+  up; cache last-use tracking would need new metadata and a policy
+  decision.
+- **Close the leakage ratchet.** `--skip-badging` is the last exception in
+  the ADR-0015 platform-leakage gate; ratify or deprecate it.
 
 ## Next
 
-- **A second platform.** iOS is the leading candidate, and it is ADR-gated
-  by design: the no-Gradle law, the toolchain-as-data policy, and the
-  validated-plan surface must each get an explicit iOS analogue before any
-  code exists. The Android pipeline is the template, not a shortcut.
-- **More distribution targets.** RuStore and Yandex fit the
-  `PublishTarget` pattern almost exactly — but the checkpoint question is
-  whether target packages become a productized third-party extension
-  point before the pattern is copied twice more.
-- **Cache lifecycle as policy.** Whether `oka cache gc` stays a manual
-  verb or gains scheduling is a no-daemon posture question (ADR-0001) — a
-  decision to make explicitly, not by drift.
-- **A standing hot-reload CI tier.** Beyond the one-shot e2e: a repeatable
-  session tier in CI for the watch loop and reconnect paths, once the
+- **A second platform pipeline.** iOS is the leading candidate, and it is
+  ADR-gated by design: the no-Gradle law, the toolchain-as-data policy, and
+  the validated-plan surface must each get an explicit iOS analogue before
+  any code exists. The Android pipeline is the template, not a shortcut.
+- **More distribution targets — as an ecosystem.** RuStore's upload adapter
+  and Yandex fit the `PublishTarget` pattern; the checkpoint question is
+  whether target packages become a productized third-party extension point
+  (the ADR-0014 conformance suite as the contract) before the pattern is
+  copied twice more.
+- **Supervisor L1 and the resident rung.** Both ADR-gated: L1 (persistence
+  + multi-machine mesh) after the L0 evidence month; the resident
+  supervisor and OTA runtime owner only when ADR-0042's entry criteria
+  hold (it explicitly says "do not implement until they do").
+- **Model composition control surface** (ADR-0039, proposed). The
+  local-serve core landed 2026-10-08; the ADR (and a retroactive record
+  for the core) must catch up before the control surface grows.
+- **Cache lifecycle as policy.** Whether `oka cache gc` stays manual or
+  gains scheduling is a no-daemon posture question (ADR-0001) — decide
+  explicitly, not by drift.
+- **Standing CI tiers** for the dev session and hot-reload paths, once the
   emulator runner exists and the runtime budget is accepted.
 
 ## Later
 
-- **Runtime sessions beyond browsers.** The ADR-0017 handle convention
-  extends to `apple/container`/Docker sessions and Dart server-process
-  sessions as independent targets. Oka-owned processes keep the
-  ADR-0018 lease and teardown safety laws; durable leases are used where a
-  resource must outlive its creator and be adopted, not required for every
-  process.
-- **Declarative resource composition SDK (ADR-0026).** A cross-project API
-  may let developers compose processes, harnesses, and protocol sessions
-  from typed, replaceable components, with lifecycle reconciliation and
-  diagnostic evidence as first-class concerns. Its package boundary and
-  language-specific SDKs are gated on pilots with `ecsai_harness`, Oka, and
-  IntentCall. Any supervisor remains optional and may be a separate
-  implementation or project; this does not change Oka's no-daemon posture.
-  The supervisor exists now (ADR-0040 R1) and grows along an adoption
-  ladder — local → mesh → git → server — whose every rung beyond local
-  stays ADR-gated so the posture holds (ADR-0041).
-- **Every platform, same laws.** The north star is one code for every
-  platform build: typed values, validated pipelines, no hidden glue, and
-  an agent that can set up and fix a build from oka's messages alone. Each
-  new platform must clear the same bar Android did — evidence, not
-  demos.
+- **Every platform, same laws.** The north star: typed values, validated
+  pipelines, no hidden glue, an agent that can set up and fix things from
+  oka's messages alone — for every platform build. Each new platform must
+  clear the same bar Android did — evidence, not demos.
 - **An ecosystem of distribution targets.** The ADR-0014 conformance suite
   becomes the contract third-party package authors satisfy to ship their
   own publish targets — the point where oka stops being only a tool and
   starts being a platform for tools.
+- **Runtime sessions beyond browsers.** The ADR-0017 handle convention
+  extends to `apple/container`/Docker sessions and Dart server-process
+  sessions as independent targets; oka-owned processes keep the ADR-0018
+  lease and teardown laws.
+- **Full ADR-0030 acceptance.** Composition of connections between
+  components, operation projections beyond the CLI, and state lifecycle
+  independent of build caches — demonstrated on a web app plus a backend
+  in another language with a verified persistent-data restore.
+- **The update surface as oka's front door for plain Dart.** Plain-Dart
+  `oka init` (no Flutter), `oka dev` for servers (`vm-server` target kind:
+  start under the VM service, attach the watcher, `r` = delta, `R` = real
+  restart), and a shared warm toolchain dir by default — the update stack
+  already runs on any Dart program from a checkout; these items make the
+  published CLI match. Two convergences complete the picture: project
+  targets and built-in `TargetSpec` kinds as one declarative registry
+  (plugins add kinds, not forks), and the receipt/probe contract extended
+  to checkers (`dart analyze`/test gates) so a patch is verified by the
+  project's own declared checks.
 
 ## Reading the trail
 

@@ -98,7 +98,8 @@ aapt2 dump xmltree --file AndroidManifest.xml <apk>
 # 3. Static runtime-dependency check (before installing):
 oka debug dex .oka_cache/build/debug/app-debug.apk --find <dotted.Class>
 # 4. Device smoke test: install + launch + logcat failure scan:
-oka launch
+oka run device
+#    (`oka launch` is an alias of `oka run device`)
 # 4b. Full startup verification (provenance, engine/snapshot pairing,
 #     device health, Dart main, first frame — ADR-0029):
 oka run verify
@@ -115,7 +116,7 @@ oka run verify
 | `NoClassDefFoundError` at startup, ALL plugins unregistered | Runtime dependency declared only in Gradle `.module` metadata (e.g. camera → `kotlinx-atomicfu`) | Auto-resolved since the `.module` parsing fix; for anything else use `pipeline.extra_deps` (`oka explain --deps --network` to inspect) |
 | Wrong icon (oka glyph instead of your logo) on API 26+ | Stale generated `mipmap-anydpi-v26/ic_launcher.xml` in the build dir shadows your PNGs | Clean `.oka_cache/build/<mode>` and rebuild; set `android.icon.manifest_ref` if your icon has a custom name |
 | Wrong app label | `name:` unset or conflicting `application_attributes` passthrough | Set top-level `name:`; passthrough `application_attributes` wins over it — use one source |
-| `resources.arsc` install error on Android 11+ | arsc must be stored uncompressed + zipalign `-p 4` | Regressed packager — see `zipStagingToApk` in `lib/src/build/apk_layout.dart` |
+| `resources.arsc` install error on Android 11+ | arsc must be stored uncompressed + zipalign `-p 4` | Regressed packager — see `zipStagingToApk` in `packages/oka_android/lib/src/build/apk_layout.dart` |
 
 ## See also
 

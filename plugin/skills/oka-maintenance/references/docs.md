@@ -43,7 +43,8 @@ These tokens/links are load-bearing — a rewrite that drops them fails
   version sync; that's intentional.
 - **Stale plan-docs**: completed phase plans compress to a status table;
   keep still-live reference sections (wire formats, gotchas) verbatim —
-  e.g. `hot_reload_plan.mdx` keeps the delegation-channel wiring.
+  e.g. `docs/archive/hot_reload_plan.mdx` keeps the delegation-channel
+  wiring; the live wiring now lives in `docs/guides/build_and_config.mdx`.
 - **Skills**: canonical skill source is `plugin/skills/` (root `skills/` is
   its symlink — edit one place). Run `steward validate skills/` after any
   skill change.

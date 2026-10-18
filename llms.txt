@@ -1,34 +1,59 @@
 # Oka — LLM / agent orientation
 
-> Declarative, compositional build system for Flutter Android (no Gradle default path).
-> One typed Dart file (`tool/oka_pipeline.dart`) composes pipelines and targets.
+> Declarative application platform: one typed Dart surface to build, run,
+> patch, supervise, and distribute apps — humans and agents operate it
+> identically. One project-owned file (`tool/oka_pipeline.dart`) composes
+> pipelines and targets. The default Android build path never uses Gradle.
+
+## The four pillars (and their maturity)
+
+- **Build** — no-Gradle APK/AAB, provenance, byte-equivalence gates. Production: on pub.dev (0.8.0).
+- **Distribute** — Play / AppGallery / RuStore / web stores, multi-account, white-label; dry-run by default. Production: on pub.dev.
+- **Update** — live per-unit patching of running programs; `oka run dev`, `oka ship` air channel. Gate-proven experimental: runs from a repo checkout (`oka_dart_kernel` + `oka_update` are `publish_to: none`).
+- **Operate** — declarative supervisor, process leases, session-state, artifact store with delta chains. Production at supervisor ladder rung L0: on pub.dev.
 
 ## Start here (agents)
 
 - AGENTS.md — router map, non-negotiables, command index
 - docs/FAQ.md — newcomer questions (grounded in repo)
 - docs/guides/build_and_config.mdx — how to run, build, configure
+- docs/guides/live_update.mdx — patching running programs, `oka ship` (status matrix)
+- docs/guides/supervisor.mdx — plans, converge, drift gate
+- docs/guides/artifacts.mdx — content-addressed store, delta chains
+- docs/guides/process_lifecycle.mdx — leases, teardown, session-state
 - docs/guides/design_faq.mdx — why decisions were made
 - docs/start_here/quick_recipes.mdx — copy-paste command loops
+- docs/start_here/why_this_repo_matters.mdx — charter: north star, invariants, gates
 
 ## Invariants (do not violate)
 
 - Default build success must never use `flutter build apk` or Gradle (ADR-0001).
 - Only one Android build path (no cargo-apk hybrid; ADR-0009).
+- A phase is done only when tests/evidence exist; new surfaces adopt through explicit ADR-gated ladders (ADR-0041 pattern).
 - Docs link to code; they do not paraphrase implementation as SSOT.
 
 ## Primary CLI (packages/oka/bin/oka.dart)
 
 init, explain, why, build, compare, debug, run, dev, doctor, get, clean, cache,
 launch, live, ship, processes, stop, session-state, supervisor, artifacts
+(`device`, `verify` are project-declared targets reached via `oka run` or
+unknown-verb dispatch, ADR-0015)
 
 ## Repository layout
 
 - packages/oka — CLI
-- packages/oka_core — contracts (pipeline, artifacts)
+- packages/oka_core — contracts (pipeline, artifacts, process seam)
 - packages/oka_android — Android pipeline
 - packages/oka_play, oka_huawei, oka_rustore, oka_web — distribution targets
+- packages/oka_supervisor — declarative supervisor (planner, converge, spec codec)
+- packages/oka_artifacts — content-addressed store, delta chains
+- packages/oka_conformance — publish-target contract suite
+- packages/oka_harness — device E2E targets over dev sessions
+- packages/resource_composition — zero-dependency composition contracts
+- packages/oka_dart_kernel — kernel graph, live-patch gates (checkout-only)
+- packages/oka_update — patch-unit authoring/planner (checkout-only)
 - example/ — full reference app; examples/ — learning ladder
+- docs/decisions/ — ADR index (47 records, statuses kept in sync)
 
 ## Contributor gates
 

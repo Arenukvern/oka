@@ -1,0 +1,73 @@
+# Dart loop latency — cold-start tax measured, warm lanes proven — 2026-10
+
+Decision context: ADR-0032 (oka_dart_kernel owns the resident kernel) and
+the roadmap "resident test/eval lanes" direction. Primary implementation
+lives in the companion harness repo (`~/xs/ecsai_harness`, ADR-0098,
+commit `796c8e7a`); this page records the measurements and the oka-side
+consequences.
+
+## The problem: Dart pays a cold tax on every invocation
+
+Agents (and humans) invoke `dart` hundreds of times a day. On macOS arm64
+(Dart 3.13.4, Node v25.9.0, same machine):
+
+| Invocation | Median |
+| --- | --- |
+| `node t.mjs` (hello world) | ~0.25 s |
+| `dart t.dart` (real binary, fvm shim bypassed) | ~1.9 s |
+| Warm in-daemon eval (after the fix below) | **~0.05 s** |
+
+Anatomy of the 8–15x gap: every plain `dart run` pays embedded-CFE kernel
+snapshot load and whole-library up-front compilation (V8 lazy-compiles);
+there is no persistent warm path; the Flutter tool is itself a Dart program
+that recompiles per invocation. `flutter test` adds framework-wide
+compilation per bundle and a fresh VM per test file (hundreds of MB RSS per
+suite); pure-Dart `dart test` is dramatically lighter but still pays the
+frontend-server child for CFE work — invisible to parent CPU accounting
+(measured: ~2 s of actual test time under an 85.6 s wall on the root
+workspace). A cold kernel build, including build hooks, is ~54 s — a
+one-time cost that caching amortizes.
+
+## The thesis: don't rewrite the engine — eliminate the restart
+
+The fix is not a faster cold start; it is amortization. The harness
+implementation (`tool/oka/verify/` in ecsai_harness) proves the pattern:
+
+- **M1 verify lane** — directive-scan import graph selects affected suites;
+  per-suite bootstrap mains run under `dart test --precompiled` from
+  content-hash-keyed kernel dills (`.dart_tool/oka_verify/`), compiled by
+  `(nproc-2).clamp(2,8)` parallel workers. CLI: `bin/verify.dart --package X
+  [--all|--only substr][--changed f1,f2]`, printing an `oka-receipt:` path.
+- **M2 eval daemon** — a resident `dartaotruntime` VM hosting
+  `frontend_server_aot.dart.snapshot` with incremental kernel updates;
+  `oka-eval` wrapper checks freshness by source mtimes and never rebuilds
+  the client. Warm in-daemon eval: **~50 ms** (Node ~250 ms, Python ~70 ms,
+  Bun ~40–80 ms on the same machine). AOT-compiled eval client `--help`:
+  0.02 s.
+
+Two bug classes are worth recording for anyone reproducing: graceful
+WebSocket close after the answer arrives added ~5 s of wall time (fixed
+with a hard exit), and `ReceivePort` keep-alive is required — a `Completer`
+does not keep a compiled dill VM alive.
+
+## What this means for oka
+
+`oka_dart_kernel` already owns the hard pieces this direction needs:
+resident kernel graphs, incremental delta compilation, and the live-reload
+path proven by the gate harness. The open work is packaging the pattern as
+oka surfaces: a resident aggregate-kernel **test runner** (single
+frontend-server session, incremental deltas via VM-service `reloadSources`,
+fresh isolates per suite) and an eval-style verb. The update stack's dev
+session already demonstrates the same amortization for app reloads
+(0.57 s live applies); tests and evals are the next workload.
+
+## Scope and limits
+
+Measurements are single-machine medians under varying background load
+(rustc/vitest running during some runs) — treat absolute numbers as noisy,
+the 8–15x cold gap and the ~50 ms warm eval as directional. The verify/eval
+lane is implemented and dogfooded in the harness repo, not yet in the oka
+CLI; steady-state cache-hit verify timings are not yet captured, and the
+resident test runner is designed but not built. Receipts must name their
+source revision — a warm isolate can silently serve stale code (the
+stale-isolate trap).

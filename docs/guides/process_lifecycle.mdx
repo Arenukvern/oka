@@ -289,7 +289,7 @@ Everything else — discovery (`oka processes`), stopping
 - Target execution and signal ownership: `packages/oka_core/lib/src/target_execution_scope.dart`
 - Emulator wiring: `packages/oka_android/lib/src/dev/emulator_target.dart`
 - Browser wiring: `packages/oka_web/lib/src/session/chrome_session_target.dart`
-- Design law: [ADR-0018](/decisions/0018-process-lifecycle-leases)
+- Design law: [ADR-0018](../decisions/0018-process-lifecycle-leases)
 
 `LeasedProcessProvider` treats lease persistence as part of acquiring a durable
 managed component. If persistence fails after spawn, it uses the existing
@@ -317,7 +317,7 @@ closing a live writer's pipe must not substitute for an authorized stop. This ma
 keep a standalone runner alive until recovery completes.
 The receipt alone does not provide crash-safe lease recovery. Direct readonly
 waits now use the budget below; see
-[ADR-0046](/decisions/0046-failed-deadline-teardown-receipts).
+[ADR-0046](../decisions/0046-failed-deadline-teardown-receipts).
 
 Direct readonly observations now share a configurable `observationBudget` in
 each `stopProcessTree` call (default two seconds). `runBoundedProcess` and
