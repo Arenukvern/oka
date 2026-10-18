@@ -1,0 +1,104 @@
+# Codemap live loop — 2026-10-18
+
+First end-to-end exercise of [ADR-0045](../decisions/0045-codemap-index-worker-supervision.mdx)
+against the real worker binary and this repo's real supervisor, plus the
+first receipt-backed answer to the lane projection question that
+[codemap-projection-2026-10-10](codemap-projection-2026-10-10.mdx) could
+only answer "unrun".
+
+## ADR-0045 lifecycle, observed live
+
+Worker: `dist/codemap-mcp` (codemap R4 build), target repo: this repo
+(`~/xs/oka`, 7,683 files in scope). Driver:
+`packages/oka_supervisor/tool/codemap_index.dart`.
+
+```json
+{"pass":1,"started":1,"restarted":0,"failed_starts":0,"findings":[],
+ "index_health":"pending",
+ "index_message":"index pending; observed=a46f25fa94388c19…; published=null; dirty=0; continuity=events_and_reconcile; blocker=null"}
+```
+
+The full lifecycle behaved exactly as the ADR describes:
+
+1. **Converge** — supervisor spawned the leased worker (`started=1`,
+   `failed_starts=0`); the `codemap-index-watch-ready` handshake line was
+   accepted within the readiness budget. The receipt at
+   `.codemap/index-watch.json` carried schema `codemap.index-watch.v1`,
+   this repo's root, and the worker's PID.
+2. **Pending (build)** — `observed` revision advanced immediately while
+   `published=null`: the handshake proved observation established, not
+   index currentness, and the health read said so.
+3. **Ready** — after the first full build:
+   `state=ready, published_revision == observed_revision
+   (a46f25fa…), dirty_count=0, generation=eb2315c915ba6e6b…`.
+4. **Live edit** — a probe file create was observed within 8 s
+   (`dirty_count=1`, state back to `pending`, fresh refresh `requestId`),
+   and the republish chased a *concurrently editing* tree (dirty rose to
+   7 under an unrelated live edit storm — `pending` is the correct
+   supervised state while the tree keeps moving; it had already reached
+   `ready` on the quiet tree in step 3).
+5. **Owned teardown** — `--stop` through the same supervisor tool:
+   `{"stop":"stopped"}`; the worker process was gone afterward.
+
+The refresh sub-receipt embedded in the watch receipt carried the
+mechanics: `requestId`, `inputRevision` vs `sourceRevision`,
+`recoveryAttempts`, scope. Codemap's receipt contract and this repo's
+`CodemapIndexHealth.read` agree in both directions.
+
+## Lane projection with real receipts
+
+Each declared codemap lane was run once via
+`tools/ops/run_lanes.py --once <lane>`, stdout captured per lane, and
+projected with `tool/codemap_projection.dart`:
+
+```
+receipts: {'scanned': 5, 'corrupt': 0, 'orphan': 0}
+aot                unknown   run failed (exit 1) — env prerequisite, recorded honestly
+quick-check        unknown   ran green (14s)
+store-refresh      ready     within cadence 21600s
+index-refresh      overdue   cadence 5s exceeded
+diff-determinism   ready     within cadence 3600s
+```
+
+The 2026-10-10 finding ("all four lanes unrun — no receipt evidence
+anywhere") is closed: every lane now has receipt evidence, and the two
+interval lanes within cadence read `ready`. `index-refresh` is honestly
+`overdue` — it declares a 5 s cadence that only a resident lane run can
+satisfy; a one-shot receipt ages out instantly, which is the projection
+working as designed. `aot`'s receipt records a real environment
+prerequisite failure (rust toolchain not on the lane's PATH; the pinned
+Elixir build interpreter is still pending on codemap's side) — a failed
+run with evidence, not an absence.
+
+## Found and fixed through receipt capture
+
+Running `store-refresh` with receipt capture surfaced a real bug in
+codemap's `tools/ops/refresh_global_store.sh`: the `--args` JSON was
+assembled with a premature closing brace, so the `--families` flag
+produced invalid JSON (`could not parse --args JSON: trailing
+characters at line 1 column 61`). Fixed in codemap the same day; the
+lane now runs green (202 s, cross-repo family log lines in the receipt
+tail). This is the receipts thesis paying for itself on first light: a
+declared-but-never-observed lane had been broken silently.
+
+## Reproduce
+
+```bash
+cd ~/xs/codemap
+.venv/bin/python tools/ops/run_lanes.py --once index-refresh \
+  > artifacts/lanes-receipts/<date>/index-refresh.jsonl   # once per lane
+.venv/bin/python tools/ops/run_lanes.py --list \
+  > artifacts/lanes-receipts/lanes-snapshot.json
+
+cd ~/xs/oka/packages/oka_supervisor
+dart run tool/codemap_index.dart --root ~/xs/oka \
+  --executable ~/xs/codemap/dist/codemap-mcp --passes 3
+dart run tool/codemap_projection.dart \
+  --snapshot <lanes-snapshot.json> --receipts <capture-dir> --json
+dart run tool/codemap_index.dart --root ~/xs/oka \
+  --executable ~/xs/codemap/dist/codemap-mcp --stop
+```
+
+Keep the snapshot and projection outputs outside the scanned receipts
+directory — the scanner counts any non-receipt JSON there as
+`corruptReceipt`.
