@@ -4,6 +4,20 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.8.1](https://github.com/Arenukvern/oka/compare/v0.8.0...v0.8.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **cli:** align usage banner and doctor doc pointer with the product surface ([d2d5dc3](https://github.com/Arenukvern/oka/commit/d2d5dc34a9b40ecbb20990398dcc2bfb1cd099dd))
+* drop extraneous final parameter modifiers in oka_dart_kernel tool scripts ([a973f87](https://github.com/Arenukvern/oka/commit/a973f870bd29555bd84315b880456f0953a05049))
+
+
+### Documentation
+
+* **evidence:** codemap ADR-0045 live loop first light — supervised worker lifecycle + receipt-backed lane projection; ignore derived .codemap/ ([5c4b052](https://github.com/Arenukvern/oka/commit/5c4b052ec36f1b04cad785d49728f4050e9bee5f))
+* realign docs with the four-pillar product north star ([b615650](https://github.com/Arenukvern/oka/commit/b615650e9a576d15cdfcb4753c864632744cd8ad))
+
 ## [0.8.0](https://github.com/Arenukvern/oka/compare/v0.7.0...v0.8.0) (2026-10-17)
 
 
