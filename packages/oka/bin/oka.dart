@@ -116,7 +116,7 @@ void main(List<String> arguments) async {
 
 void _printUsage(ArgParser parser) {
   print('''
-Oka - AI-powered Flutter Android build system
+Oka - one typed Dart surface to build, run, patch, and distribute apps
 
 Usage: oka <command> [options]
 
