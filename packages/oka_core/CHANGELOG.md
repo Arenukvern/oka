@@ -1,3 +1,8 @@
+## 0.8.1
+
+- Part of the 0.8.1 train: usage-banner and doctor doc-pointer fixes in the
+  `oka` CLI; no package-specific changes in this package.
+
 ## 0.8.0
 
 - Bound aggregate direct process observations with configurable
