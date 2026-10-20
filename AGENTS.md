@@ -103,9 +103,9 @@ Pass `"root": "~/xs/oka"` when the client cwd is not this repo.
 5. **Before commit** — `operation=changes`.
 6. **On every answer** — read `freshness` and `meta.transport`. Ordinary reads refresh a stale index. `freshness_policy=refuse` starts no repair. Navigation facts are review leads; they do not authorize adoption.
 
-CLI, from the codemap checkout:
+CLI, from the codemap checkout — same names as the MCP tools:
 
-`~/xs/codemap/.venv/bin/python ~/xs/codemap/engines/versions/py_engine/codemap_cli.py --json exec <index_command> --args '{"root":"~/xs/oka",...}'`
+`~/xs/codemap/dist/codemap-cli exec map_index --args '{"operation":"search","root":"~/xs/oka","query":"<substr>"}'`
 
 Parser edges only. Unresolved calls stay in the payload.
 <!-- codemap-index:end -->
