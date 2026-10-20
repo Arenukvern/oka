@@ -4,6 +4,13 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.8.2](https://github.com/Arenukvern/oka/compare/v0.8.1...v0.8.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* locks ([83cc8d6](https://github.com/Arenukvern/oka/commit/83cc8d6611511c53651fb7e4dc88d60acdfa2282))
+
 ## [0.8.1](https://github.com/Arenukvern/oka/compare/v0.8.0...v0.8.1) (2026-10-18)
 
 
