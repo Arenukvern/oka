@@ -1,14 +1,16 @@
 /// Single-instance directory lock for long-lived lanes (ADR-0038 §4).
 ///
-/// ## Two dialects, one liveness seam (ADR-0018 / 0038 / 0040)
+/// ## Two dialects, one liveness seam (ADR-0018 / 0038 / 0040 / 0047)
 ///
 /// | Need | Use |
 /// | --- | --- |
 /// | Watch→rebuild command lane (optmem, laya) | [DirectoryProcessLock] + `runSupervisedCommandLanes` |
 /// | Spawned long-lived service (emulator, uatk serve) | [ProcessLeaseRegistry] + supervisor converge |
+/// | Short-lived build single-flight (compilers) | [InodeLock] — kernel releases on death, no steal |
 ///
-/// Both use [ProcessLiveness] for "is this pid still us?". Do not invent a
-/// third lock spelling in consumers. Do not put this mutex in DFP — it is
+/// The first two use [ProcessLiveness] for "is this pid still us?". The
+/// build dialect needs no liveness judgment at all. Do not invent a third
+/// lock spelling in consumers. Do not put these mutexes in DFP — they are
 /// oka process substrate.
 ///
 /// Creation uses exclusive `mkdir` on POSIX (Dart's [Directory.createSync]

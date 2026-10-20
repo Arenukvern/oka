@@ -1,0 +1,92 @@
+# ADR 0047: Artifact freshness, single-flight refresh, and the lock-backed cooldown
+
+Status: accepted (implemented)
+
+Date: 2026-10-19
+
+## Context
+
+On 2026-10-19 a four-owner boot window produced a measured load-average
+storm (1-min load 101.9, macOS `spindump` auto-triggered). The mechanism:
+several `hot_harnessd` owners share one harness root, and every owner boot
+fired a detached `build_owner_snapshot` — a full `dart analyze` plus a
+JIT-snapshot compile with a training boot — with **no lock in the builder
+and no freshness gate**, while the snapshot only becomes fresh at the very
+end of each rebuild. Six concurrent analyze+compile trains were the
+result; `kernel_task` CPU was genuine scheduling/fsevents churn, not
+thermal.
+
+Post-mortem showed the missing pieces are generic mechanics, not harness
+policy:
+
+- oka had **no freshness predicate at all** for build artifacts (the
+  step-cache staleness of `oka why` is run-scoped and separate).
+- oka_core's process substrate declared two lock dialects and forbade
+  inventing more; the harness had invented one anyway
+  (`SeatBuildLock`, flock-on-inode) because the lane dialect
+  (mkdir + pid + liveness + steal) is the wrong correctness core for
+  short-lived builders.
+- The fresh-check → single-flight → double-check → staged-build →
+  atomic-rename → last-known-good pattern was hand-rolled per script —
+  three drifting staleness laws lived in one harness checkout.
+
+## Decision
+
+1. **Freshness is one predicate in `oka_artifacts`**
+   (`inspectArtifactFreshness`): missing artifact, newer package config,
+   newer declared source files, or newer sources under declared roots —
+   optionally extended to every `lib/` the package config resolves
+   (`scanPackageConfigLibs`, the honest staleness set for artifacts
+   compiled against the full workspace graph). A malformed config yields
+   no roots: probes report, they do not throw.
+
+2. **Refresh is one typed API in `oka_artifacts`**
+   (`ArtifactRefreshSpec.ensureFresh`): fresh-skip → acquire →
+   double-check → build (callback stages) → atomic rename →
+   last-known-good on failure. Dart-first authoring; results are data
+   (`ArtifactRefreshResult`), matching the receipts-are-data law of
+   ADR-0038.
+
+3. **Cooldown lives with the lock, not the event stream.** The storm was
+   cross-process; a lane-local debounce cannot see other owners.
+   `ensureFresh` stamps build starts next to the lock and skips triggers
+   inside the declared `cooldown` window, reporting `retryAfter`. A
+   lane-level `CommandLaneSpec.cooldownMs` (ADR-0038 field, same
+   Dart-first + JSON-transport split) shapes one lane's event stream in
+   one process and is the minor knob.
+
+4. **The flock dialect joins the substrate table, not a third spelling.**
+   `oka_core` gains `InodeLock`: an advisory lock on a never-deleted
+   inode, kernel-released on process death. For crash-prone builders this
+   is strictly safer than steal-based locking — no liveness judgment, no
+   pid-reuse double-run. The `DirectoryProcessLock` dialect table gains
+   the build single-flight row; consumers invent nothing.
+
+## Consequences
+
+- The harness sheds its private copies: `seat_build_lock.dart` and
+  `supervisor_beat/lib/artifact_freshness.dart` are deleted; both build
+  shims become thin declarations over `ArtifactRefreshSpec`; the owner
+  snapshot's staleness check reuses the shared predicate. The builder —
+  not the N boot launchers — holds the policy (ADR-0036's law, enforced
+  by substrate rather than discipline).
+- Worst case for N owners booting together collapses from "N full
+  analyze+compile trains" to "one build; every other trigger exits in
+  milliseconds".
+- Cooldown trades immediacy for calm: a trigger inside the window skips,
+  and the next trigger after the window picks the change up. Declared per
+  artifact, so expensive artifacts get long cooldowns and cheap ones get
+  none (default `Duration.zero`).
+- fcntl locks are per-process on POSIX: contention is only meaningful
+  across processes, and a lock file must never be deleted while held
+  (deleting the inode would let a second acquirer lock a fresh inode).
+
+## Evidence
+
+Measured 2026-10-19: 6 concurrent `build_owner_snapshot` runs, 6+
+analysis servers, load 101.9 → 19 after the burst drained; no thermal
+warnings in `pmset -g therm` (kernel_task churn, not throttling).
+Post-fix verification: `InodeLock` cross-process contention and SIGKILL
+release tests; `ArtifactRefreshSpec` outcome tests (fresh, built, failed,
+inFlight, cooldown); lane cooldown timing tests; harness sandbox runs of
+all three decision paths via the `HARNESSD_ROOT` override.

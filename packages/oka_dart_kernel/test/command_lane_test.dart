@@ -363,4 +363,37 @@ void main() {
     expect(receipt['lane'], 'failing');
     await lane$.stop();
   });
+
+  test('cooldownMs holds a follow-up inside the gap, then runs it once',
+      () async {
+    final watched = Directory('${root.path}/watched')..createSync();
+    final lane$ = lane({
+      'name': 'cooled',
+      'watch': [watched.path],
+      'run': ['sh', '-c', 'exit 0'],
+      'debounceMs': 20,
+      'cooldownMs': 1500,
+    }, into: receipts);
+    lane$.start();
+    await warmUp(lane$, watched);
+
+    await touch('${watched.path}/first.dart');
+    await until(
+      () => receipts.any((r) => r['event'] == 'command_receipt'),
+    );
+
+    // A save right after the first run must not start inside the gap.
+    await touch('${watched.path}/second.dart');
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    int named(String event) =>
+        receipts.where((r) => r['event'] == event).length;
+    expect(named('command_start'), 1,
+        reason: 'second run must not start inside the cooldown gap');
+
+    // The pending event survives the gap and runs exactly once.
+    await until(() => named('command_receipt') >= 2);
+    await idle();
+    expect(named('command_start'), 2, reason: 'collapse law: one follow-up');
+    await lane$.stop();
+  });
 }

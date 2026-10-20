@@ -22,6 +22,7 @@ final class CommandLaneSpec {
     this.project,
     this.extensions = const [],
     this.debounceMs = 500,
+    this.cooldownMs = 0,
   });
 
   /// Parses and validates one spec entry. Throws [ArgumentError] with a
@@ -49,6 +50,7 @@ final class CommandLaneSpec {
     final project = json['project'];
     final extensions = json['extensions'];
     final debounceMs = json['debounceMs'];
+    final cooldownMs = json['cooldownMs'];
     return CommandLaneSpec(
       name: name,
       watch: List<String>.from(watch),
@@ -57,6 +59,7 @@ final class CommandLaneSpec {
       extensions:
           extensions is List ? List<String>.from(extensions) : const [],
       debounceMs: debounceMs is int && debounceMs >= 0 ? debounceMs : 500,
+      cooldownMs: cooldownMs is int && cooldownMs >= 0 ? cooldownMs : 0,
     );
   }
 
@@ -78,6 +81,14 @@ final class CommandLaneSpec {
 
   /// Quiet period after the last event before the run starts.
   final int debounceMs;
+
+  /// Minimum gap between run starts, in milliseconds. A run falling due
+  /// inside the gap waits for the remainder instead of starting (the
+  /// pending event survives, so it runs once the gap elapses). Zero
+  /// disables. This shapes one lane's event stream in this process; for a
+  /// throttle that spans processes sharing one artifact, declare the
+  /// cooldown on the artifact's refresh spec (ADR-0047).
+  final int cooldownMs;
 }
 
 /// The running form of one [CommandLaneSpec].
@@ -99,6 +110,7 @@ final class CommandLane {
   Timer? _debounce;
   Future<void> _inFlight = Future.value();
   bool _pending = false;
+  DateTime? _lastStart;
 
   /// Whether [path] passes the lane's extension filter.
   bool matches(String path) {
@@ -145,10 +157,28 @@ final class CommandLane {
 
   void _fireDue() {
     if (!_pending) return;
+    // Cooldown: a run due inside the gap waits for the remainder, keeping
+    // the pending event alive so it starts once the gap elapses.
+    final remaining = _remainingCooldown();
+    if (remaining != null) {
+      _debounce?.cancel();
+      _debounce = Timer(remaining, _fireDue);
+      return;
+    }
     _pending = false;
+    _lastStart = DateTime.now();
     // Runs serialize per lane; a burst during a run collapses into the
     // one already-pending follow-up, never a queue and never a storm.
     _inFlight = _inFlight.then((_) => _runOnce());
+  }
+
+  Duration? _remainingCooldown() {
+    final ms = spec.cooldownMs;
+    final last = _lastStart;
+    if (ms <= 0 || last == null) return null;
+    final gap = Duration(milliseconds: ms);
+    final elapsed = DateTime.now().difference(last);
+    return elapsed >= gap ? null : gap - elapsed;
   }
 
   Future<void> _runOnce() async {
