@@ -1,0 +1,34 @@
+name: oka_verify
+publish_to: none
+description: >-
+  Fast Dart verification lane (ADR-0048): a reusable import-closure graph, a
+  content-keyed suite-kernel cache and precompiled-suite orchestration, as a
+  Dart-SDK-only package. Widget suites are refused loudly, unknown coverage
+  widens the run instead of skipping it, and plain `dart test` stays the
+  acceptance oracle.
+version: 0.8.1 # x-release-please-version
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_verify
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - testing
+  - verification
+  - dart
+  - cache
+  - build-system
+
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  args: ^2.5.0
+  crypto: ^3.0.3
+  oka_core: ^0.8.1 # x-release-please-version
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.25.0

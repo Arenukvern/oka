@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
+import 'manifest_placeholders.dart';
+
 /// Merges library manifest declarations into the app manifest.
 ///
 /// aapt2 links only the manifest it is handed — Gradle's manifest merger
@@ -22,10 +24,19 @@ import 'package:xml/xml.dart';
 /// - Elements marked `tools:node="remove"` are skipped.
 /// - The app manifest's own elements are never modified or removed.
 ///
+/// Manifest placeholders are resolved the way Gradle resolves them before
+/// the fold: `${applicationId}` becomes the app's install-time package (the
+/// app manifest's `package` attribute — aapt2 links the manifest as it is,
+/// and oka never renames the package at link time). An element that still
+/// carries an unresolved placeholder is skipped and named on stderr: a
+/// literal `${…}` in a manifest breaks at install time, so it is never
+/// merged as if it were resolved.
+///
 /// Returns the number of elements added.
 int mergeLibraryManifestsInto({
   required String appManifestPath,
   required Iterable<String> libraryManifestPaths,
+  String? applicationId,
 }) {
   final appFile = File(appManifestPath);
   final appDocument = XmlDocument.parse(appFile.readAsStringSync());
@@ -45,15 +56,33 @@ int mergeLibraryManifestsInto({
 
   final additions = <(XmlElement, XmlElement)>[];
 
+  // Dedupe bookkeeping for this invocation: per target element, the set of
+  // merge keys already seen for each tag.
+  final seenKeys = <XmlElement, Map<String, Set<String>>>{};
+
+  // The app manifest's `package` attribute is the app's install-time
+  // package: it is what aapt2 links, and oka never renames the package at
+  // link time. An explicit application id wins over it.
+  final resolvedApplicationId =
+      applicationId ?? appRoot.getAttribute('package');
+  final placeholders =
+      resolvedApplicationId == null || resolvedApplicationId.isEmpty
+          ? null
+          : ManifestPlaceholders(applicationId: resolvedApplicationId);
+
   void mergeInto(
     XmlElement target,
     Iterable<String> tags,
     XmlDocument library,
   ) {
+    final seenForTarget = seenKeys.putIfAbsent(target, () => {});
     for (final tag in tags) {
-      final existing = {
-        for (final e in target.findElements(tag)) elementMergeKey(e),
-      };
+      final existing = seenForTarget.putIfAbsent(
+        tag,
+        () => {
+          for (final e in target.findElements(tag)) elementMergeKey(e),
+        },
+      );
       // Library manifests nest components under <application>, so search
       // all descendants; app-manifest dedupe reads direct children only.
       for (final element in library.rootElement.findAllElements(tag)) {
@@ -61,20 +90,29 @@ int mergeLibraryManifestsInto({
             'remove') {
           continue;
         }
-        final key = elementMergeKey(element);
-        if (existing.contains(key)) continue;
         // Gradle would substitute manifest placeholders (${applicationId});
         // aapt2 cannot, and a literal placeholder breaks at install time.
-        final name = element.getAttribute('name', namespaceUri: androidNamespaceUri);
-        if (name != null && name.contains(r'${')) {
+        // Substitute what the build knows, then refuse what is left. The
+        // merge key is taken from the substituted element, so a library
+        // placeholder and the app's own literal declaration are the same
+        // declaration.
+        final copy = element.copy();
+        placeholders?.substituteInto(copy);
+        final unresolved = ManifestPlaceholders.unresolvedInElement(copy);
+        if (unresolved.isNotEmpty) {
+          final name =
+              copy.getAttribute('name', namespaceUri: androidNamespaceUri);
           stderr.writeln(
-            'oka: manifest merge skipped ${element.name.qualified} '
-            '($name) — unsubstituted manifest placeholder',
+            'oka: manifest merge skipped ${element.name.qualified}'
+            '${name == null ? '' : ' ($name)'} — unresolved manifest '
+            'placeholder(s): ${unresolved.join(', ')}',
           );
           continue;
         }
+        final key = elementMergeKey(copy);
+        if (existing.contains(key)) continue;
         existing.add(key);
-        additions.add((target, _stripToolsAttributes(element.copy())));
+        additions.add((target, _stripToolsAttributes(copy)));
       }
     }
   }
@@ -94,7 +132,8 @@ int mergeLibraryManifestsInto({
     }
     if (library.rootElement.name.local != 'manifest') continue;
     mergeInto(appRoot, manifestChildTags, library);
-    final libApplication = library.rootElement.findElements('application').firstOrNull;
+    final libApplication =
+        library.rootElement.findElements('application').firstOrNull;
     if (libApplication == null) continue;
     mergeInto(application, applicationChildTags, library);
   }

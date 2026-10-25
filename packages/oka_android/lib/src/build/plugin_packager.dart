@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
@@ -349,6 +350,7 @@ class PluginPackager {
     final ktMain = inputs.kotlinSources;
 
     final jarDeps = <String>[];
+    final resolvedPayloads = <ResolvedJar>[];
     // Declared Maven inputs (ADR-0008): shared with the `oka explain --deps`
     // dry-run plan so packaging and the plan cannot disagree.
     final declared = await collectDeclaredDeps(
@@ -365,6 +367,7 @@ class PluginPackager {
           extraRepos: extraRepos,
         );
         jarDeps.addAll(resolved.map((r) => r.jarPath));
+        resolvedPayloads.addAll(resolved);
       } catch (e) {
         if (verbose) {
           print('   ⚠️  ${plugin.name}: dependency resolve issues: $e');
@@ -372,12 +375,23 @@ class PluginPackager {
       }
     }
 
-    final resDirs = inputs.resourceDirs;
+    final resDirs = <String>{
+      ...inputs.resourceDirs,
+      for (final dependency in resolvedPayloads) ...dependency.resDirs,
+    }.toList();
     final manifests = inputs.manifestPaths;
     final nativesByAbi = <String, List<String>>{
       for (final entry in inputs.nativeLibsByAbi.entries)
         entry.key: [...entry.value],
     };
+    for (final dependency in resolvedPayloads) {
+      for (final entry in dependency.nativeLibsByAbi.entries) {
+        final paths = nativesByAbi.putIfAbsent(entry.key, () => []);
+        for (final path in entry.value) {
+          if (!paths.contains(path)) paths.add(path);
+        }
+      }
+    }
 
     // jni / cmake native build
     final needsNative = plugin.name == 'jni' || inputs.needsNativeBuild;

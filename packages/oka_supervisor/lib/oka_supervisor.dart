@@ -8,11 +8,13 @@
 /// ownership, and the advisory machine registry.
 library;
 
+export 'src/app_session.dart';
 export 'src/codec.dart';
 export 'src/codemap_index.dart';
 export 'src/codemap_projection.dart';
 export 'src/converge.dart';
 export 'src/planner.dart';
+export 'src/process_provider.dart';
 export 'src/registry.dart';
 export 'src/spec.dart';
 export 'src/spec_store.dart';

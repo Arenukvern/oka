@@ -394,6 +394,29 @@ built-in defaults <
 `oka.yaml` `pipeline:` section < Dart composition (a user-built `Pipeline`
 always wins).
 
+### Manifest placeholders in the no-Gradle merger
+
+`aapt2` links the manifest it is handed — it does not merge library
+manifests and it does not substitute placeholders. Oka folds the library
+manifests into the app manifest itself
+(`packages/oka_android/lib/src/compilation/manifest_merge.dart`) and
+resolves the placeholders Gradle would have resolved before the fold:
+
+| placeholder | value | note |
+|-------------|-------|------|
+| `${applicationId}` | the app manifest's `package` attribute | the app's install-time package — `aapt2` links it as it is and oka never renames it at link time |
+
+A library that declares a placeholder-derived name therefore keeps it:
+AndroidX core's
+`${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` — the
+permission AndroidX needs to register a non-exported dynamic receiver on
+API 26..32 — lands in the app manifest as
+`<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` instead of being
+dropped. An element that still carries a placeholder the build cannot
+resolve (a project-declared one, for example) is **skipped and named on
+stderr**; a literal `${…}` in a manifest breaks at install time, so it is
+never merged as if it were resolved.
+
 ## 📦 Dependencies Station
 
 **Q: How do I add an extra runtime dependency without editing oka?**

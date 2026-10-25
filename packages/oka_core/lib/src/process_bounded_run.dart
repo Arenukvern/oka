@@ -31,8 +31,39 @@ enum BoundedRunCause {
   /// [BoundedRunResult.survivors] lists known survivors.
   killedOnDeadline,
 
+  /// A cancellation was requested and the run's stop owner performed the
+  /// same identity-gated tree stop the deadline performs. Check
+  /// [BoundedRunResult.teardownVerified] independently of the root exit: a
+  /// refused stop means the process may still be alive and its recovery
+  /// receipt must be retained.
+  cancelled,
+
   /// The executable could not be started at all.
   spawnFailed,
+}
+
+/// A request to stop a bounded run before its deadline.
+///
+/// The request is idempotent and it is a *request*, not a stop: the run owns
+/// the stop. The run performs exactly one identity-gated tree stop, whether
+/// the deadline or the cancellation asked for it, so a cancellation racing a
+/// deadline never signals a process twice.
+final class ProcessRunCancellation {
+  /// Creates a cancellation nobody has requested yet.
+  ProcessRunCancellation();
+
+  final _requested = Completer<void>();
+
+  /// Whether the stop was requested.
+  bool get requested => _requested.isCompleted;
+
+  /// Completes when the stop is requested.
+  Future<void> get whenRequested => _requested.future;
+
+  /// Requests the stop. Calling it again changes nothing.
+  void request() {
+    if (!_requested.isCompleted) _requested.complete();
+  }
 }
 
 /// Outcome of a bounded run with bounded output capture.
@@ -79,14 +110,15 @@ final class BoundedRunResult {
   /// Signal number when [cause] is [BoundedRunCause.signaled].
   final int? signalNumber;
 
-  /// Deadline teardown result. Null when no deadline stop was requested;
-  /// false means discovery/identity/death did not verify a complete stop.
+  /// Teardown result of the requested stop. Null when no stop was requested;
+  /// false means discovery/identity/death did not verify a complete stop. A
+  /// cancelled run reports its stop here exactly like a deadline run does.
   final bool? teardownVerified;
 
-  /// Pids still alive after the deadline's tree stop, if any.
+  /// Pids still alive after the requested tree stop, if any.
   final List<int> survivors;
 
-  /// Spawn failure or unverified deadline-teardown detail.
+  /// Spawn failure or unverified teardown detail.
   final String? errorMessage;
 
   bool get ok => cause == BoundedRunCause.exited && exitCode == 0;
@@ -99,7 +131,11 @@ final class BoundedRunResult {
 /// identity-gated against the token captured at spawn), and the child's
 /// exit is awaited after successful teardown. Failed teardown returns the
 /// unresolved root and cleanup receipt; callers must retain these for recovery.
-/// Direct platform reads use [observationBudget]; mutating adapters remain
+/// A [cancellation] requests the same stop before the deadline: the run owns
+/// exactly one stop, so a cancellation racing the deadline never signals a
+/// process twice, and the result reports the cancellation cause with the same
+/// teardown verification the deadline reports. Direct platform reads use
+/// [observationBudget]; mutating adapters remain
 /// awaited, and a timed-out read's underlying resources remain adapter-owned.
 /// Output is captured up to
 /// [maxCapturedBytes] per stream; anything beyond is dropped and flagged.
@@ -116,8 +152,22 @@ Future<BoundedRunResult> runBoundedProcess(
   ProcessTreeProbe processTreeProbe = const HostProcessTreeProbe(),
   ProcessLiveness liveness = const HostProcessLiveness(),
   Duration observationBudget = const Duration(seconds: 2),
+  ProcessRunCancellation? cancellation,
 }) async {
   ProcessObservationBudget(observationBudget); // Validate before spawning.
+  if (cancellation?.requested ?? false) {
+    // A cancellation that arrived before the spawn starts nothing at all.
+    return const BoundedRunResult(
+      cause: BoundedRunCause.cancelled,
+      exitCode: -1,
+      stdout: '',
+      stderr: '',
+      truncatedOutput: false,
+      duration: Duration.zero,
+      rootExitObserved: false,
+      errorMessage: 'cancelled before the process started',
+    );
+  }
   final Process process;
   try {
     process = await Process.start(
@@ -170,44 +220,62 @@ Future<BoundedRunResult> runBoundedProcess(
     ),
   );
 
-  var deadlineFired = false;
+  // One stop owner: the deadline and a cancellation both ask it, and it
+  // performs exactly one identity-gated tree stop. The first request wins
+  // and is the cause the result reports.
+  var stopRequested = false;
+  BoundedRunCause? stopCause;
   var stopResult = const TreeStopResult(stopped: true, survivors: <int>[]);
   Future<TreeStopResult>? stopping;
-  final deadlineStopped = Completer<TreeStopResult>();
+  final stopped = Completer<TreeStopResult>();
+  void requestStop(BoundedRunCause cause) {
+    if (exited.isCompleted) return;
+    if (stopRequested) return;
+    stopRequested = true;
+    stopCause = cause;
+    stopping = identityToken == null
+        ? Future.value(
+            TreeStopResult(
+              stopped: false,
+              survivors: [process.pid],
+              notes: [
+                'startup identity unavailable; refused signals; survivors unknown',
+              ],
+            ),
+          )
+        : stopProcessTree(
+            probe: processTreeProbe,
+            liveness: liveness,
+            rootPid: process.pid,
+            rootIdentityToken: identityToken,
+            grace: grace,
+            settle: settle,
+            observationBudget: observationBudget,
+          ).catchError(
+            (Object error) => TreeStopResult(
+              stopped: false,
+              survivors: const [],
+              notes: ['tree teardown failed; survivors unknown: $error'],
+            ),
+          );
+    unawaited(stopping!.then(stopped.complete));
+  }
+
   final remaining = timeout - watch.elapsed;
   final deadline = Timer(
     remaining > Duration.zero ? remaining : Duration.zero,
-    () {
-      if (exited.isCompleted) return;
-      deadlineFired = true;
-      stopping = identityToken == null
-          ? Future.value(
-              TreeStopResult(
-                stopped: false,
-                survivors: [process.pid],
-                notes: [
-                  'startup identity unavailable; refused signals; survivors unknown',
-                ],
-              ),
-            )
-          : stopProcessTree(
-              probe: processTreeProbe,
-              liveness: liveness,
-              rootPid: process.pid,
-              rootIdentityToken: identityToken,
-              grace: grace,
-              settle: settle,
-              observationBudget: observationBudget,
-            ).catchError(
-              (Object error) => TreeStopResult(
-                stopped: false,
-                survivors: const [],
-                notes: ['tree teardown failed; survivors unknown: $error'],
-              ),
-            );
-      unawaited(stopping!.then(deadlineStopped.complete));
-    },
+    () => requestStop(BoundedRunCause.killedOnDeadline),
   );
+  if (cancellation != null) {
+    // A cancellation that arrives before the identity is captured still
+    // reaches the stop owner: the request is idempotent and the owner reads
+    // the identity it has when the request lands.
+    unawaited(
+      cancellation.whenRequested.then(
+        (_) => requestStop(BoundedRunCause.cancelled),
+      ),
+    );
+  }
 
   final int code;
   final bool rootExitObserved;
@@ -215,7 +283,7 @@ Future<BoundedRunResult> runBoundedProcess(
     // A completed failed stop must become visible even while the root lives.
     // Root exit still waits for tree verification; verified stop still waits
     // for the spawned process's terminal status.
-    await Future.any<Object?>([exited.future, deadlineStopped.future]);
+    await Future.any<Object?>([exited.future, stopped.future]);
     final teardown = stopping;
     if (teardown != null) stopResult = await teardown;
     rootExitObserved = exited.isCompleted || stopResult.stopped;
@@ -245,8 +313,8 @@ Future<BoundedRunResult> runBoundedProcess(
   }
 
   final BoundedRunCause cause;
-  if (deadlineFired) {
-    cause = BoundedRunCause.killedOnDeadline;
+  if (stopRequested) {
+    cause = stopCause ?? BoundedRunCause.killedOnDeadline;
   } else if (code < 0) {
     cause = BoundedRunCause.signaled;
   } else {
@@ -268,8 +336,8 @@ Future<BoundedRunResult> runBoundedProcess(
       if (!rootExitObserved && !stopResult.survivors.contains(process.pid))
         process.pid,
     ],
-    teardownVerified: deadlineFired ? stopResult.stopped : null,
-    errorMessage: deadlineFired && !stopResult.stopped
+    teardownVerified: stopRequested ? stopResult.stopped : null,
+    errorMessage: stopRequested && !stopResult.stopped
         ? stopResult.notes.join('; ')
         : null,
   );

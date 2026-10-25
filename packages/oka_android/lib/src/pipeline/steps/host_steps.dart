@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:oka_core/oka_core.dart';
 
 import 'package:path/path.dart' as p;
@@ -18,12 +19,35 @@ import '../../manifest_spec.dart';
 import '../toolchain.dart' show copyDirectory;
 import 'asset_steps.dart' show DeeplinkConfig;
 
+/// Cached packaging references SDK/store-owned files which may have been
+/// removed independently. Matching source inputs do not prove those payloads
+/// are still usable.
+bool pluginPackagingCacheOutputsExist(Map<String, dynamic> cached) {
+  final names = (cached['plugin_names'] as List).cast<String>();
+  for (final name in names) {
+    for (final prefix in const ['java', 'kotlin', 'jars', 'man']) {
+      for (final path in (cached['${prefix}_$name'] as List?) ?? const []) {
+        if (path is! String || !File(path).existsSync()) return false;
+      }
+    }
+    for (final path in (cached['res_$name'] as List?) ?? const []) {
+      if (path is! String || !Directory(path).existsSync()) return false;
+    }
+  }
+  for (final paths in ((cached['natives'] as Map?) ?? const {}).values) {
+    for (final path in paths as List) {
+      if (path is! String || !File(path).existsSync()) return false;
+    }
+  }
+  return true;
+}
+
 /// Ensures Android SDK packaging tools exist; fails loudly otherwise.
 ///
 /// Preserves ADR-0001: never fall back to Gradle / `flutter build apk`.
 class EnsureAndroidSdkStep extends BuildStep {
-
   EnsureAndroidSdkStep({this.toolchain});
+
   /// Null → [PipelineState.resolvedToolchain] → default (ADR-0013 T1).
   final ResolvedToolchain? toolchain;
   @override
@@ -69,7 +93,6 @@ class ResolveAbisStep extends BuildStep {
 
 /// Discovers plugins and packages them (sources, jars, natives).
 class PluginPackagingStep extends BuildStep {
-
   PluginPackagingStep({
     this.toolchain,
     PluginDiscovery? pluginDiscovery,
@@ -114,8 +137,10 @@ class PluginPackagingStep extends BuildStep {
     if (excluded.isNotEmpty) {
       discovery = discovery.excluding(excluded.toList());
       if (autoExcluded.isNotEmpty && ctx.verbose) {
-        print('   auto-excluded dev-only plugins (release): '
-            '${autoExcluded.join(', ')}');
+        print(
+          '   auto-excluded dev-only plugins (release): '
+          '${autoExcluded.join(', ')}',
+        );
       }
     }
 
@@ -124,59 +149,67 @@ class PluginPackagingStep extends BuildStep {
     // Maven/kotlinc-source resolution phase is skipped.
     final cache = StepCache(ctx.buildDir, verbose: ctx.verbose);
     await cache.load();
-    final pluginFp = await fingerprintInputs([
-      ...discovery.androidPlugins.expand(
-        (pl) => [
-          ...filesUnder(pl.path, extension: '.kt'),
-          ...filesUnder(pl.path, extension: '.java'),
-          ...filesUnder(pl.path, extension: '.gradle'),
-        ],
-      ),
-      if (File('${ctx.projectPath}/pubspec.yaml').existsSync())
-        '${ctx.projectPath}/pubspec.yaml',
-      if (File('${ctx.projectPath}/pubspec.lock').existsSync())
-        '${ctx.projectPath}/pubspec.lock',
-      if (File('${ctx.projectPath}/.dart_tool/package_config.json')
-          .existsSync())
-        '${ctx.projectPath}/.dart_tool/package_config.json',
-    ], extras: [
-      'plugins:${discovery.androidPlugins.map((p) => '${p.name}:${p.pluginClass}').join(',')}',
-      'abis:${state.abis.join(',')}',
-      'strict:$strictPlugins',
-    ]);
+    final pluginFp = await fingerprintInputs(
+      [
+        ...discovery.androidPlugins.expand(
+          (pl) => [
+            ...filesUnder(pl.path, extension: '.kt'),
+            ...filesUnder(pl.path, extension: '.java'),
+            ...filesUnder(pl.path, extension: '.gradle'),
+          ],
+        ),
+        if (File('${ctx.projectPath}/pubspec.yaml').existsSync())
+          '${ctx.projectPath}/pubspec.yaml',
+        if (File('${ctx.projectPath}/pubspec.lock').existsSync())
+          '${ctx.projectPath}/pubspec.lock',
+        if (File('${ctx.projectPath}/.dart_tool/package_config.json')
+            .existsSync())
+          '${ctx.projectPath}/.dart_tool/package_config.json',
+      ],
+      extras: [
+        'plugin-maven-payloads:v2',
+        'plugins:${discovery.androidPlugins.map((p) => '${p.name}:${p.pluginClass}').join(',')}',
+        'abis:${state.abis.join(',')}',
+        'strict:$strictPlugins',
+      ],
+    );
     final cached = cache.hit('plugin-packaging', pluginFp);
     if (cached != null) {
-      print('🔌 plugin packaging: unchanged inputs — reusing packaged plugins');
-      final names =
-          (cached['plugin_names'] as List).cast<String>().toSet();
-      final byName = {
-        for (final p in discovery.androidPlugins) p.name: p,
-      };
-      if (names.every(byName.containsKey)) {
+      final names = (cached['plugin_names'] as List).cast<String>().toSet();
+      final byName = {for (final p in discovery.androidPlugins) p.name: p};
+      if (names.every(byName.containsKey) &&
+          pluginPackagingCacheOutputsExist(cached)) {
+        print(
+          '🔌 plugin packaging: unchanged inputs — reusing packaged plugins',
+        );
         final plugins = names.map((n) {
           final pl = byName[n]!;
           return PackagedPlugin(
             plugin: pl,
-            javaSources:
-                ((cached['java_$n'] as List?) ?? const []).cast<String>(),
-            kotlinSources:
-                ((cached['kotlin_$n'] as List?) ?? const []).cast<String>(),
+            javaSources: ((cached['java_$n'] as List?) ?? const [])
+                .cast<String>(),
+            kotlinSources: ((cached['kotlin_$n'] as List?) ?? const [])
+                .cast<String>(),
             jarDeps: ((cached['jars_$n'] as List?) ?? const []).cast<String>(),
             resDirs: ((cached['res_$n'] as List?) ?? const []).cast<String>(),
-            manifestPaths:
-                ((cached['man_$n'] as List?) ?? const []).cast<String>(),
+            manifestPaths: ((cached['man_$n'] as List?) ?? const [])
+                .cast<String>(),
           );
         }).toList();
-        final natives = ((cached['natives'] as Map?) ?? const {})
-            .cast<String, List<String>>();
+        final natives = <String, List<String>>{
+          for (final entry in ((cached['natives'] as Map?) ?? const {}).entries)
+            entry.key as String: (entry.value as List).cast<String>(),
+        };
         final result = PluginPackagingResult(
           plugins: plugins,
           failed: const [],
           registrations: (cached['registrations'] as List)
-              .map((e) => PluginRegistration(
-                    className: (e as Map)['className'] as String,
-                    name: e['name'] as String,
-                  ))
+              .map(
+                (e) => PluginRegistration(
+                  className: (e as Map)['className'] as String,
+                  name: e['name'] as String,
+                ),
+              )
               .toList(),
           allJavaSources: plugins.expand((p) => p.javaSources).toList(),
           allKotlinSources: plugins.expand((p) => p.kotlinSources).toList(),
@@ -190,7 +223,9 @@ class PluginPackagingStep extends BuildStep {
         state.registrations = result.registrations;
         return StepResult.success();
       }
-      if (ctx.verbose) print('   cache stale: plugin set changed');
+      if (ctx.verbose) {
+        print('   cache stale: plugin set changed or packaged output missing');
+      }
     }
     final support = decidePluginSupport(discovery, strict: strictPlugins);
     if (!support.allowBuild) {
@@ -205,8 +240,7 @@ class PluginPackagingStep extends BuildStep {
 
     final packager = PluginPackager(
       dependencyCache: dependencyCache,
-      sdkLocator:
-          toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
+      sdkLocator: toolchain ?? state.resolvedToolchain ?? ResolvedToolchain(),
       verbose: ctx.verbose,
     );
     final packaged = await packager.packageAll(
@@ -279,7 +313,6 @@ class PluginPackagingStep extends BuildStep {
 /// 2. oka.yaml `android.manifest:` (typed surface)
 /// 3. [manifestOverride] from Dart-composed pipelines wins over both
 class HostCodegenStep extends BuildStep {
-
   HostCodegenStep({
     this.manifestOverride,
     this.yamlDeeplinks = const [],
@@ -319,7 +352,8 @@ class HostCodegenStep extends BuildStep {
     IconConfig iconConfig,
     ManifestSpec? manifestOverride,
     List<String> resDirs,
-  }) _resolveHostOverrides(PipelineState state) {
+  })
+  _resolveHostOverrides(PipelineState state) {
     final ov = state.pipelineOverrides;
     return (
       deeplinks: yamlDeeplinks.isNotEmpty
@@ -353,9 +387,8 @@ class HostCodegenStep extends BuildStep {
       'GeneratedPluginRegistrant.java',
     );
     await File(registrantPath).parent.create(recursive: true);
-    await File(
-      registrantPath,
-    ).writeAsString(generatePluginRegistrantJava(state.registrations));
+    await File(registrantPath)
+        .writeAsString(generatePluginRegistrantJava(state.registrations));
 
     // Minimal res for aapt2 — values + launcher icon resources.
     final resDir = p.join(ctx.buildDir, 'res');
@@ -388,7 +421,10 @@ class HostCodegenStep extends BuildStep {
         print('   icon: manifest_ref override — not generating icon resources');
       }
     } else {
-      final hasUserIcon = await _hasUserLauncherIcon(resDir, host.iconConfig.name);
+      final hasUserIcon = await _hasUserLauncherIcon(
+        resDir,
+        host.iconConfig.name,
+      );
       if (hasUserIcon && host.iconConfig.isDefault) {
         // User res dirs already provide the launcher icon (e.g. migrated
         // projects shipping real mipmap PNGs). Generating oka's default
@@ -457,9 +493,8 @@ class HostCodegenStep extends BuildStep {
       spec: effective,
       iconRef: iconRef,
     );
-    await File(
-      p.join(ctx.buildDir, 'AndroidManifest.xml'),
-    ).writeAsString(manifest);
+    await File(p.join(ctx.buildDir, 'AndroidManifest.xml'))
+        .writeAsString(manifest);
 
     state.hostDir = hostDir;
     return StepResult.success();

@@ -1,0 +1,76 @@
+# ADR 0050 — General project commands and server sessions
+
+Status: accepted for implementation; ordinary-workspace qualification pending
+
+Date: 2026-10-21
+
+The approved internal-foundation plan requires general coding projects and a
+browser window that can render arbitrary web content. The browser consumes a
+URL; it does not compile Dart, React, or any other source. Projects declare
+their commands, working directories, readiness and endpoints.
+
+Place those language-independent contracts and process transactions in
+`oka_core/project_operations.dart`. Reuse bounded process runs, leases,
+identity verification and tree teardown. Last Answer composes them and keeps
+compatibility exports at its initial consumer paths; no execution policy or
+framework-specific renderer belongs in those exports. Dart/Flutter and npm
+profiles are examples of the same interface, not dispatch branches.
+
+Borrowed URLs never grant stop authority. A newly owned server must reach its
+declared readiness before its URL replaces the previous working target;
+unverified teardown retains its lease. Explicit external dependency references
+remain part of the project declaration, not a copy of the user's filesystem.
+
+Ordinary project checks are distinct from verification of a partial generated
+candidate. Do not attach an owner-tree check to a candidate and call it verified.
+The existing candidate materializer/oracle remains authoritative until complete
+candidate capture is qualified.
+
+A project declares its operations in a file it owns:
+`<project>/.oka/project_operations.json`. The file carries the *evidence shape*
+of a profile — the JSON `ProjectOperationProfile.toJson()` produces — so a
+declaration and a shipped fixture are the same kind of data. `oka_core` owns the
+only decoder and it is strict: an unknown key, a wrong type, a duplicate
+operation id or kind, an empty operation list, an unknown directory kind, a
+non-positive timeout, an out-of-range port, a malformed endpoint or a readiness
+probe missing its own field is refused with a named reason. A refusal never
+repairs a declaration into a guess, and it never echoes an environment value.
+
+Reading a declaration is not running it. The decoder reads a file; it never
+starts a process, probes an endpoint or infers a command from a file name.
+There is no auto-detection layer: a profile the project did not declare does not
+exist for the product, and the shipped fixtures stay opt-in data rather than
+defaults.
+
+A declared operation can be cancelled before its deadline, and the
+cancellation is not a second stop path. `runBoundedProcess` keeps exactly one
+stop owner: the deadline and a cancellation both ask it, it performs exactly
+one identity-gated tree stop, and the first request is the cause the result
+reports. A cancellation that races a deadline never signals a process twice. A
+cancellation that arrives before the spawn starts nothing at all. The result
+carries a `cancelled` cause with the same teardown verification the deadline
+reports: an unverified stop leaves the work unsettled, keeps the live root in
+`survivors` and reports that the survivors are unknown, so the caller retains
+the recovery receipt instead of believing the process is gone.
+
+`ProjectOperationController` owns the cancellation of its run: the caller asks
+the controller to stop, the controller hands the request to the run, and the
+outcome reports `project_operation_cancelled` with `physicallySettled` false
+when the stop could not be verified. The seam stays one executor — the
+bounded run — and a call without a cancellation behaves exactly as before.
+
+A caller that stops a run joins it. Shutting a surface down requests the
+cancellation first, joins the command it started, joins a serve attachment it
+cannot interrupt, and only then releases a served target. A cleanup that could
+not be verified retains the target and its lease: a swallowed failure must not
+forget the owner of a process that may still be running. The browser session's
+serve attachment has no cancellation seam of its own — the session owns that
+spawn — so it is joined and then released under the ownership law.
+
+Acceptance: plain-Dart real-process tests for argv/cwd/environment, failure,
+bounded teardown, readiness, ownership and retained targets; a strict codec over
+the declaration file with named refusals, round-trip evidence and no execution
+on load; real-process cancellation tests that stop a real tree, prove the root
+is dead, keep an unverified stop's live-root receipt, and leave the deadline
+path unchanged; Last Answer compatibility tests; a real browser and
+ordinary-workspace journey separately.

@@ -6,6 +6,13 @@ import 'package:path/path.dart' as p;
 
 import '../auto_resolve.dart' show ensureR8;
 import '../build/apk_layout.dart';
+import '../build/consumer_rules.dart'
+    show
+        ConsumerProguardRules,
+        collectConsumerProguardRuleFiles,
+        collectConsumerProguardRules,
+        renderConsumerProguardRules;
+import '../build/plugin_consumer_rules.dart' show PluginConsumerRuleFile;
 import '../build/r8_tool.dart'
     show composeR8Rules, defaultR8KeepRules, r8Command;
 import '../build/toolchain.dart';
@@ -176,6 +183,10 @@ Future<CompileDexOutcome> compileAndroidBytecode({
   AndroidProcessRunner processRunner = runAndroidProcess,
   BytecodeCommandPolicy? commandPolicy,
 
+  /// Consumer ProGuard rule files declared by *source* plugins
+  /// (`consumerProguardFiles` in a plugin's Gradle script) — ADR-0051.
+  List<PluginConsumerRuleFile> consumerRuleFiles = const [],
+
   /// Injectable self-heal seam (tests inject `() async => null` so the
   /// release path never touches the network); default = ADR-0007 auto-install.
   Future<String?> Function({bool verbose}) ensureR8Tool = ensureR8,
@@ -267,8 +278,13 @@ Future<CompileDexOutcome> compileAndroidBytecode({
     final dexDirectory = Directory(dexOutput);
     if (await dexDirectory.exists()) await dexDirectory.delete(recursive: true);
     await dexDirectory.create(recursive: true);
+    // The deduped runtime jars are the *store* paths (before the
+    // duplicate-class repack below), so the AAR that produced each
+    // `classes.jar` is still a sibling of it — the consumer-rule lookup
+    // (ADR-0051) needs that adjacency.
+    final runtimeJarSources = filterRuntimeJars(dependencyJars);
     final runtimeJars = await resolveClassConflicts(
-      jars: filterRuntimeJars(dependencyJars),
+      jars: runtimeJarSources,
       buildDir: ctx.buildDir,
     );
     final programs = policy.programJars(
@@ -310,11 +326,34 @@ Future<CompileDexOutcome> compileAndroidBytecode({
       await Directory(reportsDir).create(recursive: true);
       final defaultRules = p.join(reportsDir, 'oka-default-rules.pro');
       await File(defaultRules).writeAsString(defaultR8KeepRules);
-      // Rule inputs, in override order: oka defaults → project proguard
-      // files (ADR-0010 `android.proguard_files`, project-relative; missing
-      // files fail the build instead of being silently skipped) → inline
-      // `AndroidBuild.r8Rules`. Later rules override earlier ones in R8.
+      // Rule inputs, in a deterministic order: oka defaults → dependency
+      // consumer rules (ADR-0051) → project proguard files (ADR-0010
+      // `android.proguard_files`, project-relative; missing files fail the
+      // build instead of being silently skipped) → inline
+      // `AndroidBuild.r8Rules`. The order fixes the input sequence, not a
+      // precedence: `-keep`/`-dontwarn` directives accumulate across the
+      // rule files.
       final ruleFiles = <String>[defaultRules];
+      // Consumer ProGuard rules declared by the dependencies (ADR-0051):
+      // the `proguard.txt` an AAR ships, plus the `consumerProguardFiles` a
+      // source plugin declares in its Gradle script.
+      final consumerRules = <ConsumerProguardRules>[
+        ...collectConsumerProguardRules(runtimeJarSources),
+        ...collectConsumerProguardRuleFiles(consumerRuleFiles),
+      ];
+      if (consumerRules.isNotEmpty) {
+        final consumerRulesFile = p.join(reportsDir, 'oka-consumer-rules.pro');
+        await File(consumerRulesFile).writeAsString(
+          renderConsumerProguardRules(consumerRules),
+        );
+        ruleFiles.add(consumerRulesFile);
+        if (ctx.verbose) {
+          print(
+            '   r8 consumer rules: ${consumerRules.length} artifact(s) '
+            '(${consumerRules.map((e) => e.coordinate).join(', ')})',
+          );
+        }
+      }
       for (final rule in ctx.config.android.proguardFiles) {
         final path = p.isAbsolute(rule) ? rule : p.join(ctx.projectPath, rule);
         if (!await File(path).exists()) {

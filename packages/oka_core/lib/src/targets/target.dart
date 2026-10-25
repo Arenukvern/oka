@@ -14,6 +14,7 @@ import '../session_state.dart';
 /// `cache` is reserved ahead of its implementation (T0) so no target can
 /// take the name in the meantime.
 const Set<String> reservedCliVerbs = {
+  'verify',
   'init',
   'build',
   'dev',

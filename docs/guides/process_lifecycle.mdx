@@ -71,6 +71,25 @@ finishes publishing acquired handles, later steps are skipped, and one teardown
 pass consumes those handles before exit. This does not interrupt a hung step;
 step implementations still own timeouts for their host operations.
 
+### Long-lived children are spawned detached
+
+The emulator is spawned with `ProcessStartMode.detached`. Detached means:
+**no stdio connection** to oka (no stdin/stdout/stderr pipes, no
+exit-code channel — *not* an inherited stdio, so the emulator's boot log
+never reaches oka's output), the child keeps running when the CLI exits,
+and the only handle is the pid.
+
+This is what makes "the emulator outlives the CLI" true instead of
+accidental: the Dart VM keeps a parent alive for as long as a *normal*-mode
+child runs ("The parent process will not exit so long as the child is
+running"), so a normal-mode emulator would stop `oka run emulator` from
+ever returning.
+
+The lease does not change: same pid, same start-time identity token, same
+`adb emu kill` stop hint — so `oka stop` still stops it from a later CLI,
+and a terminal Ctrl-C is not a stop path (the stop paths are
+`stopOnExit=true` and the identity-verified `oka stop <id>`).
+
 ### Write your own teardown step
 
 `Target.compileTeardown` is the same contract as `compile` — return

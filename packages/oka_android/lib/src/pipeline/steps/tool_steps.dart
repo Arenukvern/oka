@@ -8,10 +8,45 @@ import '../../android_state.dart';
 import '../../auto_resolve.dart';
 import '../../build/aab_layout.dart';
 import '../../build/apk_layout.dart';
+import '../../build/plugin_consumer_rules.dart';
 import '../../build/toolchain.dart';
 import '../../build_cache.dart';
 import '../../signing_config.dart';
 import '../toolchain.dart';
+
+/// Consumer ProGuard rule files declared by the packaged source plugins
+/// (ADR-0051).
+///
+/// A source Flutter plugin ships no AAR, so the `consumerProguardFiles` it
+/// declares in its Gradle script is the only place its consumer rules exist —
+/// AGP turns that declaration into the library's AAR `proguard.txt`, which a
+/// no-Gradle build never produces.
+///
+/// [plugins] is the packaged plugin set (`name` + Flutter package path).
+/// The returned [files] are shrinker inputs — their content is part of the
+/// compile fingerprint, so a rule change invalidates the dex cache — and
+/// [missing] lists declared files that do not exist (a declaration oka
+/// cannot honour is reported, never silently dropped).
+({List<PluginConsumerRuleFile> files, List<String> missing})
+pluginConsumerRuleFiles(Iterable<({String name, String path})> plugins) {
+  final discoveries = <PluginConsumerRuleDiscovery>[];
+  for (final plugin in plugins) {
+    discoveries.add(
+      discoverPluginConsumerRuleFiles(
+        pluginName: plugin.name,
+        moduleDir: p.join(plugin.path, 'android'),
+      ),
+    );
+  }
+  return (
+    files: collectPluginConsumerRuleFiles(discoveries),
+    missing: [
+      for (final discovery in discoveries)
+        for (final missing in discovery.missing)
+          '${discovery.pluginName}: $missing',
+    ],
+  );
+}
 
 /// aapt2 compile/link + kotlinc/javac + d8 → dex files.
 class CompileAndDexStep extends BuildStep {
@@ -71,6 +106,18 @@ class CompileAndDexStep extends BuildStep {
           ],
         )
         .toList();
+    // Consumer ProGuard rules declared by the source plugins (ADR-0051).
+    final consumerRules = pluginConsumerRuleFiles(
+      (packaged?.plugins ?? const []).map(
+        (p) => (name: p.plugin.name, path: p.plugin.path),
+      ),
+    );
+    if (consumerRules.missing.isNotEmpty) {
+      return StepResult.failure(
+        'consumer proguard file(s) declared by a plugin are missing: '
+        '${consumerRules.missing.join(', ')}',
+      );
+    }
     final javaLevel = effectiveJavaLevel(
       configVersion: ctx.config.android.javaVersion,
       pluginGradleFiles: gradleFiles,
@@ -95,6 +142,9 @@ class CompileAndDexStep extends BuildStep {
         ...state.aarResDirs.expand(filesUnder),
         ...state.androidxJars.map((j) => j.jarPath),
         ...state.extraRuntimeJars,
+        // The declared consumer rules are shrinker inputs: a rule change
+        // must invalidate the dex cache.
+        ...consumerRules.files.map((f) => f.path),
       ],
       extras: [
         'abis:${state.abis.join(',')}',
@@ -143,6 +193,7 @@ class CompileAndDexStep extends BuildStep {
       pluginJarDeps: packaged?.allJarDeps ?? const [],
       pluginResDirs: [...state.aarResDirs, ...?packaged?.resDirs],
       resourceConfigs: _effectiveResourceConfigs(state),
+      consumerRuleFiles: consumerRules.files,
       versionCode: version.versionCode.toString(),
       versionName: version.versionName,
       javaVersionOverride: javaLevel,
@@ -276,6 +327,18 @@ class CompileProtoAndDexStep extends BuildStep {
           ],
         )
         .toList();
+    // Consumer ProGuard rules declared by the source plugins (ADR-0051).
+    final consumerRules = pluginConsumerRuleFiles(
+      (packaged?.plugins ?? const []).map(
+        (p) => (name: p.plugin.name, path: p.plugin.path),
+      ),
+    );
+    if (consumerRules.missing.isNotEmpty) {
+      return StepResult.failure(
+        'consumer proguard file(s) declared by a plugin are missing: '
+        '${consumerRules.missing.join(', ')}',
+      );
+    }
     final javaLevel = effectiveJavaLevel(
       configVersion: ctx.config.android.javaVersion,
       pluginGradleFiles: gradleFiles,
@@ -300,6 +363,9 @@ class CompileProtoAndDexStep extends BuildStep {
         ...state.aarResDirs.expand(filesUnder),
         ...state.androidxJars.map((j) => j.jarPath),
         ...state.extraRuntimeJars,
+        // The declared consumer rules are shrinker inputs: a rule change
+        // must invalidate the dex cache.
+        ...consumerRules.files.map((f) => f.path),
       ],
       extras: [
         'proto:true',
@@ -348,6 +414,7 @@ class CompileProtoAndDexStep extends BuildStep {
       pluginJarDeps: packaged?.allJarDeps ?? const [],
       pluginResDirs: [...state.aarResDirs, ...?packaged?.resDirs],
       resourceConfigs: _effectiveResourceConfigs(state),
+      consumerRuleFiles: consumerRules.files,
       versionCode: version.versionCode.toString(),
       versionName: version.versionName,
       javaVersionOverride: javaLevel,

@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:oka_core/oka_core.dart';
 import 'package:oka_supervisor/oka_supervisor.dart';
 import 'package:resource_composition/resource_composition.dart';
 
@@ -172,7 +171,7 @@ final class SupervisorCommand {
           ? null
           : MachineRegistry(root: registryRoot),
     );
-    final processProvider = _ProcessProviderRouter(
+    final processProvider = SupervisorProcessProvider(
       desired: desired,
       projectRoot: projectRoot,
     );
@@ -218,7 +217,7 @@ final class SupervisorCommand {
             'env["command"] (the executable to run)';
       }
       try {
-        _ProcessProviderRouter._commandArgs(spec.env);
+        SupervisorProcessProvider.commandArguments(spec.env);
       } on FormatException catch (error) {
         return 'spec "${spec.id}": ${error.message}';
       }
@@ -376,96 +375,4 @@ final class SupervisorCommand {
       '  apply    Converge one pass from an authored plan document\n'
       '  check    Drift gate: plan vs records, read-only (CI hook)\n'
       'Run `oka supervisor <subcommand> --help` for per-subcommand flags.';
-}
-
-/// Routes the substrate's provider seam to one [LeasedProcessProvider]
-/// per declared component: a [ProviderFactory] sees only the provider
-/// name, while start/stop/inspect calls always carry the component
-/// identity, so per-component commands stay constructor-injected.
-final class _ProcessProviderRouter implements ResourceProvider {
-  _ProcessProviderRouter({
-    required DesiredState desired,
-    required String projectRoot,
-  }) : _providers = {
-         for (final spec in desired.specs)
-           spec.id: LeasedProcessProvider(
-             leaseId: spec.id,
-             runToExit: spec.policy.shape == SupervisionShape.job,
-             command: ProcessCommand(
-               spec.env[_commandEnvKey]!,
-               _commandArgs(spec.env),
-             ),
-             registry: ProcessLeaseRegistry.forProject(projectRoot),
-           ),
-       };
-
-  static List<String> _commandArgs(Map<String, String> env) {
-    final encoded = env['args-json'];
-    if (encoded == null) return _splitArgs(env[_argsEnvKey]);
-    if (env.containsKey(_argsEnvKey)) {
-      throw const FormatException('use args-json or args, not both');
-    }
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(encoded);
-    } on FormatException {
-      throw const FormatException('args-json must be a JSON array of strings');
-    }
-    if (decoded is! List || decoded.any((value) => value is! String)) {
-      throw const FormatException('args-json must be a JSON array of strings');
-    }
-    return decoded.cast<String>();
-  }
-
-  static const _commandEnvKey = 'command';
-  static const _argsEnvKey = 'args';
-
-  final Map<String, LeasedProcessProvider> _providers;
-
-  /// The factory the supervisor composes with: only `process` resolves;
-  /// anything else is a declaration bug, never a crash path.
-  ResourceProvider factory(String name) {
-    if (name != SupervisorCommand._processProviderName) {
-      throw StateError(
-        'unknown provider "$name"; this CLI provides: '
-        '${SupervisorCommand._processProviderName}',
-      );
-    }
-    return this;
-  }
-
-  LeasedProcessProvider _for(String componentId) {
-    final provider = _providers[componentId];
-    if (provider == null) {
-      throw StateError(
-        'no process provider composed for component "$componentId"',
-      );
-    }
-    return provider;
-  }
-
-  static List<String> _splitArgs(String? line) =>
-      (line ?? '').split(' ').where((part) => part.isNotEmpty).toList();
-
-  @override
-  ProviderCapabilities get capabilities =>
-      const ProviderCapabilities(readinessProbe: true, durableIdentity: true);
-
-  @override
-  Future<StartReport> start(StartRequest request) =>
-      _for(request.component.id).start(request);
-
-  @override
-  Future<Observation> inspect(ResourceRef ref) =>
-      _for(ref.componentId).inspect(ref);
-
-  @override
-  Future<StopReport> stop(
-    ResourceRef ref, {
-    required Duration grace,
-  }) => _for(ref.componentId).stop(ref, grace: grace);
-
-  @override
-  Future<Observation> reconcile(ResourceRef ref) =>
-      _for(ref.componentId).reconcile(ref);
 }

@@ -1,5 +1,6 @@
 import 'package:oka_core/oka_core.dart';
 
+import '../build/plugin_consumer_rules.dart' show PluginConsumerRuleFile;
 import '../build/toolchain.dart';
 import '../build_cache.dart';
 import 'bytecode_compilation.dart';
@@ -18,6 +19,7 @@ Future<CompileDexOutcome> compileAndDex({
   List<String> pluginJarDeps = const [],
   List<String> pluginResDirs = const [],
   List<String> resourceConfigs = const [],
+  List<PluginConsumerRuleFile> consumerRuleFiles = const [],
   String? versionCode,
   String? versionName,
   int? javaVersionOverride,
@@ -35,6 +37,7 @@ Future<CompileDexOutcome> compileAndDex({
   pluginJarDeps: pluginJarDeps,
   pluginResDirs: pluginResDirs,
   resourceConfigs: resourceConfigs,
+  consumerRuleFiles: consumerRuleFiles,
   versionCode: versionCode,
   versionName: versionName,
   javaVersionOverride: javaVersionOverride,
@@ -53,6 +56,7 @@ Future<CompileDexOutcome> compileAndDexProto({
   List<String> pluginJarDeps = const [],
   List<String> pluginResDirs = const [],
   List<String> resourceConfigs = const [],
+  List<PluginConsumerRuleFile> consumerRuleFiles = const [],
   String? versionCode,
   String? versionName,
   int? javaVersionOverride,
@@ -70,6 +74,7 @@ Future<CompileDexOutcome> compileAndDexProto({
   pluginJarDeps: pluginJarDeps,
   pluginResDirs: pluginResDirs,
   resourceConfigs: resourceConfigs,
+  consumerRuleFiles: consumerRuleFiles,
   versionCode: versionCode,
   versionName: versionName,
   javaVersionOverride: javaVersionOverride,
@@ -89,6 +94,7 @@ Future<CompileDexOutcome> _compile({
   required List<String> pluginJarDeps,
   required List<String> pluginResDirs,
   required List<String> resourceConfigs,
+  required List<PluginConsumerRuleFile> consumerRuleFiles,
   required String? versionCode,
   required String? versionName,
   required int? javaVersionOverride,
@@ -126,6 +132,7 @@ Future<CompileDexOutcome> _compile({
       pluginJavaSources: pluginJavaSources,
       pluginKotlinSources: pluginKotlinSources,
       kotlinCompilerArgs: kotlinCompilerArgs,
+      consumerRuleFiles: consumerRuleFiles,
       javaVersionOverride: javaVersionOverride,
       processRunner: processRunner,
     );

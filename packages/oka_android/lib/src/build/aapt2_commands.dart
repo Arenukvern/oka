@@ -33,6 +33,7 @@ List<String> buildAapt2LinkArgs({
   required String compiledResourcesZip,
   List<String> overlayZips = const [],
   String? javaOutDir,
+  List<String> extraPackages = const [],
   String? assetsDir,
   bool autoAddOverlay = true,
   List<String> resourceConfigs = const [],
@@ -56,6 +57,10 @@ List<String> buildAapt2LinkArgs({
     versionName,
   ],
   if (javaOutDir != null) ...['--java', javaOutDir],
+  if (extraPackages.isNotEmpty) ...[
+    '--extra-packages',
+    extraPackages.toSet().join(':'),
+  ],
   if (autoAddOverlay) '--auto-add-overlay',
   if (assetsDir != null) ...['-A', assetsDir],
   // resourceConfigurations (e.g. ['en','ru']) — keeps only matching
@@ -81,6 +86,7 @@ List<String> buildAapt2LinkProtoFormatArgs({
   required String compiledResourcesZip,
   List<String> overlayZips = const [],
   String? javaOutDir,
+  List<String> extraPackages = const [],
   bool autoAddOverlay = true,
   List<String> resourceConfigs = const [],
   String? versionCode,
@@ -95,6 +101,10 @@ List<String> buildAapt2LinkProtoFormatArgs({
   '-o',
   outputAp,
   if (javaOutDir != null) ...['--java', javaOutDir],
+  if (extraPackages.isNotEmpty) ...[
+    '--extra-packages',
+    extraPackages.toSet().join(':'),
+  ],
   if (autoAddOverlay) '--auto-add-overlay',
   if (versionCode != null && versionCode.isNotEmpty) ...[
     '--version-code',

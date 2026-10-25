@@ -102,6 +102,16 @@ class SystemProcessRunner implements ProcessRunner {
           'deadline ($cleanup).',
           effectiveTimeout,
         );
+      case BoundedRunCause.cancelled:
+        // This runner never requests a cancellation, so the case is
+        // unreachable today. It is still reported honestly rather than
+        // folded into a success: an unverified stop keeps its receipt.
+        throw ProcessException(
+          executable,
+          arguments,
+          'The run was cancelled'
+              '${result.teardownVerified == true ? ' after a verified tree teardown' : ' with an UNVERIFIED teardown; known survivors=${result.survivors}'}.',
+        );
       case BoundedRunCause.signaled:
       case BoundedRunCause.exited:
         return ProcOutcome(

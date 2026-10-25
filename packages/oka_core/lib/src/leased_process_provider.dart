@@ -55,6 +55,8 @@ final class LeasedProcessProvider implements ResourceProvider {
     required this.registry,
     this.kind = 'process',
     this.runToExit = false,
+    this.workingDirectory,
+    this.environment,
     this.liveness = const HostProcessLiveness(),
     this.treeProbe = const HostProcessTreeProbe(),
   });
@@ -68,6 +70,8 @@ final class LeasedProcessProvider implements ResourceProvider {
   /// Jobs complete only after exit zero; cancellation stops the owned tree.
   /// Services retain the default readiness-return behavior.
   final bool runToExit;
+  final String? workingDirectory;
+  final Map<String, String>? environment;
   final ProcessLiveness liveness;
   final ProcessTreeProbe treeProbe;
 
@@ -77,6 +81,9 @@ final class LeasedProcessProvider implements ResourceProvider {
 
   @override
   Future<StartReport> start(StartRequest request) async {
+    if (request.cancellation.isCancelled) {
+      throw StartCancelled(request.component.id);
+    }
     if (request.mode == StartMode.attach) {
       throw StateError(
         'LeasedProcessProvider("$leaseId") owns what it spawns; attach is '
@@ -85,7 +92,12 @@ final class LeasedProcessProvider implements ResourceProvider {
     }
     final Process process;
     try {
-      process = await Process.start(command.executable, command.arguments);
+      process = await Process.start(
+        command.executable,
+        command.arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
     } on Object catch (error) {
       throw StateError('spawn failed for "$leaseId": $error');
     }
@@ -248,10 +260,7 @@ final class LeasedProcessProvider implements ResourceProvider {
   }
 
   @override
-  Future<StopReport> stop(
-    ResourceRef ref, {
-    required Duration grace,
-  }) async {
+  Future<StopReport> stop(ResourceRef ref, {required Duration grace}) async {
     final lease = await registry.read(leaseId);
     if (lease != null && lease.ownership == LeaseOwnership.borrowed) {
       // Teardown stops only owned leases (ADR-0018 §3).
@@ -478,9 +487,8 @@ final class LeasedProcessProvider implements ResourceProvider {
     while (true) {
       if (await until()) return;
       final result = await Future.any<Object?>([
-        Future<void>.delayed(
-          const Duration(milliseconds: 100),
-        ).then((_) => 'tick'),
+        Future<void>.delayed(const Duration(milliseconds: 100))
+            .then((_) => 'tick'),
         earlyExit.future,
         cancellation.future,
       ]);

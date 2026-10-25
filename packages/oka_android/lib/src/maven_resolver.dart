@@ -177,6 +177,7 @@ Future<
     Map<String, List<String>> nativeLibsByAbi,
     List<String> resDirs,
     String? manifestPath,
+    String? consumerProguardFile,
   })
 >
 extractAarPayload(

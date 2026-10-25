@@ -156,6 +156,56 @@ across crashes and SIGKILLs: the next oka invocation cleans up what the
 dead one could not. Oka only ever reconciles **its own** leases — foreign
 orphans (e.g. flutter_tools' leaked Chromes) are reported, never killed.
 
+### 6. Supplemental — long-lived children are spawned detached (checkpoint)
+
+`oka run emulator` could not return. With `stopOnExit=false` the emulator
+is *meant* to outlive the CLI, but the CLI never got to exit: the Dart VM
+keeps a parent alive for as long as a *normal*-mode child runs — "The
+parent process will not exit so long as the child is running, unless
+`exit` is called by the parent" (`dart:io` `Process.start`) — and
+`BootEmulatorStep` spawned the emulator in normal mode. The two halves of
+the contract (the emulator outlives the CLI; the CLI returns) were
+mutually exclusive.
+
+**Decision:** long-lived children are spawned **detached** by default
+(`BootEmulatorStep.startMode`, default `ProcessStartMode.detached`; the
+named default helper is `spawnDetachedProcess` in
+`packages/oka_android/lib/src/dev/detached_spawn.dart`).
+
+- **What "detached" means, precisely** — the child has **no stdio
+  connection** to the parent: no stdin/stdout/stderr pipes and no
+  exit-code channel (the Dart SDK: "There is no connection to its
+  `stdin`, `stdout` or `stderr`, nor will the process' exit code become
+  available when it terminates"). It is **not** an inherited stdio — a
+  detached child's output does not reach the parent's output. The
+  emulator's boot log is therefore not part of oka's output (oka never
+  read it), and the pipes that used to fill unnoticed are gone.
+- **The lease is unchanged — same record, same identity** — the pid plus
+  the start-time token captured at spawn time (`processLeasePidTokenKey`),
+  scope `ephemeral`, ownership `owned` for a spawned emulator (`borrowed`
+  for an adopted one), and the same `adb [-s serial] emu kill` stop hint.
+  Detaching changes the child's *lifetime*, not the lease's shape and not
+  the identity law: a lease written by one CLI is stopped by the next one.
+- **Teardown stays identity-verified** — a detached child has no usable
+  handle beyond its pid, so the failure-path stop goes through the
+  identity seam: the recorded token is re-verified **immediately before**
+  the signal, and an unverifiable or recycled pid is never signalled
+  (report, never guess). `ProcessStopPolicy` and `ProcessLiveness` are
+  reused unchanged; the graceful-first ladder, its ceilings and the
+  owned/borrowed refusal are unchanged — no new kill authority, no force
+  escalation.
+- **Ctrl-C is not a stop path** — the CLI no longer holds the emulator's
+  lifetime, so interrupting the CLI ends the CLI; the emulator keeps
+  running, which is exactly what `stopOnExit=false` means. On POSIX the
+  detached child runs in its own process group (measured on macOS), so a
+  terminal Ctrl-C does not reach it. oka does not rely on that in either
+  direction: the stop paths stay explicit and identity-verified —
+  `stopOnExit=true` composes `StopEmulatorStep` into the run's teardown,
+  and `oka stop <id>` stops a lease an earlier CLI wrote.
+- **Scope of the change** — this is the long-lived-child spawn seam of the
+  emulator target, not a general policy change. Other spawns keep their
+  modes until they are audited the same way.
+
 ### Out of scope (explicit)
 
 - A process supervisor / daemon / refcounting of shared sessions (one

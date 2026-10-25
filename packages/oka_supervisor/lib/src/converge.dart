@@ -25,6 +25,7 @@ final class ConvergenceReport {
     this.restarted = 0,
     this.failedStarts = 0,
     this.invalid = false,
+    this.cancelled = false,
   });
 
   final SupervisorPlan plan;
@@ -35,8 +36,9 @@ final class ConvergenceReport {
   /// True when the desired state itself failed validation — nothing was
   /// observed or applied.
   final bool invalid;
+  final bool cancelled;
 
-  bool get ok => !invalid && failedStarts == 0;
+  bool get ok => !invalid && !cancelled && failedStarts == 0;
 
   String describe() {
     final buffer = StringBuffer()
@@ -55,8 +57,8 @@ final class Supervisor {
     required this.projectRoot,
     MachineRegistry? registry,
     DateTime Function()? clock,
-  })  : registry = registry ?? MachineRegistry.forMachine(),
-        clock = clock ?? (() => DateTime.now().toUtc());
+  }) : registry = registry ?? MachineRegistry.forMachine(),
+       clock = clock ?? (() => DateTime.now().toUtc());
 
   /// The project whose desired state this supervisor converges; the
   /// registry scope derives from its canonical path.
@@ -75,6 +77,11 @@ final class Supervisor {
     required ProviderFactory factory,
     EvidenceSink? evidence,
     bool apply = true,
+    Duration? jobBudget,
+    Cancellation? cancellation,
+    void Function(String componentId, LogTap log)? onLog,
+    void Function(SupervisorRecord record, ResourceProvider provider)?
+    onStarted,
   }) async {
     final now = clock();
     final sink = evidence ?? _NullSink();
@@ -88,27 +95,33 @@ final class Supervisor {
       // ignore: avoid_catching_errors
     } on ArgumentError catch (error) {
       return ConvergenceReport(
-        plan: SupervisorPlan(actions: [], findings: [
-          SupervisorFinding(
-            code: 'invalidSpec',
-            componentId: '*',
-            message: '$error',
-          ),
-        ]),
+        plan: SupervisorPlan(
+          actions: [],
+          findings: [
+            SupervisorFinding(
+              code: 'invalidSpec',
+              componentId: '*',
+              message: '$error',
+            ),
+          ],
+        ),
         invalid: true,
       );
     }
     final validation = composition.validate();
     if (!validation.ok) {
       return ConvergenceReport(
-        plan: SupervisorPlan(actions: [], findings: [
-          for (final issue in validation.issues)
-            SupervisorFinding(
-              code: 'invalidSpec',
-              componentId: issue.componentId ?? '*',
-              message: '${issue.code}: ${issue.message}',
-            ),
-        ]),
+        plan: SupervisorPlan(
+          actions: [],
+          findings: [
+            for (final issue in validation.issues)
+              SupervisorFinding(
+                code: 'invalidSpec',
+                componentId: issue.componentId ?? '*',
+                message: '${issue.code}: ${issue.message}',
+              ),
+          ],
+        ),
         invalid: true,
       );
     }
@@ -161,6 +174,7 @@ final class Supervisor {
     // 4. Apply — actions only, in plan (dependency) order.
     if (apply) {
       for (final action in plan.actions) {
+        if (cancellation?.isCancelled ?? false) break;
         final spec = specs[action.componentId]!;
         final component = components[action.componentId]!;
         final provider = factory(spec.providerName);
@@ -168,18 +182,16 @@ final class Supervisor {
 
         var restartCount = 0;
         var windowStartedAt = now;
-        if (action.kind == SupervisorActionKind.restart &&
-            previous != null) {
+        if (action.kind == SupervisorActionKind.restart && previous != null) {
           // The revision bump IS the budget reset.
           final base =
               previous.revisionHash != spec.revisionHash ||
-                      now.difference(previous.windowStartedAt) >
-                          spec.policy.restartWindow
-                  ? 0
-                  : previous.restartCount;
+                  now.difference(previous.windowStartedAt) >
+                      spec.policy.restartWindow
+              ? 0
+              : previous.restartCount;
           restartCount = base + 1; // this restart consumes the budget now
-          windowStartedAt =
-              base == 0 ? now : previous.windowStartedAt;
+          windowStartedAt = base == 0 ? now : previous.windowStartedAt;
         }
 
         if (action.kind == SupervisorActionKind.restart &&
@@ -195,19 +207,23 @@ final class Supervisor {
             ref,
             grace: component.lifecycle.stop.grace,
           );
-          sink.add(ComponentStopped(
-            componentId: spec.id,
-            cause: stopReport.cause ?? TerminalCause.exited,
-            message: stopReport.message,
-          ));
-          if (!stopReport.stopped) {
-            plan.findings.add(SupervisorFinding(
-              code: 'unknown',
+          sink.add(
+            ComponentStopped(
               componentId: spec.id,
-              message:
-                  'restart aborted: stop reported '
-                  '${stopReport.disposition.name} — report-never-guess',
-            ));
+              cause: stopReport.cause ?? TerminalCause.exited,
+              message: stopReport.message,
+            ),
+          );
+          if (!stopReport.stopped) {
+            plan.findings.add(
+              SupervisorFinding(
+                code: 'unknown',
+                componentId: spec.id,
+                message:
+                    'restart aborted: stop reported '
+                    '${stopReport.disposition.name} — report-never-guess',
+              ),
+            );
             continue;
           }
         }
@@ -223,6 +239,10 @@ final class Supervisor {
           windowStartedAt: windowStartedAt,
           snapshot: snapshot,
           defaultBudget: desired.readinessBudget,
+          jobBudget: jobBudget,
+          callerCancellation: cancellation,
+          onLog: onLog,
+          onStarted: onStarted,
         );
         if (outcome.failed) {
           failedStarts++;
@@ -236,11 +256,13 @@ final class Supervisor {
 
     // 5. Emit findings.
     for (final finding in plan.findings) {
-      sink.add(SupervisorFindingEvent(
-        componentId: finding.componentId,
-        code: finding.code,
-        message: finding.message,
-      ));
+      sink.add(
+        SupervisorFindingEvent(
+          componentId: finding.componentId,
+          code: finding.code,
+          message: finding.message,
+        ),
+      );
     }
 
     return ConvergenceReport(
@@ -248,6 +270,7 @@ final class Supervisor {
       started: started,
       restarted: restarted,
       failedStarts: failedStarts,
+      cancelled: cancellation?.isCancelled ?? false,
     );
   }
 
@@ -262,6 +285,11 @@ final class Supervisor {
     required DateTime windowStartedAt,
     required RegistrySnapshot snapshot,
     required Duration defaultBudget,
+    Duration? jobBudget,
+    Cancellation? callerCancellation,
+    void Function(String componentId, LogTap log)? onLog,
+    void Function(SupervisorRecord record, ResourceProvider provider)?
+    onStarted,
   }) async {
     final isJob = spec.policy.shape == SupervisionShape.job;
 
@@ -284,9 +312,20 @@ final class Supervisor {
     evidence.add(ComponentStarting(componentId: spec.id));
 
     final dependencies = _resolvedDependencies(spec, snapshot);
-    final budget = spec.readiness?.budget ?? defaultBudget;
+    final budget =
+        spec.readiness?.budget ?? (isJob ? jobBudget : null) ?? defaultBudget;
     final cancellation = Cancellation();
     final log = LogTap(name: spec.id);
+    onLog?.call(spec.id, log);
+    var listening = true;
+    if (callerCancellation != null) {
+      if (callerCancellation.isCancelled) cancellation.cancel();
+      unawaited(
+        callerCancellation.future.then((_) {
+          if (listening) cancellation.cancel();
+        }),
+      );
+    }
 
     final StartReport startReport;
     try {
@@ -304,22 +343,32 @@ final class Supervisor {
       try {
         startReport = await startFuture;
       } finally {
+        listening = false;
         timer.cancel();
       }
     } on StartCancelled {
-      evidence.add(ReadinessTimeout(componentId: spec.id, budget: budget));
-      record = record.copyWith(
-        clearProcess: true,
-        lastRun: 'failed',
-      );
+      if (callerCancellation?.isCancelled ?? false) {
+        evidence.add(
+          ComponentFailed(
+            componentId: spec.id,
+            cause: TerminalCause.unknown,
+            message: 'cancelled by caller; provider cleanup joined',
+          ),
+        );
+      } else {
+        evidence.add(ReadinessTimeout(componentId: spec.id, budget: budget));
+      }
+      record = record.copyWith(clearProcess: true, lastRun: 'failed');
       registry.upsert(record, scope: scope);
       return const _StartOutcome.failed();
     } on Object catch (error) {
-      evidence.add(ComponentFailed(
-        componentId: spec.id,
-        cause: TerminalCause.providerFault,
-        message: '$error',
-      ));
+      evidence.add(
+        ComponentFailed(
+          componentId: spec.id,
+          cause: TerminalCause.providerFault,
+          message: '$error',
+        ),
+      );
       record = record.copyWith(clearProcess: true, lastRun: 'failed');
       registry.upsert(record, scope: scope);
       return const _StartOutcome.failed();
@@ -333,12 +382,15 @@ final class Supervisor {
         startReport.ref,
         grace: component.lifecycle.stop.grace,
       );
-      evidence.add(ComponentFailed(
-        componentId: spec.id,
-        cause: TerminalCause.providerFault,
-        message: 'did not resolve declared outputs: '
-            '${unresolved.map((r) => r.id).join(', ')}',
-      ));
+      evidence.add(
+        ComponentFailed(
+          componentId: spec.id,
+          cause: TerminalCause.providerFault,
+          message:
+              'did not resolve declared outputs: '
+              '${unresolved.map((r) => r.id).join(', ')}',
+        ),
+      );
       record = record.copyWith(clearProcess: true, lastRun: 'failed');
       registry.upsert(record, scope: scope);
       return const _StartOutcome.failed();
@@ -356,13 +408,16 @@ final class Supervisor {
       clearProcess: isJob,
     );
     registry.upsert(record, scope: scope);
-    evidence.add(ComponentReady(
-      componentId: spec.id,
-      outputs: {
-        for (final ref in component.provides)
-          ref.id: startReport.outputs.require(ref),
-      },
-    ));
+    evidence.add(
+      ComponentReady(
+        componentId: spec.id,
+        outputs: {
+          for (final ref in component.provides)
+            ref.id: startReport.outputs.require(ref),
+        },
+      ),
+    );
+    onStarted?.call(record, provider);
     return const _StartOutcome.started();
   }
 
@@ -385,9 +440,9 @@ final class Supervisor {
     Component component,
     ResolvedOutputs outputs,
   ) => {
-        for (final ref in component.provides)
-          if (outputs.contains(ref)) ref.id: outputs.require(ref),
-      };
+    for (final ref in component.provides)
+      if (outputs.contains(ref)) ref.id: outputs.require(ref),
+  };
 }
 
 final class _StartOutcome {

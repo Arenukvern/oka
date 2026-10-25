@@ -55,17 +55,22 @@ const defaultR8KeepRules = '''
 # defaults stay vendor-neutral.
 -dontwarn com.google.android.play.**
 
-# AndroidX libraries ship consumer proguard rules oka does not plumb into R8
-# yet; their missing-class references are all optional/reflective paths
-# (window extensions, vectordrawable compat, sidecars). Real missing classes
-# surface at runtime regardless of R8's static view, so silence the family.
+# AndroidX libraries ship consumer proguard rules, which oka applies to R8
+# since ADR-0051; their remaining missing-class references are all
+# optional/reflective paths (window extensions, vectordrawable compat,
+# sidecars). Real missing classes surface at runtime regardless of R8's
+# static view, so silence the family.
 -dontwarn androidx.**
 ''';
 
 /// Composes the app-level R8 rule text from the oka defaults and the
 /// project's inline [extraRules] (`AndroidBuild.r8Rules`) — pure, so the
-/// merge order is golden-testable: defaults first, app rules last (later
-/// rules override earlier ones in R8).
+/// merge order is golden-testable: defaults first, app rules last.
+///
+/// The order is a deterministic *input* order, not a precedence mechanism:
+/// ProGuard/R8 directives such as `-keep` and `-dontwarn` accumulate across
+/// the rule files, so a later app rule does not undo a suppression or a keep
+/// declared earlier.
 String composeR8Rules({
   String base = defaultR8KeepRules,
   List<String> extraRules = const [],

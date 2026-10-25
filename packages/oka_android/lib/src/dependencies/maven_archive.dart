@@ -5,6 +5,8 @@ import 'package:archive/archive.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
+import '../build/consumer_rules.dart';
+
 class ResolvedJar {
   const ResolvedJar({
     required this.coordinate,
@@ -52,6 +54,7 @@ Future<
     Map<String, List<String>> nativeLibsByAbi,
     List<String> resDirs,
     String? manifestPath,
+    String? consumerProguardFile,
   })
 >
 extractAarPayload(
@@ -63,6 +66,7 @@ extractAarPayload(
   final natives = <String, List<String>>{};
   var hasResources = false;
   String? manifestPath;
+  String? consumerProguardFile;
   for (final file in archive) {
     if (!file.isFile) continue;
     final name = file.name.replaceAll(r'\', '/');
@@ -78,6 +82,13 @@ extractAarPayload(
       final output = p.join(destination, name);
       await _writeIfChanged(File(output), file.content as List<int>);
       manifestPath = output;
+    } else if (name == consumerRulesEntryName) {
+      // Consumer ProGuard rules the library declares for its consumers
+      // (ADR-0051). Kept beside the extracted classes.jar so the shrinker
+      // can apply them; the AAR itself stays the source of truth.
+      final output = p.join(destination, name);
+      await _writeIfChanged(File(output), file.content as List<int>);
+      consumerProguardFile = output;
     } else if (name.startsWith('res/')) {
       // Full res tree (values XML, drawables incl. binaries, layouts…):
       // values XML may reference drawables that only exist as PNG/WebP —
@@ -104,6 +115,7 @@ extractAarPayload(
     nativeLibsByAbi: natives,
     resDirs: resources,
     manifestPath: manifestPath,
+    consumerProguardFile: consumerProguardFile,
   );
 }
 

@@ -22,6 +22,7 @@ import 'package:oka/src/cli/session_state_command.dart';
 import 'package:oka/src/cli/ship_command.dart';
 import 'package:oka/src/cli/stop_command.dart';
 import 'package:oka/src/cli/supervisor_command.dart';
+import 'package:oka/src/cli/verify_command.dart';
 import 'package:oka/src/cli/why_command.dart';
 import 'package:oka/src/version.dart';
 
@@ -88,6 +89,8 @@ void main(List<String> arguments) async {
         await StopCommand().run(commandArgs);
       case 'supervisor':
         await SupervisorCommand().run(commandArgs);
+      case 'verify':
+        await VerifyCommand().run(commandArgs);
       case 'artifacts':
         await ArtifactsCommand().run(commandArgs);
       case 'run':
@@ -137,6 +140,8 @@ Commands:
             device, scan the device log for failure signatures
   live      Live-update a running program (experimental; needs the
             oka_dart_kernel checkout — docs/guides/live_update.mdx)
+  verify    Fast cached Dart checks (internal checkout lane);
+            `oka verify --package <name>`; Flutter suites use flutter test
   ship      Derive and publish a store-free patch from the working tree
             (invisible authoring; ADR-0037 — needs the oka_dart_kernel
             checkout)

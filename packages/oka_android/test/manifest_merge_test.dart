@@ -147,7 +147,44 @@ void main() {
         'as unbound prefixes and fail aapt2 link');
   });
 
-  test('skips elements with unsubstituted manifest placeholders', () async {
+  test('substitutes the app application id into a library placeholder',
+      () async {
+    final library = await writeLibrary(
+      'lib_manifest.xml',
+      '''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.lib">
+    <uses-permission android:name="${r'${applicationId}'}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+    <application>
+        <receiver android:name="com.example.lib.Receiver" />
+    </application>
+</manifest>
+''',
+    );
+
+    final added = mergeLibraryManifestsInto(
+      appManifestPath: appManifest.path,
+      libraryManifestPaths: [library.path],
+    );
+
+    expect(added, 2, reason: 'the permission is substituted and merges, '
+        'together with the receiver');
+    final merged = appManifest.readAsStringSync();
+    expect(
+      merged,
+      contains('com.example.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'),
+    );
+    expect(merged, isNot(contains(r'${applicationId}')));
+  });
+
+  test('an app permission dedupes against the substituted library one',
+      () async {
+    await appManifest.writeAsString(appManifestXml.replaceFirst(
+      '    <application android:label="App">',
+      '    <uses-permission '
+          'android:name="com.example.app.DYNAMIC_RECEIVER_PERMISSION" />\n'
+          '    <application android:label="App">',
+    ));
     final library = await writeLibrary(
       'lib_manifest.xml',
       '''
@@ -166,11 +203,95 @@ void main() {
       libraryManifestPaths: [library.path],
     );
 
-    expect(added, 1, reason: 'receiver merges; the placeholder permission '
-        'cannot be substituted by aapt2 and would break at install time');
+    expect(added, 1, reason: 'only the receiver merges — the app already '
+        'declares the substituted permission');
+    final merged = appManifest.readAsStringSync();
+    expect(
+      'com.example.app.DYNAMIC_RECEIVER_PERMISSION'.allMatches(merged).length,
+      1,
+    );
+  });
+
+  test('skips elements with a placeholder the build cannot resolve',
+      () async {
+    final library = await writeLibrary(
+      'lib_manifest.xml',
+      '''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.lib">
+    <uses-permission android:name="${r'${firebaseCollectionId}'}.PERMISSION" />
+    <application>
+        <receiver android:name="com.example.lib.Receiver" />
+    </application>
+</manifest>
+''',
+    );
+
+    final added = mergeLibraryManifestsInto(
+      appManifestPath: appManifest.path,
+      libraryManifestPaths: [library.path],
+    );
+
+    expect(added, 1, reason: 'the receiver merges; an unresolved placeholder '
+        'cannot be substituted and would break at install time');
     final merged = appManifest.readAsStringSync();
     expect(merged, contains('com.example.lib.Receiver'));
-    expect(merged, isNot(contains(r'${applicationId}')));
+    expect(merged, isNot(contains(r'${firebaseCollectionId}')));
+  });
+
+  test('without an application id the placeholder stays refused', () async {
+    await appManifest.writeAsString(appManifestXml.replaceFirst(
+      '    package="com.example.app"',
+      '',
+    ));
+    final library = await writeLibrary(
+      'lib_manifest.xml',
+      '''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.lib">
+    <uses-permission android:name="${r'${applicationId}'}.DYNAMIC_RECEIVER_PERMISSION" />
+    <application>
+        <receiver android:name="com.example.lib.Receiver" />
+    </application>
+</manifest>
+''',
+    );
+
+    final added = mergeLibraryManifestsInto(
+      appManifestPath: appManifest.path,
+      libraryManifestPaths: [library.path],
+    );
+
+    expect(added, 1, reason: 'the receiver merges; without an application id '
+        'the placeholder cannot be resolved');
+    expect(
+      appManifest.readAsStringSync(),
+      isNot(contains(r'${applicationId}')),
+    );
+  });
+
+  test('an explicit application id overrides the manifest package', () async {
+    final library = await writeLibrary(
+      'lib_manifest.xml',
+      '''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.lib">
+    <uses-permission android:name="${r'${applicationId}'}.DYNAMIC_RECEIVER_PERMISSION" />
+</manifest>
+''',
+    );
+
+    final added = mergeLibraryManifestsInto(
+      appManifestPath: appManifest.path,
+      libraryManifestPaths: [library.path],
+      applicationId: 'com.example.flavor',
+    );
+
+    expect(added, 1);
+    expect(
+      appManifest.readAsStringSync(),
+      contains('com.example.flavor.DYNAMIC_RECEIVER_PERMISSION'),
+    );
   });
 
   test('throws on a malformed app manifest root', () async {

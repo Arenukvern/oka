@@ -1,0 +1,40 @@
+# ADR 0049 — App-scoped supervision
+
+Status: accepted for implementation; consumer qualification pending
+
+Date: 2026-10-21
+
+## Context and decision checkpoint
+
+The approved internal-foundation delivery plan requires Last Answer to execute
+command and agent automations while the application is open. Its current plan
+editor does not execute. A resident owner (ADR 0042) remains a separate release.
+Embedding a second scheduler/process policy in Last Answer would duplicate the
+supervisor. Installing a background service would change the approved boundary.
+
+## Decision
+
+Expose the existing CLI process-provider composition from `oka_supervisor`.
+Add optional caller cancellation and log observation to the existing converge
+operation. Cancellation joins provider cleanup before returning; it does not
+report a user cancellation as a readiness timeout. Unmodified callers retain
+their current behavior.
+
+An app-scoped session serializes converge passes, coalesces overlapping ticks,
+and uses the existing interval planner and durable registry. A single session
+must be retained by its application owner, not recreated on every UI rebuild.
+Close seals admission, cancels active starts, joins the pass, then stops only
+resources started by this session whose current registry generation and
+identity still match. Registry presence alone grants no stop authority.
+
+The application explicitly enables execution. Merely opening an editor or
+loading declarations never starts a job. App close suspends schedules; no
+resident service, new trigger format, provider substitution or remote authority
+is introduced. Agent providers remain injected through the existing factory.
+
+## Acceptance
+
+Real command success/failure and spaced argv; overlapping ticks execute once;
+interval due/catch-up uses the existing planner; cancellation and close await
+cleanup; reopening preserves terminal records; borrowed/changed-generation
+resources are never stopped; injected agent providers use the same path.

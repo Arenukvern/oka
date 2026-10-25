@@ -34,6 +34,9 @@ import '../android_state.dart';
 import '../build/toolchain.dart';
 import 'adb_tool.dart';
 import 'avd_session_state.dart';
+import 'detached_spawn.dart';
+
+export 'detached_spawn.dart';
 
 // -- Pure command construction (scripted-fake testable) ----------------------
 
@@ -361,6 +364,18 @@ class EnsureAvdStep extends BuildStep {
       ),
     );
     final out = '${created.stdout}${created.stderr}';
+    // Some SDK tools emit missing optional devices.xml diagnostics while
+    // successfully creating the AVD. Confirm the effect instead of treating
+    // diagnostic text as either success or failure on its own.
+    if (created.exitCode == 0 &&
+        (out.contains('Error:') || out.contains('error:'))) {
+      final inventory = await _run(avdManager, avdManagerListArgs());
+      if (inventory.exitCode == 0 &&
+          parseAvdManagerNames(inventory.stdout as String).contains(avdName)) {
+        state['emulator-avd'] = avdName;
+        return StepResult.success({'emulator-avd': avdName});
+      }
+    }
     if (created.exitCode != 0 ||
         out.contains('Error:') ||
         out.contains('error:')) {
@@ -384,6 +399,34 @@ class EnsureAvdStep extends BuildStep {
   }
 }
 
+// -- Detached spawn + identity-verified stop (ADR-0018 §3a) ------------------
+
+/// Identity-verified graceful stop of a leased pid (ADR-0018 §1).
+///
+/// The recorded start-time token is re-verified **immediately before** the
+/// signal: a recycled pid belongs to an innocent process, and a token we
+/// cannot verify is a report, never a guess. Returns false when the stop
+/// was refused (unverifiable or recycled identity) or could not be
+/// confirmed — the caller keeps the lease, and the record stays for the
+/// reconcile sweep.
+///
+/// The signal itself goes through [ProcessLiveness] (SIGTERM, then SIGKILL
+/// after [grace] if the process ignored it) — the same seam and the same
+/// graceful-first ladder the stop policy already uses, so no new kill
+/// authority is introduced.
+Future<bool> stopLeasedPidGracefully(
+  ProcessLiveness liveness,
+  ProcessLease lease, {
+  Duration grace = const Duration(seconds: 3),
+}) async {
+  final pid = lease.pid;
+  if (pid <= 0) return false;
+  final recorded = lease.identity[processLeasePidTokenKey];
+  final verdict = await verifyKillIdentity(liveness, pid, recorded);
+  if (verdict != KillIdentity.verified) return false;
+  return liveness.kill(pid, grace: grace);
+}
+
 /// Boots the emulator (idempotent: reuses an already-running instance for
 /// the same AVD) and waits for `sys.boot_completed`. Provides
 /// [emulatorSerial].
@@ -401,10 +444,22 @@ class BootEmulatorStep extends BuildStep {
     this.liveness,
     this.leaseRegistry,
     this.ownerCmd = 'oka run emulator',
+    this.startMode = ProcessStartMode.detached,
     Future<ProcessResult> Function(String, List<String>)? runProcess,
     Future<Process> Function(String, List<String>)? startProcess,
+    Future<Process> Function(
+      String,
+      List<String>,
+      ProcessStartMode,
+    )? startProcessWithMode,
   }) : _runProcess = runProcess ?? Process.run,
-       _startProcess = startProcess ?? Process.start;
+       _startProcess =
+           startProcessWithMode ??
+           (startProcess != null
+               ? (executable, args, _) => startProcess(executable, args)
+               : (executable, args, mode) => mode == ProcessStartMode.detached
+                   ? spawnDetachedProcess(executable, args)
+                   : Process.start(executable, args, mode: mode));
 
   final String avdName;
   final bool headless;
@@ -435,8 +490,29 @@ class BootEmulatorStep extends BuildStep {
   /// Recorded in the lease's `owner_cmd` (ADR-0018 §1).
   final String ownerCmd;
 
+  /// How the emulator process is spawned (ADR-0018 §3a).
+  ///
+  /// Default [ProcessStartMode.detached]: the emulator gets **no stdio
+  /// connection** to oka, keeps running when the CLI exits, and does not
+  /// pin the CLI's lifetime (the Dart VM keeps a parent alive for as long
+  /// as a *normal*-mode child runs).
+  ///
+  /// [ProcessStartMode.normal] re-pins the CLI to the emulator's lifetime
+  /// and re-opens pipes oka never reads — only use it when a host
+  /// genuinely needs the child's streams.
+  final ProcessStartMode startMode;
+
   final Future<ProcessResult> Function(String, List<String>) _runProcess;
-  final Future<Process> Function(String, List<String>) _startProcess;
+
+  /// Spawn seam carrying the start mode. Default: a real detached spawn
+  /// (ADR-0018 §3a). The legacy [startProcess] seam stays supported for
+  /// scripted fakes; it cannot express a mode, so an injected legacy seam
+  /// takes precedence over the mode.
+  final Future<Process> Function(
+    String,
+    List<String>,
+    ProcessStartMode,
+  ) _startProcess;
 
   @override
   String get name => 'boot-emulator';
@@ -552,7 +628,7 @@ class BootEmulatorStep extends BuildStep {
       await Future<void>.delayed(pollInterval);
     }
     if (serial == null) {
-      final stopped = await _stopSpawned(process, pidToken, ctx);
+      final stopped = await _stopSpawned(process, ctx);
       return StepResult.failure(
         'Emulator did not register within ${bootTimeout.inSeconds}s. '
         'Check `$emulator -avd $avdName` output; for CI use a headless boot '
@@ -575,7 +651,7 @@ class BootEmulatorStep extends BuildStep {
       state[emulatorSerial.id] = serial;
       return StepResult.success({emulatorSerial.id: serial});
     }
-    final stopped = await _stopSpawned(process, pidToken, ctx);
+    final stopped = await _stopSpawned(process, ctx);
     return StepResult.failure(
       'Emulator $serial did not finish booting within '
       '${bootTimeout.inSeconds}s (sys.boot_completed never became 1).'
@@ -695,7 +771,6 @@ class BootEmulatorStep extends BuildStep {
   /// process, and a token we could not verify is a report, not a guess.
   Future<bool> _stopSpawned(
     Process? process,
-    String? pidToken,
     BuildContext ctx,
   ) async {
     if (process == null) return true; // nothing spawned, nothing to clean
@@ -707,7 +782,16 @@ class BootEmulatorStep extends BuildStep {
       liveness: _host,
       verifyGrace: killGrace,
       pollInterval: pollInterval,
-    ).stop(lease, force: false, gracefulStop: (_) async => process.kill());
+    ).stop(
+      lease,
+      force: false,
+      // A detached child has no usable handle beyond its pid, so the stop
+      // goes through the identity seam: the recorded token is re-verified
+      // immediately before the signal (ADR-0018 §1/§3a). The graceful
+      // ladder and the refusal law are the policy's, unchanged.
+      gracefulStop: (lease) =>
+          stopLeasedPidGracefully(_host, lease, grace: killGrace),
+    );
     if (outcome.disposition == ProcessStopDisposition.stopped) {
       print('🛑 Spawned emulator process (pid ${process.pid}) stopped.');
       return true;
@@ -737,14 +821,16 @@ class BootEmulatorStep extends BuildStep {
   }
 
   /// Spawns the emulator keeping the [Process] handle (ADR-0018 problem
-  /// A); spawn errors stay swallowed (historical posture) — serial
-  /// discovery below fails with its own actionable message either way.
+  /// A) — detached by default, so the emulator outlives this process
+  /// instead of pinning it (ADR-0018 §3a); spawn errors stay swallowed
+  /// (historical posture) — serial discovery below fails with its own
+  /// actionable message either way.
   Future<Process?> _spawnSafely(
     String emulator,
     List<String> args,
   ) async {
     try {
-      return await _startProcess(emulator, args);
+      return await _startProcess(emulator, args, startMode);
     } on Object {
       return null;
     }

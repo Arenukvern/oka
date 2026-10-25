@@ -1,0 +1,121 @@
+# ADR 0051 — Dependency consumer ProGuard rules
+
+**Status**: accepted (implemented) · **Date**: 2026-10-21 · **Builds on**:
+ADR-0001 (no-Gradle default build path), ADR-0010 (typed project config),
+ADR-0029 (release verification)
+
+## Context
+
+The real Last Answer release AAB (no-Gradle pipeline, compileSdk 36) reached
+R8 and failed with sixteen "Missing class" errors:
+
+```
+Missing class com.google.errorprone.annotations.CanIgnoreReturnValue (… 82 other contexts)
+Missing class javax.annotation.Nullable (… 183 other contexts)
+Missing class org.checkerframework.checker.nullness.qual.EnsuresNonNull (…)
+Missing class com.google.android.apps.common.proguard.SideEffectFree (…)
+Missing class javax.xml.stream.XMLResolver (referenced from: javax.xml.stream.XMLResolver
+        org.apache.tika.utils.XMLReaderUtils.IGNORING_STAX_ENTITY_RESOLVER)
+```
+
+Fifteen of them are classes the dependencies already declared optional. AARs
+carry *consumer rules* — the `proguard.txt` entry an Android library ships
+for its consumers. `com.google.android.gms:play-services-basement:18.4.0`
+declares exactly the missing families:
+`-dontwarn javax.annotation.**`, `-dontwarn org.checkerframework.**`,
+`-dontwarn com.google.errorprone.annotations.**`,
+`-dontwarn com.google.android.apps.common.proguard.SideEffectFree`.
+The Gradle build never failed on these because AGP aggregates the consumer
+rules of every dependency AAR into the R8 run. oka's no-Gradle pipeline
+extracted `classes.jar`, `jni/` and `res/` from an AAR and **dropped
+`proguard.txt`** — the declared contract never reached the shrinker. This is
+a no-Gradle port gap, not a missing dependency.
+
+The Gradle project this app migrated from never shrank (`minifyEnabled` is
+unset, so AGP's default is off) — the failure is specific to oka's shrinking
+release path, and it must be fixed by *shrinking correctly*, not by
+disabling the shrinker.
+
+## Decision
+
+1. **oka applies the consumer rules a dependency declares.** The AAR
+   `proguard.txt` of every artifact that is actually on the program classpath
+   is read back and handed to R8, with AGP's semantics: one rule set per
+   artifact, the same version selection the runtime classpath uses (newest
+   wins). The rules are the dependency's own words; oka adds no vendor
+   knowledge of its own.
+2. **A source plugin declares the same contract in its Gradle script.** A
+   Flutter plugin built from source ships no AAR, so its consumer rules
+   exist only as `consumerProguardFiles 'proguard-rules.pro'` in its
+   `android/build.gradle(.kts)`. oka reads that declaration, resolves the
+   file against the plugin's Android module directory (Gradle's own
+   resolution) and feeds it to the shrinker — e.g.
+   `flutter_inappwebview_android` keeps the `@JavascriptInterface` members,
+   `mobile_scanner` keeps the ML Kit classes, `file_picker` keeps the Tika
+   and StAX classes.
+
+   Only `consumerProguardFiles` is propagated: a library's own
+   `proguardFiles` (e.g. `getDefaultProguardFile('proguard-android.txt')`)
+   describe how the *library* is minified, and AGP does not export them to
+   consumers either. A declared file that does not exist fails the build
+   (loud, like a missing project proguard file) instead of being silently
+   dropped — an unhonoured declaration would ship a stripped API. The
+   declared files are part of the compile fingerprint, so a rule change
+   invalidates the dex cache.
+3. **The rule files are fed to R8 in a deterministic order.**
+
+   ```
+   oka defaults  →  dependency consumer rules  →  project proguard files  →  inline app rules
+   ```
+
+   This is an *input* order, not a precedence mechanism: ProGuard/R8
+   directives such as `-keep` and `-dontwarn` accumulate across the rule
+   files, so a later app rule does not undo a suppression or a keep declared
+   earlier. The order is fixed so a build's shrinker input is reproducible,
+   and every rule block names the artifact that declared it.
+4. **No blanket suppression, no shrinker bypass, no Gradle.** There is no
+   bare `-dontwarn`, no `--no-tree-shaking` / `--no-minification` escape
+   hatch, and no reintroduction of the Gradle build. Shrinking stays on and
+   R8 keeps failing the build for missing classes that nobody declared
+   optional.
+
+## Not decided here
+
+`javax.xml.stream.XMLResolver` (referenced from
+`org.apache.tika.utils.XMLReaderUtils`) is **not** suppressed by oka. It is
+declared optional by the dependency that pulls it in: `file_picker`'s
+consumer rules (`proguard-rules.pro`) contain
+`-keep class javax.xml.stream.XMLResolver.** { *; }` and
+`-dontwarn javax.xml.stream.XMLResolver`, and this ADR propagates that
+declaration verbatim.
+
+oka itself adds no suppression for it, and no general "platform-absence"
+rule group: absence from the platform does not prove the calling code is
+dead on Android, and a family-wide `-dontwarn` would exceed the observed
+case and cross the no-blanket-suppression boundary. If a future dependency
+references a JRE API that *no* dependency declares optional, the blocker
+stays visible in the R8 error and needs an explicit, declared decision.
+
+## Consequences
+
+* A release build of an app that depends on Play services, ML Kit or any
+  other AAR that ships consumer rules no longer fails on the classes those
+  libraries declare optional.
+* The generated rule file is release evidence: each block is prefixed with
+  the `group:artifact:version` that declared it.
+* The mechanism is vendor-neutral: oka's defaults still contain no
+  dependency-vendor rules, and every dependency-specific rule comes from the
+  dependency itself.
+* An app that needs an extra suppression still has the ADR-0010 escape
+  hatches (`android.proguard_files`, `AndroidBuild.r8Rules`).
+
+## Acceptance
+
+* The consumer rules of a resolved AAR reach the R8 invocation as a
+  `--pg-conf` input, between oka's defaults and the app's rules.
+* A dependency that declares no consumer rules contributes nothing.
+* A source plugin's `consumerProguardFiles` reach the same rule file, with
+  the plugin as the attribution, and a declared file that does not exist
+  fails the build instead of being dropped.
+* A real release build of the product reaches R8 and completes shrinking, or
+  fails with an explicit, un-suppressed missing-class error.

@@ -1,0 +1,128 @@
+# ADR 0048: `oka_verify` — the fast Dart verification lane as an Oka package
+
+**Status**: accepted (implemented; consumer qualification ongoing) · **Date**: 2026-10-21 · **Builds on**: ADR-0026
+(resource composition), ADR-0029 (verification ladder), ADR-0043/0047 (content-addressed
+artifacts, freshness), ADR-0046 (failed-deadline teardown receipts)
+
+## Context
+
+The agentic harness owns a Dart verification lane (`tool/oka/verify`, harness
+ADR 0098) that pays Dart's compile cost once per suite instead of once per
+iteration: suite kernels are cached artifacts keyed by import-closure content,
+rebuilt only when a changed file transitively reaches them, and run through
+`dart test --precompiled`. Measured on the harness: a full-package kernel rebuild
+went 547 s → 98.7 s with a warm frontend server, and a warm full-package
+validation ran in 3.74 s against a cold `dart test` that costs minutes.
+
+That lane is **harness-local**. Its mechanics — the dependency-free import
+graph, the content-keyed kernel cache, the generated `internalBootstrapVmTest`
+entry, the orchestration and the revision-stamped receipt — are not harness
+policy. They are general Dart-SDK-only verification mechanics, and today no
+other Dart workspace can borrow them: every consumer would have to copy
+`tool/oka/verify` again, which is exactly the duplication that produced the
+harness's own "copy the build config" problem one layer down.
+
+The lane also carries sharp edges that a general package must state rather than
+inherit silently:
+
+- **Widget suites are unrunnable.** `flutter_test` needs the `flutter_tester`
+  shell; a `dart test --precompiled` run over a widget suite fails in a way
+  that reads like a code failure, not a capability gap.
+- **Unknown coverage must not read as "nothing to do".** When the import graph
+  cannot attribute a changed file to any suite, the honest move is *broader
+  checks*, not a narrower run.
+- **Unbounded processes hang the loop.** A `dart test` boot against a degraded
+  pub.dev route never converges; the lane's guard kills the runner instead of
+  hanging the agent.
+- **Acceptance stays with plain `dart test`.** The lane is iteration evidence;
+  its receipts name their own revision so a stale state cannot look green.
+
+## Decisions
+
+1. **The lane becomes a package: `packages/oka_verify`.** The import graph,
+   the kernel cache, the suite bootstrap, the warm frontend-server session, the
+   receipt and the orchestration move into a pure-Dart package with a public
+   API (`package:oka_verify/oka_verify.dart`) and a CLI (`oka_verify`). The
+   harness keeps its own copy until the parent adopts the package; the
+   mechanics are the shared artifact, not the harness's script.
+2. **Dart SDK only. Flutter is refused, not skipped.** The package never
+   depends on Flutter. A suite whose closure imports `package:flutter/` or
+   `package:flutter_test/` is **refused loudly** (stderr line + receipt
+   field), excluded from the run, and named in the receipt. A package with
+   only widget suites exits with "no pure-Dart suites" and points at
+   `flutter test` — a named capability boundary, never a silent omission.
+3. **Plain `dart test` remains the acceptance oracle.** The lane accelerates
+   iteration; it does not replace the acceptance gate. The receipt is
+   iteration evidence and always names its revision, SDK, changed files and
+   the refused suites.
+4. **Cache keys carry the source closure, the SDK and the package
+   configuration.** A suite kernel is valid only while (a) every file in its
+   transitive import closure is byte-identical, (b) the SDK version is
+   unchanged, (c) the root `package_config.json` is unchanged, and (d) the
+   bootstrap contract version is unchanged. Import, export, part and
+   **conditional** import edges are all followed: a conditional import
+   contributes *all* of its branches, because a branch that is not taken on
+   this platform is still an edge the cache cannot prove irrelevant.
+   The cache is a projection — deleting it changes latency, never results.
+5. **Unknown dependency coverage selects broader checks.** A change whose
+   effect on the suite set cannot be determined — a dependency descriptor
+   (`pubspec.yaml`, `pubspec.lock`, `package_config.json`), a non-Dart file
+   inside the package under test (asset, fixture, tooling), or a `.dart` file
+   the graph cannot place in any known package — widens the run to every
+   suite of the package. The reason is named in the receipt. An explicit
+   `--only` filter stays authoritative: the operator asked for that set.
+6. **Bounded compilation, bounded output, bounded time.** Compiles and the
+   test run go through oka's process substrate (`oka_core`'s bounded run:
+   deadline → tree stop → teardown receipt) with explicit budgets for compile
+   timeout, run timeout, worker count and captured bytes. Output beyond the
+   budget is dropped and the truncation is reported, never silently swallowed.
+7. **The mechanics stay separable.** Selection is a pure function, cache keys
+   are a pure function of (closure, SDK, package configuration, contract), and
+   the kernel builder and the suite runner are interfaces. The orchestration
+   composes them; a consumer can substitute any of the three.
+
+## Non-goals
+
+No Flutter support. No eval channel (the harness's resident-VM expression
+loop) and no resident test runner — those stay harness-side. No change to
+`dart test` itself, no runner fork, no internal `test_core` protocol
+reimplementation beyond the documented `--precompiled` contract. The `oka verify` CLI delegates to the checkout-backed package, following
+the existing live/ship command posture. The package is internal and is not
+part of the public release train.
+
+## Consequences
+
+### Consumer startup checkpoint — 2026-10-21
+
+A real harness run exposed an additional cost beyond suite compilation:
+`dart test --precompiled` still invokes SDK native-asset hooks for unrelated
+workspace dependencies. The observed warm run took 162,584 ms in its run
+phase. The pure-Dart lane now caches the **unmodified** `package:test`
+executable as a kernel and invokes it with the same `--precompiled` contract.
+Its cache key includes its own source closure, SDK and package configuration.
+This changes startup, not assertions or the test runner implementation.
+
+If any suite imports `dart:ffi` or source from a package with a build/link
+hook, the runner preserves the normal SDK test entry point. Unrelated hooks
+are not a reason to rebuild native libraries for a pure-Dart test. Conventional
+tests remain acceptance; the lane never reports a hook-dependent suite as
+passing because native assets were omitted.
+
+The revised live harness run passed four assertions; its next warm run had
+one suite cache hit, 275 ms rebuild bookkeeping and 9,482 ms run time on this
+loaded machine. These are local observations, not a matched speed guarantee.
+Passing and deliberately failing suite controls both passed after the startup
+change. The external compiler tests have explicit three-minute deadlines.
+
++ Any Dart workspace can borrow the lane: `oka_verify --package <name>` in a
+  repo with a `package_config.json` is the whole adoption story.
++ The harness's lane and every future consumer share one implementation, so a
+  fix to the cache key or the bootstrap contract lands once.
++ The lane's limits become named and testable (widget refusal, coverage
+  widening, budget exhaustion) instead of being discovered as a confusing
+  failure.
++ The harness wrapper now imports this package; its eval channel remains
+  harness-owned. Compatibility files export the shared implementation.
+− Conditional-import over-approximation rebuilds more than strictly necessary.
+  That is the direction the lane is allowed to err in: a redundant rebuild
+  costs seconds, a missed invalidation costs a false green.

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
+import 'package:xml/xml.dart';
 
 import '../build/aapt2_commands.dart';
 import '../build/toolchain.dart';
@@ -129,6 +130,13 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
           ? 'resources.ap_'
           : 'resources_proto.ap_',
     );
+    final libraryPackages = <String>{
+      for (final path in libraryManifests)
+        if (XmlDocument.parse(File(path).readAsStringSync()).rootElement
+                .getAttribute('package')
+            case final String name)
+          name,
+    }.toList()..sort();
     final linkArgs = format == AndroidResourceFormat.apk
         ? buildAapt2LinkArgs(
             androidJar: androidJar,
@@ -137,6 +145,7 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
             compiledResourcesZip: compiledResources,
             overlayZips: overlayZips,
             javaOutDir: generated,
+            extraPackages: libraryPackages,
             resourceConfigs: resourceConfigs,
             versionCode: versionCode,
             versionName: versionName,
@@ -148,6 +157,7 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
             compiledResourcesZip: compiledResources,
             overlayZips: overlayZips,
             javaOutDir: generated,
+            extraPackages: libraryPackages,
             resourceConfigs: resourceConfigs,
             versionCode: versionCode,
             versionName: versionName,
@@ -163,18 +173,9 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
       );
     }
 
-    // aapt2 link emits R.java only for the manifest package. AAR payloads
-    // ship no compiled R, so generate one per library package from its own
-    // AndroidManifest.xml — the same regeneration Gradle performs. Without
-    // this, bytecode compiled against e.g. androidx.core's `R$id` crashes
-    // with NoClassDefFoundError at runtime.
-    await _generateLibraryRClasses(
-      aapt2: aapt2,
-      androidJar: androidJar,
-      compiledZipByDir: compiledZipByDir,
-      generatedSourcesDir: generated,
-      processRunner: processRunner,
-    );
+    // --extra-packages emits each library's R from this same resolved link.
+    // Linking each library alone loses transitive resource references and
+    // gives its R constants a different resource-ID assignment than the app.
     return ResourceCompilationOutcome(
       ok: true,
       androidJar: androidJar,
@@ -182,53 +183,6 @@ Future<ResourceCompilationOutcome> compileAndroidResources({
     );
   } on Exception catch (error) {
     return ResourceCompilationOutcome(ok: false, error: error.toString());
-  }
-}
-
-Future<void> _generateLibraryRClasses({
-  required String aapt2,
-  required String androidJar,
-  required Map<String, String> compiledZipByDir,
-  required String generatedSourcesDir,
-  required AndroidProcessRunner processRunner,
-}) async {
-  if (compiledZipByDir.isEmpty) return;
-  stdout.writeln(
-    'oka: generating R for ${compiledZipByDir.length} library package(s)',
-  );
-  for (final entry in compiledZipByDir.entries) {
-    // res dir layout: <aar payload dir>/res → manifest sits beside it.
-    final manifest = p.join(p.dirname(entry.key), 'AndroidManifest.xml');
-    if (!File(manifest).existsSync()) continue;
-    final output = '${entry.value}.r.ap';
-    final link = await processRunner(
-      aapt2,
-      [
-        'link',
-        '-I',
-        androidJar,
-        '--manifest',
-        manifest,
-        '--java',
-        generatedSourcesDir,
-        '--auto-add-overlay',
-        '-o',
-        output,
-        '-R',
-        entry.value,
-      ],
-    );
-    if (link.exitCode != 0) {
-      // A package whose resources cannot stand alone contributes no R; the
-      // classes referencing it would already fail at javac time otherwise.
-      stderr.writeln(
-        'oka: per-library R generation skipped for ${entry.key}: '
-        '${link.stderr}',
-      );
-      continue;
-    }
-    final ap = File(output);
-    if (await ap.exists()) await ap.delete();
   }
 }
 
