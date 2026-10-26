@@ -7,5 +7,6 @@ import 'package:test/test.dart';
 void main() {
   test('conformance suite not yet imported', () {
     // Harness exists so CI can add `dart test test/conformance/` as a gate later.
-  }, skip: 'Awaiting dfp contract suite copy (ADR-0052 migration plan)');
+  }, skip:
+      'Awaiting dfp PR #5 merge — suite @ 2f9ce9b1 (ADR-0052 migration plan)');
 }
