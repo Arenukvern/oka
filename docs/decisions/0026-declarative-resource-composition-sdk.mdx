@@ -118,9 +118,11 @@ are implemented.
 8. **Bind the process platform seam once.** Tree-aware stop (descendant
    enumeration + escalation with verified death — Dart's `kill()` is
    single-pid), bounded runs that kill on deadline instead of abandoning,
-   and pid + start-token identity are **contract-level platform code**,
-   owned by `oka_core`'s process seam and designed to be copy-friendly for
-   non-Dart-SDK consumers. Every surveyed system re-paid this separately.
+   and pid + start-token identity are **contract-level platform code**.
+   **Amended (ADR-0052):** new **owned-session** launches use
+   [`oka_process`](../../packages/oka_process) (POSIX `posix-perl` /
+   `posix-native`); `oka_core` retains leases and adapters until migration
+   completes. Every surveyed system re-paid this separately.
 9. **Keep supervision unproven.** The reference runtime runs in the
    foreground and reconciles when invoked, with no resident manager. The
    R0 survey found **zero demand** for a desired-state restart loop (the

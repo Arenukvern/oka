@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-const packages = [
+/// Mirrors [packages] in `tool/release/train.dart` (release-train inventory).
+const trainPackages = [
+  'oka_process',
   'resource_composition',
   'oka_artifacts',
   'oka_core',
@@ -17,6 +19,12 @@ const packages = [
   'oka_harness',
   'oka',
 ];
+
+/// Packages published by CI (`train.dart` `packagesForPubDev()`).
+const pubDevManualOnly = {'oka_process'};
+
+List<String> pubDevPackages() =>
+    trainPackages.where((name) => !pubDevManualOnly.contains(name)).toList();
 
 void main() {
   final repo = Directory.current.path;
@@ -36,6 +44,7 @@ void main() {
       'name: example\ndependencies:\n  oka: ^0.1.6\n  oka_play: ^0.1.6\n',
     );
     final dependencies = <String, List<String>>{
+      'oka_process': [],
       'resource_composition': [],
       'oka_artifacts': [],
       'oka_core': ['resource_composition'],
@@ -49,7 +58,7 @@ void main() {
       'oka_harness': ['oka_android', 'resource_composition'],
       'oka': ['oka_android', 'oka_core'],
     };
-    for (final package in packages) {
+    for (final package in trainPackages) {
       final deps = dependencies[package]!
           .map((name) => '  $name: ^0.1.6')
           .join('\n');
@@ -109,7 +118,7 @@ void main() {
       for (final path in [
         'pubspec.yaml',
         'example/pubspec.yaml',
-        ...packages.map((name) => 'packages/$name/pubspec.yaml'),
+        ...trainPackages.map((name) => 'packages/$name/pubspec.yaml'),
       ]) {
         final contents = File('${fixture.path}/$path').readAsStringSync();
         expect(contents, isNot(contains('^0.1.6')), reason: path);
@@ -120,7 +129,7 @@ void main() {
           expect(match.group(2), '^0.3.0', reason: '$path: ${match.group(1)}');
         }
       }
-      for (final package in packages) {
+      for (final package in trainPackages) {
         expect(
           File(
             '${fixture.path}/packages/$package/pubspec.yaml',
@@ -200,7 +209,7 @@ void main() {
     final fake = fakeTools(fixture);
     final result = runPublish(fixture, fake, '--dry-run');
     expect(result.exitCode, 0, reason: output(result));
-    expect(dartPackages(fake.log), packages);
+    expect(dartPackages(fake.log), pubDevPackages());
   });
 
   test('publish resumes past an exact version already on pub.dev', () {
@@ -215,7 +224,7 @@ void main() {
     expect(result.exitCode, 0, reason: output(result));
     expect(
       dartPackages(fake.log),
-      packages.where((name) => name != 'oka_core').toList(),
+      pubDevPackages().where((name) => name != 'oka_core').toList(),
     );
     expect(output(result), contains('oka_core 0.2.0 already exists'));
   });

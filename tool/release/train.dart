@@ -3,7 +3,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+/// Packages synced on the release train (versions, changelogs, licenses).
 const packages = <String>[
+  'oka_process',
   'resource_composition',
   'oka_artifacts',
   'oka_core',
@@ -17,6 +19,13 @@ const packages = <String>[
   'oka_harness',
   'oka',
 ];
+
+/// Published to pub.dev by CI (`publish_packages.sh`). `oka_process` is
+/// manual-only from the maintainer's Mac — see packages/oka_process/PUBLISHING.md.
+const pubDevManualOnly = {'oka_process'};
+
+Iterable<String> packagesForPubDev() =>
+    packages.where((p) => !pubDevManualOnly.contains(p));
 
 const marker = 'x-release-please-version';
 
@@ -186,25 +195,28 @@ List<_Change> _documents(Directory root, String version) {
 
 Never _usage(String? error) {
   stderr.writeln(
-    'usage: train.dart [-h] [--version VERSION] {sync,check,list}',
+    'usage: train.dart [-h] [--version VERSION] {sync,check,list} [--publish]',
   );
   if (error != null) stderr.writeln('train.dart: error: $error');
   exit(2);
 }
 
-({String command, String? version}) _parseArguments(List<String> arguments) {
+({String command, String? version, bool forPub}) _parseArguments(
+  List<String> arguments,
+) {
   if (arguments.contains('-h') || arguments.contains('--help')) {
     stdout.writeln(
       'Shared release inventory and version transformations (SDK only).',
     );
     stdout.writeln();
     stdout.writeln(
-      'usage: train.dart [-h] [--version VERSION] {sync,check,list}',
+      'usage: train.dart [-h] [--version VERSION] {sync,check,list} [--publish]',
     );
     exit(0);
   }
   String? command;
   String? version;
+  var forPub = false;
   for (var index = 0; index < arguments.length; index++) {
     final argument = arguments[index];
     if (argument == '--version') {
@@ -214,6 +226,8 @@ Never _usage(String? error) {
       version = arguments[index];
     } else if (argument.startsWith('--version=')) {
       version = argument.substring('--version='.length);
+    } else if (argument == '--publish') {
+      forPub = true;
     } else if (argument.startsWith('-')) {
       _usage('unrecognized arguments: $argument');
     } else if (command == null) {
@@ -226,14 +240,18 @@ Never _usage(String? error) {
   if (!const {'sync', 'check', 'list'}.contains(command)) {
     _usage("argument command: invalid choice: '$command'");
   }
-  return (command: command, version: version);
+  if (forPub && command != 'list') {
+    _usage('unrecognized arguments: --publish');
+  }
+  return (command: command, version: version, forPub: forPub);
 }
 
 void main(List<String> arguments) {
   try {
     final parsed = _parseArguments(arguments);
     if (parsed.command == 'list') {
-      stdout.writeln(packages.join('\n'));
+      final names = parsed.forPub ? packagesForPubDev() : packages;
+      stdout.writeln(names.join('\n'));
       return;
     }
 

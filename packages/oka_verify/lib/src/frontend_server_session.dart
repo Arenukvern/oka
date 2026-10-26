@@ -172,12 +172,12 @@ final class FrontendServerSession {
           // roll it back before the next compile. The rollback's own
           // output lines arrive while no parser is current and are
           // ignored by the pump.
-          _process.stdin.writeln('reject');
+          _writeln('reject');
         }
         _lastFailed = false;
         final parser = FrontendServerParser();
         _current = parser;
-        _process.stdin.writeln(command);
+        _writeln(command);
         final result = await parser.output.future.timeout(
           const Duration(minutes: 10),
           onTimeout: () {
@@ -199,12 +199,42 @@ final class FrontendServerSession {
               );
             }
           }
-          _process.stdin.writeln('accept');
+          _writeln('accept');
         } else {
           _lastFailed = true;
         }
         return result;
       });
+
+  void _writeln(String line) {
+    if (_dead) return;
+    try {
+      _process.stdin.writeln(line);
+    } on IOException {
+      _dead = true;
+    }
+  }
+
+  /// Stops the server abruptly (budget timeout, teardown). Releases any
+  /// in-flight compile waiters so [quit] can run cleanly.
+  Future<void> abort() async {
+    if (_dead) return;
+    _dead = true;
+    final parser = _current;
+    _current = null;
+    if (parser != null && !parser.output.isCompleted) {
+      parser.output.completeError(
+        FrontendServerException('frontend server aborted'),
+        StackTrace.current,
+      );
+    }
+    _process.kill();
+    try {
+      await _process.exitCode.timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      _process.kill(ProcessSignal.sigkill);
+    }
+  }
 
   /// Dispatches every stdout line to whichever request is open. The
   /// `accepted` acknowledgment lands between requests and is ignored.
@@ -225,7 +255,12 @@ final class FrontendServerSession {
 
   /// Stops the server and removes its scratch dill.
   Future<void> quit() async {
-    _process.stdin.writeln('quit');
+    if (_dead) {
+      final scratch = File(_scratchDill);
+      if (scratch.existsSync()) scratch.deleteSync();
+      return;
+    }
+    _writeln('quit');
     await _process.exitCode.timeout(
       const Duration(seconds: 5),
       onTimeout: () {

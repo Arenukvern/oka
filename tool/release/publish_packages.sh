@@ -19,8 +19,8 @@ fi
 cd "$ROOT_DIR"
 bash tool/release/check_version_sync.sh
 
-# Dependencies first: core → conformance/android → platform targets → CLI.
-package_list="$(dart tool/release/train.dart list)"
+# Pub.dev train (excludes manual-only packages such as oka_process).
+package_list="$(dart tool/release/train.dart list --publish)"
 packages=()
 while IFS= read -r package; do packages+=("$package"); done <<< "$package_list"
 version="$(tr -d '[:space:]' < VERSION)"

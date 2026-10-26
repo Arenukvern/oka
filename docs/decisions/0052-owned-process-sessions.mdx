@@ -1,0 +1,179 @@
+# 0052 — Owned process sessions (POSIX)
+
+- **Status:** accepted (design); **implementation:** P0 skeleton shipped in
+  `packages/oka_process` — backends stubbed
+- **Date:** 2026-10-26
+- **Supersedes:** [ADR-0026](0026-declarative-resource-composition-sdk) decision 8
+  (owned-run platform seam ownership)
+- **Amends:** [ADR-0018](0018-process-lifecycle-leases) out-of-scope note
+- **Related:** [ADR-0046](0046-failed-deadline-teardown-receipts) (`observationBudget`),
+  dfp ADR-0066 *identity before signal* (reference; rules adopted here as oka's own)
+
+## Context
+
+Bounded, leader-owned process groups are reimplemented independently in every
+repo (`oka_core` tree stop, `ecsai_harness`, dfp `xsoulspace_tooling_runtime`,
+Last Answer). The recurring failures are the same: signaling by raw pid,
+treating “could not observe” as death, and hosts that `kill(-pgid)` or
+`SIGKILL` the leader instead of the group.
+
+dfp ADR-0066 and `bounded_process.dart` (branch `ag-c` of
+`xsoulspace/dart_flutter_packages`) codify the fix: **identity before any
+signal**, **group disappearance is final**, **unavailable observation is never
+death** (report *unsettled*). This ADR adopts those rules as oka policy and
+places the mechanics in a **leaf package** (`oka_process`) that depends only
+on `meta` + `dart:io`, publishable on the oka release train.
+
+**Scope for this round:** **Linux and macOS only**, backends **`posix-perl`**
+(P0/P1) and **`posix-native`** (compiled helper). Windows is **out of scope**
+for code and CI matrix here; see [Future work](#future-work).
+
+## Decision
+
+### 1. Identity and settlement (dfp ADR-0066 rules, oka-owned)
+
+1. **Identity token** — `(pid, startTime)` captured at launch; every stop,
+   inspect, and reconcile path re-validates before signaling.
+2. **Observed group disappearance is final** — when the owned group is gone
+   under a successful observation, the session is **settled** (success path
+   for stop).
+3. **Unavailable observation ≠ death** — timeouts, permission denials, or
+   backend faults yield **unsettled** with an explicit reason; never infer
+   kill success from absence of data.
+4. **Exit status** — target wait status is reported explicitly; leader exit
+   after a controlled shutdown is **settled**.
+5. **Failed-stop receipts** — align with [ADR-0046](0046-failed-deadline-teardown-receipts):
+   deadline teardown returns structured evidence, bounded by `observationBudget`.
+
+### 2. Leader-owned group signaling (POSIX)
+
+- A **leader** process is spawned; the host **never** signals `-pgid` by
+  number and **never** `SIGKILL`s the leader directly for group teardown.
+- **Graceful path:** optional **graceful cleanup hook** (vosges) runs **before**
+  `TERM`, inside the observation budget; hook success is **not** settlement
+  evidence; a hung hook escalates on schedule and cannot block `KILL`.
+- **Escalation:** host sends `term` / `kill` on the **control channel**; the
+  leader performs `kill(0, SIGTERM)` then `SIGCONT`, then `kill(0,
+  SIGKILL)` as needed. The host **must not** `SIGKILL` the leader while the
+  channel is healthy. After `started`, the reference leader **ignores
+  `SIGTERM` on itself** (orphan safety); group signals go through the channel,
+  not by signaling the leader pid for teardown.
+- **Control channel:** Unix domain socket in a `0700` directory, authenticated
+  by a launch **marker** nonce (Dart cannot pass fd 3). **EOF on the channel**
+  (host died): leader kills the group and may emit `unsettled:host-eof` on the
+  wire before exit.
+- **Settlement detection:**
+  - **Host policy:** once observation shows only the leader remains in the
+    owned group, the host sends `settle`; the leader replies `settled` and may
+    exit cleanly.
+  - **Linux (posix-native):** `PR_SET_CHILD_SUBREAPER` + `waitpid(-1, …)`
+    until `ECHILD`, plus host `settle` when the group is gone.
+  - **macOS (posix-native):** `proc_listpids(PROC_PGRP_ONLY)` in the native
+    helper, plus host `settle`.
+  - **Perl (posix-perl):** implements the **p1** control protocol (`term`,
+    `kill`, `settle`, status lines); host maps wire `unsettled:<reason>`
+    (e.g. `host-eof`) to `SettlementUnsettled`.
+
+### 3. Backends (this round)
+
+| Backend | Role | Status |
+| --- | --- | --- |
+| `posix-perl` | Reference leader script (P0); ships in package | **P0** — API skeleton; implementation follows dfp PR #5 |
+| `posix-native` | Rust helper (`libc` only) in `packages/oka_process/native/`, prebuilt linux/macos x64+arm64 with sha256 constants, copied to `0700` dir + verified before exec; Perl fallback by name | **P1** — stubbed; build matrix below |
+
+`ProcessSessionBackend` exposes only these two kinds in public API.
+
+### 4. Bounded observations
+
+All readonly observations during stop/teardown share one
+`observationBudget` ([ADR-0046](0046-failed-deadline-teardown-receipts));
+default documented in package API.
+
+### 5. Package boundary
+
+- **`packages/oka_process`** — launch spec, handle, backends, settlement
+  types, stop receipts, graceful hook, conformance harness entrypoint.
+- **`oka_core`** — keeps lease registry and target-level composition for
+  now; **rewire to `oka_process` is follow-up** once P0 Perl lands.
+- **Not** a generic process-manager framework — same posture as ADR-0018:
+  mechanics as a leaf library, not a resident supervisor.
+
+### 6. Amend ADR-0018
+
+Oka **owns process mechanics** for owned sessions in `oka_process`. ADR-0018
+still owns **durable leases**, CLI inventory, and teardown steps; it does
+**not** own the leader/group signaling implementation.
+
+### 7. Supersede ADR-0026 decision 8
+
+Owned-run **platform code** for tree-aware stop and bounded runs moves from
+“`oka_core` process seam” to **`oka_process`** for new owned-session
+launches. `oka_core` may delegate during migration; decision 8 text is
+amended to point here.
+
+## Migration plan
+
+| Step | Owner | Status |
+| --- | --- | --- |
+| P0 | [dfp PR #5](https://github.com/xsoulspace/dart_flutter_packages/pull/5) — Perl leader + **p1 contract** + conformance suite ([commit `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/commit/2f9ce9b1)) | **In flight** (external; not merged) |
+| P0 | Copy contract doc + suite + leader into `oka_process` unchanged | **Pending** dfp PR #5 merge |
+| P0 | `posix-perl` backend implements contract | **Not started** in oka |
+| P1 | `posix-native` helper + hash-pinned prebuilts | **Planned** |
+| P1 | `xsoulspace_tooling_runtime` → Universal Automation; calls `oka_process` | **External** |
+| P1 | Last Answer migrates in same push as UA wiring | **External** |
+| P2 | `oka_core` / emulator & browser targets delegate owned spawns | **Follow-up** |
+
+## CI matrix (oka_process — this round)
+
+| OS | Arch | Backend exercised |
+| --- | --- | --- |
+| Linux | x64, arm64 | `posix-perl` (P0), `posix-native` (P1) |
+| macOS | x64, arm64 | `posix-perl` (P0), `posix-native` (P1) |
+
+Oka’s existing **Windows** CI job (`windows-session-observation` in
+`.github/workflows/ci.yml`) is unchanged and does **not** gate `oka_process`
+yet.
+
+Release train: `oka_process` is **first** in `tool/release/train.dart` for
+version/changelog sync; release-please `extra-files` includes
+`packages/oka_process/pubspec.yaml`. **pub.dev:** published **manually** by
+the maintainer (not `publish_packages.sh` / GitHub Actions) — see
+`packages/oka_process/PUBLISHING.md`.
+
+## Conformance
+
+Normative **p1** wire contract (argv, stderr bootstrap, control channel,
+signal rules) until it is vendored into this repo:
+
+- [owned_session_p1.md @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/doc/owned_session_p1.md)
+  on [xsoulspace/dart_flutter_packages PR #5](https://github.com/xsoulspace/dart_flutter_packages/pull/5)
+  (pending merge).
+- Reference leader:
+  [`owned_session_p1_leader.pl` @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/tool/owned_session_p1_leader.pl).
+- Contract-level suite:
+  [`owned_session_p1_conformance_test.dart` @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/test/owned_session_p1_conformance_test.dart).
+
+After merge, the contract markdown moves to
+`packages/oka_process/doc/p1_owned_session_contract.md` **without semantic
+changes**; the suite and leader copy into `oka_process` unchanged. Local
+pointer until then:
+`packages/oka_process/doc/p1_owned_session_contract.md`.
+
+Oka harness entrypoint (stub today):
+`packages/oka_process/test/conformance/conformance_harness_test.dart`.
+
+## Future work
+
+- **Windows (`windows-job`):** Job Objects (`CREATE_SUSPENDED` →
+  `AssignProcessToJobObject` → `ResumeThread`, `KILL_ON_JOB_CLOSE`,
+  `TerminateJobObject`, job process list as settlement evidence,
+  `GetProcessTimes` identity, graceful via `CTRL_BREAK` or control-channel
+  stop). **Not designed or implemented in this ADR round.**
+
+## Consequences
+
+- One POSIX-owned-session implementation on the release train; fewer copies
+  of leader/kill/settlement logic.
+- `oka_core` shrink over time as leases call into `oka_process`.
+- Native helper supply chain (prebuilt binaries + sha256) is operational
+  overhead; Perl remains the named fallback.

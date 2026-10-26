@@ -221,10 +221,13 @@ final class KernelCache implements SuiteKernelBuilder {
                 .compile(bootPath, copyTo: dillPath(suite))
                 .timeout(
                   _budget.compileTimeout,
-                  onTimeout: () => throw RebuildFailure(
-                    suite: suite,
-                    output: 'compile exceeded its configured budget',
-                  ),
+                  onTimeout: () {
+                    unawaited(session.abort());
+                    throw RebuildFailure(
+                      suite: suite,
+                      output: 'compile exceeded its configured budget',
+                    );
+                  },
                 );
             if (!result.ok) {
               onFailed?.call(suite, result.diagnostics);
