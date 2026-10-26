@@ -201,7 +201,9 @@ Never _usage(String? error) {
   exit(2);
 }
 
-({String command, String? version}) _parseArguments(List<String> arguments) {
+({String command, String? version, bool forPub}) _parseArguments(
+  List<String> arguments,
+) {
   if (arguments.contains('-h') || arguments.contains('--help')) {
     stdout.writeln(
       'Shared release inventory and version transformations (SDK only).',
@@ -214,6 +216,7 @@ Never _usage(String? error) {
   }
   String? command;
   String? version;
+  var forPub = false;
   for (var index = 0; index < arguments.length; index++) {
     final argument = arguments[index];
     if (argument == '--version') {
@@ -223,6 +226,8 @@ Never _usage(String? error) {
       version = arguments[index];
     } else if (argument.startsWith('--version=')) {
       version = argument.substring('--version='.length);
+    } else if (argument == '--publish') {
+      forPub = true;
     } else if (argument.startsWith('-')) {
       _usage('unrecognized arguments: $argument');
     } else if (command == null) {
@@ -235,15 +240,17 @@ Never _usage(String? error) {
   if (!const {'sync', 'check', 'list'}.contains(command)) {
     _usage("argument command: invalid choice: '$command'");
   }
-  return (command: command, version: version);
+  if (forPub && command != 'list') {
+    _usage('unrecognized arguments: --publish');
+  }
+  return (command: command, version: version, forPub: forPub);
 }
 
 void main(List<String> arguments) {
   try {
     final parsed = _parseArguments(arguments);
     if (parsed.command == 'list') {
-      final forPub = arguments.contains('--publish');
-      final names = forPub ? packagesForPubDev() : packages;
+      final names = parsed.forPub ? packagesForPubDev() : packages;
       stdout.writeln(names.join('\n'));
       return;
     }
