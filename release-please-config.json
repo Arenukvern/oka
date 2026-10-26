@@ -54,6 +54,10 @@
         },
         {
           "type": "generic",
+          "path": "packages/oka_process/pubspec.yaml"
+        },
+        {
+          "type": "generic",
           "path": "packages/resource_composition/pubspec.yaml"
         },
         {

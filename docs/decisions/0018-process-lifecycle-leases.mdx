@@ -211,9 +211,14 @@ named default helper is `spawnDetachedProcess` in
 - A process supervisor / daemon / refcounting of shared sessions (one
   owner per process; concurrent runs get the existing borrow semantics).
 - Sweeping or killing processes oka did not spawn.
-- A generic "process manager" framework package; the registry lives in
-  `oka_core`, spawn/stop steps live with their targets (oka_android,
-  oka_web).
+- A generic "process manager" framework package.
+
+**Amended (ADR-0052):** oka **does** own **owned-session process mechanics**
+(leader-owned groups, identity-before-signal, settlement) in the leaf package
+[`oka_process`](../../packages/oka_process) — Linux/macOS POSIX backends in
+this round. That is not a resident supervisor and not a framework: leases,
+registry, and target teardown steps remain in `oka_core` / platform targets;
+`oka_process` is the shared stop/launch seam for bounded owned runs.
 
 ## Alternatives considered
 

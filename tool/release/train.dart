@@ -3,7 +3,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+/// Packages synced on the release train (versions, changelogs, licenses).
 const packages = <String>[
+  'oka_process',
   'resource_composition',
   'oka_artifacts',
   'oka_core',
@@ -17,6 +19,13 @@ const packages = <String>[
   'oka_harness',
   'oka',
 ];
+
+/// Published to pub.dev by CI (`publish_packages.sh`). `oka_process` is
+/// manual-only from the maintainer's Mac — see packages/oka_process/PUBLISHING.md.
+const pubDevManualOnly = {'oka_process'};
+
+Iterable<String> packagesForPubDev() =>
+    packages.where((p) => !pubDevManualOnly.contains(p));
 
 const marker = 'x-release-please-version';
 
@@ -186,7 +195,7 @@ List<_Change> _documents(Directory root, String version) {
 
 Never _usage(String? error) {
   stderr.writeln(
-    'usage: train.dart [-h] [--version VERSION] {sync,check,list}',
+    'usage: train.dart [-h] [--version VERSION] {sync,check,list} [--publish]',
   );
   if (error != null) stderr.writeln('train.dart: error: $error');
   exit(2);
@@ -199,7 +208,7 @@ Never _usage(String? error) {
     );
     stdout.writeln();
     stdout.writeln(
-      'usage: train.dart [-h] [--version VERSION] {sync,check,list}',
+      'usage: train.dart [-h] [--version VERSION] {sync,check,list} [--publish]',
     );
     exit(0);
   }
@@ -233,7 +242,9 @@ void main(List<String> arguments) {
   try {
     final parsed = _parseArguments(arguments);
     if (parsed.command == 'list') {
-      stdout.writeln(packages.join('\n'));
+      final forPub = arguments.contains('--publish');
+      final names = forPub ? packagesForPubDev() : packages;
+      stdout.writeln(names.join('\n'));
       return;
     }
 

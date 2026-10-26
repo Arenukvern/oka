@@ -1,0 +1,10 @@
+name: oka_process_example
+description: Minimal example for the oka_process package (not published).
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  oka_process:
+    path: ../
