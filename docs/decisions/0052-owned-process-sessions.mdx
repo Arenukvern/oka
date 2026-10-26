@@ -52,16 +52,27 @@ for code and CI matrix here; see [Future work](#future-work).
 - **Graceful path:** optional **graceful cleanup hook** (vosges) runs **before**
   `TERM`, inside the observation budget; hook success is **not** settlement
   evidence; a hung hook escalates on schedule and cannot block `KILL`.
-- **Escalation:** leader performs `kill(0, SIGTERM)` then `SIGCONT`, then
-  `kill(0, SIGKILL)` as needed; host talks to the leader via a **control
-  channel** (Unix domain socket in a `0700` directory, authenticated by a
-  nonce — Dart cannot pass fd 3). **EOF on the channel** means kill group
-  and exit.
+- **Escalation:** host sends `term` / `kill` on the **control channel**; the
+  leader performs `kill(0, SIGTERM)` then `SIGCONT`, then `kill(0,
+  SIGKILL)` as needed. The host **must not** `SIGKILL` the leader while the
+  channel is healthy. After `started`, the reference leader **ignores
+  `SIGTERM` on itself** (orphan safety); group signals go through the channel,
+  not by signaling the leader pid for teardown.
+- **Control channel:** Unix domain socket in a `0700` directory, authenticated
+  by a launch **marker** nonce (Dart cannot pass fd 3). **EOF on the channel**
+  (host died): leader kills the group and may emit `unsettled:host-eof` on the
+  wire before exit.
 - **Settlement detection:**
-  - **Linux:** `PR_SET_CHILD_SUBREAPER` + `waitpid(-1, …)` until `ECHILD`.
-  - **macOS:** `proc_listpids(PROC_PGRP_ONLY)` in native helper.
-  - **Perl (posix-perl):** stay alive until channel closes or after
-    `kill(0, KILL)`; otherwise report **unsettled**.
+  - **Host policy:** once observation shows only the leader remains in the
+    owned group, the host sends `settle`; the leader replies `settled` and may
+    exit cleanly.
+  - **Linux (posix-native):** `PR_SET_CHILD_SUBREAPER` + `waitpid(-1, …)`
+    until `ECHILD`, plus host `settle` when the group is gone.
+  - **macOS (posix-native):** `proc_listpids(PROC_PGRP_ONLY)` in the native
+    helper, plus host `settle`.
+  - **Perl (posix-perl):** implements the **p1** control protocol (`term`,
+    `kill`, `settle`, status lines); host maps wire `unsettled:<reason>`
+    (e.g. `host-eof`) to `SettlementUnsettled`.
 
 ### 3. Backends (this round)
 
@@ -104,8 +115,8 @@ amended to point here.
 
 | Step | Owner | Status |
 | --- | --- | --- |
-| P0 | dfp PR #5 (`ecsai`) — Perl leader fix + standalone **p1 contract** doc + contract-level conformance suite | **In flight** (external) |
-| P0 | Copy contract doc + suite into `oka_process` unchanged | **Pending** P0 merge |
+| P0 | [dfp PR #5](https://github.com/xsoulspace/dart_flutter_packages/pull/5) — Perl leader + **p1 contract** + conformance suite ([commit `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/commit/2f9ce9b1)) | **In flight** (external; not merged) |
+| P0 | Copy contract doc + suite + leader into `oka_process` unchanged | **Pending** dfp PR #5 merge |
 | P0 | `posix-perl` backend implements contract | **Not started** in oka |
 | P1 | `posix-native` helper + hash-pinned prebuilts | **Planned** |
 | P1 | `xsoulspace_tooling_runtime` → Universal Automation; calls `oka_process` | **External** |
@@ -131,10 +142,25 @@ the maintainer (not `publish_packages.sh` / GitHub Actions) — see
 
 ## Conformance
 
-- Contract document: `packages/oka_process/doc/p1_owned_session_contract.md`
-  (placeholder until dfp P0 doc lands).
-- Suite harness: `packages/oka_process/test/conformance/` — receives the dfp
-  contract tests verbatim at migration.
+Normative **p1** wire contract (argv, stderr bootstrap, control channel,
+signal rules) until it is vendored into this repo:
+
+- [owned_session_p1.md @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/doc/owned_session_p1.md)
+  on [xsoulspace/dart_flutter_packages PR #5](https://github.com/xsoulspace/dart_flutter_packages/pull/5)
+  (pending merge).
+- Reference leader:
+  [`owned_session_p1_leader.pl` @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/tool/owned_session_p1_leader.pl).
+- Contract-level suite:
+  [`owned_session_p1_conformance_test.dart` @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/test/owned_session_p1_conformance_test.dart).
+
+After merge, the contract markdown moves to
+`packages/oka_process/doc/p1_owned_session_contract.md` **without semantic
+changes**; the suite and leader copy into `oka_process` unchanged. Local
+pointer until then:
+`packages/oka_process/doc/p1_owned_session_contract.md`.
+
+Oka harness entrypoint (stub today):
+`packages/oka_process/test/conformance/conformance_harness_test.dart`.
 
 ## Future work
 
