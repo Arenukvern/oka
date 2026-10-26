@@ -392,6 +392,7 @@ void main() {
     test('port is discoverable via runner-session.json '
         '(port-from-runner-session)', () async {
       final h = await _Harness.start();
+      await h.ready.future;
       // runner-session.json was written at session.ready with the chosen
       // (ephemeral) port — a reader must be able to connect from it alone.
       final discovery = readRunnerSessionFile(h.projectDir.path);
