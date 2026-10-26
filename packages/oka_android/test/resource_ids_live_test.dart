@@ -34,8 +34,7 @@ void main() {
         );
         write(
           'browser/res/values/styles.xml',
-          '<resources><style name="Dependent"><item name="alpha">0.5</item>'
-              '</style></resources>',
+          '<resources><style name="Dependent"><item name="alpha">0.5</item></style></resources>',
         );
         write(
           'build/res/values/strings.xml',
@@ -43,9 +42,7 @@ void main() {
         );
         write(
           'build/AndroidManifest.xml',
-          '<manifest xmlns:android="http://schemas.android.com/apk/res/android" '
-              'package="fixture.app"><uses-sdk android:minSdkVersion="25"/>'
-              '<application android:label="@string/app_name"/></manifest>',
+          '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="fixture.app"><uses-sdk android:minSdkVersion="25"/><application android:label="@string/app_name"/></manifest>',
         );
         final result = await compileAndroidResources(
           ctx: BuildContext(
