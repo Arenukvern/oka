@@ -442,18 +442,21 @@ Future<StopReceipt> stopPosixPerlSession(
   await _stopOwnedGroup(runtime, grace: grace);
   await _waitForLeaderShutdown(runtime, grace);
   try {
-    await runtime.process.exitCode.timeout(grace);
+    await runtime.process.exitCode.timeout(grace * 3);
+    runtime.rootExited = true;
   } on TimeoutException {
-    // Leader may still be winding down; settlement uses wire evidence below.
+    // Fall back to wire evidence below.
   }
 
-  SettlementResult settlement;
-  if (runtime.unsettledReason != null) {
-    settlement = SettlementUnsettled(runtime.unsettledReason!);
-  } else if (runtime.settleAcknowledged.isCompleted ||
-      runtime.groupKilled ||
+  final leaderGone =
       runtime.rootExited ||
-      await pidAlive(runtime.process.pid) == false) {
+      runtime.settleAcknowledged.isCompleted ||
+      runtime.groupKilled;
+
+  SettlementResult settlement;
+  if (runtime.unsettledReason != null && !leaderGone) {
+    settlement = SettlementUnsettled(runtime.unsettledReason!);
+  } else if (leaderGone) {
     final ws = runtime.reportedWaitStatus;
     if (ws != null) {
       final mapped = waitStatusToSettlement(ws);
@@ -581,6 +584,11 @@ Future<void> _waitForLeaderShutdown(
   final deadline = DateTime.now().add(grace);
   while (DateTime.now().isBefore(deadline)) {
     if (runtime.groupKilled || runtime.settleAcknowledged.isCompleted) {
+      runtime.rootExited = true;
+      return;
+    }
+    if (leaderProcessDead(runtime.process.pid)) {
+      runtime.rootExited = true;
       return;
     }
     final alive = await pidAlive(runtime.process.pid);

@@ -36,3 +36,9 @@ Future<bool?> pidAlive(int pid) async {
     return null;
   }
 }
+
+/// Definitive liveness probe for settlement (non-null).
+bool leaderProcessDead(int pid) {
+  final result = Process.runSync('kill', ['-0', '$pid']);
+  return result.exitCode != 0;
+}
