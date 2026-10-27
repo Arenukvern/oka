@@ -93,9 +93,13 @@ not depend on tag-push triggers.
 - PR validation: CI `validate` job runs per-package `dart pub publish --dry-run`
   on pull requests; merging does not publish.
 - The final "Verify published packages from a fresh hosted consumer" step
-  races pub.dev's index propagation (uploads claim "up to 10 minutes"). If it
-  fails with `doesn't match any versions` right after a green publish step,
-  the uploads succeeded: wait for propagation, then
+  resolves only `dart tool/release/train.dart list --publish` (not
+  `oka_process`). No train package declares a hosted dependency on
+  `oka_process`, so CI publish does not require `oka_process:$VERSION` on
+  pub.dev.
+- That step races pub.dev's index propagation (uploads claim "up to 10
+  minutes"). If it fails with `doesn't match any versions` right after a green
+  publish step, the uploads succeeded: wait for propagation, then
   `gh run rerun <run-id> --failed` to turn the run green without re-uploading.
 
 ## Manual publish (fallback and first-publish)

@@ -16,7 +16,12 @@ elif [[ "${1:-}" != "" ]]; then
 fi
 
 version="$(tr -d '[:space:]' < "$root_dir/VERSION")"
-package_list="$(dart "$root_dir/tool/release/train.dart" list)"
+if [[ "$mode" == "hosted" ]]; then
+  # pub.dev train only (excludes manual-only oka_process).
+  package_list="$(dart "$root_dir/tool/release/train.dart" list --publish)"
+else
+  package_list="$(dart "$root_dir/tool/release/train.dart" list)"
+fi
 packages=()
 while IFS= read -r package; do packages+=("$package"); done <<< "$package_list"
 consumer_dir="$(mktemp -d "${TMPDIR:-/tmp}/oka-consumer.XXXXXX")"
