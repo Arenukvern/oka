@@ -402,7 +402,7 @@ Future<bool> _onlyLeaderRemainsLive(
 }
 
 Future<void> _requestSettle(_PosixPerlSessionRuntime runtime) async {
-  if (runtime.externallyStopped || runtime.settleRequested) return;
+  if (runtime.settleRequested) return;
   runtime.settleRequested = true;
   await _sendControl(runtime, OwnedSessionControlCommand.settle);
 }
@@ -453,45 +453,20 @@ Future<StopReceipt> stopPosixPerlSession(
   final grace = runtime.budget.duration;
   await _ownedGroupMembers(runtime);
   await _stopOwnedGroup(runtime, grace: grace);
-  if (runtime.reportedWaitStatus != null && !runtime.settleRequested) {
-    final members = await _ownedGroupMembers(runtime);
-    if (members == null ||
-        members.isEmpty ||
-        await _onlyLeaderRemainsLive(members, runtime)) {
-      await _requestSettle(runtime);
-    }
-  }
-  if (runtime.settleRequested && !runtime.settleAcknowledged.isCompleted) {
-    try {
-      await runtime.settleAcknowledged.future.timeout(grace * 3);
-    } on TimeoutException {
-      // Use other shutdown evidence below.
-    }
-  }
-  await _waitForLeaderShutdown(runtime, grace);
-  try {
-    await runtime.process.exitCode.timeout(grace * 3);
-    runtime.rootExited = true;
-  } on TimeoutException {
-    // Fall back to wire evidence below.
-  }
+  await _finalizeOwnedSessionSettlement(runtime, grace);
 
-  // ignore: avoid_print
-  print(
-    'p1-stop: settleReq=${runtime.settleRequested} '
-    'ack=${runtime.settleAcknowledged.isCompleted} ws=${runtime.reportedWaitStatus}',
-  );
+  final members = await _ownedGroupMembers(runtime);
+  final groupObservedSettled =
+      members != null &&
+      (members.isEmpty || await _onlyLeaderRemainsLive(members, runtime));
 
   final leaderGone =
-      runtime.rootExited ||
-      runtime.settleAcknowledged.isCompleted ||
-      runtime.groupKilled ||
-      runtime.killCommandSent;
+      runtime.settleAcknowledged.isCompleted || runtime.rootExited;
 
   SettlementResult settlement;
   if (runtime.unsettledReason != null && !leaderGone) {
     settlement = SettlementUnsettled(runtime.unsettledReason!);
-  } else if (leaderGone) {
+  } else if (leaderGone && groupObservedSettled) {
     final ws = runtime.reportedWaitStatus;
     if (ws != null) {
       final mapped = waitStatusToSettlement(ws);
@@ -504,6 +479,8 @@ Future<StopReceipt> stopPosixPerlSession(
     } else {
       settlement = const SettlementSettled(exitCode: 0);
     }
+  } else if (leaderGone) {
+    settlement = const SettlementUnsettled('owned group pgid observation unsettled');
   } else {
     settlement = const SettlementUnsettled('settle not acknowledged');
   }
@@ -520,6 +497,7 @@ bool _identityMatches(ProcessIdentityToken a, ProcessIdentityToken b) =>
     a.marker == b.marker &&
     a.sessionId == b.sessionId;
 
+/// term → grace → kill → (settle finalized in [_finalizeOwnedSessionSettlement]).
 Future<void> _stopOwnedGroup(
   _PosixPerlSessionRuntime runtime, {
   required Duration grace,
@@ -533,12 +511,13 @@ Future<void> _stopOwnedGroup(
         : OwnedSessionControlCommand.term;
     if (members == null) {
       if (runtime.rootExited) return false;
+      if (snapshot.isEmpty) return false;
       if (runtime.ready && runtime.clearedPsObservationStop) return false;
-      if (snapshot.isNotEmpty) signaled.addAll(snapshot);
-      if (runtime.ready && !runtime.rootExited) {
-        return await _forwardOwnedControl(runtime, command);
+      signaled.addAll(snapshot);
+      if (!runtime.rootExited && await _forwardOwnedControl(runtime, command)) {
+        return true;
       }
-      return signaled.isNotEmpty;
+      return false;
     }
     if (members.isEmpty) {
       if (!runtime.ready && !runtime.rootExited) {
@@ -548,25 +527,14 @@ Future<void> _stopOwnedGroup(
         runtime.clearedPsObservationStop = true;
         runtime.deferSigkillEscalation = true;
         return true;
-      } else if (runtime.ready &&
-          !runtime.rootExited &&
-          runtime.reportedWaitStatus != null) {
-        if (!runtime.settleRequested) {
-          await _requestSettle(runtime);
-        }
-        return true;
-      } else if (runtime.ready && !runtime.rootExited) {
-        return await _forwardOwnedControl(runtime, command);
       }
+      return signaled.isNotEmpty;
+    }
+    if (value == ProcessSignal.sigkill &&
+        await _onlyLeaderRemainsLive(members, runtime)) {
       return signaled.isNotEmpty;
     }
     signaled.addAll(members);
-    if (await _onlyLeaderRemainsLive(members, runtime)) {
-      if (!runtime.settleRequested) {
-        await _requestSettle(runtime);
-      }
-      return signaled.isNotEmpty;
-    }
     if (!runtime.rootExited && await _forwardOwnedControl(runtime, command)) {
       return true;
     }
@@ -583,16 +551,7 @@ Future<void> _stopOwnedGroup(
   while (DateTime.now().isBefore(end)) {
     final members = await _ownedGroupMembers(runtime);
     if (members != null && members.isEmpty && runtime.rootExited) {
-      break;
-    }
-    if (runtime.reportedWaitStatus != null) {
-      final members = await _ownedGroupMembers(runtime);
-      if (members == null ||
-          members.isEmpty ||
-          await _onlyLeaderRemainsLive(members, runtime)) {
-        await _requestSettle(runtime);
-        break;
-      }
+      return;
     }
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
@@ -606,42 +565,61 @@ Future<void> _stopOwnedGroup(
     if (alive == false) break;
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
-  if (!runtime.settleRequested &&
-      runtime.reportedWaitStatus != null &&
-      !runtime.rootExited) {
+  if (!runtime.rootExited) {
     final members = await _ownedGroupMembers(runtime);
-    if (members != null && await _onlyLeaderRemainsLive(members, runtime)) {
-      await _requestSettle(runtime);
-    }
-  }
-  if (!runtime.settleAcknowledged.isCompleted) {
-    try {
-      await runtime.settleAcknowledged.future.timeout(grace);
-    } on TimeoutException {
-      // Reported below as unsettled if needed.
+    final snapshot = Set<int>.from(runtime.observedMembers);
+    final refuseRootKill =
+        runtime.clearedPsObservationStop ||
+        members == null && snapshot.isEmpty ||
+        (members != null && members.isEmpty && runtime.ready) ||
+        (members == null && runtime.ready);
+    if (!refuseRootKill && runtime.process.kill(ProcessSignal.sigkill)) {
+      signaled.add(runtime.process.pid);
     }
   }
 }
 
-Future<void> _waitForLeaderShutdown(
+/// Mirrors UA `normalLifetime` settle loop + post-stop `settle` (bounded_process).
+Future<void> _finalizeOwnedSessionSettlement(
   _PosixPerlSessionRuntime runtime,
   Duration grace,
 ) async {
-  final deadline = DateTime.now().add(grace);
-  while (DateTime.now().isBefore(deadline)) {
-    if (runtime.groupKilled || runtime.settleAcknowledged.isCompleted) {
-      runtime.rootExited = true;
-      return;
+  final end = DateTime.now().add(grace * 3);
+  while (DateTime.now().isBefore(end)) {
+    if (runtime.settleAcknowledged.isCompleted) break;
+    final members = await _ownedGroupMembers(runtime);
+    if (!runtime.settleRequested &&
+        runtime.reportedWaitStatus != null &&
+        members != null &&
+        await _onlyLeaderRemainsLive(members, runtime)) {
+      await _requestSettle(runtime);
     }
-    if (leaderProcessDead(runtime.process.pid)) {
-      runtime.rootExited = true;
-      return;
-    }
-    final alive = await pidAlive(runtime.process.pid);
-    if (alive == false) {
-      runtime.rootExited = true;
-      return;
+    if (runtime.settleRequested && !runtime.settleAcknowledged.isCompleted) {
+      try {
+        await runtime.settleAcknowledged.future.timeout(
+          const Duration(milliseconds: 100),
+        );
+        break;
+      } on TimeoutException {
+        // Keep polling.
+      }
     }
     await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+  if (!runtime.settleAcknowledged.isCompleted) {
+    await _requestSettle(runtime);
+    try {
+      await runtime.settleAcknowledged.future.timeout(grace, onTimeout: () {});
+    } on TimeoutException {
+      // Named in stop receipt if still unsettled.
+    }
+  }
+  if (!runtime.rootExited) {
+    try {
+      await runtime.process.exitCode.timeout(grace);
+      runtime.rootExited = true;
+    } on TimeoutException {
+      // rootExited may still be set by exit handler.
+    }
   }
 }
