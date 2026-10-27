@@ -453,6 +453,21 @@ Future<StopReceipt> stopPosixPerlSession(
   final grace = runtime.budget.duration;
   await _ownedGroupMembers(runtime);
   await _stopOwnedGroup(runtime, grace: grace);
+  if (runtime.reportedWaitStatus != null && !runtime.settleRequested) {
+    final members = await _ownedGroupMembers(runtime);
+    if (members == null ||
+        members.isEmpty ||
+        await _onlyLeaderRemainsLive(members, runtime)) {
+      await _requestSettle(runtime);
+    }
+  }
+  if (runtime.settleRequested && !runtime.settleAcknowledged.isCompleted) {
+    try {
+      await runtime.settleAcknowledged.future.timeout(grace * 3);
+    } on TimeoutException {
+      // Use other shutdown evidence below.
+    }
+  }
   await _waitForLeaderShutdown(runtime, grace);
   try {
     await runtime.process.exitCode.timeout(grace * 3);
@@ -460,6 +475,12 @@ Future<StopReceipt> stopPosixPerlSession(
   } on TimeoutException {
     // Fall back to wire evidence below.
   }
+
+  // ignore: avoid_print
+  print(
+    'p1-stop: settleReq=${runtime.settleRequested} '
+    'ack=${runtime.settleAcknowledged.isCompleted} ws=${runtime.reportedWaitStatus}',
+  );
 
   final leaderGone =
       runtime.rootExited ||
@@ -527,19 +548,25 @@ Future<void> _stopOwnedGroup(
         runtime.clearedPsObservationStop = true;
         runtime.deferSigkillEscalation = true;
         return true;
+      } else if (runtime.ready &&
+          !runtime.rootExited &&
+          runtime.reportedWaitStatus != null) {
+        if (!runtime.settleRequested) {
+          await _requestSettle(runtime);
+        }
+        return true;
       } else if (runtime.ready && !runtime.rootExited) {
         return await _forwardOwnedControl(runtime, command);
       }
       return signaled.isNotEmpty;
     }
-    if (value == ProcessSignal.sigkill &&
-        await _onlyLeaderRemainsLive(members, runtime)) {
+    signaled.addAll(members);
+    if (await _onlyLeaderRemainsLive(members, runtime)) {
       if (!runtime.settleRequested) {
         await _requestSettle(runtime);
       }
       return signaled.isNotEmpty;
     }
-    signaled.addAll(members);
     if (!runtime.rootExited && await _forwardOwnedControl(runtime, command)) {
       return true;
     }
@@ -560,7 +587,9 @@ Future<void> _stopOwnedGroup(
     }
     if (runtime.reportedWaitStatus != null) {
       final members = await _ownedGroupMembers(runtime);
-      if (members != null && await _onlyLeaderRemainsLive(members, runtime)) {
+      if (members == null ||
+          members.isEmpty ||
+          await _onlyLeaderRemainsLive(members, runtime)) {
         await _requestSettle(runtime);
         break;
       }
