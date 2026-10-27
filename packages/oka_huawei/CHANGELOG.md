@@ -4,11 +4,9 @@ All notable changes to this package are documented here. The release train
 is repo-wide: versions move with the root `VERSION` (see
 `tool/release/check_version_sync.sh`).
 
-<!-- oka-train-changelog: packages/oka/CHANGELOG.md -->
+## 0.9.0 <!-- x-release-please-version -->
 
-## 0.9.0
-
-- Version aligned with the oka 0.9.0 train; see `packages/oka/CHANGELOG.md`.
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
 ## 0.8.1
 

@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
-  test('passes when oka lists VERSION and followers use train marker', () {
+  test('passes when every train package lists VERSION in CHANGELOG', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
     try {
-      _writeTrainFixture(fixture, version: '0.9.0', okaHasVersion: true);
+      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
       final result = _runCheck(fixture);
       expect(result.exitCode, 0, reason: _output(result));
     } finally {
@@ -14,39 +14,27 @@ void main() {
     }
   });
 
-  test('passes for next VERSION when only oka changelog is bumped', () {
+  test('fails when a follower omits VERSION heading', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
     try {
-      _writeTrainFixture(fixture, version: '0.9.1', okaHasVersion: true);
-      final result = _runCheck(fixture);
-      expect(result.exitCode, 0, reason: _output(result));
-    } finally {
-      fixture.deleteSync(recursive: true);
-    }
-  });
-
-  test('fails when oka changelog omits VERSION', () {
-    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
-    try {
-      _writeTrainFixture(fixture, version: '0.9.0', okaHasVersion: false);
-      final result = _runCheck(fixture);
-      expect(result.exitCode, isNot(0));
-      expect(_output(result), contains('packages/oka/CHANGELOG.md'));
-    } finally {
-      fixture.deleteSync(recursive: true);
-    }
-  });
-
-  test('fails when follower lacks marker and version heading', () {
-    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
-    try {
-      _writeTrainFixture(fixture, version: '0.9.1', okaHasVersion: true);
+      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
       File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0.9.0\n\n- stale train entry only\n',
+        '## 0.9.0 <!-- x-release-please-version -->\n\n- stale\n',
       );
       final result = _runCheck(fixture);
       expect(result.exitCode, isNot(0));
       expect(_output(result), contains('oka_core'));
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
+  test('accepts release-please heading with inline version annotation', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
+    try {
+      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
+      final result = _runCheck(fixture);
+      expect(result.exitCode, 0, reason: _output(result));
     } finally {
       fixture.deleteSync(recursive: true);
     }
@@ -65,7 +53,7 @@ String _output(ProcessResult result) => '${result.stdout}\n${result.stderr}';
 void _writeTrainFixture(
   Directory fixture, {
   required String version,
-  required bool okaHasVersion,
+  required bool allHaveVersion,
 }) {
   final root = fixture.path;
   final repositoryRoot = Directory.current.path;
@@ -77,7 +65,6 @@ void _writeTrainFixture(
       ..writeAsStringSync(source.readAsStringSync());
   }
 
-  const marker = '<!-- oka-train-changelog: packages/oka/CHANGELOG.md -->';
   const trainPackages = [
     'oka_process',
     'resource_composition',
@@ -97,19 +84,15 @@ void _writeTrainFixture(
   for (final package in trainPackages) {
     final dir = Directory('$root/packages/$package');
     dir.createSync(recursive: true);
-    if (package == 'oka') {
-      final heading = okaHasVersion ? '## [$version]' : '## [0.8.1]';
-      File('${dir.path}/CHANGELOG.md').writeAsStringSync('$heading\n\n- notes\n');
-      continue;
-    }
-    final body = '''
-$marker
-
-## 0.9.0
-
-- Version aligned with the oka 0.9.0 train; see `packages/oka/CHANGELOG.md`.
-''';
-    File('${dir.path}/CHANGELOG.md').writeAsStringSync(body);
+    final heading = package == 'oka'
+        ? '## [$version]'
+        : '## $version <!-- x-release-please-version -->';
+    final versionLine = allHaveVersion || package == 'oka';
+    File('${dir.path}/CHANGELOG.md').writeAsStringSync(
+      versionLine
+          ? '$heading\n\nSee `packages/oka/CHANGELOG.md`.\n'
+          : '## 0.9.0 <!-- x-release-please-version -->\n\n- stale\n',
+    );
     File('${dir.path}/pubspec.yaml').writeAsStringSync('name: $package\n');
   }
 }

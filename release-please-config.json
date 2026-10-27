@@ -74,6 +74,54 @@
         },
         {
           "type": "generic",
+          "path": "packages/oka_process/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/resource_composition/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_artifacts/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_core/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_supervisor/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_conformance/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_android/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_huawei/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_play/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_rustore/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_web/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_harness/CHANGELOG.md"
+        },
+        {
+          "type": "generic",
           "path": "packages/oka/lib/src/version.dart"
         },
         {
