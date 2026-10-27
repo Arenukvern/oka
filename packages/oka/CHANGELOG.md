@@ -4,6 +4,20 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.9.1](https://github.com/Arenukvern/oka/compare/v0.9.0...v0.9.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **ci:** hosted consumer uses pub.dev train only ([4f9c329](https://github.com/Arenukvern/oka/commit/4f9c329da21d2d0ca1b48c25956ba34523b764b3))
+* **release:** RP-managed follower changelogs for pub.dev validation ([ee4e367](https://github.com/Arenukvern/oka/commit/ee4e3674575beae46291d48319b0c584f05b17ad))
+
+
+### Documentation
+
+* document dart analyze --fatal-infos local gate ([c7117a7](https://github.com/Arenukvern/oka/commit/c7117a772cec434f73ad7040974267d364c78651))
+* fix publishing runbook path in contribution guide ([8fc15de](https://github.com/Arenukvern/oka/commit/8fc15dec504763288a64020a46417bf64d5579dd))
+
 ## [0.9.0](https://github.com/Arenukvern/oka/compare/v0.8.1...v0.9.0) (2026-10-27)
 
 
