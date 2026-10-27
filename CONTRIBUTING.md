@@ -14,6 +14,8 @@ TL;DR:
 just install && just lint && just test && just check-contracts
 ```
 
+(`just lint` runs `dart analyze --fatal-infos`, matching CI.)
+
 - Non-negotiables in [`AGENTS.md`](AGENTS.md) — especially: the default build
   path must never fall back to Gradle.
 - Behavior SSOT is code + tests; docs link, never paraphrase.

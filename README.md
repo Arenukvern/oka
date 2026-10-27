@@ -413,7 +413,8 @@ Contributions of any kind welcome — code, docs, examples, bug reports, ideas.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
 [contribution guide](https://docs.page/arenukvern/oka/contributing/contribution_guide);
 use conventional commits (`feat:`, `fix:`, `docs:`) and run
-`just check-contracts` before merging. Please follow the
+`just lint` (`dart analyze --fatal-infos`) and `just check-contracts` before
+merging. Please follow the
 [Code of Conduct](CODE_OF_CONDUCT.md). Agents: start from
 [`AGENTS.md`](AGENTS.md) or [`llms.txt`](llms.txt).
 
