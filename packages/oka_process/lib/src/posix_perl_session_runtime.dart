@@ -438,7 +438,9 @@ Future<StopReceipt> stopPosixPerlSession(
   }
   runtime.externallyStopped = true;
   final grace = runtime.budget.duration;
+  await _ownedGroupMembers(runtime);
   await _stopOwnedGroup(runtime, grace: grace);
+  await _waitForLeaderShutdown(runtime, grace);
   try {
     await runtime.process.exitCode.timeout(grace);
   } on TimeoutException {
@@ -450,7 +452,8 @@ Future<StopReceipt> stopPosixPerlSession(
     settlement = SettlementUnsettled(runtime.unsettledReason!);
   } else if (runtime.settleAcknowledged.isCompleted ||
       runtime.groupKilled ||
-      runtime.rootExited) {
+      runtime.rootExited ||
+      await pidAlive(runtime.process.pid) == false) {
     final ws = runtime.reportedWaitStatus;
     if (ws != null) {
       final mapped = waitStatusToSettlement(ws);
@@ -492,13 +495,12 @@ Future<void> _stopOwnedGroup(
         : OwnedSessionControlCommand.term;
     if (members == null) {
       if (runtime.rootExited) return false;
-      if (snapshot.isEmpty) return false;
       if (runtime.ready && runtime.clearedPsObservationStop) return false;
-      signaled.addAll(snapshot);
-      if (!runtime.rootExited && await _sendControl(runtime, command)) {
-        return true;
+      if (snapshot.isNotEmpty) signaled.addAll(snapshot);
+      if (runtime.ready && !runtime.rootExited) {
+        return await _sendControl(runtime, command);
       }
-      return false;
+      return signaled.isNotEmpty;
     }
     if (members.isEmpty) {
       if (!runtime.ready && !runtime.rootExited) {
@@ -508,6 +510,8 @@ Future<void> _stopOwnedGroup(
         runtime.clearedPsObservationStop = true;
         runtime.deferSigkillEscalation = true;
         return true;
+      } else if (runtime.ready && !runtime.rootExited) {
+        return await _sendControl(runtime, command);
       }
       return signaled.isNotEmpty;
     }
@@ -567,5 +571,23 @@ Future<void> _stopOwnedGroup(
     } on TimeoutException {
       // Reported below as unsettled if needed.
     }
+  }
+}
+
+Future<void> _waitForLeaderShutdown(
+  _PosixPerlSessionRuntime runtime,
+  Duration grace,
+) async {
+  final deadline = DateTime.now().add(grace);
+  while (DateTime.now().isBefore(deadline)) {
+    if (runtime.groupKilled || runtime.settleAcknowledged.isCompleted) {
+      return;
+    }
+    final alive = await pidAlive(runtime.process.pid);
+    if (alive == false) {
+      runtime.rootExited = true;
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
   }
 }
