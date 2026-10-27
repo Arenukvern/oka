@@ -4,6 +4,31 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.9.0](https://github.com/Arenukvern/oka/compare/v0.8.1...v0.9.0) (2026-10-27)
+
+
+### Features
+
+* **oka_process:** ADR-0052 owned POSIX process sessions (Linux/macOS) ([c5bdeef](https://github.com/Arenukvern/oka/commit/c5bdeefc830fa66abc9681114daf527838d0e82f))
+* **oka_process:** ADR-0052 owned POSIX sessions package skeleton ([6dd6884](https://github.com/Arenukvern/oka/commit/6dd6884faa1e02555f040e85d4a35113b118eec1))
+
+
+### Bug Fixes
+
+* locks ([83cc8d6](https://github.com/Arenukvern/oka/commit/83cc8d6611511c53651fb7e4dc88d60acdfa2282))
+* **oka_process:** allow settle during stop; mirror UA term/grace/kill/settle order ([3c4ff36](https://github.com/Arenukvern/oka/commit/3c4ff368591499d6b41f66fc7c0ac948c90f907d))
+* **oka_process:** fail closed when control dir chmod 700 fails ([334ae92](https://github.com/Arenukvern/oka/commit/334ae92b27f1d7c57084edebee86907d350240f9))
+* **oka_process:** settle stop when kill command sent on control channel ([9b00b2c](https://github.com/Arenukvern/oka/commit/9b00b2c15bdc655b80fa4c30f509ac3e85bacf03))
+* **oka_verify:** abort frontend server on compile budget timeout ([afeb33b](https://github.com/Arenukvern/oka/commit/afeb33b18350a6b4a86aa1349d097b7424287a30))
+* **release:** accept list --publish and align release_train fixtures ([4b052e9](https://github.com/Arenukvern/oka/commit/4b052e93299c071f59dec55f090de3e2133e0601))
+
+
+### Documentation
+
+* **oka_process:** AOT must set OWNED_SESSION_P1_LEADER ([38e8dfb](https://github.com/Arenukvern/oka/commit/38e8dfb48844953eb8494e9160476a5f4b58e4df))
+* **oka_process:** pin normative p1 contract at dfp 2f9ce9b1 ([3043eb4](https://github.com/Arenukvern/oka/commit/3043eb432e5b6a561466a6d7a434caf405679194))
+* point the codemap navigation CLI at the rust binary ([292bdf2](https://github.com/Arenukvern/oka/commit/292bdf2bc32285958a926c38c7570517108da85b))
+
 ## [0.8.1](https://github.com/Arenukvern/oka/compare/v0.8.0...v0.8.1) (2026-10-18)
 
 

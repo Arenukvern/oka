@@ -2,7 +2,7 @@ name: oka_process
 description: >-
   POSIX owned process sessions for oka: identity-before-signal, leader-owned
   groups, and explicit settlement. Linux and macOS only (ADR-0052).
-version: 0.8.1 # x-release-please-version
+version: 0.9.0 # x-release-please-version
 homepage: https://github.com/arenukvern/oka
 repository: https://github.com/arenukvern/oka/tree/main/packages/oka_process
 issue_tracker: https://github.com/arenukvern/oka/issues
