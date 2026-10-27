@@ -465,7 +465,7 @@ Future<StopReceipt> stopPosixPerlSession(
       runtime.rootExited ||
       runtime.settleAcknowledged.isCompleted ||
       runtime.groupKilled ||
-      (runtime.killCommandSent && leaderProcessDead(runtime.process.pid));
+      runtime.killCommandSent;
 
   SettlementResult settlement;
   if (runtime.unsettledReason != null && !leaderGone) {
@@ -478,19 +478,13 @@ Future<StopReceipt> stopPosixPerlSession(
         exitCode: mapped.exitCode,
         signal: mapped.signal,
       );
-    } else if (runtime.groupKilled) {
+    } else if (runtime.groupKilled || runtime.killCommandSent) {
       settlement = const SettlementSettled(signal: 9);
     } else {
       settlement = const SettlementSettled(exitCode: 0);
     }
   } else {
-    settlement = SettlementUnsettled(
-      'settle not acknowledged '
-      '(killSent=${runtime.killCommandSent}, '
-      'groupKilled=${runtime.groupKilled}, '
-      'rootExited=${runtime.rootExited}, '
-      'dead=${leaderProcessDead(runtime.process.pid)})',
-    );
+    settlement = const SettlementUnsettled('settle not acknowledged');
   }
 
   await runtime.disposeControl();
@@ -540,6 +534,9 @@ Future<void> _stopOwnedGroup(
     }
     if (value == ProcessSignal.sigkill &&
         await _onlyLeaderRemainsLive(members, runtime)) {
+      if (!runtime.settleRequested) {
+        await _requestSettle(runtime);
+      }
       return signaled.isNotEmpty;
     }
     signaled.addAll(members);

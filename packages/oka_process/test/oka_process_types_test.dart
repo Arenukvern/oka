@@ -86,7 +86,12 @@ void main() {
       expect(handle.leaderIdentity.marker, isNotEmpty);
       expect(handle.leaderIdentity.sessionId, greaterThan(0));
       final receipt = await backend.stop(handle);
-      expect(receipt.isSettled, isTrue);
+      final unsettled = receipt.settlement;
+      expect(
+        receipt.isSettled,
+        isTrue,
+        reason: unsettled is SettlementUnsettled ? unsettled.reason : '$unsettled',
+      );
     }, timeout: const Timeout(Duration(seconds: 30)));
   });
 }
