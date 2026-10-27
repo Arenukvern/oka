@@ -13,7 +13,7 @@ while IFS= read -r package; do
     missing+=("$package (no CHANGELOG.md)")
     continue
   fi
-  if ! grep -qE "^## ${version}\$|^## \\[${version}\\]" "$changelog"; then
+  if ! grep -qE "^## ${version}\$|^## \\[${version}\\]|^## ${version} |^## \\[${version}\\]" "$changelog"; then
     missing+=("$package")
   fi
 done < <(dart "$ROOT_DIR/tool/release/train.dart" list)

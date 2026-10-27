@@ -1,3 +1,9 @@
+## 0.9.0 <!-- x-release-please-version -->
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+- Dependency lockfile hygiene (`fix: locks`).
+
 ## 0.8.1
 
 - Part of the 0.8.1 train: usage-banner and doctor doc-pointer fixes in the
