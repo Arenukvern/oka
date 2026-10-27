@@ -29,6 +29,11 @@ Adopts dfp ADR-0066 rules as oka policy:
 
 Normative contract: [`doc/p1_owned_session_contract.md`](doc/p1_owned_session_contract.md).
 
+Leader path resolution uses `Isolate.resolvePackageUri` in
+`resolveOwnedSessionP1LeaderPath()` — that does **not** work in
+`dart compile exe` / AOT binaries. Set **`OWNED_SESSION_P1_LEADER`** to the
+on-disk path of `tool/owned_session_p1_leader.pl` for compiled consumers.
+
 ```bash
 export OWNED_SESSION_P1_LEADER="$PWD/tool/owned_session_p1_leader.pl"
 dart test
