@@ -12,7 +12,8 @@ import 'p1_protocol.dart';
 import 'posix_group_observation.dart';
 import 'process_identity_token.dart';
 import 'process_session_backend.dart';
-import 'session_control_binding.dart';
+import 'session_control_binding.dart'
+    show SessionControlBinding, SessionControlBindException;
 import 'settlement.dart';
 import 'stop_receipt.dart';
 
@@ -112,9 +113,11 @@ Future<OwnedProcessSessionHandle> launchPosixPerlSession(
   if (!File(leaderPath).existsSync()) {
     throw OwnedProcessLaunchException('leader not found: $leaderPath');
   }
-  final binding = await SessionControlBinding.bind();
-  if (binding == null) {
-    throw OwnedProcessLaunchException('control socket bind failed');
+  final SessionControlBinding binding;
+  try {
+    binding = await SessionControlBinding.bind();
+  } on SessionControlBindException catch (error) {
+    throw OwnedProcessLaunchException(error.message);
   }
   final marker = spec.marker ?? _generateMarker();
   final leaderArgs = <String>[
