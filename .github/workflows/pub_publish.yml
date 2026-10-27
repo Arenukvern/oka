@@ -1,21 +1,41 @@
+# Publish the oka pub.dev package train (OIDC).
+#
+# Trigger: workflow_dispatch only (ref must be the release tag). release-please.yml
+# dispatches this after each root release. We intentionally omit on.push.tags so a
+# future PAT tag push cannot run publish twice (tag push + dispatch).
+# GITHUB_TOKEN tag pushes do not trigger workflows anyway; dispatch is the sole path.
+# Manual recovery: gh workflow run pub_publish.yml --ref vX.Y.Z
+
 name: Publish to pub.dev
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: pub-dev-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  require-tag-ref:
+    name: Require release tag ref
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse branch or wrong tag refs
+        run: |
+          if [[ "${GITHUB_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Publishing from ${GITHUB_REF}"
+          else
+            echo "::error::Refusing publish: GITHUB_REF must be refs/tags/vX.Y.Z (dispatch with --ref vX.Y.Z)."
+            echo "For manual recovery, run: gh workflow run pub_publish.yml --ref vX.Y.Z"
+            exit 1
+          fi
+
+  validate:
+    name: Validate train (dry-run)
+    needs: require-tag-ref
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -26,7 +46,6 @@ jobs:
           sdk: stable
 
       - name: Assert release tag matches VERSION
-        if: github.event_name == 'push'
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
@@ -46,10 +65,25 @@ jobs:
       - name: Validate complete package train
         run: bash tool/release/publish_packages.sh --dry-run
 
+  publish:
+    name: Publish to pub.dev
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - run: dart pub get --no-example
+
       - name: Publish complete package train
-        if: github.event_name == 'push'
         run: bash tool/release/publish_packages.sh --publish
 
       - name: Verify published packages from a fresh hosted consumer
-        if: github.event_name == 'push'
         run: bash tool/ci/check_package_consumer.sh --hosted

@@ -65,12 +65,18 @@ changelog and version bumps:
 
 ## Releases
 
-Releases are automated on `main` via **release-please**. Configure the existing
-`RELEASE_PLEASE_TOKEN` secret for release PR creation and sync pushes when
-those events need to trigger subsequent CI runs automatically. With the
-repository-token fallback, PR workflow runs may require approval and tag pushes
-do not start the publication workflow. See [GitHub workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+Releases are automated on `main` via **release-please**. After a Release PR
+merges, release-please dispatches
+[`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
+on the new tag (OIDC to pub.dev; no PAT or pub credentials in CI). Optional
+`RELEASE_PLEASE_TOKEN` can still be set if tag pushes must trigger other
+workflows. With the repository-token fallback, PR workflow runs may require
+approval. See [GitHub workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 The sync workflow also runs its contract checks after synchronization.
+
+One-time pub.dev and GitHub Actions setup for the train is documented in
+[`skills/oka-maintenance/references/publishing.md`](https://github.com/Arenukvern/oka/blob/main/skills/oka-maintenance/references/publishing.md)
+(Anton checklist).
 
 Release sequence:
 
@@ -85,15 +91,14 @@ Release sequence:
 4. release-please creates the `vX.Y.Z` tag and GitHub release **with changelog
    notes**.
 5. [`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
-   runs on the tag: asserts tag == `VERSION`, per-package dry-run preflight,
-   then publishes all eight packages in dependency order. The package inventory
-   and ordering live in the release tooling under `tool/release/`.
-   Each dependency must be available on pub.dev before a dependent package
-   is published. All packages share `VERSION`; web requires core `0.2.0`
-   or newer. A workspace dry-run does not prove hosted consumer compatibility.
-   The publish workflow checks an independent hosted consumer after the complete
-   train is available. Configure pub.dev automated publishing for each package
-   before the first tag-driven release.
+   is dispatched on the release tag: asserts tag == `VERSION`, dry-run
+   preflight, then publishes the full train in dependency order via
+   `tool/release/publish_packages.sh` (excluding manual-only `oka_process`).
+   Package inventory and ordering: `dart tool/release/train.dart list --publish`.
+   Each dependency must be on pub.dev before dependents upload. All train
+   packages share `VERSION`. The workflow verifies an independent hosted
+   consumer after the train completes. Complete the one-time automated-publishing
+   checklist before the first release.
 
 Local preflight (does not publish):
 
@@ -114,6 +119,7 @@ bash tool/release/sync_version.sh --version 0.2.0   # or: just sync-version
 # at the last actually released version until the release is recorded
 just check-contracts
 git commit -am "chore: release 0.2.0" && git tag v0.2.0 && git push --tags
+gh workflow run pub_publish.yml --ref v0.2.0
 ```
 
 ## Contract gates

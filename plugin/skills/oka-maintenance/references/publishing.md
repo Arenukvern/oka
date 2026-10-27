@@ -12,31 +12,86 @@ wrong; when a script and this file disagree, fix this file or the script.
 - One workspace `VERSION`; every publishable package's `pubspec.yaml` and
   changelog must match it. `just check-contracts` gates the full sync
   (version, release-please manifest, changelogs, licenses, docs drift).
-- `dart tool/release/train.dart list` is the dependency order. Never publish
-  out of order: a package whose hosted dependency closure does not exist at
-  the new version cannot resolve for consumers after upload.
-- `oka_dart_kernel`, `oka_update`, and the root `oka_workspace` are
-  `publish_to: none`; they ride along but never upload.
+- `dart tool/release/train.dart list --publish` is the pub.dev upload order.
+  Never publish out of order: a package whose hosted dependency closure does
+  not exist at the new version cannot resolve for consumers after upload.
+- `oka_process` is **manual-only** (`pubDevManualOnly` in `train.dart`); see
+  `packages/oka_process/PUBLISHING.md`. `oka_dart_kernel`, `oka_update`, and
+  the root `oka_workspace` are `publish_to: none`; they ride along but never
+  upload.
+
+## One-time setup (Anton checklist)
+
+Complete once per train package (and again when adding a new publishable
+package). `oka_process` is excluded — it is not on the CI train.
+
+### pub.dev — Automated publishing
+
+For each package below, open `https://pub.dev/packages/<name>/admin` →
+**Automated publishing** → GitHub Actions:
+
+| Package |
+| --- |
+| `resource_composition` |
+| `oka_artifacts` |
+| `oka_core` |
+| `oka_supervisor` |
+| `oka_conformance` |
+| `oka_android` |
+| `oka_huawei` |
+| `oka_play` |
+| `oka_rustore` |
+| `oka_web` |
+| `oka_harness` |
+| `oka` |
+
+Per package:
+
+- **Repository:** `Arenukvern/oka`
+- **Tag pattern:** `v{{version}}`
+- **Publishing from GitHub Actions:** enabled
+- **Publishing from workflow_dispatch:** enabled
+- No required GitHub environment — the workflow declares none.
+
+The config endpoint is rate-limited (~1 update/minute across packages). Retry
+after HTTP 429.
+
+A package cannot be configured before its first publish — first publish
+manually, then configure automated publishing.
+
+### GitHub — repository settings
+
+Under **Settings → Actions → General**:
+
+- **Workflow permissions:** Read and write permissions (needed for release-please
+  to dispatch `pub_publish.yml` after a release).
+- **Allow GitHub Actions to create and approve pull requests:** enabled
+  (release-please Release PRs).
+
+Optional: set `RELEASE_PLEASE_TOKEN` to a PAT or GitHub App token if you need
+release-please tag pushes to trigger *other* workflows; pub.dev publish does
+not depend on tag-push triggers.
 
 ## Automated publish (canonical path)
 
 1. Green baseline: `just lint`, `just test`, `just check-contracts`.
-2. Ensure every package on the train has pub.dev **automated publishing**
-   configured (see the config section below). A package cannot be configured
-   before its first publish — first publish manually, then configure.
-3. Push the release tag: `git tag v<VERSION> && git push origin v<VERSION>`.
-   `pub_publish.yml` triggers on `v*` tags and publishes the whole train via
-   GitHub OIDC — no pub.dev credentials live in CI.
+2. Complete the one-time setup above for every train package.
+3. Merge the release-please **Release PR** on `main`. release-please creates
+   the `vX.Y.Z` tag and GitHub release, then dispatches
+   `pub_publish.yml` on that tag ref.
 4. The train script skips packages whose `<VERSION>` already exists on
    pub.dev (`already exists; skipping`), so re-running after a partial
    failure is safe and idempotent.
 
 ### Workflow rules that bite
 
-- The publish step is gated `if: github.event_name == 'push'`. A
-  `workflow_dispatch` run **validates the train but publishes nothing**. To
-  redo a tag release, re-run the original run (`gh run rerun <run-id>`), which
-  keeps its push event — do not dispatch.
+- `pub_publish.yml` is **workflow_dispatch only** (no `on.push.tags`). Tag
+  pushes from `GITHUB_TOKEN` do not trigger workflows; dispatch is the sole
+  publish path.
+- To publish or recover manually:
+  `gh workflow run pub_publish.yml --ref vX.Y.Z`
+- PR validation: CI `validate` job runs per-package `dart pub publish --dry-run`
+  on pull requests; merging does not publish.
 - The final "Verify published packages from a fresh hosted consumer" step
   races pub.dev's index propagation (uploads claim "up to 10 minutes"). If it
   fails with `doesn't match any versions` right after a green publish step,
@@ -48,7 +103,7 @@ wrong; when a script and this file disagree, fix this file or the script.
 For a package that has never been on pub.dev, or when CI is unavailable:
 
 ```bash
-dart tool/release/train.dart list   # order
+dart tool/release/train.dart list --publish   # order
 cd packages/<name> && dart pub publish --dry-run   # 0 warnings expected
 dart pub publish --force
 ```
@@ -62,24 +117,6 @@ dart pub publish --force
 - After a manual publish, wait for propagation before anything resolves
   against the new version; the pub.dev API (`/api/packages/<name>`) is the
   cheapest freshness check.
-
-## pub.dev automated-publishing configuration
-
-Per package, at `https://pub.dev/packages/<name>/admin` → Automated
-publishing → GitHub Actions:
-
-- Repository: `<owner>/<repo>` (e.g. `Arenukvern/oka`); tag pattern stays
-  `v{{version}}`.
-- Events: `push` and `workflow_dispatch` (the workflow declares both).
-- No required GitHub environment — the workflow declares none.
-
-Operational rules:
-
-- The config endpoint is rate-limited: rapid successive updates across many
-  packages return HTTP 429. Pace the updates (~1/minute) and retry the
-  rejected one after waiting.
-- Configuration persists per package and survives releases; it only needs
-  attention when a package is new or the repository/workflow changes.
 
 ## Release hygiene
 
