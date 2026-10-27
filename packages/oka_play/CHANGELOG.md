@@ -1,3 +1,9 @@
+<!-- oka-train-changelog: packages/oka/CHANGELOG.md -->
+
+## 0.9.0
+
+- Version aligned with the oka 0.9.0 train; see `packages/oka/CHANGELOG.md`.
+
 ## 0.8.1
 
 - Part of the 0.8.1 train: usage-banner and doctor doc-pointer fixes in the

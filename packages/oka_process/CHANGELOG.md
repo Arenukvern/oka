@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+<!-- oka-train-changelog: packages/oka/CHANGELOG.md -->
+
+## 0.9.0
 
 ### Added
 
@@ -10,6 +12,12 @@
 - `posix-perl` backend: launch/stop via `owned_session_p1_leader.pl` (protocol,
   mode, marker, control channel, status lines, graceful executable hook).
 - `tool/p1_matrix.sh` for local Linux/macOS matrix cells.
+
+### Fixed
+
+- Allow settle during stop; mirror UA term/grace/kill/settle order.
+- Fail closed when control dir chmod 700 fails.
+- Settle stop when kill command sent on control channel.
 
 ## 0.8.1
 
