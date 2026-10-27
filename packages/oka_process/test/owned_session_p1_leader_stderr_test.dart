@@ -8,8 +8,8 @@ import 'dart:isolate';
 
 import 'package:test/test.dart';
 
-/// Ensures the reference `.pl` leader matches the host first-line ready contract
-/// when Perl warnings are enabled (embed strips `use warnings` only).
+/// Ensures the reference `.pl` leader matches the host first-line ready
+/// contract when Perl warnings are enabled (embed strips `use warnings` only).
 void main() {
   late String perl;
   late String leaderScript;
@@ -70,7 +70,7 @@ void main() {
   });
 }
 
-Future<String> _firstStderrLine(Stream<List<int>> stderr) async {
+Future<String> _firstStderrLine(Stream<List<int>> stderr) {
   final buffer = <int>[];
   final done = Completer<String>();
   late final StreamSubscription<List<int>> sub;

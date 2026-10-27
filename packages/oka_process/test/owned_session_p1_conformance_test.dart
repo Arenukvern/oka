@@ -44,7 +44,7 @@ void main() {
 
     test('owned bootstrap: ready line, marker auth, started', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_bootstrap';
       final stderr = <int>[];
       final leader = await Process.start(perl, [
@@ -85,7 +85,7 @@ void main() {
 
     test('exec failure reports marker:error, not exit 127 contract', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_exec_fail';
       final stderr = StringBuffer();
       final leader = await Process.start(perl, [
@@ -109,9 +109,11 @@ void main() {
       expect(stderr.toString(), contains('$marker:error:exec:'));
     });
 
-    test('direct SIGTERM to leader is ignored; group does not receive TERM', () async {
+    test(
+      'direct SIGTERM to leader is ignored; group does not receive TERM',
+      () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_leader_term_ignore';
       final workDir = Directory.systemTemp.createTempSync('p1-leader-term-');
       final leader = await Process.start(perl, [
@@ -170,11 +172,12 @@ void main() {
       await client.flush();
       expect(await _expectKilledGroup(lines), 'killed-group');
       await client.close();
-    });
+    },
+    );
 
     test('term forwards SIGTERM+CONT to the group', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_term';
       final workDir = Directory.systemTemp.createTempSync('p1-term-');
       final leader = await Process.start(perl, [
@@ -226,7 +229,7 @@ void main() {
 
     test('graceful hook ok runs before term-forwarded', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_grace_ok';
       final leader = await Process.start(perl, [
         leaderScript,
@@ -268,7 +271,7 @@ void main() {
 
     test('graceful hook timeout still escalates with term-forwarded', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_grace_slow';
       final leader = await Process.start(perl, [
         leaderScript,
@@ -312,7 +315,7 @@ void main() {
       'graceful hook failure reports graceful:fail then term-forwarded',
       () async {
         final binding = await _bindControl();
-        addTearDown(() => binding.dispose());
+        addTearDown(binding.dispose);
         const marker = 'conf_marker_grace_fail';
         final leader = await Process.start(perl, [
           leaderScript,
@@ -354,7 +357,7 @@ void main() {
 
     test('back-to-back term and kill lines in one flush', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_back_to_back';
       final leader = await Process.start(perl, [
         leaderScript,
@@ -380,8 +383,9 @@ void main() {
       final lines = _LineReader(client);
       expect(await lines.next(), marker);
       expect(await lines.next(), 'started');
-      client.writeln('term');
-      client.writeln('kill');
+      client
+        ..writeln('term')
+        ..writeln('kill');
       await client.flush();
       expect(await lines.next(), 'term-forwarded');
       expect(await _expectKilledGroup(lines), 'killed-group');
@@ -398,7 +402,7 @@ void main() {
 
     test('kill preempts a hung graceful hook', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_hook_kill';
       final leader = await Process.start(perl, [
         leaderScript,
@@ -441,7 +445,7 @@ void main() {
       'host EOF during hook does not strand the group (SIGPIPE ignored)',
       () async {
         final binding = await _bindControl();
-        addTearDown(() => binding.dispose());
+        addTearDown(binding.dispose);
         const marker = 'conf_marker_pipe_hook';
         final workDir = Directory.systemTemp.createTempSync('p1-pipe-');
         final leader = await Process.start(perl, [
@@ -585,7 +589,7 @@ void main() {
       'unknown control commands are ignored until a valid command',
       () async {
         final binding = await _bindControl();
-        addTearDown(() => binding.dispose());
+        addTearDown(binding.dispose);
         const marker = 'm_unknown_cmd';
         final leader = await Process.start(perl, [
           leaderScript,
@@ -622,7 +626,7 @@ void main() {
 
     test('exit: and settle returns settled with clean exit code', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'm_settle';
       final leader = await Process.start(perl, [
         leaderScript,
@@ -653,7 +657,7 @@ void main() {
 
     test('signal-encoded child exit is re-raised by the leader', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'm_sig';
       final leader = await Process.start(perl, [
         leaderScript,
@@ -692,7 +696,7 @@ void main() {
 
     test('control EOF kills the admitted target (host-death guard)', () async {
       final binding = await _bindControl();
-      addTearDown(() => binding.dispose());
+      addTearDown(binding.dispose);
       const marker = 'conf_marker_eof';
       final workDir = Directory.systemTemp.createTempSync('p1-eof-');
       final leader = await Process.start(perl, [
@@ -749,7 +753,7 @@ void main() {
 Future<String> _expectKilledGroup(_LineReader lines) async {
   final line = await lines.next();
   if (line.startsWith('exit:')) {
-    return await lines.next();
+    return lines.next();
   }
   return line;
 }
@@ -814,7 +818,7 @@ Future<_ControlBinding> _bindControl() => _ControlBinding.bind();
 
 final class _LineReader {
   _LineReader(this._socket) {
-    _subscription = _socket.listen((chunk) => _buffer.addAll(chunk));
+    _subscription = _socket.listen(_buffer.addAll);
   }
 
   final Socket _socket;

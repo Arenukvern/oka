@@ -13,7 +13,7 @@ import 'posix_group_observation.dart';
 import 'process_identity_token.dart';
 import 'process_session_backend.dart';
 import 'session_control_binding.dart'
-    show SessionControlBinding, SessionControlBindException;
+    show SessionControlBindException, SessionControlBinding;
 import 'settlement.dart';
 import 'stop_receipt.dart';
 
@@ -47,7 +47,6 @@ final class _PosixPerlSessionRuntime {
   final ObservationBudget budget;
 
   Socket? controlSocket;
-  IOSink? controlSink;
   bool ready = false;
   bool rootExited = false;
   bool externallyStopped = false;
@@ -71,11 +70,6 @@ final class _PosixPerlSessionRuntime {
   );
 
   Future<void> disposeControl() async {
-    try {
-      await controlSink?.close();
-    } on Object {
-      // Best-effort.
-    }
     try {
       await controlSocket?.close();
     } on Object {
@@ -206,8 +200,9 @@ Future<OwnedProcessSessionHandle> launchPosixPerlSession(
         headerPending = false;
         return;
       }
-      runtime.sessionId = ready.sessionId;
-      runtime.ready = true;
+      runtime
+        ..sessionId = ready.sessionId
+        ..ready = true;
       headerPending = false;
       if (!startup.isCompleted) startup.complete();
     },
@@ -221,11 +216,11 @@ Future<OwnedProcessSessionHandle> launchPosixPerlSession(
 
   unawaited(() async {
     try {
+      // ignore: close_sinks -- closed in [_PosixPerlSessionRuntime.disposeControl].
       final socket = await binding.firstConnection.timeout(
         runtime.budget.duration,
       );
       runtime.controlSocket = socket;
-      runtime.controlSink = socket;
       unawaited(_listenControl(runtime, channelStarted, marker: marker));
     } on Object {
       runtime.controlFailure = 'control accept failed';
@@ -238,9 +233,11 @@ Future<OwnedProcessSessionHandle> launchPosixPerlSession(
     }
   }());
 
-  process.exitCode.then((_) {
-    runtime.rootExited = true;
-  });
+  unawaited(
+    process.exitCode.then((_) {
+      runtime.rootExited = true;
+    }),
+  );
 
   try {
     await startup.future.timeout(runtime.budget.duration);
@@ -282,6 +279,7 @@ Future<void> _listenControl(
   Completer<void> channelStarted, {
   required String marker,
 }) async {
+  // ignore: close_sinks -- closed in [_PosixPerlSessionRuntime.disposeControl].
   final socket = runtime.controlSocket;
   if (socket == null) return;
   final buffer = <int>[];
@@ -340,8 +338,9 @@ void _handleControlLine(
     return;
   }
   if (status is StatusKilledGroup) {
-    runtime.groupKilled = true;
-    runtime.rootExited = true;
+    runtime
+      ..groupKilled = true
+      ..rootExited = true;
     return;
   }
 }
@@ -414,11 +413,12 @@ Future<bool> _sendControl(
   _PosixPerlSessionRuntime runtime,
   OwnedSessionControlCommand command,
 ) async {
-  final sink = runtime.controlSink;
-  if (sink == null) return false;
+  // ignore: close_sinks -- closed in [_PosixPerlSessionRuntime.disposeControl].
+  final socket = runtime.controlSocket;
+  if (socket == null) return false;
   try {
-    sink.writeln(command.wireName);
-    await sink.flush();
+    socket.writeln(command.wireName);
+    await socket.flush();
     return true;
   } on Object {
     return false;
@@ -502,7 +502,8 @@ bool _identityMatches(ProcessIdentityToken a, ProcessIdentityToken b) =>
     a.marker == b.marker &&
     a.sessionId == b.sessionId;
 
-/// term → grace → kill → (settle finalized in [_finalizeOwnedSessionSettlement]).
+/// term → grace → kill → settle finalized in
+/// [_finalizeOwnedSessionSettlement].
 Future<void> _stopOwnedGroup(
   _PosixPerlSessionRuntime runtime, {
   required Duration grace,
@@ -529,8 +530,9 @@ Future<void> _stopOwnedGroup(
         if (runtime.process.kill(value)) signaled.add(runtime.process.pid);
       } else if (!runtime.rootExited && snapshot.isNotEmpty) {
         signaled.addAll(snapshot);
-        runtime.clearedPsObservationStop = true;
-        runtime.deferSigkillEscalation = true;
+        runtime
+          ..clearedPsObservationStop = true
+          ..deferSigkillEscalation = true;
         return true;
       }
       return signaled.isNotEmpty;
@@ -584,7 +586,8 @@ Future<void> _stopOwnedGroup(
   }
 }
 
-/// Mirrors UA `normalLifetime` settle loop + post-stop `settle` (bounded_process).
+/// Mirrors UA `normalLifetime` settle loop + post-stop `settle`
+/// (bounded_process).
 Future<void> _finalizeOwnedSessionSettlement(
   _PosixPerlSessionRuntime runtime,
   Duration grace,

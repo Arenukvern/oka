@@ -24,6 +24,8 @@ if [[ ! -f "$OWNED_SESSION_P1_LEADER" ]]; then
   exit 1
 fi
 
+echo "RUN $cell — dart analyze --fatal-infos"
+dart analyze --fatal-infos
 echo "RUN $cell — dart test (p1 + package)"
 dart test
 echo "RUN $cell — p1 probes"
