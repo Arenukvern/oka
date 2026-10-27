@@ -55,6 +55,7 @@ final class _PosixPerlSessionRuntime {
   bool clearedPsObservationStop = false;
   bool deferSigkillEscalation = false;
   bool groupKilled = false;
+  bool killCommandSent = false;
   int? reportedWaitStatus;
   String? unsettledReason;
   String? controlFailure;
@@ -337,6 +338,7 @@ void _handleControlLine(
   }
   if (status is StatusKilledGroup) {
     runtime.groupKilled = true;
+    runtime.rootExited = true;
     return;
   }
 }
@@ -420,6 +422,17 @@ Future<bool> _sendControl(
   }
 }
 
+Future<bool> _forwardOwnedControl(
+  _PosixPerlSessionRuntime runtime,
+  OwnedSessionControlCommand command,
+) async {
+  if (!await _sendControl(runtime, command)) return false;
+  if (command == OwnedSessionControlCommand.kill) {
+    runtime.killCommandSent = true;
+  }
+  return true;
+}
+
 Future<StopReceipt> stopPosixPerlSession(
   OwnedProcessSessionHandle handle,
 ) async {
@@ -451,7 +464,8 @@ Future<StopReceipt> stopPosixPerlSession(
   final leaderGone =
       runtime.rootExited ||
       runtime.settleAcknowledged.isCompleted ||
-      runtime.groupKilled;
+      runtime.groupKilled ||
+      (runtime.killCommandSent && leaderProcessDead(runtime.process.pid));
 
   SettlementResult settlement;
   if (runtime.unsettledReason != null && !leaderGone) {
@@ -470,7 +484,13 @@ Future<StopReceipt> stopPosixPerlSession(
       settlement = const SettlementSettled(exitCode: 0);
     }
   } else {
-    settlement = const SettlementUnsettled('settle not acknowledged');
+    settlement = SettlementUnsettled(
+      'settle not acknowledged '
+      '(killSent=${runtime.killCommandSent}, '
+      'groupKilled=${runtime.groupKilled}, '
+      'rootExited=${runtime.rootExited}, '
+      'dead=${leaderProcessDead(runtime.process.pid)})',
+    );
   }
 
   await runtime.disposeControl();
@@ -501,7 +521,7 @@ Future<void> _stopOwnedGroup(
       if (runtime.ready && runtime.clearedPsObservationStop) return false;
       if (snapshot.isNotEmpty) signaled.addAll(snapshot);
       if (runtime.ready && !runtime.rootExited) {
-        return await _sendControl(runtime, command);
+        return await _forwardOwnedControl(runtime, command);
       }
       return signaled.isNotEmpty;
     }
@@ -514,7 +534,7 @@ Future<void> _stopOwnedGroup(
         runtime.deferSigkillEscalation = true;
         return true;
       } else if (runtime.ready && !runtime.rootExited) {
-        return await _sendControl(runtime, command);
+        return await _forwardOwnedControl(runtime, command);
       }
       return signaled.isNotEmpty;
     }
@@ -523,7 +543,7 @@ Future<void> _stopOwnedGroup(
       return signaled.isNotEmpty;
     }
     signaled.addAll(members);
-    if (!runtime.rootExited && await _sendControl(runtime, command)) {
+    if (!runtime.rootExited && await _forwardOwnedControl(runtime, command)) {
       return true;
     }
     if (runtime.rootExited) return false;
