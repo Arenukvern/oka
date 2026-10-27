@@ -480,7 +480,9 @@ Future<StopReceipt> stopPosixPerlSession(
       settlement = const SettlementSettled(exitCode: 0);
     }
   } else if (leaderGone) {
-    settlement = const SettlementUnsettled('owned group pgid observation unsettled');
+    settlement = const SettlementUnsettled(
+      'owned group pgid observation unsettled',
+    );
   } else {
     settlement = const SettlementUnsettled('settle not acknowledged');
   }
