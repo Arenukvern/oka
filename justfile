@@ -30,7 +30,7 @@ test:
 
 # Run linter (workspace members via dart analyze; example via flutter analyze)
 lint:
-    dart analyze
+    dart analyze --fatal-infos
     -cd example && flutter analyze
 
 # Run release contract gates (version sync, docs drift, changelog hygiene)

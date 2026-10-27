@@ -59,7 +59,7 @@ final class SessionControlBinding {
       );
     } on Object catch (error) {
       await _disposePartial(server: server, directory: directory);
-      if (error is SessionControlBindException) throw error;
+      if (error is SessionControlBindException) rethrow;
       throw SessionControlBindException('control socket bind failed: $error');
     }
   }

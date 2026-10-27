@@ -9,10 +9,12 @@ import 'package:test/test.dart';
 void main() {
   test('bind fails closed when chmod 700 fails', () async {
     var chmodCalls = 0;
+    String? tempPath;
     await expectLater(
       SessionControlBinding.bind(
         chmodRunner: (path) async {
           chmodCalls++;
+          tempPath = path;
           expect(Directory(path).existsSync(), isTrue);
           return ProcessResult(0, 1, '', 'chmod failed');
         },
@@ -26,5 +28,7 @@ void main() {
       ),
     );
     expect(chmodCalls, 1);
+    expect(tempPath, isNotNull);
+    expect(Directory(tempPath!).existsSync(), isFalse);
   });
 }
