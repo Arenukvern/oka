@@ -5,7 +5,7 @@ POSIX **owned process sessions** for the oka ecosystem
 
 Adopts dfp ADR-0066 rules as oka policy:
 
-- **Identity before signal** (`pid` + start time)
+- **Identity before signal** (`pid` + start time + p1 marker/sid)
 - Observed **group disappearance is final**
 - **Unavailable observation is never death** — report *unsettled*
 
@@ -16,14 +16,30 @@ Adopts dfp ADR-0066 rules as oka policy:
 | Piece | State |
 | --- | --- |
 | Types (identity, settlement, receipts, budgets) | Implemented |
-| `posix-perl` backend | **Stub** — P0 (dfp contract migration) |
+| `posix-perl` backend | **Implemented** (p1 Perl leader) |
 | `posix-native` backend | **Stub** — P1 (Rust helper under `native/`) |
-| `oka_core` integration | **Follow-up** after P0 |
+| `oka_core` integration | **Follow-up** |
 
 ## Backends
 
-- `posix-perl` — reference Perl leader (P0)
+- `posix-perl` — reference Perl leader (`tool/owned_session_p1_leader.pl`)
 - `posix-native` — hash-pinned prebuilt helper (P1)
+
+## p1 conformance
+
+Normative contract: [`doc/p1_owned_session_contract.md`](doc/p1_owned_session_contract.md).
+
+Leader path resolution uses `Isolate.resolvePackageUri` in
+`resolveOwnedSessionP1LeaderPath()` — that does **not** work in
+`dart compile exe` / AOT binaries. Set **`OWNED_SESSION_P1_LEADER`** to the
+on-disk path of `tool/owned_session_p1_leader.pl` for compiled consumers.
+
+```bash
+export OWNED_SESSION_P1_LEADER="$PWD/tool/owned_session_p1_leader.pl"
+dart test
+bash tool/run_p1_oka_probes.sh
+bash tool/p1_matrix.sh   # per-host OS/arch cell
+```
 
 ## Example
 
@@ -35,10 +51,11 @@ cd example && dart run main.dart
 import 'package:oka_process/oka_process.dart';
 
 final backend = PosixPerlProcessSessionBackend();
-// launch() / stop() throw UnsupportedError until P0 is implemented.
+final handle = await backend.launch(
+  const OwnedProcessLaunchSpec(executable: 'sleep', arguments: ['2']),
+);
+final receipt = await backend.stop(handle);
 ```
-
-Contract placeholder: [`doc/p1_owned_session_contract.md`](doc/p1_owned_session_contract.md).
 
 ## Publishing
 

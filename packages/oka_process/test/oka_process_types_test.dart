@@ -3,11 +3,26 @@ import 'package:test/test.dart';
 
 void main() {
   group('ProcessIdentityToken', () {
-    test('equality uses pid and startTime', () {
+    test('equality uses pid, startTime, marker, and sessionId', () {
       final t = DateTime.utc(2026, 10, 26, 12);
-      final a = ProcessIdentityToken(pid: 42, startTime: t);
-      final b = ProcessIdentityToken(pid: 42, startTime: t);
-      final c = ProcessIdentityToken(pid: 43, startTime: t);
+      final a = ProcessIdentityToken(
+        pid: 42,
+        startTime: t,
+        marker: 'm',
+        sessionId: 7,
+      );
+      final b = ProcessIdentityToken(
+        pid: 42,
+        startTime: t,
+        marker: 'm',
+        sessionId: 7,
+      );
+      final c = ProcessIdentityToken(
+        pid: 43,
+        startTime: t,
+        marker: 'm',
+        sessionId: 7,
+      );
       expect(a, b);
       expect(a == c, isFalse);
     });
@@ -32,6 +47,8 @@ void main() {
         identity: ProcessIdentityToken(
           pid: 1,
           startTime: DateTime.utc(2026),
+          marker: 'm',
+          sessionId: 1,
         ),
         settlement: const SettlementSettled(exitCode: 0),
       );
@@ -43,6 +60,8 @@ void main() {
         identity: ProcessIdentityToken(
           pid: 1,
           startTime: DateTime.utc(2026),
+          marker: 'm',
+          sessionId: 1,
         ),
         settlement: const SettlementUnsettled('observation timed out'),
       );
@@ -57,13 +76,17 @@ void main() {
     });
   });
 
-  group('backends', () {
-    test('posix-perl launch is unsupported until P0', () {
+  group('posix-perl backend', () {
+    test('launch and stop sleep target', () async {
       final backend = PosixPerlProcessSessionBackend();
-      expect(
-        backend.launch(const OwnedProcessLaunchSpec(executable: '/bin/true')),
-        throwsA(isA<UnsupportedError>()),
+      final handle = await backend.launch(
+        const OwnedProcessLaunchSpec(executable: 'sleep', arguments: ['3600']),
       );
-    });
+      expect(handle.leaderIdentity.pid, greaterThan(0));
+      expect(handle.leaderIdentity.marker, isNotEmpty);
+      expect(handle.leaderIdentity.sessionId, greaterThan(0));
+      final receipt = await backend.stop(handle);
+      expect(receipt.isSettled, isTrue);
+    }, timeout: const Timeout(Duration(seconds: 30)));
   });
 }
