@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'graceful_cleanup_hook.dart';
 import 'observation_budget.dart';
 import 'owned_process_launch_spec.dart';
 import 'owned_process_session_handle.dart';
@@ -55,6 +54,7 @@ final class _PosixPerlSessionRuntime {
   bool settleRequested = false;
   bool clearedPsObservationStop = false;
   bool deferSigkillEscalation = false;
+  bool groupKilled = false;
   int? reportedWaitStatus;
   String? unsettledReason;
   String? controlFailure;
@@ -107,7 +107,7 @@ Future<OwnedProcessSessionHandle> launchPosixPerlSession(
   if (perl == null) {
     throw OwnedProcessLaunchException('system perl not found');
   }
-  final leaderPath = resolveOwnedSessionP1LeaderPath();
+  final leaderPath = await resolveOwnedSessionP1LeaderPath();
   if (!File(leaderPath).existsSync()) {
     throw OwnedProcessLaunchException('leader not found: $leaderPath');
   }
@@ -137,14 +137,16 @@ Future<OwnedProcessSessionHandle> launchPosixPerlSession(
         'must be 1–300 whole seconds',
       );
     }
-    leaderArgs.addAll(['--graceful', hook.executable, '--graceful-timeout', '$secs']);
+    leaderArgs.addAll([
+      '--graceful',
+      hook.executable,
+      '--graceful-timeout',
+      '$secs',
+    ]);
   }
   leaderArgs.addAll(['--', spec.executable, ...spec.arguments]);
 
-  final env = <String, String>{
-    ...Platform.environment,
-    ...spec.environment,
-  };
+  final env = <String, String>{...Platform.environment, ...spec.environment};
   final launchInstant = DateTime.now();
   late final Process process;
   try {
@@ -220,9 +222,7 @@ Future<OwnedProcessSessionHandle> launchPosixPerlSession(
       );
       runtime.controlSocket = socket;
       runtime.controlSink = socket;
-      unawaited(
-        _listenControl(runtime, channelStarted, marker: marker),
-      );
+      unawaited(_listenControl(runtime, channelStarted, marker: marker));
     } on Object {
       runtime.controlFailure = 'control accept failed';
       if (!channelStarted.isCompleted) channelStarted.complete();
@@ -335,9 +335,15 @@ void _handleControlLine(
     runtime.unsettledReason = status.reason;
     return;
   }
+  if (status is StatusKilledGroup) {
+    runtime.groupKilled = true;
+    return;
+  }
 }
 
-Future<void> _maybeSettleAfterTargetExit(_PosixPerlSessionRuntime runtime) async {
+Future<void> _maybeSettleAfterTargetExit(
+  _PosixPerlSessionRuntime runtime,
+) async {
   if (runtime.externallyStopped ||
       runtime.reportedWaitStatus == null ||
       runtime.settleRequested) {
@@ -368,9 +374,8 @@ Future<Set<int>?> _ownedGroupMembers(_PosixPerlSessionRuntime runtime) async {
   if (rows == null) return null;
   final members = <int>{
     for (final (pid, _, pgid, stat) in rows)
-      if (runtime.ready &&
-          pgid == runtime.process.pid &&
-          !stat.contains('Z')) pid,
+      if (runtime.ready && pgid == runtime.process.pid && !stat.contains('Z'))
+        pid,
   };
   if (runtime.ready && runtime.rootExited && members.isEmpty) {
     runtime.groupGone = true;
@@ -415,7 +420,9 @@ Future<bool> _sendControl(
   }
 }
 
-Future<StopReceipt> stopPosixPerlSession(OwnedProcessSessionHandle handle) async {
+Future<StopReceipt> stopPosixPerlSession(
+  OwnedProcessSessionHandle handle,
+) async {
   final runtime = _runtimes[handle.runtimeKey];
   if (runtime == null) {
     return StopReceipt(
@@ -432,11 +439,18 @@ Future<StopReceipt> stopPosixPerlSession(OwnedProcessSessionHandle handle) async
   runtime.externallyStopped = true;
   final grace = runtime.budget.duration;
   await _stopOwnedGroup(runtime, grace: grace);
+  try {
+    await runtime.process.exitCode.timeout(grace);
+  } on TimeoutException {
+    // Leader may still be winding down; settlement uses wire evidence below.
+  }
 
   SettlementResult settlement;
   if (runtime.unsettledReason != null) {
     settlement = SettlementUnsettled(runtime.unsettledReason!);
-  } else if (runtime.settleAcknowledged.isCompleted) {
+  } else if (runtime.settleAcknowledged.isCompleted ||
+      runtime.groupKilled ||
+      runtime.rootExited) {
     final ws = runtime.reportedWaitStatus;
     if (ws != null) {
       final mapped = waitStatusToSettlement(ws);
@@ -444,6 +458,8 @@ Future<StopReceipt> stopPosixPerlSession(OwnedProcessSessionHandle handle) async
         exitCode: mapped.exitCode,
         signal: mapped.signal,
       );
+    } else if (runtime.groupKilled) {
+      settlement = const SettlementSettled(signal: 9);
     } else {
       settlement = const SettlementSettled(exitCode: 0);
     }
@@ -454,10 +470,7 @@ Future<StopReceipt> stopPosixPerlSession(OwnedProcessSessionHandle handle) async
   await runtime.disposeControl();
   _runtimes.remove(handle.runtimeKey);
 
-  return StopReceipt(
-    identity: runtime.identity(),
-    settlement: settlement,
-  );
+  return StopReceipt(identity: runtime.identity(), settlement: settlement);
 }
 
 bool _identityMatches(ProcessIdentityToken a, ProcessIdentityToken b) =>

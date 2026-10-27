@@ -80,10 +80,7 @@ void main() {
     test('launch and stop sleep target', () async {
       final backend = PosixPerlProcessSessionBackend();
       final handle = await backend.launch(
-        const OwnedProcessLaunchSpec(
-          executable: 'sleep',
-          arguments: ['3600'],
-        ),
+        const OwnedProcessLaunchSpec(executable: 'sleep', arguments: ['3600']),
       );
       expect(handle.leaderIdentity.pid, greaterThan(0));
       expect(handle.leaderIdentity.marker, isNotEmpty);

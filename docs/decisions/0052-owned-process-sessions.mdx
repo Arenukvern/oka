@@ -1,7 +1,7 @@
 # 0052 — Owned process sessions (POSIX)
 
-- **Status:** accepted (design); **implementation:** P0 skeleton shipped in
-  `packages/oka_process` — backends stubbed
+- **Status:** accepted; **implementation:** `posix-perl` p1 backend shipped in
+  `packages/oka_process`; `posix-native` still stubbed
 - **Date:** 2026-10-26
 - **Supersedes:** [ADR-0026](0026-declarative-resource-composition-sdk) decision 8
   (owned-run platform seam ownership)
@@ -78,7 +78,7 @@ for code and CI matrix here; see [Future work](#future-work).
 
 | Backend | Role | Status |
 | --- | --- | --- |
-| `posix-perl` | Reference leader script (P0); ships in package | **P0** — API skeleton; implementation follows dfp PR #5 |
+| `posix-perl` | Reference leader script (p1); ships in package | **Done** — Perl leader + Dart host backend |
 | `posix-native` | Rust helper (`libc` only) in `packages/oka_process/native/`, prebuilt linux/macos x64+arm64 with sha256 constants, copied to `0700` dir + verified before exec; Perl fallback by name | **P1** — stubbed; build matrix below |
 
 `ProcessSessionBackend` exposes only these two kinds in public API.
@@ -116,8 +116,8 @@ amended to point here.
 | Step | Owner | Status |
 | --- | --- | --- |
 | P0 | [dfp PR #5](https://github.com/xsoulspace/dart_flutter_packages/pull/5) — Perl leader + **p1 contract** + conformance suite ([commit `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/commit/2f9ce9b1)) | **In flight** (external; not merged) |
-| P0 | Copy contract doc + suite + leader into `oka_process` unchanged | **Pending** dfp PR #5 merge |
-| P0 | `posix-perl` backend implements contract | **Not started** in oka |
+| P0 | Copy contract doc + suite + leader into `oka_process` unchanged | **Done** — vendored from [UA @ `a86be1a2`](https://github.com/Arenukvern/universal_automation_ai_device_use/commit/a86be1a2) |
+| P0 | `posix-perl` backend implements contract | **Done** in oka |
 | P1 | `posix-native` helper + hash-pinned prebuilts | **Planned** |
 | P1 | `xsoulspace_tooling_runtime` → Universal Automation; calls `oka_process` | **External** |
 | P1 | Last Answer migrates in same push as UA wiring | **External** |
@@ -142,25 +142,15 @@ the maintainer (not `publish_packages.sh` / GitHub Actions) — see
 
 ## Conformance
 
-Normative **p1** wire contract (argv, stderr bootstrap, control channel,
-signal rules) until it is vendored into this repo:
+Normative **p1** wire contract (vendored, byte-identical from
+[UA `a86be1a2`](https://github.com/Arenukvern/universal_automation_ai_device_use/commit/a86be1a2)):
 
-- [owned_session_p1.md @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/doc/owned_session_p1.md)
-  on [xsoulspace/dart_flutter_packages PR #5](https://github.com/xsoulspace/dart_flutter_packages/pull/5)
-  (pending merge).
-- Reference leader:
-  [`owned_session_p1_leader.pl` @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/tool/owned_session_p1_leader.pl).
-- Contract-level suite:
-  [`owned_session_p1_conformance_test.dart` @ `2f9ce9b1`](https://github.com/xsoulspace/dart_flutter_packages/blob/2f9ce9b1/pkgs/xsoulspace_tooling_runtime/test/owned_session_p1_conformance_test.dart).
-
-After merge, the contract markdown moves to
-`packages/oka_process/doc/p1_owned_session_contract.md` **without semantic
-changes**; the suite and leader copy into `oka_process` unchanged. Local
-pointer until then:
-`packages/oka_process/doc/p1_owned_session_contract.md`.
-
-Oka harness entrypoint (stub today):
-`packages/oka_process/test/conformance/conformance_harness_test.dart`.
+- [`packages/oka_process/doc/p1_owned_session_contract.md`](../../packages/oka_process/doc/p1_owned_session_contract.md)
+- Leader: [`packages/oka_process/tool/owned_session_p1_leader.pl`](../../packages/oka_process/tool/owned_session_p1_leader.pl)
+- Suite: `packages/oka_process/test/owned_session_p1_*.dart` (set
+  `OWNED_SESSION_P1_LEADER` to the leader path)
+- Local matrix: `packages/oka_process/tool/p1_matrix.sh`
+- Harness alias: `packages/oka_process/test/conformance/conformance_harness_test.dart`
 
 ## Future work
 

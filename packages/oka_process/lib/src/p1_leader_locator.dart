@@ -2,12 +2,12 @@ import 'dart:io';
 import 'dart:isolate';
 
 /// Resolves the p1 Perl leader (`OWNED_SESSION_P1_LEADER` or package `tool/`).
-String resolveOwnedSessionP1LeaderPath() {
+Future<String> resolveOwnedSessionP1LeaderPath() async {
   final fromEnv = Platform.environment['OWNED_SESSION_P1_LEADER'];
   if (fromEnv != null && fromEnv.isNotEmpty) {
     return fromEnv;
   }
-  final entry = Isolate.resolvePackageUri(
+  final entry = await Isolate.resolvePackageUri(
     Uri.parse('package:oka_process/oka_process.dart'),
   );
   if (entry == null) {

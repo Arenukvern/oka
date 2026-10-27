@@ -27,9 +27,10 @@ Future<List<PsGroupRow>?> readProcessGroupRows() async {
 
 Future<bool?> pidAlive(int pid) async {
   try {
-    final result = await Process.run('kill', ['-0', '$pid']).timeout(
-      const Duration(seconds: 2),
-    );
+    final result = await Process.run('kill', [
+      '-0',
+      '$pid',
+    ]).timeout(const Duration(seconds: 2));
     return result.exitCode == 0;
   } on Object {
     return null;
