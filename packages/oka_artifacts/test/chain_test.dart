@@ -112,7 +112,11 @@ void main() {
     );
     expect(receipt.kind, 'snapshot');
     final status = store.status(name: 'depth')!;
-    expect(status['deltas'], 2);
+    // Retention amendment (2026-11-04): the depth snapshot truncates the
+    // manifest to itself. That the bound fired is what the receipt kinds
+    // above assert; the manifest now carries exactly that one snapshot.
+    expect(status['deltas'], 0);
+    expect(status['snapshots'], 1);
   });
 
   test('orEvery cadence snapshots on schedule regardless of ratios', () {
@@ -161,7 +165,10 @@ void main() {
     // The chain recorded a codec name change; materialize without a
     // codec still works (snapshot-only so far in this run).
     final status = store.status(name: 'degraded')!;
-    expect(status['snapshots'], greaterThanOrEqualTo(2));
+    // Retention amendment: each snapshot truncates the manifest, so the
+    // surviving manifest carries exactly the final snapshot. That both
+    // revisions degraded loudly is what the receipts above assert.
+    expect(status['snapshots'], 1);
     expect(first.sha256, isNot(receipt.sha256));
   });
 
@@ -245,7 +252,10 @@ void main() {
     }
     final status = store.status(name: 'only')!;
     expect(status['deltas'], 0);
-    expect(status['snapshots'], 4);
+    // Retention amendment: every snapshot truncates the manifest, so the
+    // surviving manifest is exactly the final snapshot (the receipt kinds
+    // above assert all four revisions were snapshots).
+    expect(status['snapshots'], 1);
   });
 
   test('invalid artifact names are rejected before any write', () {
@@ -259,6 +269,75 @@ void main() {
       throwsArgumentError,
     );
     expect(store.names(), isEmpty);
+  });
+
+  test('retention: snapshots truncate the manifest; the head stays exact', () {
+    var bytes = content('gen', 4096);
+    String headSha = '';
+    for (var i = 0; i < 25; i++) {
+      bytes = [...bytes, i];
+      final receipt = store.record(
+        bytes,
+        name: 'retention',
+        policy: const DeltaChain(
+          rolloverWhen: DeltaRatio(over: 1),
+          orEvery: 5,
+          maxChainDepth: 100,
+        ),
+        codec: const XorTestCodec(),
+      );
+      headSha = receipt.sha256;
+    }
+    final status = store.status(name: 'retention')!;
+    expect(status['revisions'], lessThanOrEqualTo(5));
+    expect(status['deltas'], lessThanOrEqualTo(4));
+    final materialized = store.materialize(name: 'retention');
+    expect(materialized.sha256, headSha);
+    expect(materialized.bytes, bytes);
+    expect(
+      store.verify(name: 'retention', codec: const XorTestCodec()).ok,
+      isTrue,
+    );
+  });
+
+  test('sweep: dry run reports, apply removes orphans and garbage', () async {
+    final bytes = content('live', 4096);
+    store
+      ..record(
+        bytes,
+        name: 'live',
+        policy: const SnapshotOnly(),
+        codec: const XorTestCodec(),
+      )
+      ..record(
+        bytes,
+        name: 'orphan',
+        policy: const SnapshotOnly(),
+        codec: const XorTestCodec(),
+      );
+    final orphanManifest = File(
+      p.join(store.root.path, 'chains', 'orphan', 'chain.json'),
+    )..setLastModifiedSync(
+      DateTime.now().subtract(const Duration(days: 40)),
+    );
+    final stray = File(p.join(store.root.path, 'blobs', 'deadbeef'))
+      ..writeAsBytesSync(const [1, 2, 3])
+      ..setLastModifiedSync(
+        DateTime.now().subtract(const Duration(hours: 2)),
+      );
+
+    final report = await store.sweep();
+    expect(report.chainDirs.single.endsWith('orphan'), isTrue);
+    expect(report.blobs.single.endsWith('deadbeef'), isTrue);
+    expect(orphanManifest.existsSync(), isTrue); // dry run touched nothing
+
+    await store.sweep(dryRun: false);
+    expect(
+      Directory(p.join(store.root.path, 'chains', 'orphan')).existsSync(),
+      isFalse,
+    );
+    expect(stray.existsSync(), isFalse);
+    expect(store.materialize(name: 'live').bytes, bytes);
   });
 }
 

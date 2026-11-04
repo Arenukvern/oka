@@ -32,6 +32,16 @@ Future<void> main(List<String> args) async {
       help: 'Write an ArtifactPointer manifest here (put).',
     )
     ..addOption('out', abbr: 'o', help: 'Materialize target file.')
+    ..addOption(
+      'chain-ttl-days',
+      help: 'sweep: drop chains unwritten this'
+          ' many days (default 30).',
+    )
+    ..addFlag(
+      'apply',
+      negatable: false,
+      help: 'sweep: delete, not just report.',
+    )
     ..addFlag('json', negatable: false, help: 'Emit JSON.')
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help.');
   final ArgResults results;
@@ -70,10 +80,12 @@ Future<void> main(List<String> args) async {
       _verify(store, codec, results, args);
     case 'status':
       _status(store, results, args);
+    case 'sweep':
+      await _sweep(store, results);
     default:
       stderr.writeln(
         'unknown command "${args.first}"; '
-        'use put, materialize, verify or status',
+        'use put, materialize, verify, status or sweep',
       );
       exitCode = 2;
   }
@@ -220,10 +232,34 @@ void _status(
 String _pretty(Map<String, Object?> value) =>
     const JsonEncoder.withIndent('  ').convert(value);
 
+/// Store GC (ADR-0043 retention amendment). Dry run unless --apply.
+Future<void> _sweep(ArtifactStore store, ArgResults results) async {
+  final ttlDays = int.tryParse(results['chain-ttl-days'] as String? ?? '');
+  final apply = results['apply'] as bool;
+  final report = await store.sweep(
+    chainTtl: Duration(days: ttlDays ?? 30),
+    dryRun: !apply,
+  );
+  final mode = apply ? 'swept' : 'would sweep';
+  final failures = report.failures.isEmpty
+      ? ''
+      : ', ${report.failures.length} failure(s)';
+  stdout.writeln(
+    results['json'] as bool
+        ? const JsonEncoder.withIndent(' ').convert(report.toJson())
+        : '$mode: ${report.chainDirs.length} chain(s), '
+              '${report.deltaFiles.length} delta frame(s), '
+              '${report.blobs.length} blob(s) — '
+              '${(report.bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
+              '$failures',
+  );
+}
+
 const String _usage =
     'oka_artifacts — content-addressed artifact store '
     'with delta chains (ADR-0043)\n'
     '  put <file> --name <n>       record a revision (dedup by hash)\n'
     '  materialize <name> [-o f]   walk the chain to full bytes\n'
     '  verify <name>               integrity-check every link\n'
-    '  status [name]               chain summary or store listing';
+    '  status [name]               chain summary or store listing\n'
+    '  sweep [--apply] [--chain-ttl-days n]   store GC (dry run default)';

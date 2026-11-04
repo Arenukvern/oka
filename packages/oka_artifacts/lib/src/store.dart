@@ -299,10 +299,17 @@ final class ArtifactStore {
         ..renameSync(blob.path);
     }
     final entry = _Entry(kind: 'snapshot', resultSha: sha, blobSha: sha);
+    // Retention amendment (ADR-0043, 2026-11-04): the store reads the
+    // head only, so revisions before the newest snapshot are unreachable
+    // cache bytes. Truncate the manifest to the fresh snapshot; their
+    // frames and blobs become sweep garbage (this is the leak that buried
+    // harnessd-jit-dill at 964 MB across 115 retained deltas). Frames are
+    // deleted by [sweep] against CURRENT manifests, never inline, so a
+    // concurrent reader holding the previous manifest stays consistent.
     _writeChain(
       _Chain(
         name: name,
-        entries: [...?chain?.entries, entry],
+        entries: [entry],
         codec: codec.name,
         policy: policy,
       ),
@@ -361,8 +368,19 @@ final class ArtifactStore {
       ]);
     }
     final problems = <String>[];
+    // Walk from the LAST snapshot, not from history's start: the store
+    // reads the head only (ADR-0043 retention amendment, 2026-11-04), so
+    // entries before the newest snapshot are unreachable by design and
+    // must not make materialization cost grow with chain age.
+    var start = 0;
+    for (var i = chain.entries.length - 1; i >= 0; i--) {
+      if (chain.entries[i].kind == 'snapshot') {
+        start = i;
+        break;
+      }
+    }
     Uint8List? bytes;
-    for (var index = 0; index < chain.entries.length; index++) {
+    for (var index = start; index < chain.entries.length; index++) {
       final entry = chain.entries[index];
       switch (entry.kind) {
         case 'snapshot':
@@ -451,6 +469,98 @@ final class ArtifactStore {
       ..sort();
   }
 
+  /// Store garbage collection (ADR-0043 retention amendment, 2026-11-04).
+  ///
+  /// Best-effort and never fatal; manifests are the only truth. Removes:
+  /// - chains whose `chain.json` was last written before [chainTtl] ago
+  ///   (renamed-runner orphans — the harnessd-jit-dill case);
+  /// - blobs no surviving manifest references and delta frames the
+  ///   chain's CURRENT manifest no longer references (compaction
+  ///   leftovers). Fresher than [grace] is never touched — a concurrent
+  ///   record may be mid-write.
+  ///
+  /// [dryRun] (the default) reports without deleting.
+  Future<SweepReport> sweep({
+    Duration chainTtl = const Duration(days: 30),
+    Duration grace = const Duration(hours: 1),
+    bool dryRun = true,
+  }) async {
+    final report = SweepReport();
+    final now = DateTime.now();
+    final chainsRoot = Directory(p.join(root.path, 'chains'));
+    final referencedBlobs = <String>{};
+    final referencedFrames = <String>{};
+
+    final chainDirs = chainsRoot.existsSync()
+        ? chainsRoot.listSync().whereType<Directory>().toList()
+        : const <Directory>[];
+    for (final dir in chainDirs) {
+      final manifest = File(p.join(dir.path, 'chain.json'));
+      if (!manifest.existsSync()) {
+        report.brokenChains.add(dir.path);
+        continue;
+      }
+      if (now.difference(manifest.statSync().modified) > chainTtl) {
+        report.chainDirs.add(dir.path);
+        continue;
+      }
+      try {
+        final chain = _Chain.fromJson(
+          jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>,
+        );
+        for (var i = 0; i < chain.entries.length; i++) {
+          final entry = chain.entries[i];
+          if (entry.blobSha != null) referencedBlobs.add(entry.blobSha!);
+          if (entry.kind == 'delta') {
+            referencedFrames.add(p.join(dir.path, '$i.delta'));
+          }
+        }
+      } on FormatException {
+        report.brokenChains.add(dir.path);
+      }
+    }
+
+    for (final dir in chainDirs) {
+      if (report.chainDirs.contains(dir.path) ||
+          report.brokenChains.contains(dir.path)) {
+        continue;
+      }
+      for (final f in dir.listSync().whereType<File>()) {
+        if (p.extension(f.path) != '.delta') continue;
+        if (referencedFrames.contains(f.path)) continue;
+        if (now.difference(f.statSync().modified) <= grace) continue;
+        report.deltaFiles.add(f.path);
+        report.bytes += f.lengthSync();
+      }
+    }
+    final blobs = Directory(p.join(root.path, 'blobs'));
+    if (blobs.existsSync()) {
+      for (final f in blobs.listSync().whereType<File>()) {
+        if (referencedBlobs.contains(p.basename(f.path))) continue;
+        if (now.difference(f.statSync().modified) <= grace) continue;
+        report.blobs.add(f.path);
+        report.bytes += f.lengthSync();
+      }
+    }
+
+    if (dryRun) return report;
+    for (final path in report.chainDirs) {
+      try {
+        Directory(path).deleteSync(recursive: true);
+      } on FileSystemException {
+        report.failures.add(path);
+      }
+    }
+    for (final path in [...report.deltaFiles, ...report.blobs]) {
+      try {
+        File(path).deleteSync();
+      } on FileSystemException {
+        report.failures.add(path);
+      }
+    }
+    return report;
+  }
+
   _Chain? _readChain(String name) {
     final file = _chainFile(name);
     if (!file.existsSync()) return null;
@@ -466,6 +576,27 @@ final class ArtifactStore {
       ..writeAsStringSync('${encodeCanonical(chain.toJson())}\n')
       ..renameSync(chainFile.path);
   }
+}
+
+/// What [ArtifactStore.sweep] found (and, when applying, deleted).
+final class SweepReport {
+  final chainDirs = <String>[];
+  final brokenChains = <String>[];
+  final deltaFiles = <String>[];
+  final blobs = <String>[];
+  final failures = <String>[];
+
+  /// Reclaimable bytes across [deltaFiles] and [blobs].
+  int bytes = 0;
+
+  Map<String, Object?> toJson() => {
+    'chainDirs': chainDirs.length,
+    'brokenChains': brokenChains.length,
+    'deltaFiles': deltaFiles.length,
+    'blobs': blobs.length,
+    'failures': failures.length,
+    'bytes': bytes,
+  };
 }
 
 /// A chain failed integrity during materialization; the problems name
