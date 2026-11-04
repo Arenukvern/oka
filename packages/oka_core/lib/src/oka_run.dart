@@ -32,7 +32,13 @@ import 'targets/target.dart';
 ///   documented safe: evicted entries re-fetch through the miss path).
 ///   Defaults: `OKA_STORE_TTL` hours (720 = 30 days) and `OKA_STORE_BUDGET`
 ///   bytes (unset = age-only).
-Future<void> _machineHygiene({required bool verbose}) async {
+/// - Ages out the project's own `.oka_cache/build/<mode>` scratch older
+///   than 7 days (per-project build staging regenerates on the next
+///   build; the 2026-09-29 sweep found these at up to 1.5 GB each).
+Future<void> _machineHygiene({
+  required bool verbose,
+  required String projectRoot,
+}) async {
   try {
     final cutoff = DateTime.now().subtract(const Duration(hours: 24));
     await for (final entry in Directory.systemTemp.list(followLinks: false)) {
@@ -44,6 +50,19 @@ Future<void> _machineHygiene({required bool verbose}) async {
     }
   } catch (_) {
     return; // hygiene is best-effort
+  }
+  try {
+    final buildRoot = Directory('$projectRoot/.oka_cache/build');
+    if (buildRoot.existsSync()) {
+      final stale = DateTime.now().subtract(const Duration(days: 7));
+      await for (final entry in buildRoot.list(followLinks: false)) {
+        if (entry is! Directory) continue;
+        if (entry.statSync().modified.isAfter(stale)) continue;
+        await entry.delete(recursive: true).catchError((_) => entry);
+      }
+    }
+  } catch (_) {
+    // best-effort
   }
   try {
     final ttlHours = int.tryParse(Platform.environment['OKA_STORE_TTL'] ?? '');
@@ -244,7 +263,7 @@ Future<void> okaRun(
 
   final buildDir = '$root/.oka_cache/build/$buildDirMode';
   await Directory(buildDir).create(recursive: true);
-  await _machineHygiene(verbose: verbose);
+  await _machineHygiene(verbose: verbose, projectRoot: root);
 
   final ctx = BuildContext(
     projectPath: root,
