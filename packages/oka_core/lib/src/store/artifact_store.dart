@@ -152,6 +152,20 @@ class ArtifactStoreEntry {
   String get dir => sweepDir ?? p.dirname(path);
 }
 
+/// System-temp prefixes minted by artifact produce closures. Fetch reaps
+/// the dir its produced file came from; the oka-run startup sweep ages out
+/// survivors (crashed runs) after 24 h. Keep in sync with new producers.
+const List<String> okaProduceTempPrefixes = [
+  'oka_engine_',
+  'oka_kotlin_',
+  'oka_androidx_',
+  'oka_r8_',
+  'oka_bundletool_',
+  'oka_platform_tools_',
+  'oka_sysimage_ptr_',
+  'oka_cft_',
+];
+
 /// Outcome of a [ArtifactStore.purge] run.
 @immutable
 class PurgeResult {
@@ -343,7 +357,25 @@ class LocalArtifactStore implements ArtifactStore {
       ).convert(_entryJson(key, destName, await dest.length())),
       flush: true,
     );
+    await _reapProduceTemp(produced);
     return dest;
+  }
+
+  /// Closes the 2026-09-29 temp-dir leak at its single owner: produce
+  /// closures mint an `oka_*` system-temp dir and return a file inside;
+  /// once the copy lands, the dir is dead. Best-effort, never fatal —
+  /// the oka-run startup sweep reaps survivors of crashed runs.
+  Future<void> _reapProduceTemp(File produced) async {
+    final dirPath = p.canonicalize(p.dirname(produced.path));
+    final name = p.basename(dirPath);
+    final tmpRoot = p.canonicalize(Directory.systemTemp.path);
+    final known = okaProduceTempPrefixes.any(name.startsWith);
+    if (!dirPath.startsWith('$tmpRoot/') || !known) return;
+    try {
+      await Directory(dirPath).delete(recursive: true);
+    } on FileSystemException {
+      // leave it; the startup sweep reaps it once it ages out
+    }
   }
 
   /// Looks up [key] via its own directory index first, then (for

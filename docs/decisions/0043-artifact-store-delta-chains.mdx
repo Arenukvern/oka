@@ -88,3 +88,30 @@ SnapshotOnly — the rule type already exists, nothing else changes. If
 pointer-dangle failures reach users (build-from-source fallback broken
 *and* backend unreachable), the pointer law is wrong and must be
 re-decided, not papered over with retries.
+
+## Amendment 2026-11-04 — bounded retention
+
+The 2026-11-04 storage sweep found `chains/harnessd-jit-dill` at **964 MB
+across 115 retained delta frames**: the ratio/depth/cadence rules bound the
+delta *run* (materialization walk cost) but nothing bounded *storage* —
+entries, frames and blobs grew monotonically forever, and `materialize()`
+walked all of history instead of stopping at the newest snapshot. The
+store's own premise ("a dill is a cache entry with provenance, not a
+source file") already answers this: only the head is ever read.
+
+Three changes, all proven by `chain_test.dart`:
+
+1. **Snapshots truncate the manifest** to the fresh snapshot entry. Old
+   revisions were unreachable by the store's own read contract; their
+   frames and blobs become sweep garbage. Compaction never deletes files
+   inline — a concurrent reader holding the previous manifest stays
+   consistent (manifest rename is atomic; frames die only in the sweep).
+2. **`materialize()` walks from the last snapshot**, not index 0, so walk
+   cost no longer grows with chain age.
+3. **`ArtifactStore.sweep({chainTtl, grace, dryRun})`** (+ CLI `sweep
+   [--apply] --chain-ttl-days n`, dry run default): drops chains unwritten
+   past `chainTtl` (renamed-runner orphans), blobs no surviving manifest
+   references, and frames the current manifest dropped — with a 1 h grace
+   so a mid-write record is never collected. Renamed runners
+   (`harnessd` → `ecsid` → `ecsai`) now self-heal instead of leaving
+   gigabyte-shaped ghosts.

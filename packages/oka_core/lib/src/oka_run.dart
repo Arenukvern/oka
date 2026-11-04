@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'build_lease.dart';
@@ -13,10 +14,53 @@ import 'publish/publish_target.dart';
 import 'session_state_manager.dart';
 import 'session_state_reconciler.dart';
 import 'session_state_registry.dart';
+import 'store/artifact_store.dart';
 import 'store/cache_projects.dart';
 import 'target_execution_scope.dart';
 import 'targets/describe.dart';
 import 'targets/target.dart';
+
+/// Machine hygiene at oka-run start (2026-09-29 storage-sweep findings,
+/// implemented 2026-11-04): leaked `oka_*` system-temp dirs and the never-
+/// invoked store GC both grew without bound. Best-effort and never fatal —
+/// hygiene must not fail a build.
+///
+/// - Reaps `oka_*` produce-temp dirs older than 24 h (a live build's dir
+///   is minutes old; a crashed run's is a corpse). [okaProduceTempPrefixes]
+///   is the shared allowlist; fetch reaps its own dir eagerly.
+/// - Runs the store GC once per invocation ([ArtifactStore.purge] is
+///   documented safe: evicted entries re-fetch through the miss path).
+///   Defaults: `OKA_STORE_TTL` hours (720 = 30 days) and `OKA_STORE_BUDGET`
+///   bytes (unset = age-only).
+Future<void> _machineHygiene({required bool verbose}) async {
+  try {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 24));
+    await for (final entry in Directory.systemTemp.list(followLinks: false)) {
+      if (entry is! Directory) continue;
+      final name = p.basename(entry.path);
+      if (!okaProduceTempPrefixes.any(name.startsWith)) continue;
+      if (entry.statSync().modified.isAfter(cutoff)) continue;
+      await entry.delete(recursive: true).catchError((_) => entry);
+    }
+  } catch (_) {
+    return; // hygiene is best-effort
+  }
+  try {
+    final ttlHours = int.tryParse(Platform.environment['OKA_STORE_TTL'] ?? '');
+    final budget = int.tryParse(Platform.environment['OKA_STORE_BUDGET'] ?? '');
+    final result = await LocalArtifactStore().purge(
+      olderThan: Duration(hours: ttlHours ?? 720),
+      maxTotalBytes: budget,
+    );
+    if (verbose && result.deleted > 0) {
+      final mb = (result.bytesFreed / (1024 * 1024)).toStringAsFixed(1);
+      stdout.writeln('oka store gc: ${result.deleted} entries, $mb MB');
+    }
+  } catch (_) {
+    // store gc is best-effort ("store gc is always safe" — the purge path
+    // only ever removes re-fetchable entries)
+  }
+}
 
 /// Entry-point options accepted by [okaRun] (forwarded by `oka build` when a
 /// project declares `pipeline.dart_entrypoint` in oka.yaml).
@@ -200,6 +244,7 @@ Future<void> okaRun(
 
   final buildDir = '$root/.oka_cache/build/$buildDirMode';
   await Directory(buildDir).create(recursive: true);
+  await _machineHygiene(verbose: verbose);
 
   final ctx = BuildContext(
     projectPath: root,
