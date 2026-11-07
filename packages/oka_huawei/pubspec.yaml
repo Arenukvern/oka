@@ -22,7 +22,7 @@ environment:
   sdk: ^3.13.0
 
 dependencies:
-  archive: ^4.0.9
+  archive: ^4.6.0
   http: ^1.2.1
   meta: ^1.14.0
   oka_android: ^0.9.1 # x-release-please-version

@@ -20,7 +20,7 @@ environment:
   sdk: ^3.13.0
 
 dependencies:
-  archive: ^4.0.9
+  archive: ^4.6.0
   crypto: ^3.0.0
   meta: ^1.14.0
   # This package publishes on the train together with oka_core 0.2.0

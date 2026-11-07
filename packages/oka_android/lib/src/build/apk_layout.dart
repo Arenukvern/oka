@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
 
+import 'zip_artifact_time.dart';
+
 /// Expected native ABI directory names inside an Android APK.
 const kSupportedAbis = ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
 
@@ -333,6 +335,7 @@ Future<void> zipStagingToApk(String stagingDir, String apkPath) async {
       ..compression = rel == 'resources.arsc'
           ? CompressionType.none
           : CompressionType.deflate;
+    stampOkaZipEntry(file);
     archive.addFile(file);
   }
   final encoded = ZipEncoder().encodeBytes(archive);

@@ -1,7 +1,7 @@
 # Oka — one typed Dart surface to build, run, patch, and distribute apps
 
 <p align="center">
-  <img src="docs/images/oka-banner.svg" alt="Oka: one typed Dart file, no Gradle, Flutter Android builds" width="720" />
+  <img src="docs/assets/logos/logo.jpg" alt="Oka: one typed Dart surface to build, run, patch, and distribute apps" width="360" />
 </p>
 
 [![skills.sh](https://skills.sh/b/arenukvern/oka)](https://skills.sh/arenukvern/oka)
@@ -36,7 +36,7 @@ pillars, each at a different, honestly-labeled maturity:
 
 | Pillar | What it does | Maturity |
 |---|---|---|
-| **Build** | No-Gradle APK/AAB: `flutter assemble` + direct SDK tools, provenance on every artifact, byte-equivalence gates | **Production** — on pub.dev (v0.8.0) |
+| **Build** | No-Gradle APK/AAB: `flutter assemble` + direct SDK tools, provenance on every artifact, byte-equivalence gates | **Production** — on pub.dev (see `VERSION`) |
 | **Distribute** | Play / AppGallery / RuStore / web stores, multiple developer accounts, white-label brands — dry-run by default | **Production** — on pub.dev |
 | **Update** | Live per-unit patching of **running** programs: the `oka run dev` session, `oka ship` store-free air channel, AOT slots | **Gate-proven experimental** — runs from a checkout |
 | **Operate** | Declarative supervisor, process leases, session-state, content-addressed artifact store with delta chains | **Production** — supervisor at adoption rung L0 |

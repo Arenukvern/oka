@@ -21,7 +21,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  archive: ^4.0.9
+  archive: ^4.6.0
   crypto: ^3.0.3
   http: ^1.2.1
   meta: ^1.14.0

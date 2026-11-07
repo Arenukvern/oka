@@ -176,6 +176,38 @@ void main() {
     },
   );
 
+  test('syncs train deps in publish_to:none workspace packages', () {
+    write(
+      fixture,
+      'packages/oka_experimental/pubspec.yaml',
+      'name: oka_experimental\n'
+      'publish_to: none\n'
+      'version: 0.0.1\n'
+      'dependencies:\n'
+      '  oka_core: ^0.1.6\n'
+      'dev_dependencies:\n'
+      '  oka_web: ^0.1.6\n',
+    );
+    final result = run(fixture, 'sync_version.sh', ['--version', '0.3.0']);
+    expect(result.exitCode, 0, reason: output(result));
+    final experimental =
+        File('${fixture.path}/packages/oka_experimental/pubspec.yaml')
+            .readAsStringSync();
+    expect(
+      experimental,
+      contains('oka_core: ^0.3.0 # x-release-please-version'),
+    );
+    expect(
+      experimental,
+      contains('oka_web: ^0.3.0 # x-release-please-version'),
+    );
+    expect(
+      experimental,
+      contains('version: 0.0.1\n'),
+      reason: 'non-train package version line stays experimental',
+    );
+  });
+
   test('rejects invalid version without mutating VERSION', () {
     final before = File('${fixture.path}/VERSION').readAsBytesSync();
     final result = run(fixture, 'sync_version.sh', [

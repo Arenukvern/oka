@@ -1,0 +1,125 @@
+# Approved design: bounded fixes + platform experience slice (2026-11-07)
+
+This document is the **approved spec** for PR workstream
+`cursor/bounded-fixes-platform-design-1015`. Implementation follows the
+test-first plan below; substantive cross-platform **build** pipelines remain
+design-only pending Anton review.
+
+## Phase A (approved — implement in this PR)
+
+### A1 — README / docs branding
+
+| Item | Action |
+| --- | --- |
+| Hero image | Point `README.md` at `docs/assets/logos/logo.jpg` (canonical logo already in docs; no new assets). |
+| Alt text | Match CLI usage: one typed Dart surface to build, run, patch, and distribute apps. |
+| Version drift | README maturity table: pub.dev train version tracks `VERSION` / `packages/oka` (not stale `0.8.0`). |
+
+**Tests:** `tool/contracts/check_docs_drift.dart` (existing); manual README render check.
+
+### A2 — Workspace-aware release train dependency sync (#14 / #15)
+
+**Problem:** `tool/release/train.dart` bumps internal `^` constraints only in
+manifests listed by the **publishable train inventory**. Workspace members
+with `publish_to: none` (`oka_dart_kernel`, `oka_verify`, …) keep stale
+`^0.9.0` pins on minor bumps → `dart pub get` fails on release PRs.
+
+**Design:**
+
+1. **Dependency sync:** Every `packages/*/pubspec.yaml` plus root and
+   `example/pubspec.yaml` participates in train-package dependency rewrites
+   (`oka`, `oka_core`, …).
+2. **Version sync unchanged:** Only packages in the fixed publishable
+   `packages` const get `version:` bumps (experimental `0.0.1` packages stay).
+3. **release-please:** Add `oka_dart_kernel` and `oka_verify` pubspecs to
+   `release-please-config.json` `extra-files` so RP PRs stay aligned.
+
+**Test-first plan:**
+
+1. Extend `test/release_train_test.dart` fixture with a `publish_to: none`
+   package depending on `oka_core` / `oka_web`.
+2. Assert `sync --version 0.3.0` rewrites those deps to `^0.3.0` with marker.
+3. Regression: simulated `0.10.0` sync + `dart pub get --no-example` in CI/local
+   (no permanent VERSION mutation in repo).
+
+### A3 — Command lane receipt race (CI)
+
+**Problem:** `command_lane_test.dart` asserts receipt order after the log file
+updates, but `command_receipt` may still be in flight → flaky on Linux CI.
+
+**Design:** After the workload `until()` predicate, call existing `idle()`
+(quiescence: `command_start` count == `command_receipt` count + quiet window)
+before receipt assertions. **No** weakened expectations; **no** extra retries.
+
+**Tests:** Same file; deterministic on slow runners.
+
+## Phase B — capability map (evidence from current code)
+
+### Surfaces (not “package exists”)
+
+| Surface | JIT / dev | AOT / release | OTA / air |
+| --- | --- | --- | --- |
+| **Android** | `oka dev` / android daemon, DevFS, VM attach | `oka build` no-Gradle pipeline, provenance | `oka ship`, AOT slots, gates in `oka_dart_kernel/tool/` |
+| **Web** | `oka run dev --platform web`, DWDS + optional Chrome session (CDP borrow) | `WebBuildTarget` → `flutter build web` (honest delegation) | `gate_air_web.sh`, static host lane |
+| **macOS desktop** | `oka run dev --platform macos`, owning `flutter run`, oka delta lane + `R` platform restart | **Not owned** — PHASE_CHECKLIST defers `xcodebuild` graph | Same live stack; asset lane uses macOS `.app` bundle |
+| **Linux desktop** | `--platform linux` on same `flutter run` owner path (**unit-tested**; no Linux CI E2E gate yet) | **Not owned** | Asset dir discovery scoped to active `desktopPlatform` + debug mode |
+| **iOS** | `IosSimulatorAppTarget` → owning `flutter run` only (`oka_harness`) | No `oka_ios` pipeline | Store/signing constraints unchanged (no bypass) |
+
+### OTA distinction (binding)
+
+- **Native AOT:** `gen_snapshot` / slot flip / signed artifacts — Android air
+  channel; **not** hot reload on AOT code.
+- **JIT / kernel:** `oka_dart_kernel` frontend deltas, `reloadSources`, dev
+  watcher — **running VM** only.
+- **Web:** Advisory dills + DWDS reload / full page restart on `R`; deploy
+  targets consume directory artifacts.
+- **iOS / store:** Executable replacement remains OS-gated; design does not
+  claim invisible store OTA for native code.
+
+### Chrome / devices (reuse, do not duplicate)
+
+- **Owned:** Chrome spawn + CDP port in `oka_web` (`ChromeSessionTarget`,
+  process leases ADR-0018).
+- **Borrowed:** CDP page WS for dev session (`WebDwdsTarget.invalidateCdp` on
+  restart).
+- **Android devices/emulators:** `oka_android` device + emulator targets, AVD
+  lease cleanup.
+
+## Phase B — recommended first slice (review before build pipelines)
+
+**Recommendation: “Desktop + web dev convergence” (no new `PlatformPipeline`).**
+
+Extend and document the **existing** `oka run dev` stack:
+
+1. **Linux** — `--platform linux` CLI + platform-scoped asset discovery (unit
+   tests; E2E gate still macOS/web).
+2. **Public capability matrix** — `oka doctor` / live_update guide rows (follow-up
+   if not in this PR).
+3. **macOS owned build** — ADR-gated (PHASE_CHECKLIST §5); do **not** start
+   `xcodebuild` graph in this PR.
+4. **iOS build** — `oka_ios` ADR + signing checklist; harness keeps
+   `flutter run` owner.
+
+**Acceptance tests (future slice, Mac/Xcode for Apple rows):**
+
+| Test | Host |
+| --- | --- |
+| `gate_run_dev.sh` with `linux` | Linux + Flutter desktop enabled |
+| `gate_run_dev.sh` macos | macOS |
+| `gate_dev_assets.sh` | macOS |
+| Android `gate_live_e2e` | Linux + SDK |
+
+**Tradeoffs:**
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| **B1 — Dev-session expansion (recommended)** | Reuses live stack, JIT/HR/HR-testable on Linux CI for web | No owned desktop release builds |
+| **B2 — `oka build --platform` multi** | Single CLI UX | Huge; needs per-platform ADRs |
+| **B3 — Flutter delegation everywhere** | Fast to ship | Violates Android no-Gradle invariant for mobile |
+
+## Implementation order (this PR)
+
+1. Land this spec (this file).
+2. Tests for train workspace deps + command lane idle + linux parse + linux assets dir.
+3. Implementation.
+4. `dart analyze`, root + affected tests, `check_contracts`, simulated 0.10.0.

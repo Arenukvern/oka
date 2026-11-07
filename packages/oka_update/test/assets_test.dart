@@ -71,19 +71,102 @@ flutter:
         reason: 'the sections are independent');
   });
 
-  test('findFlutterAssetsDir picks the newest build product', () async {
-    expect(findFlutterAssetsDir(root), isNull,
-        reason: 'no build products yet');
-    // Dir mtime = last child creation: create `new` strictly after `old`.
-    for (final stamp in ['old', 'new']) {
-      Directory('$root/build/macos/Build/Products/Debug'
-              '/app_$stamp.app/Contents/Frameworks/App.framework'
-              '/Versions/A/Resources/flutter_assets/assets')
-          .createSync(recursive: true);
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+  test('findFlutterAssetsDir resolves macOS Debug flutter_assets', () {
+    final dir = '$root/build/macos/Build/Products/Debug'
+        '/runner.app/Contents/Frameworks/App.framework'
+        '/Versions/A/Resources/flutter_assets';
+    Directory(dir).createSync(recursive: true);
+    expect(
+      findFlutterAssetsDir(root, desktopPlatform: 'macos'),
+      dir,
+    );
+  });
+
+  test('findFlutterAssetsDir resolves Linux debug flutter_assets', () {
+    final linuxDir = '$root/build/linux/x64/debug/bundle/data/flutter_assets';
+    Directory(linuxDir).createSync(recursive: true);
+    expect(
+      findFlutterAssetsDir(root, desktopPlatform: 'linux'),
+      linuxDir,
+    );
+  });
+
+  test('ignores Release when buildMode is debug', () {
+    Directory(
+      '$root/build/macos/Build/Products/Release'
+      '/rel.app/Contents/Frameworks/App.framework'
+      '/Versions/A/Resources/flutter_assets',
+    ).createSync(recursive: true);
+    final debugDir = '$root/build/macos/Build/Products/Debug'
+        '/dbg.app/Contents/Frameworks/App.framework'
+        '/Versions/A/Resources/flutter_assets';
+    Directory(debugDir).createSync(recursive: true);
+    expect(findFlutterAssetsDir(root, desktopPlatform: 'macos'), debugDir);
+  });
+
+  test('both desktop trees without platform refuses ambiguity', () {
+    Directory(
+      '$root/build/macos/Build/Products/Debug'
+      '/mac.app/Contents/Frameworks/App.framework'
+      '/Versions/A/Resources/flutter_assets',
+    ).createSync(recursive: true);
+    Directory('$root/build/linux/x64/debug/bundle/data/flutter_assets')
+        .createSync(recursive: true);
+    expect(
+      () => findFlutterAssetsDir(root),
+      throwsA(
+        isA<AssetSpecException>().having(
+          (e) => e.message,
+          'message',
+          contains('ambiguous desktop flutter_assets'),
+        ),
+      ),
+    );
+  });
+
+  test('desktopPlatform macos ignores coexisting Linux build tree', () {
+    final macDir = '$root/build/macos/Build/Products/Debug'
+        '/mac.app/Contents/Frameworks/App.framework'
+        '/Versions/A/Resources/flutter_assets';
+    Directory(macDir).createSync(recursive: true);
+    Directory('$root/build/linux/x64/debug/bundle/data/flutter_assets')
+        .createSync(recursive: true);
+    expect(
+      findFlutterAssetsDir(root, desktopPlatform: 'macos'),
+      macDir,
+    );
+  });
+
+  test('unsupported desktopPlatform refuses explicitly', () {
+    expect(
+      () => findFlutterAssetsDir(root, desktopPlatform: 'windows'),
+      throwsA(isA<AssetSpecException>()),
+    );
+  });
+
+  test('multiple macOS Debug products lists ambiguous paths in sorted order', () {
+    final roots = <String>[];
+    for (final name in ['a', 'b']) {
+      final dir = '$root/build/macos/Build/Products/Debug'
+          '/$name.app/Contents/Frameworks/App.framework'
+          '/Versions/A/Resources/flutter_assets';
+      Directory(dir).createSync(recursive: true);
+      roots.add(dir);
     }
-    expect(findFlutterAssetsDir(root), endsWith('app_new.app'
-        '/Contents/Frameworks/App.framework/Versions/A/Resources'
-        '/flutter_assets'));
+    roots.sort();
+    final expectedList = roots.join(', ');
+    expect(
+      () => findFlutterAssetsDir(root, desktopPlatform: 'macos'),
+      throwsA(
+        isA<AssetSpecException>().having(
+          (e) => e.message,
+          'message',
+          allOf(
+            contains('ambiguous macOS flutter_assets'),
+            contains(expectedList),
+          ),
+        ),
+      ),
+    );
   });
 }

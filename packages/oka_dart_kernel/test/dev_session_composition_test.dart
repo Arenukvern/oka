@@ -88,6 +88,29 @@ void main() {
         ], cwd: '/app')!.flutterArgs,
         ['--no-web-resources-cdn'],
       );
+      final linux = RunDevArgs.parse(['--platform', 'linux'], cwd: '/app')!;
+      expect(linux.platform, 'linux');
+      expect(linux.device, isNull);
+      expect(
+        RunDevArgs.parse([
+          '--platform',
+          'linux',
+          '--native-vm-uri',
+          'http://127.0.0.1:1234/token=/',
+        ], cwd: '/app')!.platform,
+        'linux',
+      );
+      expect(
+        RunDevArgs.parse([
+          '--platform',
+          'linux',
+          '--device',
+          'macos',
+          '--native-vm-uri',
+          'http://127.0.0.1:1234/token=/',
+        ], cwd: '/app'),
+        isNull,
+      );
     },
   );
 

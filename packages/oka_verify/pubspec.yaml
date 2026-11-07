@@ -6,7 +6,7 @@ description: >-
   Dart-SDK-only package. Widget suites are refused loudly, unknown coverage
   widens the run instead of skipping it, and plain `dart test` stays the
   acceptance oracle.
-version: 0.8.1 # x-release-please-version
+version: 0.8.1
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_verify
 issue_tracker: https://github.com/Arenukvern/oka/issues
@@ -26,7 +26,7 @@ environment:
 dependencies:
   args: ^2.5.0
   crypto: ^3.0.3
-  oka_core: ^0.9.0 # x-release-please-version
+  oka_core: ^0.9.1 # x-release-please-version
   path: ^1.9.0
 
 dev_dependencies:
