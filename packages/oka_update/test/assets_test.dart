@@ -71,25 +71,90 @@ flutter:
         reason: 'the sections are independent');
   });
 
-  test('findFlutterAssetsDir picks the newest build product', () async {
-    expect(findFlutterAssetsDir(root), isNull,
-        reason: 'no build products yet');
-    // Dir mtime = last child creation: create `new` strictly after `old`.
-    for (final stamp in ['old', 'new']) {
-      Directory('$root/build/macos/Build/Products/Debug'
-              '/app_$stamp.app/Contents/Frameworks/App.framework'
-              '/Versions/A/Resources/flutter_assets/assets')
-          .createSync(recursive: true);
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-    }
-    expect(findFlutterAssetsDir(root), endsWith('app_new.app'
-        '/Contents/Frameworks/App.framework/Versions/A/Resources'
-        '/flutter_assets'));
+  test('findFlutterAssetsDir resolves macOS Debug flutter_assets', () {
+    final dir = '$root/build/macos/Build/Products/Debug'
+        '/runner.app/Contents/Frameworks/App.framework'
+        '/Versions/A/Resources/flutter_assets';
+    Directory(dir).createSync(recursive: true);
+    expect(
+      findFlutterAssetsDir(root, desktopPlatform: 'macos'),
+      dir,
+    );
   });
 
-  test('findFlutterAssetsDir picks Linux bundle flutter_assets', () {
+  test('findFlutterAssetsDir resolves Linux debug flutter_assets', () {
     final linuxDir = '$root/build/linux/x64/debug/bundle/data/flutter_assets';
     Directory(linuxDir).createSync(recursive: true);
-    expect(findFlutterAssetsDir(root), linuxDir);
+    expect(
+      findFlutterAssetsDir(root, desktopPlatform: 'linux'),
+      linuxDir,
+    );
+  });
+
+  test('ignores Release when buildMode is debug', () {
+    Directory(
+      '$root/build/macos/Build/Products/Release'
+      '/rel.app/Contents/Frameworks/App.framework'
+      '/Versions/A/Resources/flutter_assets',
+    ).createSync(recursive: true);
+    final debugDir = '$root/build/macos/Build/Products/Debug'
+        '/dbg.app/Contents/Frameworks/App.framework'
+        '/Versions/A/Resources/flutter_assets';
+    Directory(debugDir).createSync(recursive: true);
+    expect(findFlutterAssetsDir(root, desktopPlatform: 'macos'), debugDir);
+  });
+
+  test('both desktop trees without platform refuses ambiguity', () {
+    Directory(
+      '$root/build/macos/Build/Products/Debug'
+      '/mac.app/Contents/Frameworks/App.framework'
+      '/Versions/A/Resources/flutter_assets',
+    ).createSync(recursive: true);
+    Directory('$root/build/linux/x64/debug/bundle/data/flutter_assets')
+        .createSync(recursive: true);
+    expect(
+      () => findFlutterAssetsDir(root),
+      throwsA(
+        isA<AssetSpecException>().having(
+          (e) => e.message,
+          'message',
+          contains('ambiguous desktop flutter_assets'),
+        ),
+      ),
+    );
+  });
+
+  test(
+    'desktopPlatform macos ignores newer Linux tree (misleading mtimes)',
+    () async {
+      final macDir = '$root/build/macos/Build/Products/Debug'
+          '/mac.app/Contents/Frameworks/App.framework'
+          '/Versions/A/Resources/flutter_assets';
+      Directory(macDir).createSync(recursive: true);
+      final linuxDir = '$root/build/linux/x64/debug/bundle/data/flutter_assets';
+      Directory(linuxDir).createSync(recursive: true);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final touch = await Process.run('touch', ['-m', linuxDir]);
+      expect(touch.exitCode, 0, reason: 'touch linux flutter_assets for mtime');
+      expect(
+        findFlutterAssetsDir(root, desktopPlatform: 'macos'),
+        macDir,
+        reason: 'must not pick Linux assets for a macOS dev session',
+      );
+    },
+  );
+
+  test('multiple macOS Debug products refuses ambiguity', () {
+    for (final name in ['a', 'b']) {
+      Directory(
+        '$root/build/macos/Build/Products/Debug'
+        '/$name.app/Contents/Frameworks/App.framework'
+        '/Versions/A/Resources/flutter_assets',
+      ).createSync(recursive: true);
+    }
+    expect(
+      () => findFlutterAssetsDir(root, desktopPlatform: 'macos'),
+      throwsA(isA<AssetSpecException>()),
+    );
   });
 }

@@ -181,26 +181,80 @@ List<String> _hostArtifactDirs() => [
       if (Platform.isWindows) 'windows-x64',
     ];
 
-/// The `flutter_assets` directory the newest local debug desktop build
-/// exposes (macOS `.app` bundle or Linux `bundle/data/flutter_assets`).
-/// Null when the project has no usable desktop build yet.
-String? findFlutterAssetsDir(String projectRoot) {
-  final candidates = <String>[];
-  _collectMacosFlutterAssetDirs(projectRoot, candidates);
-  _collectLinuxFlutterAssetDirs(projectRoot, candidates);
-  if (candidates.isEmpty) return null;
-  candidates.sort((a, b) => Directory(b)
-      .statSync()
-      .modified
-      .compareTo(Directory(a).statSync().modified));
-  return candidates.first;
+/// Desktop dev-session platform for [findFlutterAssetsDir] (not host OS).
+///
+/// Tie discovery to the session's `--platform` (`macos` / `linux`). Web dev
+/// sessions do not use bundle flutter_assets.
+typedef DesktopDevPlatform = String; // 'macos' | 'linux'
+
+/// The `flutter_assets` directory for a **single** desktop dev target.
+///
+/// [desktopPlatform] must match the active `oka run dev --platform` when both
+/// macOS and Linux build trees exist in the project — otherwise discovery is
+/// ambiguous and throws [AssetSpecException]. With no desktop trees, returns
+/// null. [buildMode] defaults to `debug` (the dev session's `flutter run`).
+String? findFlutterAssetsDir(
+  String projectRoot, {
+  DesktopDevPlatform? desktopPlatform,
+  String buildMode = 'debug',
+}) {
+  final macDirs = <String>[];
+  final linuxDirs = <String>[];
+  _collectMacosFlutterAssetDirs(projectRoot, buildMode, macDirs);
+  _collectLinuxFlutterAssetDirs(projectRoot, buildMode, linuxDirs);
+
+  final macPresent = macDirs.isNotEmpty;
+  final linuxPresent = linuxDirs.isNotEmpty;
+
+  if (desktopPlatform == 'macos') {
+    return _pickSingleFlutterAssetsDir(macDirs, 'macOS', buildMode);
+  }
+  if (desktopPlatform == 'linux') {
+    return _pickSingleFlutterAssetsDir(linuxDirs, 'Linux', buildMode);
+  }
+
+  if (macPresent && linuxPresent) {
+    throw AssetSpecException(
+      'ambiguous desktop flutter_assets: both macOS and Linux build products '
+      'exist under $projectRoot/build — pass desktopPlatform macos|linux to '
+      'match the active dev session',
+    );
+  }
+  if (macPresent) {
+    return _pickSingleFlutterAssetsDir(macDirs, 'macOS', buildMode);
+  }
+  if (linuxPresent) {
+    return _pickSingleFlutterAssetsDir(linuxDirs, 'Linux', buildMode);
+  }
+  return null;
 }
 
-void _collectMacosFlutterAssetDirs(String projectRoot, List<String> out) {
+String? _pickSingleFlutterAssetsDir(
+  List<String> candidates,
+  String label,
+  String buildMode,
+) {
+  if (candidates.isEmpty) return null;
+  if (candidates.length == 1) return candidates.single;
+  throw AssetSpecException(
+    'ambiguous $label flutter_assets for build mode $buildMode: '
+    '${candidates.join(', ')} — leave one debug product or rebuild',
+  );
+}
+
+void _collectMacosFlutterAssetDirs(
+  String projectRoot,
+  String buildMode,
+  List<String> out,
+) {
   final products = Directory('$projectRoot/build/macos/Build/Products');
   if (!products.existsSync()) return;
+  final modeName = _macosModeFolder(buildMode);
   for (final mode in products.listSync()) {
     if (mode is! Directory) continue;
+    if (_pathBaseName(mode.path).toLowerCase() != modeName.toLowerCase()) {
+      continue;
+    }
     for (final app in mode.listSync()) {
       if (app is! Directory || !app.path.endsWith('.app')) continue;
       final dir = '${app.path}/Contents/Frameworks/App.framework'
@@ -210,15 +264,38 @@ void _collectMacosFlutterAssetDirs(String projectRoot, List<String> out) {
   }
 }
 
-void _collectLinuxFlutterAssetDirs(String projectRoot, List<String> out) {
+void _collectLinuxFlutterAssetDirs(
+  String projectRoot,
+  String buildMode,
+  List<String> out,
+) {
   final linuxRoot = Directory('$projectRoot/build/linux');
   if (!linuxRoot.existsSync()) return;
+  final modeName = buildMode.toLowerCase();
   for (final arch in linuxRoot.listSync()) {
     if (arch is! Directory) continue;
     for (final mode in arch.listSync()) {
       if (mode is! Directory) continue;
+      if (_pathBaseName(mode.path).toLowerCase() != modeName) continue;
       final dir = '${mode.path}/bundle/data/flutter_assets';
       if (Directory(dir).existsSync()) out.add(dir);
     }
+  }
+}
+
+String _pathBaseName(String path) {
+  final parts = path.split(Platform.pathSeparator).where((s) => s.isNotEmpty);
+  if (parts.isEmpty) return path;
+  return parts.last;
+}
+
+String _macosModeFolder(String buildMode) {
+  switch (buildMode.toLowerCase()) {
+    case 'release':
+      return 'Release';
+    case 'profile':
+      return 'Profile';
+    default:
+      return 'Debug';
   }
 }

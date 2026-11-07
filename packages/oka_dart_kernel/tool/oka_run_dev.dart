@@ -549,11 +549,24 @@ Future<void> runRunDevCli(
     final key = changed.startsWith('${parsed.project}/')
         ? changed.substring('${parsed.project}/'.length)
         : changed;
-    final dir = findFlutterAssetsDir(parsed.project);
+    String? dir;
+    try {
+      dir = isWeb
+          ? null
+          : findFlutterAssetsDir(
+              parsed.project,
+              desktopPlatform: parsed.platform,
+              buildMode: 'debug',
+            );
+    } on AssetSpecException catch (e) {
+      out('assets: ${e.message}');
+      return;
+    }
     if (dir == null) {
       out(
-        'assets: no desktop build product with flutter_assets found — run the '
-        'app first; asset changes need `R` (or a rebuild) otherwise',
+        'assets: no ${parsed.platform} debug build product with '
+        'flutter_assets found — run the app first; asset changes need `R` '
+        '(or a rebuild) otherwise',
       );
       return;
     }

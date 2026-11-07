@@ -62,7 +62,7 @@ before receipt assertions. **No** weakened expectations; **no** extra retries.
 | **Android** | `oka dev` / android daemon, DevFS, VM attach | `oka build` no-Gradle pipeline, provenance | `oka ship`, AOT slots, gates in `oka_dart_kernel/tool/` |
 | **Web** | `oka run dev --platform web`, DWDS + optional Chrome session (CDP borrow) | `WebBuildTarget` → `flutter build web` (honest delegation) | `gate_air_web.sh`, static host lane |
 | **macOS desktop** | `oka run dev --platform macos`, owning `flutter run`, oka delta lane + `R` platform restart | **Not owned** — PHASE_CHECKLIST defers `xcodebuild` graph | Same live stack; asset lane uses macOS `.app` bundle |
-| **Linux desktop** | **This PR:** `--platform linux` on same `flutter run` owner path as macOS | **Not owned** | Asset dir discovery extended (bundle `data/flutter_assets`) |
+| **Linux desktop** | `--platform linux` on same `flutter run` owner path (**unit-tested**; no Linux CI E2E gate yet) | **Not owned** | Asset dir discovery scoped to active `desktopPlatform` + debug mode |
 | **iOS** | `IosSimulatorAppTarget` → owning `flutter run` only (`oka_harness`) | No `oka_ios` pipeline | Store/signing constraints unchanged (no bypass) |
 
 ### OTA distinction (binding)
@@ -91,7 +91,8 @@ before receipt assertions. **No** weakened expectations; **no** extra retries.
 
 Extend and document the **existing** `oka run dev` stack:
 
-1. **Linux** — `--platform linux` (done in this PR within existing contracts).
+1. **Linux** — `--platform linux` CLI + platform-scoped asset discovery (unit
+   tests; E2E gate still macOS/web).
 2. **Public capability matrix** — `oka doctor` / live_update guide rows (follow-up
    if not in this PR).
 3. **macOS owned build** — ADR-gated (PHASE_CHECKLIST §5); do **not** start
