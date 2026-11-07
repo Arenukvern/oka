@@ -3,25 +3,35 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-/// Mirrors `tool/release/train.dart` `packages` (publishable train).
-const trainPackageNames = {
-  'oka_process',
-  'resource_composition',
-  'oka_artifacts',
-  'oka_core',
-  'oka_supervisor',
-  'oka_conformance',
-  'oka_android',
-  'oka_huawei',
-  'oka_play',
-  'oka_rustore',
-  'oka_web',
-  'oka_harness',
-  'oka',
-};
+/// Parses `const packages = <String>[...]` from [tool/release/train.dart].
+/// Fails the test when not run from the repo root (no subprocess / no CLI).
+Set<String> trainPackagesFromTool(String root) {
+  final trainDart = File('$root/tool/release/train.dart');
+  if (!trainDart.existsSync()) {
+    fail('expected repo root with tool/release/train.dart');
+  }
+  final src = trainDart.readAsStringSync();
+  final block = RegExp(
+    r'const packages = <String>\[(.*?)\];',
+    dotAll: true,
+  ).firstMatch(src);
+  if (block == null) {
+    fail('train.dart: packages inventory not found');
+  }
+  return {
+    for (final m in RegExp("'([^']+)'").allMatches(block.group(1)!)) m.group(1)!,
+  };
+}
 
 void main() {
   final root = Directory.current.path;
+  late Set<String> trainPackageNames;
+
+  setUpAll(() {
+    trainPackageNames = trainPackagesFromTool(root);
+    expect(trainPackageNames, isNotEmpty);
+  });
+
   final config = jsonDecode(
     File('$root/release-please-config.json').readAsStringSync(),
   ) as Map<String, dynamic>;
@@ -39,15 +49,15 @@ void main() {
     for (final relative in genericPubspecs) {
       final file = File('$root/$relative');
       expect(file.existsSync(), isTrue, reason: relative);
+      final contents = file.readAsStringSync();
       final name = RegExp(r'^name:\s*(\S+)', multiLine: true)
-          .firstMatch(file.readAsStringSync())
+          .firstMatch(contents)
           ?.group(1);
       if (name == null || trainPackageNames.contains(name)) continue;
-      final versionLine = RegExp(
+      if (RegExp(
         r'^version:[^\n]*x-release-please-version',
         multiLine: true,
-      );
-      if (versionLine.hasMatch(file.readAsStringSync())) {
+      ).hasMatch(contents)) {
         violations.add(relative);
       }
     }

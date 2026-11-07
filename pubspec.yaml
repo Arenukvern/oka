@@ -17,7 +17,7 @@ environment:
 dev_dependencies:
   # Test fixtures exercise AAR/zip processing exported from oka_android;
   # the ADR conformance suites import oka_android/oka_core directly.
-  archive: ^4.0.9
+  archive: ^4.6.0
   args: ^2.5.0
   lints: ^6.1.0
   oka: ^0.9.1 # x-release-please-version

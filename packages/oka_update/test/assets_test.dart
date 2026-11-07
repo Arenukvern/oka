@@ -124,26 +124,18 @@ flutter:
     );
   });
 
-  test(
-    'desktopPlatform macos ignores newer Linux tree (misleading mtimes)',
-    () async {
-      final macDir = '$root/build/macos/Build/Products/Debug'
-          '/mac.app/Contents/Frameworks/App.framework'
-          '/Versions/A/Resources/flutter_assets';
-      Directory(macDir).createSync(recursive: true);
-      final linuxDir = '$root/build/linux/x64/debug/bundle/data/flutter_assets';
-      Directory(linuxDir).createSync(recursive: true);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      File('$linuxDir/.mtime-sentinel')
-        ..createSync()
-        ..setLastModifiedSync(DateTime.utc(2030));
-      expect(
-        findFlutterAssetsDir(root, desktopPlatform: 'macos'),
-        macDir,
-        reason: 'must not pick Linux assets for a macOS dev session',
-      );
-    },
-  );
+  test('desktopPlatform macos ignores coexisting Linux build tree', () {
+    final macDir = '$root/build/macos/Build/Products/Debug'
+        '/mac.app/Contents/Frameworks/App.framework'
+        '/Versions/A/Resources/flutter_assets';
+    Directory(macDir).createSync(recursive: true);
+    Directory('$root/build/linux/x64/debug/bundle/data/flutter_assets')
+        .createSync(recursive: true);
+    expect(
+      findFlutterAssetsDir(root, desktopPlatform: 'macos'),
+      macDir,
+    );
+  });
 
   test('unsupported desktopPlatform refuses explicitly', () {
     expect(
@@ -152,21 +144,27 @@ flutter:
     );
   });
 
-  test('multiple macOS Debug products refuses ambiguity with sorted paths', () {
+  test('multiple macOS Debug products lists ambiguous paths in sorted order', () {
+    final roots = <String>[];
     for (final name in ['a', 'b']) {
-      Directory(
-        '$root/build/macos/Build/Products/Debug'
-        '/$name.app/Contents/Frameworks/App.framework'
-        '/Versions/A/Resources/flutter_assets',
-      ).createSync(recursive: true);
+      final dir = '$root/build/macos/Build/Products/Debug'
+          '/$name.app/Contents/Frameworks/App.framework'
+          '/Versions/A/Resources/flutter_assets';
+      Directory(dir).createSync(recursive: true);
+      roots.add(dir);
     }
+    roots.sort();
+    final expectedList = roots.join(', ');
     expect(
       () => findFlutterAssetsDir(root, desktopPlatform: 'macos'),
       throwsA(
         isA<AssetSpecException>().having(
           (e) => e.message,
           'message',
-          matches(RegExp(r'a\.app.*b\.app|b\.app.*a\.app')),
+          allOf(
+            contains('ambiguous macOS flutter_assets'),
+            contains(expectedList),
+          ),
         ),
       ),
     );

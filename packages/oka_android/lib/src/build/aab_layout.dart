@@ -4,6 +4,7 @@ import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
 
 import 'apk_layout.dart' show listRelativePaths;
+import 'zip_artifact_time.dart';
 
 /// App Bundle layout helpers (ADR-0004).
 ///
@@ -156,11 +157,9 @@ Future<void> zipBundle(String bundleRoot, String aabPath) async {
   final sorted = entries.toList()..sort();
   for (final rel in sorted) {
     final data = await File(p.join(bundleRoot, rel)).readAsBytes();
-    archive.addFile(
-      ArchiveFile(rel, data.length, data)
-        ..lastModTime = 0
-        ..creationTime = 0,
-    );
+    final entry = ArchiveFile(rel, data.length, data);
+    stampOkaZipEntry(entry);
+    archive.addFile(entry);
   }
   final encoded = ZipEncoder().encodeBytes(archive);
   await File(aabPath).parent.create(recursive: true);
