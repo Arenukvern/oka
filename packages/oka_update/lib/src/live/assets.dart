@@ -206,6 +206,14 @@ String? findFlutterAssetsDir(
   final macPresent = macDirs.isNotEmpty;
   final linuxPresent = linuxDirs.isNotEmpty;
 
+  if (desktopPlatform != null &&
+      desktopPlatform != 'macos' &&
+      desktopPlatform != 'linux') {
+    throw AssetSpecException(
+      'unsupported desktopPlatform $desktopPlatform (expected macos or linux)',
+    );
+  }
+
   if (desktopPlatform == 'macos') {
     return _pickSingleFlutterAssetsDir(macDirs, 'macOS', buildMode);
   }
@@ -236,9 +244,10 @@ String? _pickSingleFlutterAssetsDir(
 ) {
   if (candidates.isEmpty) return null;
   if (candidates.length == 1) return candidates.single;
+  final sorted = [...candidates]..sort();
   throw AssetSpecException(
     'ambiguous $label flutter_assets for build mode $buildMode: '
-    '${candidates.join(', ')} — leave one debug product or rebuild',
+    '${sorted.join(', ')} — leave one debug product or rebuild',
   );
 }
 

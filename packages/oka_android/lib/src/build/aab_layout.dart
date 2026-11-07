@@ -156,7 +156,11 @@ Future<void> zipBundle(String bundleRoot, String aabPath) async {
   final sorted = entries.toList()..sort();
   for (final rel in sorted) {
     final data = await File(p.join(bundleRoot, rel)).readAsBytes();
-    archive.addFile(ArchiveFile(rel, data.length, data));
+    archive.addFile(
+      ArchiveFile(rel, data.length, data)
+        ..lastModTime = 0
+        ..creationTime = 0,
+    );
   }
   final encoded = ZipEncoder().encodeBytes(archive);
   await File(aabPath).parent.create(recursive: true);

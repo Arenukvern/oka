@@ -332,7 +332,10 @@ Future<void> zipStagingToApk(String stagingDir, String apkPath) async {
     final file = ArchiveFile(rel, data.length, data)
       ..compression = rel == 'resources.arsc'
           ? CompressionType.none
-          : CompressionType.deflate;
+          : CompressionType.deflate
+      // ADR-0007: zip metadata must not embed host clock (flake under load).
+      ..lastModTime = 0
+      ..creationTime = 0;
     archive.addFile(file);
   }
   final encoded = ZipEncoder().encodeBytes(archive);

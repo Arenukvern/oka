@@ -134,8 +134,9 @@ flutter:
       final linuxDir = '$root/build/linux/x64/debug/bundle/data/flutter_assets';
       Directory(linuxDir).createSync(recursive: true);
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      final touch = await Process.run('touch', ['-m', linuxDir]);
-      expect(touch.exitCode, 0, reason: 'touch linux flutter_assets for mtime');
+      File('$linuxDir/.mtime-sentinel')
+        ..createSync()
+        ..setLastModifiedSync(DateTime.utc(2030));
       expect(
         findFlutterAssetsDir(root, desktopPlatform: 'macos'),
         macDir,
@@ -144,7 +145,14 @@ flutter:
     },
   );
 
-  test('multiple macOS Debug products refuses ambiguity', () {
+  test('unsupported desktopPlatform refuses explicitly', () {
+    expect(
+      () => findFlutterAssetsDir(root, desktopPlatform: 'windows'),
+      throwsA(isA<AssetSpecException>()),
+    );
+  });
+
+  test('multiple macOS Debug products refuses ambiguity with sorted paths', () {
     for (final name in ['a', 'b']) {
       Directory(
         '$root/build/macos/Build/Products/Debug'
@@ -154,7 +162,13 @@ flutter:
     }
     expect(
       () => findFlutterAssetsDir(root, desktopPlatform: 'macos'),
-      throwsA(isA<AssetSpecException>()),
+      throwsA(
+        isA<AssetSpecException>().having(
+          (e) => e.message,
+          'message',
+          matches(RegExp(r'a\.app.*b\.app|b\.app.*a\.app')),
+        ),
+      ),
     );
   });
 }
