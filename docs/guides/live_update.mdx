@@ -15,7 +15,7 @@ Design: ADR-0031/0032/0034/0035; evidence:
 | Capability | State | Proof |
 |---|---|---|
 | Live patch a running VM/desktop/web/flutter app (JIT) | **works** | `gate_live_e2e.sh`, `gate_live_products.sh`, `gate_run_dev.sh` |
-| Dev session r/R: `oka run dev --platform macos\|web` | **works** | `gate_run_dev.sh` (real last_answer desktop + web apps) |
+| Dev session r/R: `oka run dev --platform macos\|linux\|web` | **works** (macOS/web gated; Linux via same `flutter run` owner) | `gate_run_dev.sh` (real last_answer desktop + web apps; Linux unverified on CI) |
 | Asset changes in the dev session | **syncs + evicts** — never-loaded assets read fresh (models "hot reload"); already-loaded ones refresh at `R`; **shaders go live** (engine-native eviction) | `gate_dev_assets.sh` |
 | Ship a patch invisibly: `oka ship` (derive, sign, deltas, channel) | **works** | `gate_air_channel.sh` (signed, bare-origin) |
 | Clients resolve + stage updates over file/HTTP/git; chains vs snapshots; boot watchdog | **works** | `gate_air_web.sh` + 64 `oka_update` tests |

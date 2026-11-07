@@ -156,6 +156,7 @@ void main() {
     log.deleteSync();
     await touch('${watched.path}/unit.dart');
     await until(() => log.existsSync() && log.readAsStringSync() == 'run\n');
+    await idle();
     expect(
       receipts.map((r) => r['event']),
       containsAllInOrder(['command_start', 'command_receipt']),
@@ -335,6 +336,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     await touch('${watched.path}/unit.dart');
     await until(() => File('${root.path}/log').existsSync());
+    await idle();
     expect(
       receipts.map((receipt) => receipt['event']),
       containsAllInOrder(['ready', 'command_start', 'command_receipt']),

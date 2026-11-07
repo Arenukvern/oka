@@ -74,6 +74,14 @@
         },
         {
           "type": "generic",
+          "path": "packages/oka_dart_kernel/pubspec.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/oka_verify/pubspec.yaml"
+        },
+        {
+          "type": "generic",
           "path": "packages/oka_process/CHANGELOG.md"
         },
         {

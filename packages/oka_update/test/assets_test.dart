@@ -86,4 +86,10 @@ flutter:
         '/Contents/Frameworks/App.framework/Versions/A/Resources'
         '/flutter_assets'));
   });
+
+  test('findFlutterAssetsDir picks Linux bundle flutter_assets', () {
+    final linuxDir = '$root/build/linux/x64/debug/bundle/data/flutter_assets';
+    Directory(linuxDir).createSync(recursive: true);
+    expect(findFlutterAssetsDir(root), linuxDir);
+  });
 }

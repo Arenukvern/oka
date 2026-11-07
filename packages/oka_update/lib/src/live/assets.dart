@@ -181,27 +181,44 @@ List<String> _hostArtifactDirs() => [
       if (Platform.isWindows) 'windows-x64',
     ];
 
-/// The flutter_assets directory a debug macOS build product exposes —
-/// the newest `.app` under `build/macos/Build/Products/*/`, resolved
-/// through the framework's versioned Resources (the engine's read path).
-/// Null when the project has no macOS build yet.
+/// The `flutter_assets` directory the newest local debug desktop build
+/// exposes (macOS `.app` bundle or Linux `bundle/data/flutter_assets`).
+/// Null when the project has no usable desktop build yet.
 String? findFlutterAssetsDir(String projectRoot) {
-  final products = Directory('$projectRoot/build/macos/Build/Products');
-  if (!products.existsSync()) return null;
   final candidates = <String>[];
-  for (final mode in products.listSync()) {
-    if (mode is! Directory) continue;
-    for (final app in mode.listSync()) {
-      if (app is! Directory || !app.path.endsWith('.app')) continue;
-      final dir = '${app.path}/Contents/Frameworks/App.framework'
-          '/Versions/A/Resources/flutter_assets';
-      if (Directory(dir).existsSync()) candidates.add(dir);
-    }
-  }
+  _collectMacosFlutterAssetDirs(projectRoot, candidates);
+  _collectLinuxFlutterAssetDirs(projectRoot, candidates);
   if (candidates.isEmpty) return null;
   candidates.sort((a, b) => Directory(b)
       .statSync()
       .modified
       .compareTo(Directory(a).statSync().modified));
   return candidates.first;
+}
+
+void _collectMacosFlutterAssetDirs(String projectRoot, List<String> out) {
+  final products = Directory('$projectRoot/build/macos/Build/Products');
+  if (!products.existsSync()) return;
+  for (final mode in products.listSync()) {
+    if (mode is! Directory) continue;
+    for (final app in mode.listSync()) {
+      if (app is! Directory || !app.path.endsWith('.app')) continue;
+      final dir = '${app.path}/Contents/Frameworks/App.framework'
+          '/Versions/A/Resources/flutter_assets';
+      if (Directory(dir).existsSync()) out.add(dir);
+    }
+  }
+}
+
+void _collectLinuxFlutterAssetDirs(String projectRoot, List<String> out) {
+  final linuxRoot = Directory('$projectRoot/build/linux');
+  if (!linuxRoot.existsSync()) return;
+  for (final arch in linuxRoot.listSync()) {
+    if (arch is! Directory) continue;
+    for (final mode in arch.listSync()) {
+      if (mode is! Directory) continue;
+      final dir = '${mode.path}/bundle/data/flutter_assets';
+      if (Directory(dir).existsSync()) out.add(dir);
+    }
+  }
 }

@@ -66,20 +66,32 @@ String _replaceExactlyOnce(
   return result;
 }
 
-List<_Change> _documents(Directory root, String version) {
-  final changes = <_Change>[];
+List<File> _workspaceManifests(Directory root) {
   final manifests = <File>[
     File(_join(root.path, 'pubspec.yaml')),
     File(_join(root.path, 'example/pubspec.yaml')),
-    for (final package in packages)
-      File(
-        _join(
-          root.path,
-          'packages',
-          '$package${Platform.pathSeparator}pubspec.yaml',
-        ),
-      ),
   ];
+  final packageDirectory = Directory(_join(root.path, 'packages'));
+  for (final entity in packageDirectory.listSync()) {
+    if (entity is! Directory) continue;
+    final manifest = File(_join(entity.path, 'pubspec.yaml'));
+    if (manifest.existsSync()) manifests.add(manifest);
+  }
+  manifests.sort((a, b) => a.path.compareTo(b.path));
+  return manifests;
+}
+
+bool _isVersionedTrainManifest(File file, Set<String> trainPackageNames) {
+  final parts = file.parent.uri.pathSegments;
+  final packagesIndex = parts.lastIndexOf('packages');
+  if (packagesIndex < 0 || packagesIndex + 1 >= parts.length) return false;
+  return trainPackageNames.contains(parts[packagesIndex + 1]);
+}
+
+List<_Change> _documents(Directory root, String version) {
+  final changes = <_Change>[];
+  final trainPackageNames = packages.toSet();
+  final manifests = _workspaceManifests(root);
 
   final actual = <String>{};
   final packageDirectory = Directory(_join(root.path, 'packages'));
@@ -106,7 +118,7 @@ List<_Change> _documents(Directory root, String version) {
   for (final file in manifests) {
     final original = _read(file);
     var updated = original;
-    if (_basename(file.parent.parent.path) == 'packages') {
+    if (_isVersionedTrainManifest(file, trainPackageNames)) {
       updated = _replaceExactlyOnce(
         updated,
         RegExp(r'^version:[^\n]*', multiLine: true),

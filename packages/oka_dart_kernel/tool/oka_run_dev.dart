@@ -13,7 +13,7 @@
 ///   q  quit. `--watch` additionally applies every saved file in the
 ///      watch set automatically (the invisible loop, ADR-0035).
 ///
-///   dart tool/oka_run_dev.dart --project <dir> --platform macos|web \
+///   dart tool/oka_run_dev.dart --project <dir> --platform macos|linux|web \
 ///     [--device <id>] [--port <n>] [--open-browser] [--watch] \
 ///     [--unit <name>] [--probes <spec.json>] [--json]
 ///
@@ -40,8 +40,8 @@ export 'dev_watch_inputs.dart';
 // ignore_for_file: avoid_print
 
 const _usage =
-    'usage: oka run dev [--project <dir>] [--platform macos|web]\n'
-    '  --device <id>       -d override (default: macos / web-server)\n'
+    'usage: oka run dev [--project <dir>] [--platform macos|linux|web]\n'
+    '  --device <id>       -d override (default: macos / linux / web-server)\n'
     '  --port <n>          web-server port (default 8187)\n'
     '  --open-browser      web: launch a headless CDP browser by default\n'
     '  --browser-bin <path> explicit browser (otherwise Oka resolution)\n'
@@ -168,7 +168,7 @@ class RunDevArgs {
       }
       final platV = value('platform', a, i);
       if (platV != null) {
-        if (!{'macos', 'web'}.contains(platV)) return null;
+        if (!{'macos', 'linux', 'web'}.contains(platV)) return null;
         platform = platV;
         if (a == '--platform') i++;
         continue;
@@ -221,10 +221,10 @@ class RunDevArgs {
           return null; // unknown token
       }
     }
-    if (project == null ||
-        (nativeVmUri != null &&
-            (platform != 'macos' || (device != null && device != 'macos')))) {
-      return null;
+    if (project == null) return null;
+    if (nativeVmUri != null) {
+      if (platform == 'web') return null;
+      if (device != null && device != platform) return null;
     }
     return RunDevArgs(
       project: project,
@@ -552,9 +552,8 @@ Future<void> runRunDevCli(
     final dir = findFlutterAssetsDir(parsed.project);
     if (dir == null) {
       out(
-        'assets: no macOS build product found under '
-        'build/macos/Build/Products — run the app first; asset '
-        'changes need `R` (or a rebuild) otherwise',
+        'assets: no desktop build product with flutter_assets found — run the '
+        'app first; asset changes need `R` (or a rebuild) otherwise',
       );
       return;
     }
@@ -700,7 +699,12 @@ Future<void> runRunDevCli(
     if (!injected) {
       final flutterBin =
           parsed.flutterBin ?? Platform.environment['FLUTTER_BIN'] ?? 'flutter';
-      final device = parsed.device ?? (isWeb ? 'web-server' : 'macos');
+      final device = parsed.device ??
+          switch (parsed.platform) {
+            'web' => 'web-server',
+            'linux' => 'linux',
+            _ => 'macos',
+          };
       final operation = parsed.nativeVmUri == null
           ? 'launching flutter run'
           : 'attaching Flutter compiler';
