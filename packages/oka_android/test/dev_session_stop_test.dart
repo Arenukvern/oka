@@ -31,6 +31,30 @@ Future<Process> _startDartOwner({
   return Process.start('dart', ['run', script, root.path, '$controlPort']);
 }
 
+Future<void> _waitForDiscoveryFile(Directory root) async {
+  for (var i = 0; i < 40; i++) {
+    if (readRunnerSessionFile(root.path) != null) return;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+  fail('runner-session.json never appeared under ${root.path}');
+}
+
+Future<void> _alignDiscoveryPid(
+  Directory root,
+  Process child, {
+  required int controlPort,
+}) async {
+  final live = readRunnerSessionFile(root.path);
+  if (live == null) return;
+  await writeRunnerSessionFile(
+    root.path,
+    vmServiceUri: live.vmServiceUri,
+    controlPort: controlPort,
+    deviceId: live.deviceId,
+    processPid: child.pid,
+  );
+}
+
 Future<Process> _startOwnerShell({
   required Directory root,
   required String scriptBody,
@@ -86,7 +110,8 @@ void main() {
       );
       addTearDown(server.close);
       child = await _startDartOwner(root: root, controlPort: server.port);
-      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await _waitForDiscoveryFile(root);
+      await _alignDiscoveryPid(root, child, controlPort: server.port);
       final report = await stopOkaDevAndroidSession(
         owningProcess: child,
         projectPath: root.path,
@@ -131,7 +156,8 @@ void main() {
             });
       });
       child = await _startDartOwner(root: root, controlPort: server.port);
-      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await _waitForDiscoveryFile(root);
+      await _alignDiscoveryPid(root, child, controlPort: server.port);
       final report = await stopOkaDevAndroidSession(
         owningProcess: child,
         projectPath: root.path,
@@ -149,6 +175,29 @@ void main() {
       expect(report.ok, isTrue);
     },
   );
+
+  test('skips TCP when runner-session file is already absent', () async {
+    final root = await Directory.systemTemp.createTemp('oka_stop_nofile');
+    addTearDown(() => root.delete(recursive: true));
+    final process = await _startOwnerShell(
+      root: root,
+      scriptBody: _stdinQuitOwner,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await clearRunnerSessionFile(root.path);
+    final report = await stopOkaDevAndroidSession(
+      owningProcess: process,
+      projectPath: root.path,
+      controlPort: 31999,
+      quitTimeout: const Duration(seconds: 10),
+    );
+    expect(report.controlQuitSent, isFalse);
+    expect(report.controlQuitConnectFailed, isFalse);
+    expect(report.controlReplyLost, isFalse);
+    expect(report.stdinQuitWritten, isTrue);
+    expect(report.runnerSessionCleared, isTrue);
+    expect(report.disposition, DevSessionStopDisposition.cooperative);
+  });
 
   test('connection refused does not count as control quit sent', () async {
     final root = await Directory.systemTemp.createTemp('oka_stop_refused');

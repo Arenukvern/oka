@@ -19,6 +19,11 @@ jobs:
       # skips gracefully without the Flutter/Android SDKs.
       - run: dart pub get --no-example
       - run: dart analyze --fatal-infos
+      - name: Hosted harness compat (pub flutter_mcp_harness + path oka)
+        run: |
+          cd packages/oka_harness/tool/hosted_compat_analyze
+          dart pub get
+          dart analyze --fatal-infos lib
       - name: Root test suite (cross-package conformance)
         run: dart test
       - name: Package test suites

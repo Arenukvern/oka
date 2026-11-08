@@ -179,12 +179,10 @@ void main() {
     expect(report.runnerSessionCleared, isTrue);
     expect(report.disposition, DevSessionStopDisposition.cooperative);
     expect(report.ok, isTrue);
-    try {
-      await AndroidAppTarget.stopCooperatively(launched);
-      fail('second stopCooperatively must throw when the binding is gone');
-    } on StateError {
-      // Expected after the first cooperative stop.
-    }
+    await expectLater(
+      AndroidAppTarget.stopCooperatively(launched),
+      throwsStateError,
+    );
   });
 
   test(

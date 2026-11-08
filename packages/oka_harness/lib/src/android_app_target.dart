@@ -129,11 +129,13 @@ final class AndroidAppTarget implements AppTarget {
   static Future<DevSessionStopReport> stopCooperatively(LaunchedApp app) {
     final bound = _bindingsByLaunchedApp.remove(app);
     if (bound == null) {
-      throw StateError(
-        'no oka-owned binding for this LaunchedApp${_compatSpawnDetail(app)}'
-        ' — use launchOka(), or ensure this instance came from '
-        'AndroidAppTarget.launch() and was not already torn down via '
-        'stopCooperatively() or LaunchedApp.stop().',
+      return Future.error(
+        StateError(
+          'no oka-owned binding for this LaunchedApp${_compatSpawnDetail(app)}'
+          ' — use launchOka(), or ensure this instance came from '
+          'AndroidAppTarget.launch() and was not already torn down via '
+          'stopCooperatively() or LaunchedApp.stop().',
+        ),
       );
     }
     return bound.stopSession();

@@ -7,3 +7,10 @@ dependencies:
   flutter_mcp_harness: ^7.0.0
   oka_harness:
     path: ../..
+dependency_overrides:
+  oka_android:
+    path: ../../../oka_android
+  oka_core:
+    path: ../../../oka_core
+  resource_composition:
+    path: ../../../resource_composition
