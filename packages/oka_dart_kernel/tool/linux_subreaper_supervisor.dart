@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:oka_dart_kernel/src/gate/linux_child_subreaper.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain.dart';
+import 'package:oka_dart_kernel/src/gate/supervisor_control_channel.dart';
 
 Future<void> main(List<String> args) async {
   if (!Platform.isLinux) exit(3);
@@ -19,10 +20,10 @@ Future<void> main(List<String> args) async {
   }
 
   final nonce =
-      Platform.environment['OKA_DEV_SESSION_NONCE']?.trim() ?? 'missing-nonce';
+      Platform.environment[kSupervisorNonceEnv]?.trim() ?? 'missing-nonce';
 
   if (!LinuxChildSubreaper.activate()) {
-    stderr.writeln(
+    await appendSupervisorControlLine(
       'oka_dev_supervisor_drain_ack nonce=$nonce settled=false verified=false survivors=',
     );
     exit(4);
@@ -36,50 +37,44 @@ Future<void> main(List<String> args) async {
     executable,
     arguments,
     workingDirectory: cwd?.isNotEmpty == true ? cwd : null,
-    environment: Platform.environment,
+    environment: sanitizeWorkloadEnvironment(Platform.environment),
   );
-  stderr.writeln('oka_dev_workload_pid=${child.pid}');
-  await stderr.flush();
+  await appendSupervisorControlLine('oka_dev_workload_pid=${child.pid}');
 
   final self = LinuxChildSubreaper.currentProcessId();
   const probe = HostProcessTreeProbe();
   const liveness = HostProcessLiveness();
-  var settleOnce = false;
+  Future<bool>? settleFlight;
 
-  Future<bool> settleAll() async {
-    if (settleOnce) {
-      final drain = await drainSubreaperAdoptees(supervisorPid: self);
-      final surv = drain.survivors.isEmpty ? '' : drain.survivors.join(',');
-      stderr.writeln(
-        'oka_dev_supervisor_drain_ack nonce=$nonce '
-        'settled=${drain.settled} verified=${drain.verified} survivors=$surv',
-      );
-      return drain.settled && drain.verified && drain.survivors.isEmpty;
+  Future<bool> settleAll() {
+    if (settleFlight != null) {
+      return settleFlight!;
     }
-    settleOnce = true;
-    if (child.pid > 0 && await liveness.isAlive(child.pid)) {
-      await stopProcessTree(
-        probe: probe,
-        liveness: liveness,
-        rootPid: child.pid,
-      );
-    }
-    final drain = await drainSubreaperAdoptees(supervisorPid: self);
-    final surv = drain.survivors.isEmpty ? '' : drain.survivors.join(',');
-    stderr.writeln(
-      'oka_dev_supervisor_drain_ack nonce=$nonce '
-      'settled=${drain.settled} verified=${drain.verified} survivors=$surv',
+    settleFlight = _runSettle(
+      child: child,
+      self: self,
+      probe: probe,
+      liveness: liveness,
+      nonce: nonce,
     );
-    return drain.settled && drain.verified && drain.survivors.isEmpty;
+    return settleFlight!;
   }
 
   ProcessSignal.sigterm.watch().listen((_) async {
-    await settleAll();
-    exit(143);
+    final ok = await settleAll();
+    final workloadExit = child.pid > 0 ? await child.exitCode.catchError((_) => -1) : -1;
+    await appendSupervisorControlLine(
+      'oka_dev_supervisor_shutdown supervisor_exit=${ok ? 143 : 1} workload_exit=$workloadExit',
+    );
+    exit(ok ? 143 : 1);
   });
   ProcessSignal.sigint.watch().listen((_) async {
-    await settleAll();
-    exit(130);
+    final ok = await settleAll();
+    final workloadExit = child.pid > 0 ? await child.exitCode.catchError((_) => -1) : -1;
+    await appendSupervisorControlLine(
+      'oka_dev_supervisor_shutdown supervisor_exit=${ok ? 130 : 1} workload_exit=$workloadExit',
+    );
+    exit(ok ? 130 : 1);
   });
 
   child.stdout.listen(
@@ -100,8 +95,50 @@ Future<void> main(List<String> args) async {
     cancelOnError: true,
   );
 
-  final code = await child.exitCode;
-  final ok = await settleAll();
-  if (!ok) exit(1);
-  exit(code);
+  final workloadExit = await child.exitCode;
+  final drainOk = await settleAll();
+  final supervisorExit = drainOk ? 0 : 1;
+  await appendSupervisorControlLine(
+    'oka_dev_supervisor_shutdown supervisor_exit=$supervisorExit workload_exit=$workloadExit',
+  );
+  exit(supervisorExit);
+}
+
+Future<bool> _runSettle({
+  required Process child,
+  required int self,
+  required HostProcessTreeProbe probe,
+  required HostProcessLiveness liveness,
+  required String nonce,
+}) async {
+  final surv = (List<int> s) => s.isEmpty ? '' : s.join(',');
+  Future<void> emitAck(SubreaperDrainResult drain) async {
+    await appendSupervisorControlLine(
+      'oka_dev_supervisor_drain_ack nonce=$nonce '
+      'settled=${drain.settled} verified=${drain.verified} '
+      'survivors=${surv(drain.survivors)}',
+    );
+  }
+
+  try {
+    if (child.pid > 0 && await liveness.isAlive(child.pid)) {
+      await stopProcessTree(
+        probe: probe,
+        liveness: liveness,
+        rootPid: child.pid,
+      );
+    }
+    final drain = await drainSubreaperAdoptees(supervisorPid: self);
+    await emitAck(drain);
+    return drain.settled && drain.verified && drain.survivors.isEmpty;
+  } on Object catch (e) {
+    final fail = SubreaperDrainResult(
+      settled: false,
+      verified: false,
+      survivors: const [],
+      notes: ['settle error: $e'],
+    );
+    await emitAck(fail);
+    return false;
+  }
 }

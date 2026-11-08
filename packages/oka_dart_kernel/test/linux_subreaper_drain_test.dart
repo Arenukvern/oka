@@ -14,7 +14,6 @@ void main() {
     final result = await drainSubreaperAdoptees(
       supervisorPid: 999_999,
       probe: const _AlwaysUnavailableProbe(),
-      liveness: const HostProcessLiveness(),
       budget: const Duration(milliseconds: 50),
     );
     expect(result.settled, isFalse);

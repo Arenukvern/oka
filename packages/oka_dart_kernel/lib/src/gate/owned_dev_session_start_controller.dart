@@ -1,21 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:oka_core/oka_core.dart';
-
 import 'owned_dev_session.dart';
 
 /// Exists before the first [Process.start]; SIGTERM during [OwnedDevSession.start]
 /// must stop anything already spawned (not wait for [_activeSession]).
 final class OwnedDevSessionStartController {
-  OwnedDevSessionStartController({
-    this.treeProbe = const HostProcessTreeProbe(),
-    this.liveness = const HostProcessLiveness(),
-    void Function(OwnedDevSession session)? onBootstrapExtra,
-  }) : _onBootstrapExtra = onBootstrapExtra;
+  OwnedDevSessionStartController({this._onBootstrapExtra});
 
-  final ProcessTreeProbe treeProbe;
-  final ProcessLiveness liveness;
   final void Function(OwnedDevSession session)? _onBootstrapExtra;
   Process? _spawnedRoot;
   OwnedDevSession? _session;
@@ -50,7 +42,7 @@ final class OwnedDevSessionStartController {
   // Bounded graceful stop inside the dedicated supervisor — never tear down
   // the supervision root before its drain ack (no stopProcessTree here).
     try {
-      proc.kill(ProcessSignal.sigterm);
+      proc.kill();
     } on Object {
       return;
     }

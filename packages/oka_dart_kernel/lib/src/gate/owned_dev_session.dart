@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../package_root.dart';
 
 import 'owned_dev_session_start_controller.dart';
+import 'supervisor_control_channel.dart';
 import 'supervisor_session_protocol.dart';
 
 /// Frozen view of the last successful probe (debug/tests).
@@ -65,6 +66,7 @@ final class OwnedDevSessionTeardown {
     required this.clean,
     required this.verified,
     required this.exitCode,
+    this.workloadExitCode,
     this.survivors = const [],
     this.notes = const [],
   });
@@ -74,7 +76,10 @@ final class OwnedDevSessionTeardown {
 
   /// False when enumeration/unknown survivors prevent a success claim.
   final bool verified;
+
+  /// Supervisor wrapper exit status (not the workload's).
   final int? exitCode;
+  final int? workloadExitCode;
   final List<int> survivors;
   final List<String> notes;
 }
@@ -94,6 +99,7 @@ final class OwnedDevSession {
     this.treeProbe = const HostProcessTreeProbe(),
     this.liveness = const HostProcessLiveness(),
     this.useSubreaperSupervisor = false,
+    this._controlSink,
   });
 
   final Process process;
@@ -111,6 +117,10 @@ final class OwnedDevSession {
   late StreamSubscription<String> _stdoutSub;
   late StreamSubscription<String> _stderrSub;
   Completer<OwnedDevSessionTeardown>? _teardownOnce;
+  final File? _controlSink;
+  int _controlReadOffset = 0;
+  Timer? _controlPumpTimer;
+  int? _workloadExitFromControl;
 
   SupervisorDrainAck? get drainAck => _drainAck;
   Map<int, String> get fixtureEscaped => Map.unmodifiable(_fixtureEscapedByPid);
@@ -129,8 +139,6 @@ final class OwnedDevSession {
       if (match != null) {
         _workloadPid = int.parse(match.group(1)!);
       }
-      final ack = parseSupervisorDrainAck(trimmed);
-      if (ack != null) _drainAck = ack;
       final escaped = parseFixtureEscapedReport(trimmed);
       if (escaped != null) {
         _fixtureEscapedByPid[escaped.pid] = escaped.token;
@@ -147,6 +155,25 @@ final class OwnedDevSession {
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) => _append('$line\n'));
+  }
+
+  static void _assertSupervisorEntrypointAllowed({
+    required String kernelRoot,
+    required String productionSupervisor,
+    required String entrypoint,
+  }) {
+    final normalized = p.normalize(entrypoint);
+    final production = p.normalize(productionSupervisor);
+    final fixtures = p.normalize(p.join(kernelRoot, 'test', 'fixtures'));
+    if (normalized == production || p.isWithin(fixtures, normalized)) {
+      return;
+    }
+    throw ArgumentError.value(
+      entrypoint,
+      'supervisorEntrypoint',
+      'must be the production linux_subreaper_supervisor.dart or a file '
+      'under packages/oka_dart_kernel/test/fixtures/',
+    );
   }
 
   static String _freshSessionNonce() {
@@ -183,6 +210,7 @@ final class OwnedDevSession {
     required bool useSupervisor,
     required DevSessionSpawner spawn,
     required String sessionNonce,
+    required String? controlPath,
     String? supervisorEntrypoint,
     String? workingDirectory,
     Map<String, String>? environment,
@@ -196,10 +224,25 @@ final class OwnedDevSession {
       );
     }
     final kernelRoot = await resolveOkaDartKernelRoot();
-    final supervisor = supervisorEntrypoint ??
-        p.join(kernelRoot, 'tool', 'linux_subreaper_supervisor.dart');
+    final productionSupervisor = p.join(
+      kernelRoot,
+      'tool',
+      'linux_subreaper_supervisor.dart',
+    );
+    final supervisor = supervisorEntrypoint ?? productionSupervisor;
+    if (supervisorEntrypoint != null) {
+      _assertSupervisorEntrypointAllowed(
+        kernelRoot: kernelRoot,
+        productionSupervisor: productionSupervisor,
+        entrypoint: supervisor,
+      );
+    }
     final env = Map<String, String>.from(environment ?? Platform.environment);
-    env['OKA_DEV_SESSION_NONCE'] = sessionNonce;
+    env.remove(kLegacySessionNonceEnv);
+    env[kSupervisorNonceEnv] = sessionNonce;
+    if (controlPath != null) {
+      env[kSupervisorAckPathEnv] = controlPath;
+    }
     final cwd = workingDirectory;
     if (cwd != null && cwd.isNotEmpty) {
       env['OKA_DEV_SESSION_CWD'] = cwd;
@@ -273,7 +316,12 @@ final class OwnedDevSession {
     final live = liveness ?? const HostProcessLiveness();
     final sessionNonce = _freshSessionNonce();
     final env = Map<String, String>.from(environment ?? {});
-    env['OKA_DEV_SESSION_NONCE'] = sessionNonce;
+    File? controlSink;
+    String? controlPath;
+    if (useSupervisor) {
+      controlSink = await createSupervisorControlSink();
+      controlPath = controlSink.path;
+    }
 
     final proc = await _spawnWithOptionalSupervisor(
       executable: useXvfb ? 'xvfb-run' : dart,
@@ -285,6 +333,7 @@ final class OwnedDevSession {
       spawn: spawn,
       sessionNonce: sessionNonce,
       supervisorEntrypoint: supervisorEntrypoint,
+      controlPath: controlPath,
     );
     startController?.onProcessSpawned(proc);
 
@@ -294,8 +343,12 @@ final class OwnedDevSession {
       treeProbe: probe,
       liveness: live,
       useSubreaperSupervisor: useSupervisor,
+      controlSink: controlSink,
     );
     session._attachLineStreams();
+    if (useSupervisor) {
+      session._startControlPump();
+    }
     startController?.onBootstrap(session);
 
     if (startController?.abortRequested == true) {
@@ -323,8 +376,9 @@ final class OwnedDevSession {
     return session;
   }
 
-  void sendLine(String line) {
+  Future<void> sendLine(String line) async {
     process.stdin.writeln(line);
+    await process.stdin.flush();
   }
 
   Future<bool> waitForPattern(
@@ -347,9 +401,48 @@ final class OwnedDevSession {
     return pattern.allMatches(text).isNotEmpty;
   }
 
+  void _startControlPump() {
+    _controlPumpTimer?.cancel();
+    _controlPumpTimer = Timer.periodic(
+      const Duration(milliseconds: 25),
+      (_) => unawaited(_pumpControlFile()),
+    );
+  }
+
+  Future<void> _pumpControlFile() async {
+    final sink = _controlSink;
+    if (sink == null) return;
+    try {
+      final length = await sink.length();
+      if (length <= _controlReadOffset) return;
+      final raf = await sink.open();
+      try {
+        await raf.setPosition(_controlReadOffset);
+        final bytes = await raf.read(length - _controlReadOffset);
+        _controlReadOffset = length;
+        final chunk = utf8.decode(bytes);
+        final update = parseSupervisorControlLines(chunk.split('\n'));
+        if (update.workloadPid != null) {
+          _workloadPid = update.workloadPid;
+        }
+        if (update.drainAck != null) {
+          _drainAck = update.drainAck;
+        }
+        if (update.workloadExitCode != null) {
+          _workloadExitFromControl = update.workloadExitCode;
+        }
+      } finally {
+        await raf.close();
+      }
+    } on Object {
+      // Control sink may disappear during teardown; ignore until exit.
+    }
+  }
+
   Future<void> _waitForSupervisorAck(Duration budget) async {
     final deadline = DateTime.now().add(budget);
     while (DateTime.now().isBefore(deadline)) {
+      await _pumpControlFile();
       final ack = _drainAck;
       if (ack != null && ack.nonce == sessionNonce) return;
       await Future<void>.delayed(const Duration(milliseconds: 25));
@@ -450,6 +543,7 @@ final class OwnedDevSession {
       sentQuit = true;
       try {
         process.stdin.writeln('q');
+        await process.stdin.flush();
       } on Object catch (e) {
         notes.add('stdin q: $e');
       }
@@ -462,6 +556,9 @@ final class OwnedDevSession {
     int? exitCode;
     final deadline = DateTime.now().add(quitGrace);
     while (DateTime.now().isBefore(deadline)) {
+      if (useSubreaperSupervisor) {
+        await _pumpControlFile();
+      }
       if (await liveness.isAlive(process.pid)) {
         await snapshotOwnedTree();
       } else {
@@ -495,7 +592,11 @@ final class OwnedDevSession {
 
     if (useSubreaperSupervisor) {
       await _waitForSupervisorAck(const Duration(seconds: 2));
+      await _pumpControlFile();
     }
+
+    _controlPumpTimer?.cancel();
+    _controlPumpTimer = null;
 
     try {
       await process.stdin.close();
@@ -523,10 +624,20 @@ final class OwnedDevSession {
     }
 
     final mergedSurvivors = {...stop.survivors, ...stillAlive}.toList();
+    var fixtureEscapedAlive = false;
     for (final entry in _fixtureEscapedByPid.entries) {
       if (await liveness.isAlive(entry.key)) {
+        fixtureEscapedAlive = true;
         mergedSurvivors.add(entry.key);
         notes.add('fixture-reported escaped pid ${entry.key} still alive');
+        final liveToken = await liveness.identityToken(entry.key);
+        final expected = entry.value;
+        if (liveToken != null && liveToken != expected) {
+          notes.add(
+            'fixture escaped pid ${entry.key} identity mismatch '
+            '(expected token from fixture report)',
+          );
+        }
       }
     }
 
@@ -546,9 +657,13 @@ final class OwnedDevSession {
         supervisorDrainVerified = false;
         notes.add('supervisor drain ack survivors=${ack.survivors}');
       }
-      if (exitCode == 9 || exitCode == -9) {
+      if (exitCode != null && exitCode != 0) {
         supervisorDrainVerified = false;
-        notes.add('supervisor exit SIGKILL');
+        notes.add('supervisor wrapper exit nonzero ($exitCode)');
+      }
+      if (fixtureEscapedAlive) {
+        supervisorDrainVerified = false;
+        notes.add('fixture-reported escaped workload still alive');
       }
     }
 
@@ -561,6 +676,7 @@ final class OwnedDevSession {
       clean: clean,
       verified: verified,
       exitCode: exitCode,
+      workloadExitCode: _workloadExitFromControl,
       survivors: uniqueSurvivors,
       notes: notes,
     );

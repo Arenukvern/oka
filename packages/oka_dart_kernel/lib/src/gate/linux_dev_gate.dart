@@ -150,7 +150,7 @@ final class LinuxDevGate {
       }
       await File(unitFile).writeAsString(edited);
 
-      session.sendLine('r $unitFile');
+      await session.sendLine('r $unitFile');
       if (!await session.waitForPattern('reload 1: OK', timeout: const Duration(minutes: 2))) {
         stderr.writeln('gate: timeout hot reload (linux)');
         return 1;
@@ -191,7 +191,7 @@ final class LinuxDevGate {
         return 1;
       }
 
-      session.sendLine('R');
+      await session.sendLine('R');
       if (!await session.waitForPattern(
         'restart: OK (platform lane',
         timeout: const Duration(minutes: 3),
@@ -316,7 +316,7 @@ final class LinuxDevGate {
       await File(leafFile).writeAsString(
         originalLeaf.replaceFirst('feature-v1', 'feature-v2-live'),
       );
-      session.sendLine('r lib/units/feature.dart');
+      await session.sendLine('r lib/units/feature.dart');
       if (!await session.waitForPattern('reload 1: OK', timeout: const Duration(minutes: 2))) {
         return 1;
       }
@@ -339,7 +339,7 @@ final class LinuxDevGate {
 
       stderr.writeln('== [3/5] r <asset>: sync lane');
       await File(assetFile).writeAsString(newContent);
-      session.sendLine('r assets/hello.txt');
+      await session.sendLine('r assets/hello.txt');
       if (!await session.waitForPattern('assets 2:', timeout: const Duration(minutes: 1))) {
         return 1;
       }
@@ -353,7 +353,7 @@ final class LinuxDevGate {
       }
 
       stderr.writeln('== [4/5] R: engine picks synced bytes');
-      session.sendLine('R');
+      await session.sendLine('R');
       if (!await session.waitForPattern(
         'restart: OK (platform lane',
         timeout: const Duration(minutes: 3),

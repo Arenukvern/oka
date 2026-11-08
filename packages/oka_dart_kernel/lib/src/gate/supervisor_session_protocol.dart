@@ -1,5 +1,5 @@
 // Machine-readable stderr lines between the dedicated subreaper supervisor
-/// and [OwnedDevSession] (not host-global process guessing).
+// and OwnedDevSession (not host-global process guessing).
 
 final class SupervisorDrainAck {
   const SupervisorDrainAck({

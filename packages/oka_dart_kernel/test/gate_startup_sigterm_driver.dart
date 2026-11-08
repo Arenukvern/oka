@@ -21,7 +21,6 @@ Future<void> main(List<String> args) async {
       useSubreaperSupervisor: false,
       startController: startCtl,
       liveness: const _StartupSlowLiveness(),
-      identityBudget: const Duration(seconds: 2),
     );
   } on Object {
     exit(2);

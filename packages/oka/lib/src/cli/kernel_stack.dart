@@ -66,10 +66,20 @@ bool isOkaKernelWorkspaceRoot(String root) {
   } on Object {
     return false;
   }
-  return File(p.join(normalized, 'packages', 'oka', 'pubspec.yaml'))
-          .existsSync() &&
-      File(p.join(normalized, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
-          .existsSync();
+  return _packagePubspecNamed(normalized, 'oka', 'oka') &&
+      _packagePubspecNamed(normalized, 'oka_dart_kernel', 'oka_dart_kernel');
+}
+
+bool _packagePubspecNamed(String workspaceRoot, String folder, String name) {
+  final pubspec = File(p.join(workspaceRoot, 'packages', folder, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return false;
+  try {
+    final doc = loadYaml(pubspec.readAsStringSync());
+    if (doc is! YamlMap) return false;
+    return doc['name']?.toString() == name;
+  } on Object {
+    return false;
+  }
 }
 
 /// Spawns [tool] from the kernel-stack checkout with the workspace package

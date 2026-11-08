@@ -29,16 +29,42 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     return left.isNegative ? Duration.zero : left;
   }
 
-  while (remaining() > Duration.zero) {
-    ProcessTree? tree;
+  Future<ProcessTree?> enumerateBounded() async {
+    final left = remaining();
+    if (left <= Duration.zero) {
+      notes.add('enumerate skipped: budget exhausted');
+      return null;
+    }
     try {
-      tree = await probe
-          .enumerate(supervisorPid)
-          .timeout(remaining(), onTimeout: () => null);
+      return await probe.enumerate(supervisorPid).timeout(left);
+    } on TimeoutException {
+      notes.add('enumerate timed out');
+      return null;
     } on Object catch (e) {
       notes.add('enumerate failed: $e');
-      tree = null;
+      return null;
     }
+  }
+
+  Future<bool?> isAliveBounded(int pid) async {
+    final left = remaining();
+    if (left <= Duration.zero) {
+      notes.add('liveness inspect skipped for $pid: budget exhausted');
+      return null;
+    }
+    try {
+      return await liveness.isAlive(pid).timeout(left);
+    } on TimeoutException {
+      notes.add('liveness inspect timed out for $pid');
+      return null;
+    } on Object {
+      notes.add('liveness inspect failed for $pid');
+      return null;
+    }
+  }
+
+  while (remaining() > Duration.zero) {
+    final tree = await enumerateBounded();
     if (tree == null) {
       return SubreaperDrainResult(
         settled: false,
@@ -50,16 +76,25 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     final descendants = tree.descendants();
     final alive = <int>[];
     for (final pid in descendants) {
-      if (remaining() <= Duration.zero) break;
-      try {
-        if (await liveness
-            .isAlive(pid)
-            .timeout(remaining(), onTimeout: () => true)) {
-          alive.add(pid);
-        }
-      } on Object {
-        alive.add(pid);
+      if (remaining() <= Duration.zero) {
+        notes.add('incomplete descendant liveness inspection');
+        return SubreaperDrainResult(
+          settled: false,
+          verified: false,
+          survivors: alive,
+          notes: notes,
+        );
       }
+      final aliveState = await isAliveBounded(pid);
+      if (aliveState == null) {
+        return SubreaperDrainResult(
+          settled: false,
+          verified: false,
+          survivors: alive,
+          notes: [...notes, 'incomplete descendant liveness inspection'],
+        );
+      }
+      if (aliveState) alive.add(pid);
     }
     if (alive.isEmpty) {
       return SubreaperDrainResult(
@@ -70,28 +105,38 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       );
     }
     for (final pid in alive.reversed) {
-      if (remaining() <= Duration.zero) break;
+      if (remaining() <= Duration.zero) {
+        notes.add('drain budget exhausted during kill pass');
+        return SubreaperDrainResult(
+          settled: false,
+          verified: false,
+          survivors: alive,
+          notes: notes,
+        );
+      }
+      final left = remaining();
       try {
         await liveness
             .kill(pid, grace: killGrace)
-            .timeout(remaining(), onTimeout: () => false);
+            .timeout(left, onTimeout: () => false);
       } on Object catch (e) {
         notes.add('kill $pid: $e');
       }
     }
-    await Future<void>.delayed(
-      poll > remaining() ? remaining() : poll,
-    );
+    final delay = poll > remaining() ? remaining() : poll;
+    if (delay <= Duration.zero) {
+      notes.add('drain budget exhausted before poll delay');
+      return SubreaperDrainResult(
+        settled: false,
+        verified: false,
+        survivors: alive,
+        notes: notes,
+      );
+    }
+    await Future<void>.delayed(delay);
   }
 
-  ProcessTree? tree;
-  try {
-    tree = await probe
-        .enumerate(supervisorPid)
-        .timeout(remaining(), onTimeout: () => null);
-  } on Object {
-    tree = null;
-  }
+  final tree = await enumerateBounded();
   if (tree == null) {
     return SubreaperDrainResult(
       settled: false,
@@ -102,13 +147,39 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   }
   final survivors = <int>[];
   for (final pid in tree.descendants()) {
-    if (await liveness.isAlive(pid)) survivors.add(pid);
+    if (remaining() <= Duration.zero) {
+      notes.add('incomplete final liveness inspection');
+      return SubreaperDrainResult(
+        settled: false,
+        verified: false,
+        survivors: survivors,
+        notes: notes,
+      );
+    }
+    final aliveState = await isAliveBounded(pid);
+    if (aliveState == null) {
+      return SubreaperDrainResult(
+        settled: false,
+        verified: false,
+        survivors: survivors,
+        notes: [...notes, 'incomplete final liveness inspection'],
+      );
+    }
+    if (aliveState) survivors.add(pid);
+  }
+  if (survivors.isNotEmpty) {
+    return SubreaperDrainResult(
+      settled: false,
+      verified: false,
+      survivors: survivors,
+      notes: [...notes, 'survivors remain after drain budget'],
+    );
   }
   return SubreaperDrainResult(
-    settled: false,
-    verified: survivors.isEmpty,
-    survivors: survivors,
-    notes: [...notes, 'drain budget exhausted'],
+    settled: true,
+    verified: true,
+    survivors: const [],
+    notes: notes,
   );
 }
 

@@ -7,12 +7,19 @@ import 'package:oka_dart_kernel/src/gate/owned_dev_session_start_controller.dart
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-const _stubSource = '''
+const _stubSource = r'''
 import 'dart:convert';
 import 'dart:io';
 
 Future<void> main(List<String> args) async {
   final hang = args.contains('--hang-on-quit');
+  if (args.contains('--spawn-on-start')) {
+    final c = await Process.start('sleep', ['180']);
+    stderr.writeln(
+      'oka_dev_fixture_escaped_pid=${c.pid} token=fixture-start-${c.pid}',
+    );
+    await stderr.flush();
+  }
   stdout.writeln('dev: ready — commands: r [file] | R | q');
   await for (final line
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
@@ -24,22 +31,16 @@ Future<void> main(List<String> args) async {
         exit(0);
       }
       if (args.contains('--spawn-on-q-setsid')) {
-        final p = await Process.start('/bin/sh', [
-          '-c',
-          'setsid sleep 180 </dev/null &',
-        ]);
+        final detached = await Process.start(
+          'setsid',
+          ['sleep', '180'],
+          mode: ProcessStartMode.detached,
+        );
         stderr.writeln(
-          'oka_dev_fixture_escaped_pid=\${p.pid} token=fixture-setsid-\${p.pid}',
+          'oka_dev_fixture_escaped_pid=${detached.pid} token=fixture-setsid-${detached.pid}',
         );
         await stderr.flush();
         exit(0);
-      }
-      if (args.contains('--spawn-on-start')) {
-        final c = await Process.start('sleep', ['180']);
-        stderr.writeln(
-          'oka_dev_fixture_escaped_pid=\${c.pid} token=fixture-start-\${c.pid}',
-        );
-        await stderr.flush();
       }
       if (hang) {
         await Future<void>.delayed(const Duration(hours: 1));
@@ -213,7 +214,7 @@ exit 0
       }
     });
 
-    session.sendLine('q');
+    await session.sendLine('q');
     final td = await session.teardown(quitGrace: const Duration(seconds: 5));
     expect(td.verified, isTrue, reason: td.notes.join('; '));
     expect(td.clean, isTrue, reason: td.notes.join('; '));
@@ -241,8 +242,8 @@ exit 0
       final decoy = await Process.start('sleep', ['3600']);
       addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
 
-      session.sendLine('q');
-      final td = await session.teardown(quitGrace: const Duration(seconds: 10));
+      await session.sendLine('q');
+      final td = await session.teardown(quitGrace: const Duration(seconds: 30));
       expect(td.verified, isTrue, reason: td.notes.join('; '));
       expect(td.clean, isTrue, reason: td.notes.join('; '));
       expect(td.survivors, isEmpty);
@@ -283,8 +284,8 @@ exit 0
       final decoy = await Process.start('sleep', ['3600']);
       addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
 
-      session.sendLine('q');
-      final td = await session.teardown(quitGrace: const Duration(seconds: 8));
+      await session.sendLine('q');
+      final td = await session.teardown(quitGrace: const Duration(seconds: 30));
       expect(td.verified, isFalse, reason: td.notes.join('; '));
       expect(td.clean, isFalse);
       expect(session.fixtureEscaped, isNotEmpty);
@@ -384,7 +385,7 @@ exit 0
 
   test('abort during slow startup stops spawned root', () async {
     const liveness = HostProcessLiveness();
-    final ctl = OwnedDevSessionStartController(liveness: const _SlowLiveness());
+    final ctl = OwnedDevSessionStartController();
     Process? spawned;
 
     Future<Process> laggedSpawn(

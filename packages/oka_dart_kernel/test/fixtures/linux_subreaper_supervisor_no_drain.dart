@@ -1,16 +1,16 @@
 // Test-only supervisor entry: production drain disabled (mutation control).
 // ignore_for_file: avoid_print
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:oka_dart_kernel/src/gate/linux_child_subreaper.dart';
+import 'package:oka_dart_kernel/src/gate/supervisor_control_channel.dart';
 
 Future<void> main(List<String> args) async {
   if (!Platform.isLinux) exit(3);
   if (args.length < 2 || args.first != '--') exit(2);
   final nonce =
-      Platform.environment['OKA_DEV_SESSION_NONCE']?.trim() ?? 'missing-nonce';
+      Platform.environment[kSupervisorNonceEnv]?.trim() ?? 'missing-nonce';
   if (!LinuxChildSubreaper.activate()) exit(4);
 
   final child = await Process.start(
@@ -20,19 +20,20 @@ Future<void> main(List<String> args) async {
         Platform.environment['OKA_DEV_SESSION_CWD']?.trim().isNotEmpty == true
             ? Platform.environment['OKA_DEV_SESSION_CWD']!.trim()
             : null,
-    environment: Platform.environment,
+    environment: sanitizeWorkloadEnvironment(Platform.environment),
   );
-  stderr.writeln('oka_dev_workload_pid=${child.pid}');
-  await stderr.flush();
+  await appendSupervisorControlLine('oka_dev_workload_pid=${child.pid}');
 
   child.stdout.listen(stdout.add, onDone: () {});
   child.stderr.listen(stderr.add, onDone: () {});
   stdin.cast<List<int>>().listen(child.stdin.add, onDone: child.stdin.close);
 
-  final code = await child.exitCode;
-  stderr.writeln(
+  final workloadExit = await child.exitCode;
+  await appendSupervisorControlLine(
     'oka_dev_supervisor_drain_ack nonce=$nonce settled=false verified=false survivors=',
   );
-  await stderr.flush();
-  exit(code);
+  await appendSupervisorControlLine(
+    'oka_dev_supervisor_shutdown supervisor_exit=0 workload_exit=$workloadExit',
+  );
+  exit(0);
 }

@@ -8,9 +8,14 @@ const _runner = 'packages/oka_dart_kernel/tool/oka_run_dev.dart';
 
 void _markOkaWorkspace(Directory root) {
   File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: oka_workspace\n');
-  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml')).createSync(recursive: true);
+  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml'))
+      .createSync(recursive: true);
+  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml'))
+      .writeAsStringSync('name: oka\n');
   File(p.join(root.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
       .createSync(recursive: true);
+  File(p.join(root.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
+      .writeAsStringSync('name: oka_dart_kernel\n');
 }
 
 void main() {
@@ -65,6 +70,24 @@ void main() {
     );
   });
 
+  test('wrong packages/oka pubspec name is rejected', () async {
+    final tmp = await Directory.systemTemp.createTemp('oka_kernel_bad_pkg');
+    addTearDown(() => tmp.delete(recursive: true));
+    File(p.join(tmp.path, 'pubspec.yaml')).writeAsStringSync('name: oka_workspace\n');
+    File(p.join(tmp.path, 'packages', 'oka', 'pubspec.yaml'))
+        .createSync(recursive: true);
+    File(p.join(tmp.path, 'packages', 'oka', 'pubspec.yaml'))
+        .writeAsStringSync('name: not_oka\n');
+    File(p.join(tmp.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
+        .createSync(recursive: true);
+    File(p.join(tmp.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
+        .writeAsStringSync('name: oka_dart_kernel\n');
+    await File(p.join(tmp.path, _runner)).create(recursive: true);
+    final script = File(p.join(tmp.path, 'packages', 'oka', 'bin', 'oka.dart'));
+    await script.create(recursive: true);
+    expect(kernelStackRootForScript(script.path, _runner), isNull);
+  });
+
   test('substring oka_workspace without pubspec name is rejected', () async {
     final tmp = await Directory.systemTemp.createTemp('oka_kernel_fake_name');
     addTearDown(() => tmp.delete(recursive: true));
@@ -73,8 +96,12 @@ void main() {
     );
     File(p.join(tmp.path, 'packages', 'oka', 'pubspec.yaml'))
         .createSync(recursive: true);
+    File(p.join(tmp.path, 'packages', 'oka', 'pubspec.yaml'))
+        .writeAsStringSync('name: oka\n');
     File(p.join(tmp.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
         .createSync(recursive: true);
+    File(p.join(tmp.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
+        .writeAsStringSync('name: oka_dart_kernel\n');
     await File(p.join(tmp.path, _runner)).create(recursive: true);
     final script = File(p.join(tmp.path, 'packages', 'oka', 'bin', 'oka.dart'));
     await script.create(recursive: true);
