@@ -149,6 +149,8 @@ void main() {
           '35699',
           '--host-vmservice-port',
           '34381',
+          '--dds-port',
+          '0',
         ],
       );
 

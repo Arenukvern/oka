@@ -188,31 +188,52 @@ class ProcessDaemonTransport implements DaemonTransport {
   bool kill() => _process.kill();
 }
 
+/// Default `--dds-port` when oka already created `adb forward tcp:<host> …`.
+///
+/// Flutter 3.47+ (`flutter_command.dart` `ddsPort` / `hostVmservicePort` on
+/// stable-3.47.5): without an explicit `--dds-port`, DDS binds
+/// `--host-vmservice-port`, which collides with an existing forward (`Address
+/// already in use` on loopback). Parsed `--dds-port 0` keeps the host port for
+/// the forward and lets DDS pick a free port (native f9/a92 pre-proof).
+const attachDdsPortWhenOkaOwnsHostForward = 0;
+
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
 /// [spawnAttachDaemon]).
 ///
-/// When the SDK already owns an adb forward, pass [deviceVmServicePort] and
-/// [hostVmServicePort] only — not `--debug-url`. Native pre-proof logs
-/// correlated `--debug-url` plus host port with `app.stop` soon after `app.start`
-/// and no `app.started`; treat as correlation until attach child logs confirm.
+/// When oka already owns an adb forward on [hostVmServicePort], pass
+/// [deviceVmServicePort] and [hostVmServicePort] with an explicit
+/// [ddsPort] (default [attachDdsPortWhenOkaOwnsHostForward]) — do not pass
+/// `--debug-url` with the device logcat URI in that mode.
 List<String> flutterAttachMachineArgs({
   required String deviceId,
   int? deviceVmServicePort,
   int? hostVmServicePort,
-}) => [
-  'attach',
-  '--machine',
-  '-d',
-  deviceId,
-  if (deviceVmServicePort != null && deviceVmServicePort > 0) ...[
-    '--device-vmservice-port',
-    '$deviceVmServicePort',
-  ],
-  if (hostVmServicePort != null && hostVmServicePort > 0) ...[
-    '--host-vmservice-port',
-    '$hostVmServicePort',
-  ],
-];
+  int? ddsPort,
+}) {
+  final hostForward =
+      hostVmServicePort != null && hostVmServicePort > 0 ? hostVmServicePort : null;
+  final effectiveDds = hostForward != null
+      ? (ddsPort ?? attachDdsPortWhenOkaOwnsHostForward)
+      : ddsPort;
+  return [
+    'attach',
+    '--machine',
+    '-d',
+    deviceId,
+    if (deviceVmServicePort != null && deviceVmServicePort > 0) ...[
+      '--device-vmservice-port',
+      '$deviceVmServicePort',
+    ],
+    if (hostForward != null) ...[
+      '--host-vmservice-port',
+      '$hostForward',
+      if (effectiveDds != null) ...[
+        '--dds-port',
+        '$effectiveDds',
+      ],
+    ],
+  ];
+}
 
 /// Spawns `<flutterBinary> attach --machine -d <deviceId>` and returns the
 /// transport. [flutterBinary] must be the session manifest's recorded-SDK
@@ -228,6 +249,7 @@ Future<DaemonTransport> spawnAttachDaemon({
   String? adbPath,
   int? deviceVmServicePort,
   int? hostVmServicePort,
+  int? ddsPort,
 }) async {
   final environment = <String, String>{...Platform.environment};
   if (adbPath != null && adbPath.isNotEmpty) {
@@ -240,6 +262,7 @@ Future<DaemonTransport> spawnAttachDaemon({
       deviceId: deviceId,
       deviceVmServicePort: deviceVmServicePort,
       hostVmServicePort: hostVmServicePort,
+      ddsPort: ddsPort,
     ),
     environment: environment,
   );

@@ -493,6 +493,7 @@ class DevSession {
     this.attachVmServiceDeviceDebugUrl,
     this.attachVmServiceDevicePort,
     this.attachVmServiceHostPort,
+    this.attachVmServiceDdsPort,
     DevEventRenderer? renderer,
   }) : _renderer = renderer ??
             (json
@@ -554,6 +555,7 @@ class DevSession {
   final String? attachVmServiceDeviceDebugUrl;
   final int? attachVmServiceDevicePort;
   final int? attachVmServiceHostPort;
+  final int? attachVmServiceDdsPort;
   final DevEventRenderer _renderer;
 
   DevSessionTeardownReport? lastTeardownReport;
@@ -711,6 +713,7 @@ class DevSession {
       deviceDebugUrl: attachVmServiceDeviceDebugUrl,
       deviceVmServicePort: attachVmServiceDevicePort,
       hostVmServicePort: attachVmServiceHostPort,
+      attachDdsPort: attachVmServiceDdsPort,
       primaryError: primaryError,
       sessionIdentity: discovery == null
           ? null

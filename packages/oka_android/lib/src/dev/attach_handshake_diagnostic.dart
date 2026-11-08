@@ -16,6 +16,7 @@ Map<String, Object?> buildAttachHandshakeDiagnosticPayload({
   String? deviceDebugUrl,
   int? deviceVmServicePort,
   int? hostVmServicePort,
+  int? attachDdsPort,
   String? primaryError,
   SessionTeardownIdentity? sessionIdentity,
 }) => {
@@ -29,6 +30,7 @@ Map<String, Object?> buildAttachHandshakeDiagnosticPayload({
         MapEntry('devicePort', deviceVmServicePort),
       if (hostVmServicePort != null)
         MapEntry('hostForwardPort', hostVmServicePort),
+      if (attachDdsPort != null) MapEntry('ddsPort', attachDdsPort),
     ]),
     if (sessionIdentity != null) 'sessionIdentity': sessionIdentity.toJson(),
     'machineEventRing': adapter.snapshotMachineEventRing(),
@@ -46,6 +48,7 @@ Future<bool> tryWriteAttachHandshakeDiagnostic({
   String? deviceDebugUrl,
   int? deviceVmServicePort,
   int? hostVmServicePort,
+  int? attachDdsPort,
   String? primaryError,
   SessionTeardownIdentity? sessionIdentity,
   AttachHandshakeSidecarWrite? sidecarWriteForTest,
@@ -59,6 +62,7 @@ Future<bool> tryWriteAttachHandshakeDiagnostic({
       deviceDebugUrl: deviceDebugUrl,
       deviceVmServicePort: deviceVmServicePort,
       hostVmServicePort: hostVmServicePort,
+      attachDdsPort: attachDdsPort,
       primaryError: primaryError,
       sessionIdentity: sessionIdentity,
     );

@@ -217,10 +217,12 @@ class DevCommand {
           adbPath: devToolPath,
           verbose: verbose,
         );
+        const attachDdsPort = attachDdsPortWhenOkaOwnsHostForward;
         final attachArgv = flutterAttachMachineArgs(
           deviceId: deviceId,
           deviceVmServicePort: prepared.vmServiceDevicePort,
           hostVmServicePort: prepared.vmServiceLocalPort,
+          ddsPort: attachDdsPort,
         );
         final transport = await spawnAttachDaemon(
           flutterBinary: flutterBinary,
@@ -228,6 +230,7 @@ class DevCommand {
           adbPath: devToolPath,
           deviceVmServicePort: prepared.vmServiceDevicePort,
           hostVmServicePort: prepared.vmServiceLocalPort,
+          ddsPort: attachDdsPort,
         );
         final adapter = FlutterDaemonAdapter(
           transport: transport,
@@ -239,6 +242,7 @@ class DevCommand {
           attachVmServiceDeviceDebugUrl: prepared.vmServiceDeviceDebugUrl,
           attachVmServiceDevicePort: prepared.vmServiceDevicePort,
           attachVmServiceHostPort: prepared.vmServiceLocalPort,
+          attachVmServiceDdsPort: attachDdsPort,
           session: session,
           deviceId: deviceId,
           json: json,
