@@ -36,10 +36,19 @@ final class LinuxDevGate {
   OwnedDevSession? _activeSession;
 
   /// Stops the in-flight dev session (SIGTERM / gate interrupt).
-  Future<void> interruptCleanup() async {
+  Future<void> interruptCleanup({
+    Duration quitGrace = const Duration(seconds: 45),
+  }) async {
     final session = _activeSession;
     if (session == null) return;
-    await session.teardown();
+    await session.teardown(quitGrace: quitGrace);
+    _activeSession = null;
+  }
+
+  /// Regression harness: bind an in-flight session like [runReloadLeg] would.
+  // ignore: use_setters_to_change_properties
+  void bindActiveSessionForTesting(OwnedDevSession session) {
+    _activeSession = session;
   }
 
   String get _appRoot => p.join(workspace, appProject);
