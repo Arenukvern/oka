@@ -127,3 +127,34 @@ jobs:
               (cd "$pkg" && dart pub publish --dry-run)
             fi
           done
+
+  linux-desktop-dev:
+    # L0: Flutter Linux desktop JIT dev under `oka run dev` (not plain VM).
+    # Proves reload/restart/assets on ubuntu-amd64 only — not all Linux hosts.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Linux desktop GTK toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang cmake ninja-build libgtk-3-dev libstdc++-14-dev pkg-config xvfb
+      - name: Enable Flutter linux desktop
+        run: |
+          flutter config --no-analytics --enable-linux-desktop
+          flutter pub get
+          (cd example && flutter pub get)
+          flutter doctor -v
+          uname -m
+      - run: dart pub get --no-example
+      - name: Linux L0 dev convergence gate
+        env:
+          OKA_LINUX_DEV_GATE_USE_XVFB: '1'
+        run: bash packages/oka_dart_kernel/tool/gate_linux_dev_convergence.sh

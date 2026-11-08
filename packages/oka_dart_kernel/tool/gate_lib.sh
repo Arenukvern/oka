@@ -30,7 +30,12 @@ pkill_pattern() {
 # restore_marker <file> <from> <to> — revert one live-patch marker
 # (best-effort: a missing file or absent marker is not an error).
 restore_marker() {
-  sed -i '' "s/$2/$3/g" "$1" 2>/dev/null || true
+  # GNU sed (Linux) vs BSD sed (macOS).
+  if sed --version 2>/dev/null | grep -qi gnu; then
+    sed -i "s/$2/$3/g" "$1" 2>/dev/null || true
+  else
+    sed -i '' "s/$2/$3/g" "$1" 2>/dev/null || true
+  fi
 }
 
 # require_env <NAME> [<NAME>…] — fail loudly before a leg starts.

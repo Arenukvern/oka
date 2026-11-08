@@ -1,0 +1,28 @@
+# Evidence: Linux L0 dev convergence (2026-11-08)
+
+Stage **L0** only — JIT desktop dev diagnostics and gates. No release build, Snap
+pack, or store upload.
+
+## What was proven
+
+| Claim | Evidence |
+| --- | --- |
+| `oka doctor` reports Linux desktop dev honestly | `[Linux Desktop Dev (L0)]` block in `doctor_command.dart`; unit tests `packages/oka/test/linux_desktop_doctor_test.dart` |
+| `oka run dev --platform linux` reload + restart | `tool/gate_run_dev_linux.sh` (example app, probe `feature-v1 -> feature-v2-live`) |
+| Asset sync + evict + restart + verify | `tool/gate_dev_assets_linux.sh` (`helloAssetFingerprint` after `R`) |
+| CI | Workflow job `linux-desktop-dev` on `ubuntu-latest` |
+
+## Host scope (explicit)
+
+- **Tested:** GitHub Actions `ubuntu-latest` **amd64** with Flutter stable, GTK dev
+  packages, `xvfb-run` for display.
+- **Not claimed:** arm64 linux desktop hosts, other distros, Wayland-only without
+  Xvfb verification, Snap Store or `oka build linux`.
+
+## Later stages (not this PR)
+
+See `docs/superpowers/plans/2026-11-08-linux-dev-convergence.md`:
+
+- **L3 Snap Store** requires **real** upload + channel release (not dry-run-only),
+  with convenient credential-path config and receipts; dry-run previews the **same**
+  operations with side effects disabled.

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'units/feature.dart';
+
 // The dev-session asset probes (ADR-0037 §6b / gate_dev_assets.sh).
 // `evaluate` cannot await, so the probe is two-phase: evaluate
 // [refreshHelloAsset] (fires the async reload inside the app), then read
@@ -106,6 +108,10 @@ class _MyHomePageState extends State<MyHomePage> {
           Text(
             '$_counter',
             style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          Text(
+            featureLabel(),
+            key: const ValueKey('feature-label'),
           ),
         ],
       ),
