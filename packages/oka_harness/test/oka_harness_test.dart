@@ -22,7 +22,12 @@ if [ "$1" = "build" ]; then
   echo "fake build complete"
   exit 0
 fi
-echo "fake-oka dev session args"
+if [ "$1" = "dev" ] && [ "$2" != "android" ]; then
+  echo "fake-oka: dev without android subcommand (kernel stack path)"
+  sleep 300
+  exit 0
+fi
+echo "fake-oka dev android session args"
 mkdir -p .flutter_mcp
 cat > .flutter_mcp/runner-session.json <<'JSON'
 {
@@ -43,11 +48,27 @@ sleep 300
 /// (for the timeout path).
 const String _stallingOkaScript = r'''
 #!/bin/sh
-if [ "$1" = "dev" ]; then
+if [ "$1" = "build" ]; then
+  echo "fake build complete"
+  exit 0
+fi
+if [ "$1" = "dev" ] && [ "$2" = "android" ]; then
   echo "fake-oka stalling"
   sleep 300
 fi
-echo "fake-oka build ok"
+''';
+
+/// Exits immediately on `dev android` — surfaces early failure vs timeout.
+const String _failingDevOkaScript = r'''
+#!/bin/sh
+if [ "$1" = "build" ]; then
+  echo "fake build complete"
+  exit 0
+fi
+if [ "$1" = "dev" ] && [ "$2" = "android" ]; then
+  echo "fake-oka dev android refused: no manifest"
+  exit 4
+fi
 ''';
 
 Future<Directory> _withFakeOka(String script) async {
@@ -124,7 +145,11 @@ void main() {
       );
       // Args threaded to the owning session.
       expect(await tapContains(app, '--device emulator-9999'), isTrue);
-      expect(await tapContains(app, 'fake-oka dev session args'), isTrue);
+      expect(
+        await tapContains(app, 'fake-oka dev android session args'),
+        isTrue,
+      );
+      expect(await tapContains(app, 'fake-oka args: dev android'), isTrue);
       // The build ran with the SAME defines the dev session requests
       // (the parity check the real oka enforces).
     },
@@ -169,9 +194,48 @@ void main() {
         isNull,
         reason: 'build:false must not run the build phase',
       );
-      expect(app.stdout.firstMatch('fake-oka dev session args'), isNotNull);
+      expect(
+        app.stdout.firstMatch('fake-oka dev android session args'),
+        isNotNull,
+      );
     },
   );
+
+  test(
+    'dev android subcommand routes to the owning session (not bare dev)',
+    () async {
+      final target = AndroidAppTarget(
+        projectDir: workspace.path,
+        okaBin: '${workspace.path}/fake_oka',
+        logcat: false,
+      );
+      final app = await target.launch(build: false);
+      addTearDown(app.stop);
+      expect(app.stdout.firstMatch('kernel stack path'), isNull);
+      expect(app.stdout.firstMatch('dev android'), isNotNull);
+    },
+  );
+
+  test('exiting dev android fails fast with exit evidence', () async {
+    final failing = await _withFakeOka(_failingDevOkaScript);
+    addTearDown(() => failing.delete(recursive: true));
+    final target = AndroidAppTarget(
+      projectDir: failing.path,
+      okaBin: '${failing.path}/fake_oka',
+      logcat: false,
+      sessionTimeout: const Duration(minutes: 1),
+    );
+    await expectLater(
+      target.launch(),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('exited (4)'), contains('no manifest')),
+        ),
+      ),
+    );
+  });
 
   test('a session that never publishes times out and is torn down', () async {
     final stalling = await _withFakeOka(_stallingOkaScript);

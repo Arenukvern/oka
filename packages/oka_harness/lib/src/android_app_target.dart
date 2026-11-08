@@ -9,13 +9,14 @@ import 'session_composition.dart';
 
 /// Brings an Android app up through oka's owning dev session.
 ///
-/// `oka dev` is the single owning attach session (build → install → launch
-/// → VM-service forward → attach, oka ADR-0011): it compiles, owns the
-/// daemon protocol, and publishes the forwarded host-reachable VM endpoint
-/// in `<project>/.flutter_mcp/runner-session.json` (mcp_flutter ADR-0014
-/// spec v2; absence of the file is the liveness signal). This target spawns
-/// it, waits for the file, and returns a [LaunchedApp] around the `oka dev`
-/// process — no second attach (which would kill the owning session), no
+/// `oka dev android` is the single owning attach session (build → install
+/// → launch → VM-service forward → attach, oka ADR-0011): it compiles,
+/// owns the daemon protocol, and publishes the forwarded host-reachable VM
+/// endpoint in `<project>/.flutter_mcp/runner-session.json` (mcp_flutter
+/// ADR-0014 spec v2; absence of the file is the liveness signal). This
+/// target spawns it, waits for the file, and returns a [LaunchedApp] around
+/// the `oka dev android` process — no second attach (which would kill the
+/// owning session), no
 /// logcat-scraped VM URI guessing.
 ///
 /// App logs under automation surface through adb logcat streamed into the
@@ -38,10 +39,10 @@ final class AndroidAppTarget implements AppTarget {
   final String projectDir;
 
   /// Device serial. Required on multi-device hosts (phone + emulator);
-  /// threaded to `oka dev --device`.
+  /// threaded to `oka dev android --device`.
   final String? deviceId;
 
-  /// Passed to `oka dev` as `--dart-define` pairs (app config per oka
+  /// Passed to `oka dev android` as `--dart-define` pairs (app config per oka
   /// ADR-0014's three-tier secrets model — defines carry app config, never
   /// host secrets).
   final Map<String, String> dartDefines;
@@ -92,6 +93,7 @@ final class AndroidAppTarget implements AppTarget {
 
     final args = <String>[
       'dev',
+      'android',
       if (deviceId != null) ...['--device', deviceId!],
       ...defineArgs,
     ];
@@ -138,6 +140,16 @@ final class AndroidAppTarget implements AppTarget {
   ) async {
     final deadline = DateTime.now().add(sessionTimeout);
     while (DateTime.now().isBefore(deadline)) {
+      final earlyExit = await _tryProcessExitCode(process);
+      if (earlyExit != null) {
+        // Let the stdout/stderr pumps publish child diagnostics first.
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        throw StateError(
+          'oka dev android exited ($earlyExit) before publishing '
+          '.flutter_mcp/runner-session.json; session tail:\n'
+          '${tap.tail(15).join('\n')}',
+        );
+      }
       final DevSessionDiscovery? session;
       try {
         session = readRunnerSessionFile(projectDir);
@@ -152,9 +164,17 @@ final class AndroidAppTarget implements AppTarget {
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
     throw TimeoutException(
-      'oka dev did not publish .flutter_mcp/runner-session.json within '
+      'oka dev android did not publish .flutter_mcp/runner-session.json within '
       '$sessionTimeout; session tail:\n${tap.tail(15).join('\n')}',
     );
+  }
+
+  Future<int?> _tryProcessExitCode(Process process) async {
+    try {
+      return await process.exitCode.timeout(Duration.zero);
+    } on TimeoutException {
+      return null;
+    }
   }
 
   Future<Process?> _startLogcat(String deviceId, LogTap tap) async {
