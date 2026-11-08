@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
@@ -21,16 +23,30 @@ while read -r line; do
 done
 ''';
 
+Future<Process> _startDartOwner({
+  required Directory root,
+  required int controlPort,
+}) {
+  final script = p.join('test', 'cooperative_stop_owner.dart');
+  return Process.start('dart', ['run', script, root.path, '$controlPort']);
+}
+
+Future<Process> _startOwnerShell({
+  required Directory root,
+  required String scriptBody,
+}) async {
+  final script = File(p.join(root.path, 'owner.sh'))..writeAsStringSync(scriptBody);
+  await Process.run('chmod', ['+x', script.path]);
+  return Process.start(script.path, [root.path]);
+}
+
 void main() {
   test('stopOkaDevAndroidSession splits stdin written vs TCP ack', () async {
     final root = await Directory.systemTemp.createTemp('oka_stop_');
     addTearDown(() => root.delete(recursive: true));
-    final script = File(p.join(root.path, 'owner.sh'))
-      ..writeAsStringSync(_stdinQuitOwner);
-    await Process.run('chmod', ['+x', script.path]);
-    final process = await Process.start(
-      script.path,
-      [root.path],
+    final process = await _startOwnerShell(
+      root: root,
+      scriptBody: _stdinQuitOwner,
     );
     await Future<void>.delayed(const Duration(milliseconds: 100));
     final report = await stopOkaDevAndroidSession(
@@ -42,9 +58,115 @@ void main() {
     expect(report.stdinQuitWritten, isTrue);
     expect(report.controlQuitAcknowledged, isFalse);
     expect(report.controlQuitSent, isFalse);
+    expect(report.controlQuitConnectFailed, isFalse);
     expect(report.runnerSessionCleared, isTrue);
     expect(report.processExitCode, 0);
     expect(report.disposition, DevSessionStopDisposition.cooperative);
     expect(report.ok, isTrue);
+  });
+
+  test(
+    'TCP quit ack clears discovery and exits cooperative',
+    () async {
+      final root = await Directory.systemTemp.createTemp('oka_stop_tcp');
+      addTearDown(() => root.delete(recursive: true));
+      late Process child;
+      final server = await DevControlServer.start(
+        info: const DevControlSessionInfo(
+          deviceId: 'emu',
+          target: 'lib/main.dart',
+          mode: 'debug',
+        ),
+        onCommand: (cmd) {
+          if (cmd == DevControlCommand.quit) {
+            unawaited(clearRunnerSessionFile(root.path));
+            child.stdin.writeln('stop');
+          }
+        },
+      );
+      addTearDown(server.close);
+      child = await _startDartOwner(root: root, controlPort: server.port);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      final report = await stopOkaDevAndroidSession(
+        owningProcess: child,
+        projectPath: root.path,
+        controlPort: server.port,
+        stdinJsonQuitEnabled: false,
+        quitTimeout: const Duration(seconds: 15),
+      );
+      expect(report.controlQuitSent, isTrue);
+      expect(report.controlQuitAcknowledged, isTrue);
+      expect(report.controlReplyLost, isFalse);
+      expect(report.controlQuitConnectFailed, isFalse);
+      expect(report.stdinQuitWritten, isFalse);
+      expect(report.runnerSessionCleared, isTrue);
+      expect(report.processExitCode, 0);
+      expect(report.disposition, DevSessionStopDisposition.cooperative);
+      expect(report.ok, isTrue);
+    },
+  );
+
+  test(
+    'TCP quit flushed but EOF before reply still cooperative when session ends',
+    () async {
+      final root = await Directory.systemTemp.createTemp('oka_stop_eof');
+      addTearDown(() => root.delete(recursive: true));
+      late Process child;
+      final server = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(server.close);
+      server.listen((socket) {
+        socket
+            .map(utf8.decode)
+            .transform(const LineSplitter())
+            .listen((line) {
+              final decoded = jsonDecode(line) as Map<String, Object?>;
+              if (decoded['method'] == 'quit') {
+                unawaited(clearRunnerSessionFile(root.path));
+                child.stdin.writeln('stop');
+                socket.destroy();
+              }
+            });
+      });
+      child = await _startDartOwner(root: root, controlPort: server.port);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      final report = await stopOkaDevAndroidSession(
+        owningProcess: child,
+        projectPath: root.path,
+        controlPort: server.port,
+        stdinJsonQuitEnabled: false,
+        quitTimeout: const Duration(seconds: 15),
+      );
+      expect(report.controlQuitSent, isTrue);
+      expect(report.controlQuitAcknowledged, isFalse);
+      expect(report.controlReplyLost, isTrue);
+      expect(report.controlQuitConnectFailed, isFalse);
+      expect(report.runnerSessionCleared, isTrue);
+      expect(report.processExitCode, 0);
+      expect(report.disposition, DevSessionStopDisposition.cooperative);
+      expect(report.ok, isTrue);
+    },
+  );
+
+  test('connection refused does not count as control quit sent', () async {
+    final root = await Directory.systemTemp.createTemp('oka_stop_refused');
+    addTearDown(() => root.delete(recursive: true));
+    const deadPort = 31999;
+    final process = await _startDartOwner(root: root, controlPort: deadPort);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final report = await stopOkaDevAndroidSession(
+      owningProcess: process,
+      projectPath: root.path,
+      controlPort: deadPort,
+      stdinJsonQuitEnabled: false,
+      quitTimeout: const Duration(seconds: 10),
+    );
+    addTearDown(() => process.kill(ProcessSignal.sigkill));
+    expect(report.controlQuitConnectFailed, isTrue);
+    expect(report.controlQuitSent, isFalse);
+    expect(report.stdinQuitWritten, isFalse);
+    expect(report.disposition, isNot(DevSessionStopDisposition.cooperative));
   });
 }

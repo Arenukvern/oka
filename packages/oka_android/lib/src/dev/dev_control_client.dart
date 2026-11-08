@@ -16,16 +16,18 @@ final class DevControlReplyLost implements Exception {
 
 /// Outcome of one control request (ack, lost reply, or timeout).
 final class DevControlRequestResult {
-  const DevControlRequestResult.acknowledged(this.response)
-      : replyLost = false,
+  const DevControlRequestResult.acknowledged(
+    this.response, {
+    required this.commandFlushed,
+  })  : replyLost = false,
         timedOut = false;
 
-  const DevControlRequestResult.replyLost()
+  const DevControlRequestResult.replyLost({required this.commandFlushed})
       : response = null,
         replyLost = true,
         timedOut = false;
 
-  const DevControlRequestResult.timedOut()
+  const DevControlRequestResult.timedOut({required this.commandFlushed})
       : response = null,
         replyLost = false,
         timedOut = true;
@@ -33,6 +35,9 @@ final class DevControlRequestResult {
   final Map<String, Object?>? response;
   final bool replyLost;
   final bool timedOut;
+
+  /// True only after the request line was flushed to the socket.
+  final bool commandFlushed;
 
   bool get ok => response?['ok'] == true;
 }
@@ -44,7 +49,14 @@ final class DevControlClient {
     _sub = _socket
         .map(utf8.decode)
         .transform(const LineSplitter())
-        .listen(_lines.add);
+        .listen(
+          _lines.add,
+          onDone: () {
+            if (!_lines.isClosed) {
+              unawaited(_lines.close());
+            }
+          },
+        );
     unawaited(
       _socket.done.whenComplete(() async {
         if (!_lines.isClosed) {
@@ -73,6 +85,7 @@ final class DevControlClient {
     Duration timeout = const Duration(seconds: 30),
   }) async {
     final waiter = Completer<DevControlRequestResult>();
+    var commandFlushed = false;
     late final StreamSubscription<String> lineSub;
     lineSub = _lines.stream.listen(
       (line) {
@@ -80,19 +93,24 @@ final class DevControlClient {
         waiter.complete(
           DevControlRequestResult.acknowledged(
             jsonDecode(line) as Map<String, Object?>,
+            commandFlushed: commandFlushed,
           ),
         );
         unawaited(lineSub.cancel());
       },
       onError: (Object error, StackTrace stackTrace) {
         if (!waiter.isCompleted) {
-          waiter.complete(const DevControlRequestResult.replyLost());
+          waiter.complete(
+            DevControlRequestResult.replyLost(commandFlushed: commandFlushed),
+          );
         }
         unawaited(lineSub.cancel());
       },
       onDone: () {
         if (!waiter.isCompleted) {
-          waiter.complete(const DevControlRequestResult.replyLost());
+          waiter.complete(
+            DevControlRequestResult.replyLost(commandFlushed: commandFlushed),
+          );
         }
         unawaited(lineSub.cancel());
       },
@@ -100,16 +118,21 @@ final class DevControlClient {
     unawaited(
       _socket.done.then((_) {
         if (!waiter.isCompleted) {
-          waiter.complete(const DevControlRequestResult.replyLost());
+          waiter.complete(
+            DevControlRequestResult.replyLost(commandFlushed: commandFlushed),
+          );
         }
       }),
     );
     try {
       _socket.write('${jsonEncode(body)}\n');
       await _socket.flush();
+      commandFlushed = true;
     } on Object {
       if (!waiter.isCompleted) {
-        waiter.complete(const DevControlRequestResult.replyLost());
+        waiter.complete(
+          const DevControlRequestResult.replyLost(commandFlushed: false),
+        );
       }
       return waiter.future;
     }
@@ -118,9 +141,11 @@ final class DevControlClient {
         timeout,
         onTimeout: () {
           if (!waiter.isCompleted) {
-            waiter.complete(const DevControlRequestResult.timedOut());
+            waiter.complete(
+              DevControlRequestResult.timedOut(commandFlushed: commandFlushed),
+            );
           }
-          return const DevControlRequestResult.timedOut();
+          return DevControlRequestResult.timedOut(commandFlushed: commandFlushed);
         },
       );
     } finally {

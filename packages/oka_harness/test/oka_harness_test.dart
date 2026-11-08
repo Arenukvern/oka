@@ -168,6 +168,25 @@ void main() {
     },
   );
 
+  test('stopCooperatively after launch clears discovery', () async {
+    final target = AndroidAppTarget(
+      projectDir: workspace.path,
+      okaBin: '${workspace.path}/fake_oka',
+      logcat: false,
+    );
+    final launched = await target.launch(build: false);
+    final report = await AndroidAppTarget.stopCooperatively(launched);
+    expect(report.runnerSessionCleared, isTrue);
+    expect(report.disposition, DevSessionStopDisposition.cooperative);
+    expect(report.ok, isTrue);
+    try {
+      await AndroidAppTarget.stopCooperatively(launched);
+      fail('second stopCooperatively must throw when the binding is gone');
+    } on StateError {
+      // Expected after the first cooperative stop.
+    }
+  });
+
   test(
     'stopSession clears discovery cooperatively (not bare SIGTERM)',
     () async {

@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'dev_control_client.dart';
 import 'dev_session.dart';
+import 'runner_session_spawn_binding.dart';
 
 /// How the owning session was stopped.
 enum DevSessionStopDisposition {
@@ -34,6 +35,7 @@ final class DevSessionStopReport {
     required this.runnerSessionCleared,
     required this.controlQuitAcknowledged,
     required this.controlQuitSent,
+    required this.controlQuitConnectFailed,
     required this.controlReplyLost,
     required this.stdinQuitWritten,
     required this.elapsed,
@@ -52,10 +54,13 @@ final class DevSessionStopReport {
   /// Loopback `quit`/`detach` returned `ok: true` on the wire.
   final bool controlQuitAcknowledged;
 
-  /// A TCP `quit`/`detach` was sent (even if the reply was lost).
+  /// A TCP `quit` line was flushed (reply may be lost).
   final bool controlQuitSent;
 
-  /// Reply line never arrived (EOF / server tore down first).
+  /// Loopback connect failed — quit was not flushed on the wire.
+  final bool controlQuitConnectFailed;
+
+  /// Reply line never arrived after a flushed command (EOF).
   final bool controlReplyLost;
 
   /// `quit` line written to `--json` stdin (not an ack).
@@ -94,17 +99,40 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
   Map<String, Object?>? controlResponse;
   var controlQuitAcknowledged = false;
   var controlQuitSent = false;
+  var controlQuitConnectFailed = false;
   var controlReplyLost = false;
   var stdinQuitWritten = false;
 
-  if (controlPort != null && controlPort > 0) {
-    controlQuitSent = true;
+  var resolvedControlPort = controlPort;
+  final liveDiscovery = readRunnerSessionFile(projectPath);
+  if (resolvedControlPort != null &&
+      resolvedControlPort > 0 &&
+      liveDiscovery != null) {
+    final binding = await verifyRunnerSessionSpawnBindingPids(
+      discoveryPid: liveDiscovery.pid,
+      spawnPid: owningProcess.pid,
+    );
+    if (!binding.isPlausibleOwnership) {
+      resolvedControlPort = null;
+      controlResponse = {
+        'ok': false,
+        'error':
+            'runner-session pid ${liveDiscovery.pid} not owned by spawn '
+            '${owningProcess.pid}; skipping control quit',
+      };
+    } else if (liveDiscovery.controlPort != resolvedControlPort) {
+      resolvedControlPort = liveDiscovery.controlPort;
+    }
+  }
+
+  if (resolvedControlPort != null && resolvedControlPort > 0) {
     try {
-      final client = await DevControlClient.connect(port: controlPort);
+      final client = await DevControlClient.connect(port: resolvedControlPort);
       try {
         final result = await client.requestQuit(
           timeout: const Duration(seconds: 5),
         );
+        controlQuitSent = result.commandFlushed;
         if (result.timedOut) {
           controlResponse = {'ok': false, 'error': 'control request timed out'};
         } else if (result.replyLost) {
@@ -118,6 +146,7 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
         await client.close();
       }
     } on Object catch (e) {
+      controlQuitConnectFailed = true;
       controlResponse = {'ok': false, 'error': '$e'};
     }
   }
@@ -177,6 +206,7 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
     runnerSessionCleared: runnerSessionCleared,
     controlQuitAcknowledged: controlQuitAcknowledged,
     controlQuitSent: controlQuitSent,
+    controlQuitConnectFailed: controlQuitConnectFailed,
     controlReplyLost: controlReplyLost,
     stdinQuitWritten: stdinQuitWritten,
     elapsed: watch.elapsed,

@@ -46,7 +46,12 @@ final driver = WidgetDriver(await app.vm());
 final ref = await driver.findRef('start');
 await driver.tap(ref!);
 
-await app.stop(); // tears down the owning session
+final okaApp = await AndroidAppTarget(projectDir: '.').launchOka();
+// ... scenario ...
+await okaApp.stopSession(); // cooperative — clears discovery
+
+// AppTarget.launch() is deprecated compat only; do not call LaunchedApp.stop()
+// on Android (SIGTERM, stale discovery). Use AndroidAppTarget.stopCooperatively(app).
 ```
 
 See `example/emulator_smoke.dart` for a runnable composition root.

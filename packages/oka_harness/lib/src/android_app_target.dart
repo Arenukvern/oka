@@ -68,31 +68,72 @@ final class AndroidAppTarget implements AppTarget {
   /// [Process.start] handle ([verifyRunnerSessionSpawnBinding]).
   final bool requirePlausibleSpawnOwnership;
 
-  static final _bindings = <int, OkaLaunchedApp>{};
+  /// Compat [LaunchedApp] → owning session (identity; works when
+  /// [LaunchedApp.process] is absent on hosted `flutter_mcp_harness`).
+  static final _bindingsByLaunchedApp =
+      Map<LaunchedApp, OkaLaunchedApp>.identity();
+
+  static void _registerCompatBinding(
+    LaunchedApp launched,
+    OkaLaunchedApp owning,
+  ) {
+    _bindingsByLaunchedApp[launched] = owning;
+  }
+
+  static void _dropCompatBinding(LaunchedApp launched) {
+    _bindingsByLaunchedApp.remove(launched);
+  }
+
+  static String _compatSpawnDetail(LaunchedApp app) {
+    final dynamic spawn = app.process;
+    if (spawn == null) return ' (spawn handle is absent)';
+    return ' (spawn pid ${(spawn as Process).pid})';
+  }
 
   /// Cooperative owning session (preferred).
   Future<OkaLaunchedApp> launchOka({bool build = true}) =>
       _launchOka(build: build);
 
-  /// [AppTarget] compat: returns [LaunchedApp] for scenario typing only.
+  /// [AppTarget] compat for scenario typing — **not** a cooperative stop path.
+  ///
+  /// [LaunchedApp.stop] always SIGTERMs the spawn handle and may leave stale
+  /// discovery. Prefer [launchOka] + [OkaLaunchedApp.stopSession], or
+  /// [stopCooperatively] after this call.
+  @Deprecated(
+    'Prefer launchOka() and stopSession(), or stopCooperatively(LaunchedApp). '
+    'LaunchedApp.stop() SIGTERMs and does not run oka dev discovery cleanup.',
+  )
   @override
   Future<LaunchedApp> launch({bool build = true}) async {
     final app = await _launchOka(build: build);
-    _bindings[app.pid] = app;
-    return LaunchedApp(
+    late final LaunchedApp launched;
+    launched = LaunchedApp(
       name: app.name,
       process: app.process,
       stdout: app.stdout,
       vmUri: app.vmUri,
+      onStop: () async {
+        _dropCompatBinding(launched);
+        await app.releaseExtras();
+      },
     );
+    _registerCompatBinding(launched, app);
+    return launched;
   }
 
-  /// Cooperative stop for apps from [launch] — not [LaunchedApp.stop].
+  /// Cooperative stop for apps from [launch] — never bare [LaunchedApp.stop].
+  ///
+  /// Resolves the owning session by [LaunchedApp] identity (not spawn pid),
+  /// so a nullable [LaunchedApp.process] on hosted `flutter_mcp_harness`
+  /// remains safe.
   static Future<DevSessionStopReport> stopCooperatively(LaunchedApp app) {
-    final bound = _bindings.remove(app.process.pid);
+    final bound = _bindingsByLaunchedApp.remove(app);
     if (bound == null) {
       throw StateError(
-        'no oka-owned binding for pid ${app.process.pid} — use launchOka()',
+        'no oka-owned binding for this LaunchedApp${_compatSpawnDetail(app)}'
+        ' — use launchOka(), or ensure this instance came from '
+        'AndroidAppTarget.launch() and was not already torn down via '
+        'stopCooperatively() or LaunchedApp.stop().',
       );
     }
     return bound.stopSession();

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
@@ -25,19 +26,25 @@ void main() {
       await client.close();
     });
 
-    test('replyLost when the peer resets before a reply line', () async {
+    test('replyLost after flush when peer drops without a JSON line', () async {
       final server = await ServerSocket.bind(
         InternetAddress.loopbackIPv4,
         0,
       );
       addTearDown(server.close);
-      // Tear down on accept — the client may see this as a failed write or as
-      // EOF without a JSON line (both are replyLost, not ok).
-      server.listen((socket) => socket.destroy());
+      server.listen((socket) {
+        socket
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen((_) => socket.destroy());
+      });
       final client = await DevControlClient.connect(port: server.port);
-      final r = await client.requestQuit(timeout: const Duration(seconds: 5));
+      final r = await client.requestQuit(timeout: const Duration(seconds: 2));
+      expect(r.commandFlushed, isTrue);
+      expect(r.replyLost, isTrue);
+      expect(r.timedOut, isFalse);
       expect(r.ok, isFalse);
-      expect(r.replyLost || r.timedOut, isTrue);
       await client.close();
     });
   });

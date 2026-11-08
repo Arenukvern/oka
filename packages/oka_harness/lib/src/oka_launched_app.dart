@@ -46,6 +46,15 @@ final class OkaLaunchedApp {
   int get pid => process.pid;
 
   /// Cooperative stop with a [DevSessionStopReport] (truthful limits included).
+  /// Logcat and other sidecar teardown without stopping the owning session.
+  Future<void> releaseExtras() async {
+    try {
+      await onStopExtra?.call();
+    } on Object {
+      // Best-effort after [LaunchedApp.stop] SIGTERM.
+    }
+  }
+
   Future<DevSessionStopReport> stopSession({
     Duration quitTimeout = const Duration(seconds: 45),
   }) async {
