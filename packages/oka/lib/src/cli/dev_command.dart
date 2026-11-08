@@ -215,12 +215,13 @@ class DevCommand {
           adbPath: devToolPath,
           verbose: verbose,
         );
+        final transport = await spawnAttachDaemon(
+          flutterBinary: flutterBinary,
+          deviceId: deviceId,
+          adbPath: devToolPath,
+        );
         final adapter = FlutterDaemonAdapter(
-          transport: await spawnAttachDaemon(
-            flutterBinary: flutterBinary,
-            deviceId: deviceId,
-            adbPath: devToolPath,
-          ),
+          transport: transport,
           verbose: verbose,
         );
         return DevSession(
@@ -232,6 +233,24 @@ class DevCommand {
           commands: control.stream,
           verbose: verbose,
           rebuildOnNative: results['rebuild-on-native'] as bool,
+          attachHost: attachHostIdentityFor(transport),
+          resourceOwnership: DevSessionResourceOwnership(
+            adbPath: devToolPath,
+            vmServiceForward: DevSessionCreatedForward(
+              deviceSerial: deviceId,
+              hostLocalPort: prepared.vmServiceLocalPort,
+              deviceRemotePort: prepared.vmServiceDevicePort,
+              recordedAt: DateTime.now().toUtc(),
+            ),
+            launchIdentity:
+                prepared.devicePackage != null &&
+                    prepared.devicePackage!.isNotEmpty
+                ? DevSessionLaunchIdentity(
+                    deviceSerial: deviceId,
+                    packageName: prepared.devicePackage!,
+                  )
+                : null,
+          ),
           // Delegation channel: the spec-v2 runner-session file at each
           // ready (the forwarded host-reachable endpoint of THIS attach
           // round), real outcomes fed back to waiting control clients.

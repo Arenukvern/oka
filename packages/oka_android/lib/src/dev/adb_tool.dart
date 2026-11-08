@@ -6,6 +6,7 @@
 ///
 /// * **Pure command construction + parsers** ([adbDevicesArgs],
 ///   [adbInstallArgs], [adbLaunchArgs], [adbForwardArgs],
+///   [adbForwardRemoveArgs],
 ///   [parseAdbDevices], [parseVmServiceUri], [parseForwardPort],
 ///   [classifyAdbFailure]) — unit-tested against recorded fixture output,
 ///   no binary needed.
@@ -76,6 +77,18 @@ List<String> adbForwardArgs({
   int hostPort = 0,
   String? serial,
 }) => [...adbSerialArgs(serial), 'forward', 'tcp:$hostPort', 'tcp:$devicePort'];
+
+/// `adb [-s <serial>] forward --remove tcp:<hostPort>` — drops one host
+/// forward; never use `--remove-all` (would delete unrelated sessions).
+List<String> adbForwardRemoveArgs({
+  required int hostPort,
+  String? serial,
+}) => [
+  ...adbSerialArgs(serial),
+  'forward',
+  '--remove',
+  'tcp:$hostPort',
+];
 
 /// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
 /// no stream).
@@ -433,6 +446,15 @@ class AdbTool {
       );
     }
     return port;
+  }
+
+  /// `adb forward --remove tcp:<hostPort>` for a session-owned local port.
+  Future<void> removeForwardTcp({required int hostPort}) async {
+    final r = await _runProcess(
+      adbPath,
+      adbForwardRemoveArgs(hostPort: hostPort, serial: serial),
+    );
+    if (r.exitCode != 0) _fail('forward --remove', r);
   }
 
   /// Bounded poll for the VM service announcement: dumps logcat every

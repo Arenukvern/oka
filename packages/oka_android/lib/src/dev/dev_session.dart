@@ -34,6 +34,7 @@ import 'adb_tool.dart';
 import 'daemon_adapter.dart';
 import 'dev_discovery_store.dart';
 import 'dev_events.dart';
+import 'dev_session_teardown.dart';
 import 'device_target.dart';
 import 'run_session.dart';
 
@@ -148,6 +149,8 @@ class DevLaunchPrepared {
     required this.apkPath,
     required this.vmServiceUri,
     required this.vmServiceLocalPort,
+    required this.vmServiceDevicePort,
+    this.devicePackage,
   });
 
   final String apkPath;
@@ -158,6 +161,12 @@ class DevLaunchPrepared {
 
   /// The local adb-forwarded port ([vmServiceLocalPort] artifact).
   final int vmServiceLocalPort;
+
+  /// Device-side VM port at forward creation (logcat announcement).
+  final int vmServiceDevicePort;
+
+  /// Package installed/launched in this pipeline run (`device_package`).
+  final String? devicePackage;
 }
 
 /// Thrown when the device half of `oka dev` fails; the message is
@@ -354,6 +363,8 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   // Rebuild the host-reachable endpoint from the forwarded port (pure H2
   // helper — the forward rewired host→loopback).
   final parsed = Uri.parse(vmUri);
+  final devicePort = parsed.port;
+  final devicePackage = state['device_package'] as String?;
   final info = VmServiceInfo(
     scheme: parsed.scheme,
     host: parsed.host,
@@ -367,6 +378,8 @@ Future<DevLaunchPrepared> prepareDevLaunch({
     apkPath: state[apkPath.id] as String? ?? '',
     vmServiceUri: hostUri,
     vmServiceLocalPort: localPort,
+    vmServiceDevicePort: devicePort,
+    devicePackage: devicePackage,
   );
 }
 
@@ -464,6 +477,8 @@ class DevSession {
     this.startupTimeout = const Duration(seconds: 90),
     this.onReady,
     this.onResult,
+    this.resourceOwnership,
+    this.attachHost,
     DevEventRenderer? renderer,
   }) : _renderer = renderer ??
             (json
@@ -507,8 +522,19 @@ class DevSession {
   /// `restart.result`, `restart.fallback`, and `app.stopped` with the
   /// event's data. Purely additive: rendering is unchanged.
   final void Function(String event, Map<String, Object?> data)? onResult;
+
+  /// SDK-created resources for this attach round (teardown on session end).
+  final DevSessionResourceOwnership? resourceOwnership;
+
+  /// `flutter attach` host child identity at spawn (orphans not proven here).
+  final AttachHostProcessIdentity? attachHost;
   final DevEventRenderer _renderer;
 
+  DevSessionTeardownReport? lastTeardownReport;
+
+  static const _appStopRpcTimeout = Duration(seconds: 15);
+  static const _appStopSettleTimeout = Duration(seconds: 15);
+  static const _pidofAbsentTimeout = Duration(seconds: 15);
   final _commandGate = Completer<DevSessionOutcome>();
   final _queued = <DevControlCommand>[];
   bool _draining = false;
@@ -533,42 +559,61 @@ class DevSession {
         .asStream()
         .listen((_) {});
 
-    DevSessionOutcome outcome;
+    var outcome = DevSessionOutcome.daemonExited;
     try {
       try {
         await adapter.waitAppStart(timeout: startupTimeout);
       } on DaemonException catch (e) {
         write('❌ ${e.message}');
-        return DevSessionOutcome.daemonExited;
       }
 
-      // Wait for app.started (bounded) — attach syncs files first.
-      final started = await _waitForEvent(
-        'app.started',
-        timeout: startupTimeout,
-      );
-      if (!started) {
-        write(
-          '❌ flutter attach did not reach app.started within '
-          '${startupTimeout.inSeconds}s. Is the app running on $deviceId?\n'
-          '   fix: `oka run device` first (installs + launches the '
-          'oka-built debug APK), then re-run `oka dev`.',
+      if (adapter.appStartReceived) {
+        // Wait for app.started (bounded) — attach syncs files first.
+        final started = await _waitForEvent(
+          'app.started',
+          timeout: startupTimeout,
         );
-        return DevSessionOutcome.daemonExited;
+        if (!started) {
+          write(
+            '❌ flutter attach did not reach app.started within '
+            '${startupTimeout.inSeconds}s. Is the app running on $deviceId?\n'
+            '   fix: `oka run device` first (installs + launches the '
+            'oka-built debug APK), then re-run `oka dev`.',
+          );
+        } else {
+          _emit('session.ready', {
+            'device': deviceId,
+            if (adapter.wsUri != null) 'wsUri': adapter.wsUri,
+          });
+          outcome = await _serveCommands();
+        }
       }
-      _emit('session.ready', {
-        'device': deviceId,
-        if (adapter.wsUri != null) 'wsUri': adapter.wsUri,
-      });
-
-      outcome = await _serveCommands();
     } finally {
       await eventSub.cancel();
       await exitSub.cancel();
-      adapter.dispose();
+      final forwardReport = await _releaseOwnedForwards();
+      final attachReport = await adapter.disposeGracefully();
+      if (!attachReport.processExited) {
+        final detail = attachReport.message ?? 'attach process still running';
+        write(
+          '⚠️ Attach daemon did not exit cleanly ($detail).',
+        );
+      }
+      final teardown = DevSessionTeardownReport(
+        appStop: _quitAppStopAction,
+        pidofWait: _quitPidofAction,
+        forward: forwardReport,
+        attachDaemon: attachReport,
+        attachHost: attachHost,
+      );
+      lastTeardownReport = teardown;
+      _emit('session.teardown', teardown.toJson());
     }
     return outcome;
   }
+
+  AppStopAction? _quitAppStopAction;
+  PidofWaitAction? _quitPidofAction;
 
   Future<bool> _waitForEvent(
     String name, {
@@ -606,18 +651,124 @@ class DevSession {
     final outcome = await _commandGate.future;
     await cmdSub?.cancel();
 
-    // Tear-down per outcome. dispose() (in run()'s finally) sends
-    // daemon.shutdown + kills the process as a backstop; quit first stops
-    // the app (`app.stop`) so the device shows a clean exit; detach first
-    // detaches (`app.detach`) — the app keeps running.
+    // Tear-down per outcome before [disposeGracefully] in [run]'s finally.
     if (outcome == DevSessionOutcome.quit) {
-      await _trySend(adapter.stopApp);
+      await _stopAppOnQuit();
     }
     if (outcome == DevSessionOutcome.detached) {
-      await _trySend(adapter.detachApp);
-      write('👋 Detaching — the app keeps running on $deviceId.');
+      final ok = await _dispatch(adapter.detachApp, label: 'Detach');
+      if (!ok) {
+        write(
+          '⚠️ Detach: app.detach did not succeed — the app may still be '
+          'attached on $deviceId.',
+        );
+      } else {
+        write('👋 Detaching — the app keeps running on $deviceId.');
+      }
     }
     return outcome;
+  }
+
+  Future<void> _stopAppOnQuit() async {
+    _render(DevEvent('operation.start', {'label': 'Stop app'}));
+    final watch = Stopwatch()..start();
+    AppStopAction action;
+    try {
+      final r = await adapter
+          .stopApp()
+          .timeout(_appStopRpcTimeout);
+      watch.stop();
+      if (r.ok) {
+        action = AppStopAction(
+          rpcOk: true,
+          duration: watch.elapsed,
+          resultSummary: r.result?.toString(),
+        );
+        _render(DevEvent('operation.success', {'label': 'Stop app'}));
+      } else {
+        action = AppStopAction(
+          rpcOk: false,
+          duration: watch.elapsed,
+          errorText: r.errorText,
+          resultSummary: r.result?.toString(),
+        );
+        write('⚠️ Quit: app.stop error: ${r.errorText}');
+        _render(DevEvent('operation.failure', {
+          'label': 'Stop app',
+          'error': r.errorText,
+        }));
+      }
+    } on TimeoutException {
+      watch.stop();
+      action = AppStopAction(
+        rpcOk: false,
+        duration: watch.elapsed,
+        timedOut: true,
+        errorText:
+            'app.stop timed out after ${_appStopRpcTimeout.inSeconds}s',
+      );
+      write('⚠️ Quit: ${action.errorText}');
+    } on DaemonException catch (e) {
+      watch.stop();
+      action = AppStopAction(
+        rpcOk: false,
+        duration: watch.elapsed,
+        errorText: e.message,
+      );
+      write('⚠️ Quit: app.stop failed: ${e.message}');
+    }
+    _quitAppStopAction = action;
+    _emit('quit.app_stop', {
+      'rpcOk': action.rpcOk,
+      'ms': action.duration.inMilliseconds,
+      if (action.errorText != null) 'error': action.errorText,
+    });
+
+    if (action.rpcOk) {
+      final sawStop = await _waitForEvent(
+        'app.stop',
+        timeout: _appStopSettleTimeout,
+      );
+      if (!sawStop) {
+        write(
+          '⚠️ Quit: app.stop RPC ok (${action.duration.inMilliseconds}ms) '
+          'but no app.stop event within ${_appStopSettleTimeout.inSeconds}s '
+          '(attach mode may not stop the process).',
+        );
+        _emit('quit.stop_event_missing', {});
+      }
+    }
+
+    final launch = resourceOwnership?.launchIdentity;
+    if (launch != null && launch.packageName.isNotEmpty) {
+      final pidof = await waitDevicePackageAbsent(
+        adbPath: resourceOwnership!.adbPath,
+        deviceSerial: launch.deviceSerial,
+        packageName: launch.packageName,
+      );
+      _quitPidofAction = pidof;
+      if (pidof.timedOut) {
+        write(
+          '⚠️ Quit: $deviceId still reports pidof ${launch.packageName} '
+          '(${pidof.lastPidOutput}) after ${_pidofAbsentTimeout.inSeconds}s.',
+        );
+      }
+    }
+  }
+
+  Future<ForwardReleaseAction?> _releaseOwnedForwards() async {
+    final ownership = resourceOwnership;
+    if (ownership == null) return null;
+    final report = await releaseSessionOwnedResources(ownership);
+    if (report.refusedConcurrencyMismatch) {
+      write('⚠️ ${report.message}');
+    } else if (report.attempted && !report.removed) {
+      write(
+        '⚠️ Could not remove owned adb forward'
+        '${report.message != null ? ': ${report.message}' : '.'}',
+      );
+    }
+    return report;
   }
 
   void _handleCommand(DevControlCommand c) {

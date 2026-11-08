@@ -131,6 +131,7 @@ export 'src/dev/dev_doctor.dart';
 export 'src/dev/dev_events.dart';
 export 'src/dev/dev_session.dart';
 export 'src/dev/dev_session_stop.dart';
+export 'src/dev/dev_session_teardown.dart';
 export 'src/dev/device_provisioning.dart';
 export 'src/dev/device_target.dart';
 export 'src/dev/dex_probe.dart';

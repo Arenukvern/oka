@@ -102,6 +102,12 @@ class FakeDaemonTransport implements DaemonTransport {
       final responder = respondTo;
       if (responder != null) respond(id, result: responder(method));
     }
+    if (method == 'app.stop') {
+      emitEvent('app.stop');
+    }
+    if (method == 'daemon.shutdown' && !_exit.isCompleted) {
+      exitWith(0);
+    }
   }
 
   @override

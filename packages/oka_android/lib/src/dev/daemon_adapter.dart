@@ -92,6 +92,23 @@ class DaemonException implements Exception {
   String toString() => message;
 }
 
+/// Outcome of [FlutterDaemonAdapter.disposeGracefully] (bounded attach exit).
+final class DaemonDisposeReport {
+  const DaemonDisposeReport({
+    required this.shutdownAttempted,
+    required this.shutdownAcknowledged,
+    required this.processExited,
+    required this.killedAsBackstop,
+    this.message,
+  });
+
+  final bool shutdownAttempted;
+  final bool shutdownAcknowledged;
+  final bool processExited;
+  final bool killedAsBackstop;
+  final String? message;
+}
+
 /// Narrow process seam for the adapter: everything [FlutterDaemonAdapter]
 /// needs from the spawned `flutter attach --machine` process. Injectable so
 /// tests feed a scripted fake instead of a real process.
@@ -114,9 +131,13 @@ abstract class DaemonTransport {
 
 /// Real-process transport over `Process.start(...)`.
 class ProcessDaemonTransport implements DaemonTransport {
-  ProcessDaemonTransport(this._process);
+  ProcessDaemonTransport(this._process) : startedAt = DateTime.now();
 
   final Process _process;
+  final DateTime startedAt;
+
+  /// Host pid of `flutter attach --machine` (record before parent exit).
+  int get pid => _process.pid;
 
   @override
   Stream<List<int>> get stdout => _process.stdout;
@@ -451,8 +472,81 @@ class FlutterDaemonAdapter {
   /// Shuts the daemon down (`daemon.shutdown`); the attach process exits.
   Future<DaemonResponse> shutdown() => send('daemon.shutdown');
 
-  /// Fire-and-forget shutdown + process kill (cleanup path that must never
-  /// throw out of a session tear-down).
+  /// Bounded attach daemon shutdown: `daemon.shutdown`, then await process
+  /// exit; kill remains the backstop when the RPC or exit stalls.
+  Future<DaemonDisposeReport> disposeGracefully({
+    Duration shutdownTimeout = const Duration(seconds: 10),
+    Duration exitTimeout = const Duration(seconds: 10),
+  }) async {
+    var shutdownAttempted = false;
+    var shutdownAcknowledged = false;
+    var processExited = false;
+    var killedAsBackstop = false;
+    String? message;
+
+    if (!_exited) {
+      try {
+        shutdownAttempted = true;
+        if (appStartReceived) {
+          final r = await shutdown().timeout(shutdownTimeout);
+          shutdownAcknowledged = r.ok;
+          if (!r.ok) {
+            message = r.errorText;
+          }
+        } else {
+          try {
+            _transport.writeLine(
+              jsonEncode([
+                {'id': _nextId++, 'method': 'daemon.shutdown'},
+              ]),
+            );
+          } on Object catch (e) {
+            message = e.toString();
+          }
+        }
+      } on TimeoutException {
+        message = 'daemon.shutdown timed out after ${shutdownTimeout.inSeconds}s';
+      } on Object catch (e) {
+        message = e.toString();
+      }
+      try {
+        await exitCode.timeout(exitTimeout);
+        processExited = _exited;
+      } on TimeoutException {
+        message ??=
+            'attach process did not exit within ${exitTimeout.inSeconds}s';
+      } on Object catch (e) {
+        message ??= e.toString();
+      }
+      if (!_exited) {
+        killedAsBackstop = _transport.kill();
+        try {
+          await exitCode.timeout(const Duration(seconds: 2));
+          processExited = _exited;
+        } on Object {
+          // Backstop kill sent; outcome reported via [killedAsBackstop].
+        }
+      } else {
+        processExited = true;
+      }
+    } else {
+      processExited = true;
+    }
+    for (final s in _subscriptions) {
+      await s.cancel();
+    }
+    if (!_events.isClosed) await _events.close();
+    return DaemonDisposeReport(
+      shutdownAttempted: shutdownAttempted,
+      shutdownAcknowledged: shutdownAcknowledged,
+      processExited: processExited,
+      killedAsBackstop: killedAsBackstop,
+      message: message,
+    );
+  }
+
+  /// Fire-and-forget shutdown + process kill (legacy backstop for callers
+  /// that cannot await teardown).
   void dispose() {
     if (!_exited) {
       try {

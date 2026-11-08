@@ -9,12 +9,12 @@
 /// device app PID, not attach/daemon descendants. Consumers own those proofs.
 ///
 /// **In-session quit vs detach** (before the owning process exits): TCP/stdin
-/// `quit` ends the session with [DevSessionOutcome.quit] and a best-effort
-/// `app.stop` RPC (bounded, swallowed-on-failure), then daemon shutdown in
-/// [FlutterDaemonAdapter.dispose]. `detach` skips `app.stop` and sends
-/// `app.detach` instead (app keeps running). Neither path removes adb
-/// `forward` entries today — post-stop forwards/device PIDs may lag or
-/// persist; use read-only settle probes, not [DevSessionStopReport.ok] alone.
+/// `quit` runs [DevSession] teardown (`app.stop` with surfaced RPC errors,
+/// optional bounded `pidof` when launch identity is recorded, verified
+/// removal of session-created forwards, [FlutterDaemonAdapter.disposeGracefully]).
+/// `detach` skips `app.stop`/`pidof` and uses `app.detach` (app keeps running).
+/// [DevSessionStopReport] still does not attest device settlement — see
+/// [DevSessionTeardownReport.provenPhysicalSettlement].
 library;
 
 import 'dart:async';
