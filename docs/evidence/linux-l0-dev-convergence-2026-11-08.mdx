@@ -27,8 +27,8 @@ pack, or store upload.
   without `OKA_KERNEL_ROOT`.
 - **Hosted pub 0.9.1:** kernel stack is `publish_to: none` — live/dev verbs need
   source checkout discovery or `OKA_KERNEL_ROOT`; not claimed on pub-only installs.
-- **GitHub CI:** pin the current PR head SHA and Actions run URL after push
-  (prior green on `bc718886` did not assert VM `expect` values — superseded).
+- **GitHub CI @ `1175bd9`:** awaiting Actions run URL (prior green `bc718886`
+  / `1e3a73b` did not assert VM `expect` values — superseded).
 - **Local ubuntu x64 + xvfb (Flutter 3.47.9):** same convergence script as CI —
   reload + assets **ALL PASS**; VM probes: `devGateSessionTick` preserved on hot
   reload, **0** after `R`; post-restart `helloAssetFingerprint` matches synced
