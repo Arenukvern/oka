@@ -17,6 +17,7 @@ Future<void> main(List<String> args) async {
   final session = await OwnedDevSession.start(
     workspace: workspace,
     dartInvocation: [stub, '--hang-on-quit'],
+    useSubreaperSupervisor: false,
   );
   gate.bindActiveSessionForTesting(session);
   if (!await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 15))) {

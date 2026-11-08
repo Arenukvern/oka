@@ -33,18 +33,40 @@ String? kernelStackRootForScript(
       (environment ?? Platform.environment)['OKA_KERNEL_ROOT']?.trim();
   if (env != null && env.isNotEmpty) {
     final root = p.normalize(env);
-    if (File(p.join(root, runner)).existsSync()) return root;
+    if (File(p.join(root, runner)).existsSync() &&
+        isOkaKernelWorkspaceRoot(root)) {
+      return root;
+    }
   }
 
   var dir = File(scriptPath).parent;
   while (true) {
     final candidate = dir.path;
-    if (File(p.join(candidate, runner)).existsSync()) return candidate;
+    if (File(p.join(candidate, runner)).existsSync() &&
+        isOkaKernelWorkspaceRoot(candidate)) {
+      return candidate;
+    }
     final parent = dir.parent;
     if (parent.path == dir.path) break;
     dir = parent;
   }
   return null;
+}
+
+/// Runner-relative paths are insufficient — the tree must be an oka workspace.
+bool isOkaKernelWorkspaceRoot(String root) {
+  final normalized = p.normalize(root);
+  final workspacePubspec = File(p.join(normalized, 'pubspec.yaml'));
+  if (!workspacePubspec.existsSync()) return false;
+  final workspaceText = workspacePubspec.readAsStringSync();
+  if (!workspaceText.contains('name: oka_workspace') &&
+      !workspaceText.contains('oka_workspace')) {
+    return false;
+  }
+  return File(p.join(normalized, 'packages', 'oka', 'pubspec.yaml'))
+          .existsSync() &&
+      File(p.join(normalized, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
+          .existsSync();
 }
 
 /// Spawns [tool] from the kernel-stack checkout with the workspace package

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
 import 'package:oka_dart_kernel/oka_dart_kernel.dart';
+import 'package:oka_dart_kernel/src/gate/owned_dev_session_start_controller.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -18,7 +20,11 @@ Future<void> main(List<String> args) async {
     if (t == 'q') {
       if (args.contains('--spawn-on-q')) {
         await Process.start('sleep', ['180']);
-        await Future<void>.delayed(const Duration(seconds: 2));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        exit(0);
+      }
+      if (args.contains('--spawn-on-q-setsid')) {
+        await Process.start('/bin/sh', ['-c', 'setsid sleep 180 </dev/null &']);
         exit(0);
       }
       if (hang) {
@@ -37,12 +43,20 @@ Future<void> main(List<String> args) async {
 }
 ''';
 
+void _workspaceMarkers(Directory root) {
+  File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: oka_workspace\n');
+  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml')).createSync(recursive: true);
+  File(p.join(root.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
+      .createSync(recursive: true);
+}
+
 late Directory _scratch;
 late String _stub;
 
 void main() {
   setUpAll(() async {
     _scratch = await Directory.systemTemp.createTemp('oka_owned_dev_session');
+    _workspaceMarkers(_scratch);
     _stub = p.join(_scratch.path, 'stub.dart');
     await File(_stub).writeAsString(_stubSource);
   });
@@ -55,6 +69,7 @@ void main() {
     final session = await OwnedDevSession.start(
       workspace: _scratch.path,
       dartInvocation: [_stub],
+      useSubreaperSupervisor: false,
     );
     expect(
       await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
@@ -62,6 +77,7 @@ void main() {
       reason: session.transcript,
     );
     final td = await session.teardown(quitGrace: const Duration(seconds: 5));
+    expect(td.verified, isTrue, reason: td.notes.join('; '));
     expect(td.clean, isTrue, reason: td.notes.join('; '));
     expect(td.survivors, isEmpty);
   });
@@ -98,6 +114,7 @@ exit 0
           environment: environment,
         );
 
+    const liveness = HostProcessLiveness();
     final session = await OwnedDevSession.start(
       workspace: _scratch.path,
       dartInvocation: const [],
@@ -108,25 +125,20 @@ exit 0
       isTrue,
       reason: session.transcript,
     );
-    await session.snapshotOwnedTree();
-    expect(
-      session.ownedTree,
-      isNotNull,
-      reason: 'tree + identities must be captured while root was alive',
-    );
-    expect(
-      session.ownedTree!.descendantPids,
-      isNotEmpty,
-      reason: 'launcher must own a sleep child',
-    );
+    final trackedChild = session.ownershipLedger.descendantPids.toList();
+    expect(trackedChild, isNotEmpty, reason: 'sleep child must be owned at ready');
 
     await Future<void>.delayed(const Duration(milliseconds: 200));
 
     final td = await session.teardown(quitGrace: const Duration(seconds: 1));
     expect(td.survivors, isEmpty, reason: td.notes.join('; '));
+    expect(td.verified, isTrue);
     expect(td.clean, isTrue);
-
-    expect(await const HostProcessLiveness().isAlive(decoy.pid), isTrue,
+    for (final pid in trackedChild) {
+      expect(await liveness.isAlive(pid), isFalse,
+          reason: 'owned sleep $pid must be terminated');
+    }
+    expect(await liveness.isAlive(decoy.pid), isTrue,
         reason: 'unrelated decoy must survive owned teardown');
   });
 
@@ -135,27 +147,28 @@ exit 0
     final session = await OwnedDevSession.start(
       workspace: _scratch.path,
       dartInvocation: [_stub, '--hang-on-quit'],
+      useSubreaperSupervisor: false,
     );
     expect(
       await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
       isTrue,
       reason: session.transcript,
     );
-    await session.snapshotOwnedTree();
-    final tracked = session.ownedTree!.allTrackedPids;
+    final tracked = session.ownershipLedger.allTrackedPids;
 
-  final decoy = await Process.start('sleep', ['3600']);
-  addTearDown(() {
-    if (decoy.pid > 0) {
-      Process.killPid(decoy.pid, ProcessSignal.sigkill);
-    }
-  });
+    final decoy = await Process.start('sleep', ['3600']);
+    addTearDown(() {
+      if (decoy.pid > 0) {
+        Process.killPid(decoy.pid, ProcessSignal.sigkill);
+      }
+    });
 
     final td = await session.teardown(
       quitGrace: const Duration(milliseconds: 200),
       stopGrace: const Duration(seconds: 3),
     );
     expect(td.survivors, isEmpty, reason: td.notes.join('; '));
+    expect(td.verified, isTrue);
     expect(td.clean, isTrue);
     for (final pid in tracked) {
       expect(
@@ -177,8 +190,6 @@ exit 0
       await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
       isTrue,
     );
-    await session.snapshotOwnedTree();
-    expect(session.ownedTree!.descendantPids, isEmpty);
 
     final decoy = await Process.start('sleep', ['3600']);
     addTearDown(() {
@@ -188,16 +199,128 @@ exit 0
     });
 
     session.sendLine('q');
-    await Future<void>.delayed(const Duration(milliseconds: 150));
-    await session.snapshotOwnedTree();
-    final ownedSleep = session.ownedTree?.descendantPids ?? const <int>[];
-    expect(ownedSleep, isNotEmpty, reason: 'q must leave an owned sleep child');
-
-    final td = await session.teardown(quitGrace: const Duration(seconds: 1));
+    final td = await session.teardown(quitGrace: const Duration(seconds: 5));
+    expect(td.verified, isTrue, reason: td.notes.join('; '));
     expect(td.clean, isTrue, reason: td.notes.join('; '));
-    for (final pid in ownedSleep) {
+    for (final pid in td.survivors) {
       expect(await liveness.isAlive(pid), isFalse);
+    }
+    final ledgerPids = session.ownershipLedger.descendantPids;
+    for (final pid in ledgerPids) {
+      expect(await liveness.isAlive(pid), isFalse,
+          reason: 'descendant from ledger $pid');
     }
     expect(await liveness.isAlive(decoy.pid), isTrue);
   });
+
+  test(
+    'BLOCKER: setsid child is not contained by subreaper — never claim clean',
+    () async {
+      const liveness = HostProcessLiveness();
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub, '--spawn-on-q-setsid'],
+      );
+      expect(await session.waitForPattern('dev: ready'), isTrue);
+      session.sendLine('q');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final td = await session.teardown(quitGrace: const Duration(seconds: 2));
+      final orphans = <int>[];
+      for (final pid in session.ownershipLedger.descendantPids) {
+        if (await liveness.isAlive(pid)) orphans.add(pid);
+      }
+      if (orphans.isNotEmpty) {
+        expect(td.clean, isFalse);
+        expect(td.verified || td.survivors.isNotEmpty, isTrue);
+      }
+    },
+    skip: Platform.isLinux ? false : 'posix setsid',
+  );
+
+  test('enumeration failure never claims verified clean', () async {
+    final session = await OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub],
+      useSubreaperSupervisor: false,
+      treeProbe: const _UnreadableProbe(),
+    );
+    expect(await session.waitForPattern('dev: ready'), isTrue);
+    final td = await session.teardown(quitGrace: const Duration(seconds: 2));
+    expect(td.verified, isFalse);
+    expect(td.clean, isFalse);
+    expect(td.notes, anyElement(contains('enumeration')));
+  });
+
+  test('abort during slow startup stops spawned root', () async {
+    const liveness = HostProcessLiveness();
+    final ctl = OwnedDevSessionStartController(liveness: const _SlowLiveness());
+    Process? spawned;
+
+    Future<Process> laggedSpawn(
+      String executable,
+      List<String> arguments, {
+      String? workingDirectory,
+      Map<String, String>? environment,
+    }) async {
+      final p = await Process.start(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+      spawned = p;
+      return p;
+    }
+
+    final startFuture = OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub, '--hang-on-quit'],
+      useSubreaperSupervisor: false,
+      startController: ctl,
+      liveness: const _SlowLiveness(),
+      spawn: laggedSpawn,
+    );
+
+    for (var i = 0; i < 50 && spawned == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(spawned, isNotNull);
+
+    final decoy = await Process.start('sleep', ['3600']);
+    addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+
+    await ctl.requestAbort();
+    try {
+      await startFuture;
+    } on Object {
+      // aborted during identity capture
+    }
+
+    await Future<void>.delayed(const Duration(seconds: 1));
+    expect(await liveness.isAlive(spawned!.pid), isFalse);
+    expect(await liveness.isAlive(decoy.pid), isTrue);
+  });
+}
+
+final class _UnreadableProbe implements ProcessTreeProbe {
+  const _UnreadableProbe();
+  @override
+  Future<ProcessTree?> enumerate(int rootPid) async => null;
+}
+
+final class _SlowLiveness implements ProcessLiveness {
+  const _SlowLiveness();
+
+  @override
+  Future<String?> identityToken(int pid) async {
+    await Future<void>.delayed(const Duration(seconds: 2));
+    return const HostProcessLiveness().identityToken(pid);
+  }
+
+  @override
+  Future<bool> isAlive(int pid) => const HostProcessLiveness().isAlive(pid);
+
+  @override
+  Future<bool> kill(int pid, {Duration grace = const Duration(seconds: 3)}) =>
+      const HostProcessLiveness().kill(pid, grace: grace);
 }

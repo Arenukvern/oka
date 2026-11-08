@@ -13,6 +13,7 @@ environment:
   sdk: ^3.13.0
 
 dependencies:
+  ffi: ^2.1.4
   flutter_mcp_harness: ^7.0.0
   meta: ^1.19.0
   oka_core: ^0.9.1 # x-release-please-version

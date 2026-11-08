@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import 'live_verify_receipt.dart';
 import 'owned_dev_session.dart';
+import 'owned_dev_session_start_controller.dart';
 
 /// L0 Linux desktop dev gates driven from Dart (ADR-0036 / UA review).
 final class LinuxDevGate {
@@ -26,22 +27,27 @@ final class LinuxDevGate {
     required String workspace,
     required List<String> dartInvocation,
     bool useXvfb,
+    bool useSubreaperSupervisor,
     String? workingDirectory,
     Map<String, String>? environment,
     Duration identityBudget,
     DevSessionSpawner spawn,
+    OwnedDevSessionStartController? startController,
   }) sessionStart;
   final DevSessionSpawner sessionSpawn;
 
   OwnedDevSession? _activeSession;
+  OwnedDevSessionStartController? _startCtl;
 
   /// Stops the in-flight dev session (SIGTERM / gate interrupt).
   Future<void> interruptCleanup({
     Duration quitGrace = const Duration(seconds: 45),
   }) async {
+    await _startCtl?.requestAbort(quitGrace: quitGrace);
     final session = _activeSession;
-    if (session == null) return;
-    await session.teardown(quitGrace: quitGrace);
+    if (session != null) {
+      await session.teardown(quitGrace: quitGrace);
+    }
     _activeSession = null;
   }
 
@@ -96,6 +102,7 @@ final class LinuxDevGate {
 
     OwnedDevSession? session;
     var exitCode = 1;
+    _startCtl = OwnedDevSessionStartController();
     try {
       session = await sessionStart(
         workspace: workspace,
@@ -103,6 +110,7 @@ final class LinuxDevGate {
         useXvfb: useXvfb,
         workingDirectory: _sessionCwd,
         spawn: sessionSpawn,
+        startController: _startCtl,
       );
       _activeSession = session;
 
@@ -220,14 +228,15 @@ final class LinuxDevGate {
       if (session != null) {
         final td = await session.teardown();
         _activeSession = null;
-        if (!td.clean) {
+        if (!td.verified || td.survivors.isNotEmpty) {
           stderr.writeln(
-            'gate: teardown incomplete (survivors: ${td.survivors}; '
-            '${td.notes.join('; ')})',
+            'gate: teardown incomplete (verified=${td.verified} '
+            'survivors: ${td.survivors}; ${td.notes.join('; ')})',
           );
           exitCode = 1;
         }
       }
+      _startCtl = null;
     }
     return exitCode;
   }
@@ -255,6 +264,7 @@ final class LinuxDevGate {
 
     OwnedDevSession? session;
     var exitCode = 1;
+    _startCtl = OwnedDevSessionStartController();
     try {
       stderr.writeln('== [1/5] boot example under oka run dev --platform linux');
       session = await sessionStart(
@@ -263,6 +273,7 @@ final class LinuxDevGate {
         useXvfb: useXvfb,
         workingDirectory: _sessionCwd,
         spawn: sessionSpawn,
+        startController: _startCtl,
       );
       _activeSession = session;
 
@@ -392,13 +403,15 @@ final class LinuxDevGate {
       if (session != null) {
         final td = await session.teardown();
         _activeSession = null;
-        if (!td.clean) {
+        if (!td.verified || td.survivors.isNotEmpty) {
           stderr.writeln(
-            'gate: teardown incomplete (survivors: ${td.survivors})',
+            'gate: teardown incomplete (verified=${td.verified} '
+            'survivors: ${td.survivors})',
           );
           exitCode = 1;
         }
       }
+      _startCtl = null;
     }
     return exitCode;
   }

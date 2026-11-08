@@ -5,8 +5,11 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
-/// Frozen subtree captured while the root was still enumerable (before
-/// reparenting). Kill authority is limited to these pids + stored identities.
+import '../package_root.dart';
+
+import 'owned_dev_session_start_controller.dart';
+
+/// Frozen view of the last successful probe (debug/tests).
 final class SessionOwnedTree {
   SessionOwnedTree({
     required this.rootPid,
@@ -21,16 +24,54 @@ final class SessionOwnedTree {
   List<int> get allTrackedPids => [rootPid, ...descendantPids];
 }
 
+/// Cumulative ownership: union of every snapshot; never replaced.
+final class _OwnershipLedger {
+  int? workloadRootPid;
+  final Map<int, String?> identities = {};
+  final Set<int> descendantPids = {};
+  bool enumerationUnavailable = false;
+  int successfulSnapshots = 0;
+  final List<String> errors = [];
+
+  void merge({
+    required int rootPid,
+    required List<int> descendants,
+    required Map<int, String?> newIdentities,
+  }) {
+    successfulSnapshots++;
+    workloadRootPid = rootPid;
+    identities.addAll(newIdentities);
+    descendantPids.addAll(descendants);
+  }
+
+  void recordEnumerationFailure([String? detail]) {
+    enumerationUnavailable = true;
+    if (detail != null) errors.add(detail);
+  }
+
+  List<int> get allTrackedPids => {
+        if (workloadRootPid != null && workloadRootPid! > 0) workloadRootPid!,
+        ...descendantPids,
+      }.toList();
+
+  bool get hasProvableOwnership => successfulSnapshots > 0 && identities.isNotEmpty;
+}
+
 /// Teardown of an owned `oka run dev` child (no pattern-kill of unrelated apps).
 final class OwnedDevSessionTeardown {
   const OwnedDevSessionTeardown({
     required this.clean,
+    required this.verified,
     required this.exitCode,
     this.survivors = const [],
     this.notes = const [],
   });
 
+  /// No tracked survivors and ownership boundary was verified.
   final bool clean;
+
+  /// False when enumeration/unknown survivors prevent a success claim.
+  final bool verified;
   final int? exitCode;
   final List<int> survivors;
   final List<String> notes;
@@ -49,13 +90,17 @@ final class OwnedDevSession {
     required this.process,
     this.treeProbe = const HostProcessTreeProbe(),
     this.liveness = const HostProcessLiveness(),
+    this.useSubreaperSupervisor = false,
   });
 
   final Process process;
   final ProcessTreeProbe treeProbe;
   final ProcessLiveness liveness;
+  final bool useSubreaperSupervisor;
   String? identityToken;
+  int? _workloadPid;
   SessionOwnedTree? _ownedTree;
+  final _OwnershipLedger _ledger = _OwnershipLedger();
   final StringBuffer _buffer = StringBuffer();
   late StreamSubscription<String> _stdoutSub;
   late StreamSubscription<String> _stderrSub;
@@ -63,8 +108,20 @@ final class OwnedDevSession {
 
   String get transcript => _buffer.toString();
   SessionOwnedTree? get ownedTree => _ownedTree;
+  _OwnershipLedger get ownershipLedger => _ledger;
 
-  void _append(String chunk) => _buffer.write(chunk);
+  int _resolveTreeRoot() => _workloadPid ?? process.pid;
+
+  void _append(String chunk) {
+    _buffer.write(chunk);
+    for (final line in chunk.split('\n')) {
+      final trimmed = line.trim();
+      final match = RegExp(r'^oka_dev_workload_pid=(\d+)$').firstMatch(trimmed);
+      if (match != null) {
+        _workloadPid = int.parse(match.group(1)!);
+      }
+    }
+  }
 
   static String _dartVmExecutable() {
     final exe = Platform.resolvedExecutable;
@@ -89,29 +146,78 @@ final class OwnedDevSession {
         environment: environment,
       );
 
-  /// Enumerates and freezes pid → identity under the session root. Call
-  /// after spawn and again once the session is ready (before the root may
-  /// exit).
-  Future<void> snapshotOwnedTree() async {
-    final pid = process.pid;
-    if (pid <= 0) return;
-    final tree = await treeProbe.enumerate(pid);
-    if (tree == null) return;
-    final descendants = tree.descendants();
-    final identities = <int, String?>{};
-    identities[pid] = identityToken ?? await liveness.identityToken(pid);
-    for (final child in descendants) {
-      try {
-        identities[child] = await liveness.identityToken(child);
-      } on Object {
-        identities[child] = null;
-      }
+  static Future<Process> _spawnWithOptionalSupervisor({
+    required String executable,
+    required List<String> arguments,
+    required bool useSupervisor,
+    required DevSessionSpawner spawn,
+    String? workingDirectory,
+    Map<String, String>? environment,
+  }) async {
+    if (!useSupervisor || !Platform.isLinux) {
+      return spawn(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
     }
-    _ownedTree = SessionOwnedTree(
-      rootPid: pid,
-      identities: identities,
-      descendantPids: descendants,
+    final kernelRoot = await resolveOkaDartKernelRoot();
+    final supervisor = p.join(
+      kernelRoot,
+      'tool',
+      'linux_subreaper_supervisor.dart',
     );
+    final env = Map<String, String>.from(environment ?? Platform.environment);
+    final cwd = workingDirectory;
+    if (cwd != null && cwd.isNotEmpty) {
+      env['OKA_DEV_SESSION_CWD'] = cwd;
+    }
+    return spawn(
+      _dartVmExecutable(),
+      [supervisor, '--', executable, ...arguments],
+      environment: env,
+    );
+  }
+
+  /// Returns false when enumeration was unavailable (ledger records failure).
+  Future<bool> snapshotOwnedTree() async {
+    final pid = _resolveTreeRoot();
+    if (pid <= 0) {
+      _ledger.recordEnumerationFailure('invalid tree root pid');
+      return false;
+    }
+    try {
+      final tree = await treeProbe.enumerate(pid);
+      if (tree == null) {
+        _ledger.recordEnumerationFailure('process table unavailable');
+        return false;
+      }
+      final descendants = tree.descendants();
+      final identities = <int, String?>{};
+      identities[pid] = identityToken ?? await liveness.identityToken(pid);
+      for (final child in descendants) {
+        try {
+          identities[child] = await liveness.identityToken(child);
+        } on Object {
+          identities[child] = null;
+        }
+      }
+      _ledger.merge(
+        rootPid: pid,
+        descendants: descendants,
+        newIdentities: identities,
+      );
+      _ownedTree = SessionOwnedTree(
+        rootPid: pid,
+        identities: identities,
+        descendantPids: descendants,
+      );
+      return true;
+    } on Object catch (e) {
+      _ledger.recordEnumerationFailure('enumerate failed: $e');
+      return false;
+    }
   }
 
   /// Spawns `oka run dev` (optionally under `xvfb-run -a`) and begins capture.
@@ -119,36 +225,41 @@ final class OwnedDevSession {
     required String workspace,
     required List<String> dartInvocation,
     bool useXvfb = false,
+    bool useSubreaperSupervisor = true,
     Map<String, String>? environment,
     String? workingDirectory,
     Duration identityBudget = const Duration(seconds: 2),
     DevSessionSpawner spawn = defaultDevSessionSpawn,
     ProcessTreeProbe? treeProbe,
     ProcessLiveness? liveness,
+    OwnedDevSessionStartController? startController,
   }) async {
     final dart = _dartVmExecutable();
     final cwd = workingDirectory ?? workspace;
-    final Process proc;
-    if (useXvfb) {
-      proc = await spawn(
-        'xvfb-run',
-        ['-a', dart, ...dartInvocation],
-        workingDirectory: cwd,
-        environment: environment,
-      );
-    } else {
-      proc = await spawn(
-        dart,
-        dartInvocation,
-        workingDirectory: cwd,
-        environment: environment,
-      );
+    final useSupervisor = useSubreaperSupervisor && Platform.isLinux;
+    final probe = treeProbe ?? const HostProcessTreeProbe();
+    final live = liveness ?? const HostProcessLiveness();
+
+    final proc = await _spawnWithOptionalSupervisor(
+      executable: useXvfb ? 'xvfb-run' : dart,
+      arguments:
+          useXvfb ? ['-a', dart, ...dartInvocation] : dartInvocation,
+      workingDirectory: cwd,
+      environment: environment,
+      useSupervisor: useSupervisor,
+      spawn: spawn,
+    );
+    startController?.onProcessSpawned(proc);
+    if (startController?.abortRequested == true) {
+      await startController!.requestAbort();
+      throw StateError('owned dev session start aborted before attach');
     }
 
     final session = OwnedDevSession._(
       process: proc,
-      treeProbe: treeProbe ?? const HostProcessTreeProbe(),
-      liveness: liveness ?? const HostProcessLiveness(),
+      treeProbe: probe,
+      liveness: live,
+      useSubreaperSupervisor: useSupervisor,
     );
     session._stdoutSub = proc.stdout
         .transform(utf8.decoder)
@@ -159,14 +270,28 @@ final class OwnedDevSession {
         .transform(const LineSplitter())
         .listen((line) => session._append('$line\n'));
 
+    if (startController?.abortRequested == true) {
+      await startController!.requestAbort();
+      throw StateError('owned dev session start aborted after spawn');
+    }
+
     try {
       session.identityToken = await session.liveness
-          .identityToken(proc.pid)
+          .identityToken(session._resolveTreeRoot())
           .timeout(identityBudget);
     } on Object {
       session.identityToken = null;
     }
+    if (startController?.abortRequested == true) {
+      await startController!.requestAbort();
+      throw StateError('owned dev session start aborted after identity');
+    }
     await session.snapshotOwnedTree();
+    startController?.onSessionReady(session);
+    if (startController?.abortRequested == true) {
+      await session.teardown();
+      throw StateError('owned dev session start aborted after snapshot');
+    }
     return session;
   }
 
@@ -207,34 +332,47 @@ final class OwnedDevSession {
     return liveness.kill(pid, grace: const Duration(milliseconds: 400));
   }
 
-  Future<List<int>> _stopFromOwnedSnapshot() async {
-    final tree = _ownedTree;
-    if (tree == null) return const [];
+  Future<({List<int> survivors, bool unknown})> _stopFromLedger() async {
+    if (!_ledger.hasProvableOwnership) {
+      return (survivors: <int>[], unknown: true);
+    }
 
-    final rootAlive = await liveness.isAlive(tree.rootPid);
-    if (rootAlive && tree.rootPid > 0) {
+    final notesUnknown = <String>[];
+    final root = _ledger.workloadRootPid ?? _resolveTreeRoot();
+    if (root > 0 && await liveness.isAlive(root)) {
       final stop = await stopProcessTree(
         probe: treeProbe,
         liveness: liveness,
-        rootPid: tree.rootPid,
-        rootIdentityToken: tree.identities[tree.rootPid],
+        rootPid: root,
+        rootIdentityToken: _ledger.identities[root],
       );
-      if (stop.survivors.isEmpty && stop.stopped) return const [];
-      if (stop.survivors.isNotEmpty) return stop.survivors;
+      if (stop.notes.any((n) => n.contains('unavailable'))) {
+        notesUnknown.addAll(stop.notes);
+      }
+      if (stop.survivors.isEmpty && stop.stopped) {
+        return (survivors: <int>[], unknown: notesUnknown.isNotEmpty);
+      }
+      if (stop.survivors.isNotEmpty) {
+        return (survivors: stop.survivors, unknown: notesUnknown.isNotEmpty);
+      }
     }
 
     final survivors = <int>[];
-    final ordered = [...tree.descendantPids.reversed, tree.rootPid];
+    final ordered = [
+      ..._ledger.descendantPids.toList().reversed,
+      if (root > 0) root,
+    ];
     for (final pid in ordered) {
-      final ok = await _killIfOwnedIdentity(pid, tree.identities[pid]);
+      if (!_ledger.identities.containsKey(pid)) continue;
+      final ok = await _killIfOwnedIdentity(pid, _ledger.identities[pid]);
       if (!ok && await liveness.isAlive(pid)) {
         survivors.add(pid);
       }
     }
-    return survivors;
+    return (survivors: survivors, unknown: notesUnknown.isNotEmpty);
   }
 
-  /// `q` + bounded wait, then identity-gated tree stop on survivors.
+  /// `q` + bounded wait with in-flight ownership refresh, then ledger stop.
   Future<OwnedDevSessionTeardown> teardown({
     Duration quitGrace = const Duration(seconds: 45),
     Duration stopGrace = const Duration(seconds: 5),
@@ -243,18 +381,18 @@ final class OwnedDevSession {
     if (_teardownOnce != null) return _teardownOnce!.future;
     final once = Completer<OwnedDevSessionTeardown>();
     _teardownOnce = once;
-  try {
-    final td = await _teardownImpl(
-      quitGrace: quitGrace,
-      stopGrace: stopGrace,
-      settle: settle,
-    );
-    once.complete(td);
-    return td;
-  } on Object catch (e, st) {
-    once.completeError(e, st);
-    rethrow;
-  }
+    try {
+      final td = await _teardownImpl(
+        quitGrace: quitGrace,
+        stopGrace: stopGrace,
+        settle: settle,
+      );
+      once.complete(td);
+      return td;
+    } on Object catch (e, st) {
+      once.completeError(e, st);
+      rethrow;
+    }
   }
 
   Future<OwnedDevSessionTeardown> _teardownImpl({
@@ -263,28 +401,53 @@ final class OwnedDevSession {
     required Duration settle,
   }) async {
     final notes = <String>[];
+    var sentQuit = false;
     final rootAliveBefore = await liveness.isAlive(process.pid);
     if (rootAliveBefore) {
-      await snapshotOwnedTree();
+      final snap = await snapshotOwnedTree();
+      if (!snap) notes.add('pre-teardown snapshot: enumeration unavailable');
     }
 
-    try {
-      if (rootAliveBefore) {
+    Future<void> tryQuitOnce() async {
+      if (sentQuit) return;
+      sentQuit = true;
+      try {
         process.stdin.writeln('q');
-        await process.stdin.close();
+      } on Object catch (e) {
+        notes.add('stdin q: $e');
       }
-    } on Object catch (e) {
-      notes.add('stdin close: $e');
+    }
+
+    if (rootAliveBefore) {
+      await tryQuitOnce();
     }
 
     int? exitCode;
-    if (rootAliveBefore) {
-      try {
-        exitCode = await process.exitCode.timeout(quitGrace);
-      } on TimeoutException {
-        notes.add('root did not exit within ${quitGrace.inSeconds}s after q');
+    final deadline = DateTime.now().add(quitGrace);
+    while (DateTime.now().isBefore(deadline)) {
+      if (await liveness.isAlive(process.pid)) {
+        await snapshotOwnedTree();
+      } else {
+        try {
+          exitCode = await process.exitCode.timeout(
+            deadline.difference(DateTime.now()),
+          );
+        } on TimeoutException {
+          notes.add('root exit wait timed out');
+        }
+        break;
       }
-    } else {
+      await Future<void>.delayed(const Duration(milliseconds: 75));
+    }
+    if (exitCode == null && !await liveness.isAlive(process.pid)) {
+      try {
+        exitCode = await process.exitCode;
+      } on Object {
+        exitCode = null;
+      }
+    } else if (exitCode == null && await liveness.isAlive(process.pid)) {
+      notes.add('root did not exit within ${quitGrace.inSeconds}s after q');
+    } else if (!rootAliveBefore) {
       notes.add('root already exited before teardown');
       try {
         exitCode = await process.exitCode;
@@ -293,35 +456,38 @@ final class OwnedDevSession {
       }
     }
 
+    try {
+      await process.stdin.close();
+    } on Object catch (e) {
+      notes.add('stdin close: $e');
+    }
+
     await _stdoutSub.cancel();
     await _stderrSub.cancel();
 
-    final survivors = await _stopFromOwnedSnapshot();
-    if (survivors.isEmpty &&
-        _ownedTree != null &&
-        (await liveness.isAlive(_ownedTree!.rootPid) ||
-            (await Future.wait(
-              _ownedTree!.descendantPids.map(liveness.isAlive),
-            )).any((a) => a))) {
-      notes.add('tracked tree still alive after owned stop attempt');
+    final stop = await _stopFromLedger();
+    if (stop.unknown) {
+      notes.add('ownership boundary unknown (enumeration or stop probe)');
+    }
+    if (_ledger.enumerationUnavailable) {
+      notes.addAll(_ledger.errors);
     }
 
     final stillAlive = <int>[];
-    if (_ownedTree != null) {
-      for (final pid in _ownedTree!.allTrackedPids) {
-        if (await liveness.isAlive(pid)) stillAlive.add(pid);
-      }
-    } else if (await liveness.isAlive(process.pid)) {
+    for (final pid in _ledger.allTrackedPids) {
+      if (await liveness.isAlive(pid)) stillAlive.add(pid);
+    }
+    if (await liveness.isAlive(process.pid)) {
       stillAlive.add(process.pid);
     }
 
-    final mergedSurvivors = {
-      ...survivors,
-      ...stillAlive,
-    }.toList();
+    final mergedSurvivors = {...stop.survivors, ...stillAlive}.toList();
+    final verified = !stop.unknown && _ledger.hasProvableOwnership;
+    final clean = verified && mergedSurvivors.isEmpty;
 
     return OwnedDevSessionTeardown(
-      clean: mergedSurvivors.isEmpty,
+      clean: clean,
+      verified: verified,
       exitCode: exitCode,
       survivors: mergedSurvivors,
       notes: notes,
