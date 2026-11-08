@@ -134,6 +134,7 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
 
   var resolvedControlPort = controlPort;
   final liveDiscovery = readRunnerSessionFile(projectPath);
+  final discoveryAtStopStart = liveDiscovery;
   if (liveDiscovery == null) {
     // Spec v2 liveness: absent file — never dial a launch-time port (stale /
     // reused ephemeral port risk).
@@ -257,7 +258,14 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
 
   final sessionCleanup = readSessionTeardownForOwningStop(
     projectPath: projectPath,
-    owningPid: owningProcess.pid,
+    expectedDiscovery: discoveryAtStopStart == null
+        ? null
+        : SessionTeardownStopExpectation(
+            runnerPid: discoveryAtStopStart.pid,
+            controlPort: discoveryAtStopStart.controlPort,
+            sessionStartedAtUtc:
+                discoveryAtStopStart.startedAt.toUtc().toIso8601String(),
+          ),
   );
   final cleanupOk = sessionCleanup == null
       ? null

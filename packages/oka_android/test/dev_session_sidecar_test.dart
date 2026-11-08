@@ -6,6 +6,12 @@ import 'package:test/test.dart';
 
 void main() {
   late Directory root;
+  const started = '2026-11-08T12:00:00.000Z';
+  const expectedDiscovery = SessionTeardownStopExpectation(
+    runnerPid: 4242,
+    controlPort: 5555,
+    sessionStartedAtUtc: started,
+  );
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('oka-sidecar-');
@@ -17,31 +23,25 @@ void main() {
     }
   });
 
-  test('teardown sidecar retained with identity until next prepare', () async {
-    const report = DevSessionTeardownReport(
-      forward: ForwardReleaseAction(attempted: true, removed: true),
-    );
+  test('teardown sidecar requires matching discovery triple', () async {
     await writeSessionTeardownFile(
       root.path,
-      report,
+      const DevSessionTeardownReport(
+        forward: ForwardReleaseAction(attempted: true, removed: true),
+      ),
       identity: const SessionTeardownIdentity(
         runnerPid: 4242,
         controlPort: 5555,
-        sessionStartedAtUtc: '2026-11-08T12:00:00.000Z',
+        sessionStartedAtUtc: started,
       ),
     );
-    final forOwner = readSessionTeardownForOwningStop(
+    final matched = readSessionTeardownForOwningStop(
       projectPath: root.path,
-      owningPid: 4242,
+      expectedDiscovery: expectedDiscovery,
     );
-    expect(forOwner, isNotNull);
-    expect(forOwner!['actionsSucceeded'], isTrue);
-    expect(forOwner['identity'], isA<Map<String, Object?>>());
-    final stale = readSessionTeardownForOwningStop(
-      projectPath: root.path,
-      owningPid: 9999,
-    );
-    expect(stale, isNull);
+    expect(matched, isNotNull);
+    expect(matched!['actionsSucceeded'], isTrue);
+    expect(matched['identity'], isA<Map<String, Object?>>());
   });
 
   test('clear on next prepare overwrites path', () async {

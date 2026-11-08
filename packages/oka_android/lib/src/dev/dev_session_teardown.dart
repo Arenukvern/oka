@@ -64,11 +64,15 @@ final class DevSessionResourceOwnership {
     required this.adbPath,
     this.vmServiceForward,
     this.launchIdentity,
+    this.runAdb,
   });
 
   final String adbPath;
   final DevSessionCreatedForward? vmServiceForward;
   final DevSessionLaunchIdentity? launchIdentity;
+
+  /// Test hook — production uses [Process.run].
+  final AdbArgvRunner? runAdb;
 }
 
 /// One parsed `adb forward --list` row (`serial tcp:local tcp:remote`).
@@ -214,6 +218,9 @@ PidofAbsentSignal interpretPidofAbsentProbe({
     return PidofAbsentSignal.transportFailure;
   }
   if (out.isEmpty && (exitCode == 0 || exitCode == 1)) {
+    if (stderr.trim().isNotEmpty) {
+      return PidofAbsentSignal.inconclusive;
+    }
     return PidofAbsentSignal.absent;
   }
   return PidofAbsentSignal.inconclusive;
@@ -606,14 +613,16 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
       );
     }
     if (signal == PidofAbsentSignal.inconclusive) {
+      final msg = '${r.stdout}${r.stderr}'.trim();
       return PidofWaitAction(
         attempted: true,
         absentObserved: false,
         proven: false,
         inconclusive: true,
         deviceShellVerified: true,
-        message:
-            'pidof exit ${r.exitCode} not attributable after shell sentinel',
+        message: msg.isEmpty
+            ? 'pidof exit ${r.exitCode} not attributable after shell sentinel'
+            : msg,
       );
     }
     lastOut = '${r.stdout}'.trim();
@@ -754,6 +763,7 @@ Future<ForwardReleaseAction> releaseSessionOwnedResources(
     forward,
     adbPath: ownership.adbPath,
     budget: budget,
+    runAdb: ownership.runAdb,
   );
 }
 
@@ -806,20 +816,51 @@ Map<String, Object?>? readSessionTeardownFile(String projectPath) {
   }
 }
 
-/// Ignores receipts whose [SessionTeardownIdentity.runnerPid] ≠ [owningPid].
+/// Live [readRunnerSessionFile] snapshot taken when cooperative stop begins.
+final class SessionTeardownStopExpectation {
+  const SessionTeardownStopExpectation({
+    required this.runnerPid,
+    required this.controlPort,
+    required this.sessionStartedAtUtc,
+  });
+
+  /// Discovery **owner** pid (not harness spawn pid when they differ).
+  final int runnerPid;
+  final int controlPort;
+  final String sessionStartedAtUtc;
+}
+
+bool _identityMatchesSidecar(
+  Object? id,
+  SessionTeardownStopExpectation expected,
+) {
+  if (id is! Map) return false;
+  final runnerPid = id['runnerPid'];
+  final controlPort = id['controlPort'];
+  final startedAt = id['sessionStartedAtUtc'];
+  if (runnerPid is! int ||
+      controlPort is! int ||
+      startedAt is! String) {
+    return false;
+  }
+  return runnerPid == expected.runnerPid &&
+      controlPort == expected.controlPort &&
+      startedAt == expected.sessionStartedAtUtc;
+}
+
+/// Reads teardown receipt only when [expectedDiscovery] matches sidecar identity.
+///
+/// Missing/malformed `identity`, stale session, or spawn≠owner without a live
+/// discovery snapshot at stop start all yield `null` (fail-closed).
 Map<String, Object?>? readSessionTeardownForOwningStop({
   required String projectPath,
-  required int owningPid,
+  required SessionTeardownStopExpectation? expectedDiscovery,
 }) {
+  if (expectedDiscovery == null) return null;
   final raw = readSessionTeardownFile(projectPath);
   if (raw == null) return null;
   final id = raw['identity'];
-  if (id is Map) {
-    final runnerPid = id['runnerPid'];
-    if (runnerPid is int && runnerPid != owningPid) {
-      return null;
-    }
-  }
+  if (!_identityMatchesSidecar(id, expectedDiscovery)) return null;
   return raw;
 }
 

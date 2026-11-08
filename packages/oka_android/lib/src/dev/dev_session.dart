@@ -487,6 +487,7 @@ class DevSession {
     this.resourceOwnership,
     this.attachHost,
     this.projectPath,
+    this.teardownBudgetTotal = kDevSessionTeardownBudgetTotal,
     DevEventRenderer? renderer,
   }) : _renderer = renderer ??
             (json
@@ -539,6 +540,9 @@ class DevSession {
 
   /// When set, writes [sessionTeardownFileName] after teardown.
   final String? projectPath;
+
+  /// Overall in-session teardown cap (tests may use a short value).
+  final Duration teardownBudgetTotal;
   final DevEventRenderer _renderer;
 
   DevSessionTeardownReport? lastTeardownReport;
@@ -557,7 +561,8 @@ class DevSession {
 
   void _ensureTeardownBudget() {
     if (_teardownBudgetStarted) return;
-    _activeTeardownBudget = DevSessionTeardownBudget();
+    _activeTeardownBudget =
+        DevSessionTeardownBudget(total: teardownBudgetTotal);
     _teardownBudgetStarted = true;
   }
 
@@ -835,11 +840,13 @@ class DevSession {
     var needsForceStop =
         !action.rpcOk || action.timedOut || !action.stopEventSeen;
 
+    final adbRunner = resourceOwnership!.runAdb;
     Future<PidofWaitAction> pollAbsent() => waitDevicePackageAbsent(
       adbPath: resourceOwnership!.adbPath,
       deviceSerial: launch.deviceSerial,
       packageName: launch.packageName,
       budget: budget,
+      runAdb: adbRunner,
     );
 
     if (!needsForceStop) {
@@ -862,6 +869,7 @@ class DevSession {
         deviceSerial: launch.deviceSerial,
         packageName: launch.packageName,
         budget: budget,
+        runAdb: adbRunner,
       );
       final pidof = await pollAbsent();
       _quitPidofAction = pidof;

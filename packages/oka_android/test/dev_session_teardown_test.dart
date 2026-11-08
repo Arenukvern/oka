@@ -196,6 +196,18 @@ void main() {
         PidofAbsentSignal.transportFailure,
       );
     });
+
+    test('exit 1 empty with unknown stderr is inconclusive not absent', () {
+      expect(
+        interpretPidofAbsentProbe(
+          exitCode: 1,
+          stdout: '',
+          stderr: 'pidof: internal note',
+          deviceShellHealthy: true,
+        ),
+        PidofAbsentSignal.inconclusive,
+      );
+    });
   });
 
   group('waitDevicePackageAbsent', () {
@@ -215,6 +227,24 @@ void main() {
       expect(report.absentObserved, isTrue);
       expect(report.adbFailed, isFalse);
       expect(report.deviceShellVerified, isTrue);
+    });
+
+    test('pidof stderr without transport classification is inconclusive', () async {
+      final report = await waitDevicePackageAbsent(
+        adbPath: '/adb',
+        deviceSerial: 'emu',
+        packageName: 'com.example.app',
+        pollInterval: Duration.zero,
+        timeout: const Duration(milliseconds: 50),
+        runAdb: (adb, args) => _healthyShellPidof(
+          adb,
+          args,
+          pidof: () async => ProcessResult(0, 1, '', 'pidof: odd'),
+        ),
+      );
+      expect(report.absentObserved, isFalse);
+      expect(report.inconclusive, isTrue);
+      expect(report.adbFailed, isFalse);
     });
 
     test('device offline is transport failure not absent', () async {
