@@ -214,7 +214,7 @@ exit 0
   });
 
   test(
-    'BLOCKER: setsid child is not contained by subreaper — never claim clean',
+    'teardown: setsid child adopted by subreaper is physically terminated',
     () async {
       const liveness = HostProcessLiveness();
       final session = await OwnedDevSession.start(
@@ -222,17 +222,72 @@ exit 0
         dartInvocation: [_stub, '--spawn-on-q-setsid'],
       );
       expect(await session.waitForPattern('dev: ready'), isTrue);
+
+      final decoy = await Process.start('sleep', ['3600']);
+      addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+
       session.sendLine('q');
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      final td = await session.teardown(quitGrace: const Duration(seconds: 2));
-      final orphans = <int>[];
+      final td = await session.teardown(quitGrace: const Duration(seconds: 10));
+      expect(td.verified, isTrue, reason: td.notes.join('; '));
+      expect(td.clean, isTrue, reason: td.notes.join('; '));
+      expect(td.survivors, isEmpty);
       for (final pid in session.ownershipLedger.descendantPids) {
-        if (await liveness.isAlive(pid)) orphans.add(pid);
+        expect(
+          await liveness.isAlive(pid),
+          isFalse,
+          reason: 'setsid adoptee pid $pid',
+        );
       }
-      if (orphans.isNotEmpty) {
-        expect(td.clean, isFalse);
-        expect(td.verified || td.survivors.isNotEmpty, isTrue);
-      }
+      expect(await liveness.isAlive(decoy.pid), isTrue);
+    },
+    skip: Platform.isLinux ? false : 'posix setsid',
+  );
+
+  test(
+    'regression: supervisor without drain leaves setsid adoptee alive',
+    () async {
+      Future<Process> skipDrainSpawn(
+        String executable,
+        List<String> arguments, {
+        String? workingDirectory,
+        Map<String, String>? environment,
+      }) =>
+          OwnedDevSession.defaultDevSessionSpawn(
+            executable,
+            arguments,
+            workingDirectory: workingDirectory,
+            environment: {
+              ...?environment,
+              'OKA_SUPERVISOR_SKIP_DRAIN': '1',
+            },
+          );
+
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub, '--spawn-on-q-setsid'],
+        spawn: skipDrainSpawn,
+      );
+      expect(await session.waitForPattern('dev: ready'), isTrue);
+      final decoy = await Process.start('sleep', ['3600']);
+      addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+
+      session.sendLine('q');
+      await session.teardown(quitGrace: const Duration(seconds: 8));
+      final pgrep = await Process.run('pgrep', ['-x', 'sleep']);
+      final extra = pgrep.stdout
+          .toString()
+          .trim()
+          .split('\n')
+          .where((s) => s.trim().isNotEmpty)
+          .map(int.parse)
+          .where((p) => p != decoy.pid)
+          .toList();
+      expect(
+        extra,
+        isNotEmpty,
+        reason: 'OKA_SUPERVISOR_SKIP_DRAIN must leave adoptee sleep running',
+      );
+      Process.killPid(extra.first, ProcessSignal.sigkill);
     },
     skip: Platform.isLinux ? false : 'posix setsid',
   );

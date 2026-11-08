@@ -482,6 +482,10 @@ final class OwnedDevSession {
     }
 
     final mergedSurvivors = {...stop.survivors, ...stillAlive}.toList();
+    if (transcript.contains('oka_supervisor_survivors=')) {
+      notes.add('supervisor reported adoptee survivors');
+    }
+
     final verified = !stop.unknown && _ledger.hasProvableOwnership;
     final clean = verified && mergedSurvivors.isEmpty;
 
