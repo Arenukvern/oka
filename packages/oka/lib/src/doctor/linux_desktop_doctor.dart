@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'flutter_linux_device.dart';
+import 'tool_probe.dart';
+
 /// Result of [linuxDesktopDoctorChecks] for `oka run dev --platform linux`.
 class LinuxDesktopDoctorReport {
   const LinuxDesktopDoctorReport({
@@ -25,35 +28,28 @@ class LinuxDesktopDoctorReport {
   final Map<String, bool> capabilities;
 }
 
-typedef ShellRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments, {
-  Map<String, String>? environment,
-});
-
-Future<ProcessResult> _defaultRunner(
-  String executable,
-  List<String> arguments, {
-  Map<String, String>? environment,
-}) =>
-    Process.run(executable, arguments, environment: environment);
-
 /// Linux Flutter **desktop dev** readiness (JIT session — not Android dev-loop).
 ///
 /// Parse-and-delegate for `oka doctor` (ADR-0015). Does not probe Snap Store or
 /// release builds (L1+).
 Future<LinuxDesktopDoctorReport> linuxDesktopDoctorChecks({
-  ShellRunner run = _defaultRunner,
+  ToolProbeRunner probe = defaultToolProbe,
   bool? hostIsLinux,
 }) async {
   final onLinux = hostIsLinux ?? Platform.isLinux;
   final lines = <String>[];
   final capabilities = <String, bool>{
     'host_linux': false,
+    'native_arch': false,
     'flutter_cli': false,
     'linux_device': false,
     'gtk_dev': false,
+    'clang': false,
+    'cmake': false,
+    'ninja': false,
+    'cpp_link': false,
     'display_session': false,
+    'display_runnable_now': false,
   };
 
   if (!onLinux) {
@@ -78,59 +74,144 @@ Future<LinuxDesktopDoctorReport> linuxDesktopDoctorChecks({
   var blocking = false;
   var ok = true;
 
-  final uname = await run('uname', ['-m']);
-  final arch = uname.exitCode == 0
-      ? (uname.stdout as String).trim()
-      : 'unknown';
-  lines.add('  ℹ️  Native arch: $arch (Flutter linux desktop builds match host; '
-      'arm64 hosts need arm64 CI — not implied by ubuntu-amd64 gates)');
-
-  ProcessResult flutterVersion;
-  try {
-    flutterVersion = await run('flutter', ['--version']);
-  } on ProcessException catch (e) {
-    lines.add('  ❌ flutter: not on PATH ($e)');
+  final uname = await probe('uname', ['-m'], deadline: const Duration(seconds: 5));
+  if (!uname.ran && uname.missing) {
+    lines.add('  ❌ uname: not found on PATH');
     blocking = true;
     ok = false;
-    return _report(lines, capabilities, blocking: blocking, ok: ok);
+  } else if (uname.timedOut) {
+    lines.add('  ❌ uname: timed out (${uname.errorMessage})');
+    blocking = true;
+    ok = false;
+  } else if (!uname.ok) {
+    lines.add('  ❌ uname -m failed (exit ${uname.exitCode})');
+    blocking = true;
+    ok = false;
+  } else {
+    capabilities['native_arch'] = true;
+    final arch = uname.stdout.trim();
+    lines.add(
+      '  ℹ️  Native arch: ${arch.isEmpty ? 'unknown' : arch} (Flutter linux '
+      'desktop builds match host; arm64 hosts need arm64 CI — not implied by '
+      'ubuntu-amd64 gates)',
+    );
   }
-  if (flutterVersion.exitCode != 0) {
-    lines.add('  ❌ flutter --version failed');
+
+  final flutterVersion = await probe(
+    'flutter',
+    ['--version'],
+    deadline: const Duration(seconds: 30),
+  );
+  if (flutterVersion.missing) {
+    lines.add('  ❌ flutter: not on PATH');
+    blocking = true;
+    ok = false;
+  } else if (flutterVersion.timedOut) {
+    lines.add('  ❌ flutter --version: timed out');
+    blocking = true;
+    ok = false;
+  } else if (flutterVersion.spawnFailed) {
+    lines.add('  ❌ flutter: failed to start (${flutterVersion.errorMessage})');
+    blocking = true;
+    ok = false;
+  } else if (!flutterVersion.ok) {
+    lines.add('  ❌ flutter --version failed (exit ${flutterVersion.exitCode})');
     blocking = true;
     ok = false;
   } else {
     capabilities['flutter_cli'] = true;
-    final first = (flutterVersion.stdout as String).split('\n').first.trim();
-    lines.add('  ✅ flutter: $first');
+    final first = flutterVersion.stdout.split('\n').first.trim();
+    lines.add('  ✅ flutter installed: $first');
   }
 
-  final devices = await run('flutter', ['devices', '--machine']);
-  if (devices.exitCode != 0) {
-    lines.add('  ❌ flutter devices failed — enable linux desktop '
-        '(`flutter config --enable-linux-desktop`)');
+  final devices = await probe(
+    'flutter',
+    ['devices', '--machine'],
+    deadline: const Duration(seconds: 60),
+  );
+  if (!devices.ok) {
+    final detail = devices.missing
+        ? 'flutter not on PATH'
+        : devices.timedOut
+        ? 'timed out'
+        : 'exit ${devices.exitCode}';
+    lines.add(
+      '  ❌ flutter devices --machine failed ($detail) — enable linux desktop '
+      '(`flutter config --enable-linux-desktop`)',
+    );
     blocking = true;
     ok = false;
   } else {
-    final hasLinux = (devices.stdout as String).contains('"targetPlatform":"linux"') ||
-        (devices.stdout as String).contains('linux');
-    capabilities['linux_device'] = hasLinux;
-    if (hasLinux) {
-      lines.add('  ✅ linux desktop device listed (flutter devices)');
+    final parsed = FlutterLinuxDeviceParse.fromMachineStdout(devices.stdout);
+    if (parsed.error != null) {
+      lines.add('  ❌ ${parsed.error}');
+      blocking = true;
+      ok = false;
+    } else if (parsed.hasLinuxDesktop) {
+      capabilities['linux_device'] = true;
+      lines.add(
+        '  ✅ linux desktop device (${parsed.linuxDesktopDeviceIds.join(', ')})',
+      );
     } else {
       lines.add(
-        '  ❌ no linux device — install GTK toolchain and run '
-        '`flutter config --enable-linux-desktop`',
+        '  ❌ no linux desktop device in machine list — install GTK toolchain '
+        'and run `flutter config --enable-linux-desktop`',
       );
       blocking = true;
       ok = false;
     }
   }
 
-  final gtk = await run('pkg-config', ['--exists', 'gtk+-3.0']);
-  if (gtk.exitCode == 0) {
+  for (final tool in [
+    ('clang', '--version', 'clang'),
+    ('cmake', '--version', 'cmake'),
+    ('ninja', '--version', 'ninja'),
+  ]) {
+    final r = await probe(
+      tool.$1,
+      [tool.$2],
+      deadline: const Duration(seconds: 10),
+    );
+    capabilities[tool.$3] = r.ok;
+    if (r.missing) {
+      lines.add('  ❌ ${tool.$1}: not on PATH (install build-essential toolchain)');
+      blocking = true;
+      ok = false;
+    } else if (r.timedOut) {
+      lines.add('  ❌ ${tool.$1}: probe timed out');
+      blocking = true;
+      ok = false;
+    } else if (!r.ok) {
+      lines.add('  ❌ ${tool.$1}: probe failed (exit ${r.exitCode})');
+      blocking = true;
+      ok = false;
+    } else {
+      final headline = r.stdout.split('\n').first.trim();
+      lines.add('  ✅ ${tool.$1}: ${headline.isEmpty ? 'ok' : headline}');
+    }
+  }
+
+  final gtk = await probe(
+    'pkg-config',
+    ['--exists', 'gtk+-3.0'],
+    deadline: const Duration(seconds: 10),
+  );
+  if (gtk.missing) {
+    lines.add('  ❌ pkg-config: not on PATH');
+    blocking = true;
+    ok = false;
+  } else if (gtk.timedOut) {
+    lines.add('  ❌ pkg-config gtk+-3.0: timed out');
+    blocking = true;
+    ok = false;
+  } else if (gtk.ok) {
     capabilities['gtk_dev'] = true;
-    final ver = await run('pkg-config', ['--modversion', 'gtk+-3.0']);
-    final v = ver.exitCode == 0 ? (ver.stdout as String).trim() : '?';
+    final ver = await probe(
+      'pkg-config',
+      ['--modversion', 'gtk+-3.0'],
+      deadline: const Duration(seconds: 5),
+    );
+    final v = ver.ok ? ver.stdout.trim() : '?';
     lines.add('  ✅ GTK+3 dev (pkg-config gtk+-3.0): $v');
   } else {
     lines.add(
@@ -141,21 +222,48 @@ Future<LinuxDesktopDoctorReport> linuxDesktopDoctorChecks({
     ok = false;
   }
 
+  // Minimal C++ link probe — separate "installed" toolchain from link-ready now.
+  if (capabilities['clang'] == true) {
+    final link = await probe(
+      'sh',
+      [
+        '-c',
+        r"printf '%s\n' 'int main(){return 0;}' | clang++ -x c++ - -o /dev/null -lstdc++",
+      ],
+      deadline: const Duration(seconds: 20),
+    );
+    if (link.ok) {
+      capabilities['cpp_link'] = true;
+      lines.add('  ✅ C++ link probe (clang++ + libstdc++)');
+    } else {
+      final why = link.missing
+          ? 'clang++ missing'
+          : link.timedOut
+          ? 'timed out'
+          : 'exit ${link.exitCode}';
+      lines.add(
+        '  ❌ C++ link probe failed ($why) — install libstdc++-14-dev (or distro equivalent)',
+      );
+      blocking = true;
+      ok = false;
+    }
+  }
+
   final env = Platform.environment;
   final hasDisplay = (env['DISPLAY']?.isNotEmpty ?? false) ||
       (env['WAYLAND_DISPLAY']?.isNotEmpty ?? false);
   capabilities['display_session'] = hasDisplay;
+  capabilities['display_runnable_now'] = hasDisplay;
   if (hasDisplay) {
     final kind = env['WAYLAND_DISPLAY']?.isNotEmpty == true
         ? 'WAYLAND_DISPLAY=${env['WAYLAND_DISPLAY']}'
         : 'DISPLAY=${env['DISPLAY']}';
-    lines.add('  ✅ Desktop session: $kind');
+    lines.add('  ✅ Display session (runnable now): $kind');
   } else {
     lines.add(
-      '  ⚠️  No DISPLAY/WAYLAND_DISPLAY — headless hosts need xvfb-run for '
-      'E2E (`gate_dev_assets_linux.sh`)',
+      '  ⚠️  No DISPLAY/WAYLAND_DISPLAY — GUI not runnable now; headless E2E '
+      'needs xvfb-run (doctor still OK for compile-only)',
     );
-    // Advisory only: CI uses xvfb; local SSH without X is common.
   }
 
   lines.add(
@@ -167,24 +275,11 @@ Future<LinuxDesktopDoctorReport> linuxDesktopDoctorChecks({
     'see docs/superpowers/plans/2026-11-08-linux-dev-convergence.md',
   );
 
-  return _report(
-    lines,
-    capabilities,
-    blocking: blocking,
+  return LinuxDesktopDoctorReport(
+    applicable: true,
     ok: ok && !blocking,
+    blocking: blocking,
+    lines: lines,
+    capabilities: capabilities,
   );
 }
-
-LinuxDesktopDoctorReport _report(
-  List<String> lines,
-  Map<String, bool> capabilities, {
-  required bool blocking,
-  required bool ok,
-}) =>
-    LinuxDesktopDoctorReport(
-      applicable: true,
-      ok: ok,
-      blocking: blocking,
-      lines: lines,
-      capabilities: capabilities,
-    );

@@ -4,7 +4,7 @@
 
 **Goal:** Stage **L0** only — honest Linux Flutter **desktop dev** diagnostics (`oka doctor`) and CI-gated E2E for `oka run dev --platform linux` (reload, restart, assets, cleanup).
 
-**Architecture:** Parse-and-delegate doctor lines (ADR-0015) in `packages/oka`; portable gate helpers in `gate_lib.sh`; extend `gate_run_dev.sh` + new `gate_dev_assets_linux.sh` using the **example** app and existing probe discipline; optional CI job `linux-desktop-dev` with Flutter + GTK + display.
+**Architecture:** Parse-and-delegate doctor lines (ADR-0015) in `packages/oka` with **bounded** tool probes via `oka_core.runBoundedProcess` (same discipline as `universal_tooling_runtime`, no sibling-repo dependency); Linux L0 gates are **Dart-owned** (`lib/src/gate/` + `tool/gate_linux_dev.dart`) with shell entrypoints as bootstrap only. Preserves real `oka run dev --platform linux` (not raw `flutter run` alone). CI job `linux-desktop-dev` with Flutter + GTK + display + debug warm build.
 
 **Tech Stack:** Dart 3.13 workspace, bash gates, Flutter stable linux desktop embedder.
 
@@ -69,23 +69,23 @@ Product requirement (not permission to publish a specific app in agent runs):
 
 ---
 
-## Task 3: `gate_run_dev.sh` linux leg
+## Task 3: Dart Linux reload gate
 
-- [ ] Add `probes-linux.json` (same probe as macos).
-- [ ] `leg linux` after macos/web when `OKA_GATE_LINUX_DEV=1` or always on Linux CI job.
-- [ ] Env `OKA_SKIP_LINUX_DEV=1` to skip on hosts without desktop (main `test` job unchanged).
+- [x] `LinuxDevGate.runReloadLeg` — probes file, reload probe flip, `Restarted application` + `restart: OK`.
+- [x] `OwnedDevSession` teardown (identity-gated tree stop; no `pkill -f` patterns).
+- [ ] Thin `gate_run_dev_linux.sh` → `gate_linux_dev.dart --leg reload`.
 
-**Verify:** `OKA_GATE_LINUX_DEV=1 bash packages/oka_dart_kernel/tool/gate_run_dev.sh` on Flutter+GTK host.
+**Verify:** `OKA_LINUX_DEV_GATE_USE_XVFB=1 bash packages/oka_dart_kernel/tool/gate_run_dev_linux.sh`
 
 ---
 
-## Task 4: `gate_dev_assets_linux.sh`
+## Task 4: Dart Linux assets gate
 
-- [ ] Clone `gate_dev_assets.sh` discipline for `--platform linux`.
-- [ ] Cleanup: `pkill_pattern` for `build/linux.*bundle/example` or flutter linux binary.
-- [ ] Uses `example/` app (assets + feature.dart).
+- [x] Delta + asset sync + evict JSON receipts + post-`R` VM fingerprint verify.
+- [x] Unit tests for owned-session teardown (`test/owned_dev_session_test.dart`).
+- [ ] Thin `gate_dev_assets_linux.sh` → `gate_linux_dev.dart --leg assets`.
 
-**Verify:** full script on Linux desktop host.
+**Verify:** full convergence script on Linux desktop host.
 
 ---
 

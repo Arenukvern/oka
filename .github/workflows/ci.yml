@@ -154,6 +154,10 @@ jobs:
           flutter doctor -v
           uname -m
       - run: dart pub get --no-example
+      - name: Warm Linux debug bundle (CI cold-start)
+        env:
+          OKA_LINUX_DEV_GATE_USE_XVFB: '1'
+        run: (cd example && xvfb-run -a flutter build linux --debug)
       - name: Linux L0 dev convergence gate
         env:
           OKA_LINUX_DEV_GATE_USE_XVFB: '1'

@@ -17,6 +17,7 @@ dependencies:
   meta: ^1.19.0
   oka_core: ^0.9.1 # x-release-please-version
   oka_update: ^0.0.1
+  path: ^1.9.0
 
 dev_dependencies:
   lints: ^6.1.0

@@ -97,16 +97,14 @@ class _Harness {
       write: h.lines.add,
       commands: control.stream,
       startupTimeout: const Duration(seconds: 5),
-      onReady: () {
-        if (!h.ready.isCompleted) h.ready.complete();
-        unawaited(
-          writeRunnerSessionFile(
-            projectDir.path,
-            vmServiceUri: 'ws://127.0.0.1:65462/XZgHLBJKpIA=/ws',
-            controlPort: server.port,
-            deviceId: 'emulator-5554',
-          ),
+      onReady: () async {
+        await writeRunnerSessionFile(
+          projectDir.path,
+          vmServiceUri: 'ws://127.0.0.1:65462/XZgHLBJKpIA=/ws',
+          controlPort: server.port,
+          deviceId: 'emulator-5554',
         );
+        if (!h.ready.isCompleted) h.ready.complete();
       },
       onResult: server.handleSessionResult,
     );

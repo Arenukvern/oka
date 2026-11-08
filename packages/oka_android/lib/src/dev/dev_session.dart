@@ -491,10 +491,11 @@ class DevSession {
 
   final Duration startupTimeout;
 
-  /// Invoked once the session reaches `session.ready` (the discovery-file
-  /// hook — `oka dev` writes `.flutter_mcp/runner-session.json` here).
-  /// Purely additive: rendering is unchanged.
-  final void Function()? onReady;
+  /// Invoked once attach reaches `app.started`, before `session.ready` is
+  /// rendered (the discovery-file hook — `oka dev` writes
+  /// `.flutter_mcp/runner-session.json` here). May be async; the session
+  /// awaits it so readers see the file before `session.ready` on the stream.
+  final FutureOr<void> Function()? onReady;
 
   /// Structured result hook for out-of-process delegation (the loopback
   /// control server): invoked from [_emit] for `reload.result`,
@@ -549,6 +550,9 @@ class DevSession {
           'oka-built debug APK), then re-run `oka dev`.',
         );
         return DevSessionOutcome.daemonExited;
+      }
+      if (onReady != null) {
+        await Future.sync(onReady!);
       }
       _emit('session.ready', {
         'device': deviceId,
@@ -746,8 +750,6 @@ class DevSession {
   void _emit(String event, Map<String, Object?> data) {
     // Additive hooks (delegation channel) — never affect rendering.
     switch (event) {
-      case 'session.ready':
-        onReady?.call();
       case 'reload.result' ||
           'restart.result' ||
           'restart.fallback' ||

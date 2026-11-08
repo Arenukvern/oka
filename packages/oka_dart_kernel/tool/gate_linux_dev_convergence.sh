@@ -2,12 +2,7 @@
 # L0 entry: Linux Flutter desktop dev convergence (reload + assets).
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-FAILED=0
-bash "$HERE/gate_run_dev_linux.sh" || FAILED=1
-bash "$HERE/gate_dev_assets_linux.sh" || FAILED=1
-if [ "$FAILED" -eq 0 ]; then
-  echo 'gate: linux dev convergence L0 — ALL PASS'
-else
-  echo 'gate: linux dev convergence L0 — FAILED'
-fi
-exit $FAILED
+WS=$(cd "$HERE/../.." && pwd)
+export FLUTTER_BIN=${FLUTTER_BIN:-$(command -v flutter)}
+exec dart --packages="$WS/.dart_tool/package_config.json" \
+  "$HERE/tool/gate_linux_dev.dart" --leg all
