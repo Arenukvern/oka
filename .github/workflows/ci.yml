@@ -160,5 +160,6 @@ jobs:
         run: (cd example && xvfb-run -a flutter build linux --debug)
       - name: Linux L0 dev convergence gate
         env:
+          OKA_KERNEL_ROOT: ${{ github.workspace }}
           OKA_LINUX_DEV_GATE_USE_XVFB: '1'
         run: bash packages/oka_dart_kernel/tool/gate_linux_dev_convergence.sh

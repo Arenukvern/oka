@@ -32,18 +32,22 @@ final class LinuxDevGate {
   final DevSessionSpawner sessionSpawn;
 
   String get _appRoot => p.join(workspace, appProject);
-  String get _okaDart => p.join(workspace, 'packages/oka/bin/oka.dart');
+  String get _runDevEntry => p.join(
+        workspace,
+        'packages/oka_dart_kernel/tool/oka_run_dev.dart',
+      );
   String get _packageConfig =>
       p.join(workspace, '.dart_tool/package_config.json');
 
+  /// Direct `oka_run_dev.dart` entry (ADR-0036 Dart-first): avoids
+  /// `oka run dev` kernel-root discovery, which breaks on GH checkout
+  /// layouts (`…/work/oka/oka/…`).
   List<String> _devInvocation({
     required List<String> extra,
   }) =>
       [
         '--packages=$_packageConfig',
-        _okaDart,
-        'run',
-        'dev',
+        _runDevEntry,
         '--project',
         _appRoot,
         '--platform',

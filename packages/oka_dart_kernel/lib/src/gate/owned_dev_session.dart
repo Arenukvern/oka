@@ -164,8 +164,9 @@ final class OwnedDevSession {
         exitCode == null && await liveness.isAlive(process.pid);
 
     if (!alive) {
+      // Root already exited — no survivors; preserve [exitCode] for the gate.
       return OwnedDevSessionTeardown(
-        clean: exitCode == 0,
+        clean: true,
         exitCode: exitCode,
         notes: notes,
       );
