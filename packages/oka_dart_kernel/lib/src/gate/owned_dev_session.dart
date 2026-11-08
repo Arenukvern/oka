@@ -364,7 +364,7 @@ final class OwnedDevSession {
     }
 
     if (useSupervisor) {
-      for (var i = 0; i < 80 && session._workloadPid == null; i++) {
+      for (var i = 0; i < 200 && session._workloadPid == null; i++) {
         await session._pumpControlFile();
         await Future<void>.delayed(const Duration(milliseconds: 25));
       }
