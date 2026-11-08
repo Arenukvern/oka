@@ -158,8 +158,17 @@ jobs:
         env:
           OKA_LINUX_DEV_GATE_USE_XVFB: '1'
         run: (cd example && xvfb-run -a flutter build linux --debug)
-      - name: Linux L0 dev convergence gate
+      - name: Public oka run dev routing (outside repo cwd, no OKA_KERNEL_ROOT)
+        run: |
+          unset OKA_KERNEL_ROOT
+          cd /tmp
+          log=$(dart "$GITHUB_WORKSPACE/packages/oka/bin/oka.dart" run dev \
+            --project "$GITHUB_WORKSPACE/example" \
+            --platform linux --no-watch --help 2>&1) || true
+          echo "$log" | head -20
+          echo "$log" | grep -qv 'experimental live-update stack is not available'
+      - name: Linux L0 dev convergence gate (public CLI path)
         env:
-          OKA_KERNEL_ROOT: ${{ github.workspace }}
           OKA_LINUX_DEV_GATE_USE_XVFB: '1'
+          OKA_LINUX_DEV_GATE_CWD: /tmp
         run: bash packages/oka_dart_kernel/tool/gate_linux_dev_convergence.sh

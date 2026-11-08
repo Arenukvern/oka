@@ -25,6 +25,7 @@ final class LinuxDevGate {
     required String workspace,
     required List<String> dartInvocation,
     bool useXvfb,
+    String? workingDirectory,
     Map<String, String>? environment,
     Duration identityBudget,
     DevSessionSpawner spawn,
@@ -32,22 +33,19 @@ final class LinuxDevGate {
   final DevSessionSpawner sessionSpawn;
 
   String get _appRoot => p.join(workspace, appProject);
-  String get _runDevEntry => p.join(
-        workspace,
-        'packages/oka_dart_kernel/tool/oka_run_dev.dart',
-      );
+  String get _okaDart => p.join(workspace, 'packages/oka/bin/oka.dart');
   String get _packageConfig =>
       p.join(workspace, '.dart_tool/package_config.json');
 
-  /// Direct `oka_run_dev.dart` entry (ADR-0036 Dart-first): avoids
-  /// `oka run dev` kernel-root discovery, which breaks on GH checkout
-  /// layouts (`…/work/oka/oka/…`).
+  /// Public `oka run dev` CLI (kernel stack auto-discovery from script path).
   List<String> _devInvocation({
     required List<String> extra,
   }) =>
       [
         '--packages=$_packageConfig',
-        _runDevEntry,
+        _okaDart,
+        'run',
+        'dev',
         '--project',
         _appRoot,
         '--platform',
@@ -55,6 +53,12 @@ final class LinuxDevGate {
         '--no-watch',
         ...extra,
       ];
+
+  String? get _sessionCwd {
+    final fromEnv = Platform.environment['OKA_LINUX_DEV_GATE_CWD']?.trim();
+    if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
+    return null;
+  }
 
   Future<int> runReloadLeg() async {
     final out = outDir ?? p.join(workspace, 'packages/oka_dart_kernel/.gate_run_dev_linux');
@@ -78,6 +82,7 @@ final class LinuxDevGate {
         workspace: workspace,
         dartInvocation: _devInvocation(extra: ['--probes', probes]),
         useXvfb: useXvfb,
+        workingDirectory: _sessionCwd,
         spawn: sessionSpawn,
       );
 
@@ -88,6 +93,7 @@ final class LinuxDevGate {
         stderr.writeln(lines.skip(lines.length > 40 ? lines.length - 40 : 0).join('\n'));
         return 1;
       }
+      await session.snapshotOwnedTree();
 
       final vmUri = _extractVmUri(session.transcript);
       if (vmUri == null) {
@@ -234,6 +240,7 @@ final class LinuxDevGate {
         workspace: workspace,
         dartInvocation: _devInvocation(extra: ['--json']),
         useXvfb: useXvfb,
+        workingDirectory: _sessionCwd,
         spawn: sessionSpawn,
       );
 
@@ -241,6 +248,7 @@ final class LinuxDevGate {
         stderr.writeln('gate: timeout waiting for dev session (linux)');
         return 1;
       }
+      await session.snapshotOwnedTree();
 
       stderr.writeln('== [2/5] r <leaf dart>: delta lane');
       await File(leafFile).writeAsString(

@@ -11,12 +11,20 @@ pack, or store upload.
 | `oka run dev --platform linux` reload + restart | Dart driver `packages/oka_dart_kernel/tool/gate_linux_dev.dart` (`--leg reload`) |
 | Asset sync + evict + restart + verify | Same driver (`--leg assets`); `Restarted application` + `helloAssetFingerprint` VM verify |
 | CI | Workflow job `linux-desktop-dev` on `ubuntu-latest` |
+| Owned dev teardown | `OwnedDevSession.snapshotOwnedTree` at spawn + after `dev: ready`; identity-gated stop when root exits early (`owned_dev_session_test.dart`) |
 
 ## Host scope (explicit)
 
 - **Tested locally (agent):** x86_64 Linux with Flutter 3.47.9, GTK, xvfb — gates
   when warm `flutter build linux --debug` is used in CI; local full convergence
   may take several minutes on cold compile.
+- **Public `oka run dev`:** auto-discovery walks upward from `packages/oka/bin/oka.dart`
+  (nested `work/oka/oka` layouts); **`OKA_KERNEL_ROOT`** for explicit checkout or
+  pub-global-only installs without a kernel tree. Gates use the **public** CLI from
+  **`OKA_LINUX_DEV_GATE_CWD=/tmp`** (outside repo); CI routing step asserts delegate
+  without `OKA_KERNEL_ROOT`.
+- **Hosted pub 0.9.1:** kernel stack is `publish_to: none` — live/dev verbs need
+  source checkout discovery or `OKA_KERNEL_ROOT`; not claimed on pub-only installs.
 - **GitHub CI @ `bb6c4ce` (run [`42524543199`](https://github.com/Arenukvern/oka/actions/runs/42524543199)):** `test`,
   `linux-desktop-dev`, `contracts`, `validate`, `android-real-smoke`,
   `windows-session-observation` **success** on `ubuntu-latest` amd64.
