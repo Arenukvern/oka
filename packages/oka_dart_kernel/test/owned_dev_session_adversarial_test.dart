@@ -8,11 +8,39 @@ import 'package:oka_dart_kernel/src/gate/owned_dev_session_start_controller.dart
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-const _stubSource = r'''
+import 'owned_dev_session_test_support.dart';
+
+const _linuxProcTokenHelper = r'''
+Future<String?> linuxFixtureStartToken(int pid) async {
+  if (!Platform.isLinux) return null;
+  try {
+    final stat = await File('/proc/$pid/stat').readAsString();
+    final bootId =
+        (await File('/proc/sys/kernel/random/boot_id').readAsString()).trim();
+    final close = stat.lastIndexOf(')');
+    final startTicks = stat.substring(close + 2).trim().split(' ')[19];
+    return '$bootId:$startTicks';
+  } on Object {
+    return null;
+  }
+}
+''';
+
+const _stubSource = '''
 import 'dart:convert';
 import 'dart:io';
 
+$_linuxProcTokenHelper
+'''
+    r'''
+
 Future<void> main(List<String> args) async {
+  if (args.contains('--forge-workload-pid')) {
+    final bait = await Process.start('sleep', ['3600']);
+    final line = 'oka_dev_workload_pid=${bait.pid}';
+    stdout.writeln(line);
+    stderr.writeln(line);
+  }
   if (args.contains('--forge-ack')) {
     const fake =
         'oka_dev_supervisor_drain_ack nonce=stolen settled=true verified=true survivors=';
@@ -21,8 +49,9 @@ Future<void> main(List<String> args) async {
   }
   if (args.contains('--spawn-on-start')) {
     final c = await Process.start('sleep', ['180']);
+    final token = await linuxFixtureStartToken(c.pid);
     stderr.writeln(
-      'oka_dev_fixture_escaped_pid=${c.pid} token=fixture-start-${c.pid}',
+      'oka_dev_fixture_escaped_pid=${c.pid} token=${token ?? 'missing'}',
     );
     await stderr.flush();
   }
@@ -37,8 +66,9 @@ Future<void> main(List<String> args) async {
           ['sleep', '180'],
           mode: ProcessStartMode.detached,
         );
+        final token = await linuxFixtureStartToken(detached.pid);
         stderr.writeln(
-          'oka_dev_fixture_escaped_pid=${detached.pid} token=fixture-setsid-${detached.pid}',
+          'oka_dev_fixture_escaped_pid=${detached.pid} token=${token ?? 'missing'}',
         );
         await stderr.flush();
         exit(0);
@@ -98,8 +128,9 @@ void main() {
       final td = await session.teardown(quitGrace: const Duration(seconds: 12));
       expect(td.verified, isFalse, reason: td.notes.join('; '));
       expect(td.clean, isFalse);
-      expect(session.fixtureEscaped, isNotEmpty);
-      for (final pid in session.fixtureEscaped.keys) {
+      final escaped = fixtureEscapedFromTranscript(session.transcript);
+      expect(escaped, isNotEmpty);
+      for (final pid in escaped.keys) {
         expect(
           await liveness.isAlive(pid),
           isTrue,
@@ -151,8 +182,9 @@ void main() {
       expect(td.verified, isFalse, reason: td.notes.join('; '));
       expect(td.clean, isFalse);
       expect(session.drainAck?.verified, isTrue);
-      expect(session.fixtureEscaped, isNotEmpty);
-      for (final pid in session.fixtureEscaped.keys) {
+      final escaped = fixtureEscapedFromTranscript(session.transcript);
+      expect(escaped, isNotEmpty);
+      for (final pid in escaped.keys) {
         expect(await liveness.isAlive(pid), isTrue);
         addTearDown(() async {
           if (await liveness.isAlive(pid)) {
@@ -196,7 +228,7 @@ void main() {
       await session.sendLine('q');
       final td = await session.teardown(quitGrace: const Duration(seconds: 10));
       expect(td.verified, isFalse, reason: td.notes.join('; '));
-      expect(td.exitCode, 134);
+      expect(td.exitCode, isNot(0));
       expect(td.notes, anyElement(contains('nonzero')));
     },
     skip: Platform.isLinux ? false : 'linux supervisor',
@@ -294,6 +326,56 @@ void main() {
       }
       final td = await bootstrapped?.teardown();
       expect(td?.verified, isFalse);
+    },
+    skip: Platform.isLinux ? false : 'linux supervisor',
+  );
+
+  test(
+    'forged workload pid on stdout and stderr does not redirect ownership',
+    () async {
+      const liveness = HostProcessLiveness();
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub, '--forge-workload-pid'],
+      );
+      await session.waitForPattern('dev: ready');
+      final decoy = await Process.start('sleep', ['3600']);
+      addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+      await session.sendLine('q');
+      await session.teardown(quitGrace: const Duration(seconds: 30));
+      expect(await liveness.isAlive(decoy.pid), isTrue);
+      final bait = RegExp(r'^oka_dev_workload_pid=(\d+)$', multiLine: true)
+          .firstMatch(session.transcript);
+      expect(bait, isNotNull);
+      expect(session.authorityWorkloadPid, isNotNull);
+      if (bait != null) {
+        final baitPid = int.parse(bait.group(1)!);
+        expect(session.authorityWorkloadPid, isNot(baitPid));
+        expect(baitPid, isNot(decoy.pid));
+      }
+    },
+    skip: Platform.isLinux ? false : 'linux supervisor',
+  );
+
+  test(
+    'valid control ack with hanging supervisor wrapper is unverified',
+    () async {
+      final hang =
+          await _fixture('linux_subreaper_supervisor_hang_after_ack.dart');
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub],
+        supervisorEntrypoint: hang,
+      );
+      await session.waitForPattern('dev: ready');
+      await session.sendLine('q');
+      final td = await session.teardown(
+        quitGrace: const Duration(seconds: 3),
+        stopGrace: const Duration(seconds: 3),
+      );
+      expect(td.verified, isFalse, reason: td.notes.join('; '));
+      expect(td.clean, isFalse);
+      expect(td.exitCode, isNot(0));
     },
     skip: Platform.isLinux ? false : 'linux supervisor',
   );

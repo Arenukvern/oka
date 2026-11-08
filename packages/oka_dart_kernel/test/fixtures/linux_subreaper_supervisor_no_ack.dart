@@ -10,6 +10,7 @@ Future<void> main(List<String> args) async {
   if (!Platform.isLinux) exit(3);
   if (args.length < 2 || args.first != '--') exit(2);
   if (!LinuxChildSubreaper.activate()) exit(4);
+  await ensureSupervisorControlWriter();
 
   final child = await Process.start(
     args[1],
@@ -18,7 +19,8 @@ Future<void> main(List<String> args) async {
         Platform.environment['OKA_DEV_SESSION_CWD']?.trim().isNotEmpty == true
             ? Platform.environment['OKA_DEV_SESSION_CWD']!.trim()
             : null,
-    environment: sanitizeWorkloadEnvironment(Platform.environment),
+    environment: workloadProcessEnvironment(),
+    includeParentEnvironment: false,
   );
   await appendSupervisorControlLine('oka_dev_workload_pid=${child.pid}');
   child.stdout.listen(stdout.add, onDone: () {});

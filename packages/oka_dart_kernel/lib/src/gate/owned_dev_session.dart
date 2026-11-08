@@ -110,7 +110,6 @@ final class OwnedDevSession {
   String? identityToken;
   int? _workloadPid;
   SupervisorDrainAck? _drainAck;
-  final Map<int, String> _fixtureEscapedByPid = {};
   SessionOwnedTree? _ownedTree;
   final _OwnershipLedger _ledger = _OwnershipLedger();
   final StringBuffer _buffer = StringBuffer();
@@ -121,9 +120,12 @@ final class OwnedDevSession {
   int _controlReadOffset = 0;
   Timer? _controlPumpTimer;
   int? _workloadExitFromControl;
+  int? _supervisorExitFromControl;
+  final ControlLogLineReader _controlLineReader = ControlLogLineReader();
+  RandomAccessFile? _controlReader;
 
   SupervisorDrainAck? get drainAck => _drainAck;
-  Map<int, String> get fixtureEscaped => Map.unmodifiable(_fixtureEscapedByPid);
+  int? get authorityWorkloadPid => _workloadPid;
 
   String get transcript => _buffer.toString();
   SessionOwnedTree? get ownedTree => _ownedTree;
@@ -131,18 +133,22 @@ final class OwnedDevSession {
 
   int _resolveTreeRoot() => _workloadPid ?? process.pid;
 
-  void _append(String chunk) {
+  void _appendWorkloadStream(String chunk) {
     _buffer.write(chunk);
-    for (final line in chunk.split('\n')) {
-      final trimmed = line.trim();
-      final match = RegExp(r'^oka_dev_workload_pid=(\d+)$').firstMatch(trimmed);
-      if (match != null) {
-        _workloadPid = int.parse(match.group(1)!);
-      }
-      final escaped = parseFixtureEscapedReport(trimmed);
-      if (escaped != null) {
-        _fixtureEscapedByPid[escaped.pid] = escaped.token;
-      }
+  }
+
+  void _applyControlUpdate(SupervisorControlUpdate update) {
+    if (update.workloadPid != null) {
+      _workloadPid = update.workloadPid;
+    }
+    if (update.drainAck != null) {
+      _drainAck = update.drainAck;
+    }
+    if (update.workloadExitCode != null) {
+      _workloadExitFromControl = update.workloadExitCode;
+    }
+    if (update.supervisorExitCode != null) {
+      _supervisorExitFromControl = update.supervisorExitCode;
     }
   }
 
@@ -150,11 +156,11 @@ final class OwnedDevSession {
     _stdoutSub = process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen((line) => _append('$line\n'));
+        .listen((line) => _appendWorkloadStream('$line\n'));
     _stderrSub = process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen((line) => _append('$line\n'));
+        .listen((line) => _appendWorkloadStream('$line\n'));
   }
 
   static void _assertSupervisorEntrypointAllowed({
@@ -237,20 +243,20 @@ final class OwnedDevSession {
         entrypoint: supervisor,
       );
     }
-    final env = Map<String, String>.from(environment ?? Platform.environment);
-    env.remove(kLegacySessionNonceEnv);
-    env[kSupervisorNonceEnv] = sessionNonce;
-    if (controlPath != null) {
-      env[kSupervisorAckPathEnv] = controlPath;
+    if (controlPath == null || controlPath.isEmpty) {
+      throw StateError('supervisor control path required');
     }
-    final cwd = workingDirectory;
-    if (cwd != null && cwd.isNotEmpty) {
-      env['OKA_DEV_SESSION_CWD'] = cwd;
-    }
+    final env = supervisorSessionEnvironment(
+      sessionNonce: sessionNonce,
+      controlPath: controlPath,
+      sessionCwd: workingDirectory,
+      extra: environment,
+    );
     return spawn(
       _dartVmExecutable(),
       [supervisor, '--', executable, ...arguments],
       environment: env,
+      workingDirectory: workingDirectory,
     );
   }
 
@@ -347,6 +353,7 @@ final class OwnedDevSession {
     );
     session._attachLineStreams();
     if (useSupervisor) {
+      await session._openControlReader();
       session._startControlPump();
     }
     startController?.onBootstrap(session);
@@ -356,6 +363,12 @@ final class OwnedDevSession {
       throw StateError('owned dev session start aborted after spawn');
     }
 
+    if (useSupervisor) {
+      for (var i = 0; i < 80 && session._workloadPid == null; i++) {
+        await session._pumpControlFile();
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+    }
     try {
       session.identityToken = await session.liveness
           .identityToken(session._resolveTreeRoot())
@@ -401,6 +414,13 @@ final class OwnedDevSession {
     return pattern.allMatches(text).isNotEmpty;
   }
 
+  Future<void> _openControlReader() async {
+    final sink = _controlSink;
+    if (sink == null) return;
+    _controlReader = await sink.open();
+    _controlReadOffset = 0;
+  }
+
   void _startControlPump() {
     _controlPumpTimer?.cancel();
     _controlPumpTimer = Timer.periodic(
@@ -411,28 +431,18 @@ final class OwnedDevSession {
 
   Future<void> _pumpControlFile() async {
     final sink = _controlSink;
-    if (sink == null) return;
+    final raf = _controlReader;
+    if (sink == null || raf == null) return;
     try {
       final length = await sink.length();
       if (length <= _controlReadOffset) return;
-      final raf = await sink.open();
-      try {
-        await raf.setPosition(_controlReadOffset);
-        final bytes = await raf.read(length - _controlReadOffset);
-        _controlReadOffset = length;
-        final chunk = utf8.decode(bytes);
-        final update = parseSupervisorControlLines(chunk.split('\n'));
-        if (update.workloadPid != null) {
-          _workloadPid = update.workloadPid;
-        }
-        if (update.drainAck != null) {
-          _drainAck = update.drainAck;
-        }
-        if (update.workloadExitCode != null) {
-          _workloadExitFromControl = update.workloadExitCode;
-        }
-      } finally {
-        await raf.close();
+      await raf.setPosition(_controlReadOffset);
+      final bytes = await raf.read(length - _controlReadOffset);
+      if (bytes.isEmpty) return;
+      _controlReadOffset += bytes.length;
+      final chunk = utf8.decode(bytes, allowMalformed: true);
+      for (final line in _controlLineReader.push(chunk)) {
+        _applyControlUpdate(parseSupervisorControlLines([line]));
       }
     } on Object {
       // Control sink may disappear during teardown; ignore until exit.
@@ -573,18 +583,37 @@ final class OwnedDevSession {
       }
       await Future<void>.delayed(const Duration(milliseconds: 75));
     }
-    if (exitCode == null && !await liveness.isAlive(process.pid)) {
+    if (exitCode == null && await liveness.isAlive(process.pid)) {
+      notes.add('root did not exit within ${quitGrace.inSeconds}s after q');
       try {
-        exitCode = await process.exitCode;
+        process.kill();
+      } on Object catch (e) {
+        notes.add('supervisor wrapper SIGTERM: $e');
+      }
+      try {
+        exitCode = await process.exitCode.timeout(stopGrace);
+      } on TimeoutException {
+        notes.add('supervisor wrapper exit unobserved after SIGTERM');
+        exitCode = null;
       } on Object {
         exitCode = null;
       }
-    } else if (exitCode == null && await liveness.isAlive(process.pid)) {
-      notes.add('root did not exit within ${quitGrace.inSeconds}s after q');
+    } else if (exitCode == null && !await liveness.isAlive(process.pid)) {
+      try {
+        exitCode = await process.exitCode.timeout(stopGrace);
+      } on TimeoutException {
+        notes.add('supervisor wrapper exit unobserved after root died');
+        exitCode = null;
+      } on Object {
+        exitCode = null;
+      }
     } else if (!rootAliveBefore) {
       notes.add('root already exited before teardown');
       try {
-        exitCode = await process.exitCode;
+        exitCode = await process.exitCode.timeout(stopGrace);
+      } on TimeoutException {
+        notes.add('supervisor wrapper exit unobserved');
+        exitCode = null;
       } on Object {
         exitCode = null;
       }
@@ -597,6 +626,24 @@ final class OwnedDevSession {
 
     _controlPumpTimer?.cancel();
     _controlPumpTimer = null;
+    await _pumpControlFile();
+    for (final line in _controlLineReader.flushPartial()) {
+      _applyControlUpdate(parseSupervisorControlLines([line]));
+    }
+    try {
+      await _controlReader?.close();
+    } on Object {
+      // ignore
+    }
+    _controlReader = null;
+    try {
+      final dir = _controlSink?.parent;
+      if (dir != null && await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    } on Object {
+      // Best-effort control sink cleanup after session finishes.
+    }
 
     try {
       await process.stdin.close();
@@ -646,33 +693,17 @@ final class OwnedDevSession {
     }
 
     final mergedSurvivors = {...stop.survivors, ...stillAlive}.toList();
-    var fixtureEscapedAlive = false;
-    for (final entry in _fixtureEscapedByPid.entries) {
-      final alive = await aliveBounded(entry.key);
+    for (final fixture in fixtureEscapedReportsFromTranscript(transcript)) {
+      final alive = await aliveBounded(fixture.pid);
       if (alive == null) {
         finalLivenessIncomplete = true;
-        notes.add(
-          'fixture escaped pid ${entry.key} liveness inspect incomplete',
-        );
         continue;
       }
       if (alive) {
-        fixtureEscapedAlive = true;
-        mergedSurvivors.add(entry.key);
-        notes.add('fixture-reported escaped pid ${entry.key} still alive');
-        final liveToken = await liveness
-            .identityToken(entry.key)
-            .timeout(
-              inspectDeadline.difference(DateTime.now()),
-              onTimeout: () => null,
-            );
-        final expected = entry.value;
-        if (liveToken != null && liveToken != expected) {
-          notes.add(
-            'fixture escaped pid ${entry.key} identity mismatch '
-            '(expected token from fixture report)',
-          );
-        }
+        mergedSurvivors.add(fixture.pid);
+        notes.add(
+          'fixture-reported escaped pid ${fixture.pid} still alive',
+        );
       }
     }
 
@@ -692,14 +723,28 @@ final class OwnedDevSession {
         supervisorDrainVerified = false;
         notes.add('supervisor drain ack survivors=${ack.survivors}');
       }
-      if (exitCode != null && exitCode != 0) {
+      if (exitCode != 0) {
         supervisorDrainVerified = false;
-        notes.add('supervisor wrapper exit nonzero ($exitCode)');
+        notes.add(
+          'supervisor wrapper exit not exactly 0 '
+          '(observed=$exitCode control=$_supervisorExitFromControl)',
+        );
       }
-      if (fixtureEscapedAlive) {
+      final ctlExit = _supervisorExitFromControl;
+      if (ctlExit != null && ctlExit != 0) {
         supervisorDrainVerified = false;
-        notes.add('fixture-reported escaped workload still alive');
+        notes.add('supervisor shutdown control exit nonzero ($ctlExit)');
       }
+      final fixtureAlive = mergedSurvivors.any(
+        (pid) => fixtureEscapedReportsFromTranscript(transcript)
+            .any((f) => f.pid == pid),
+      );
+      if (fixtureAlive && (ack?.verified ?? false)) {
+        supervisorDrainVerified = false;
+        notes.add('control ack claims verified but fixture escape still alive');
+      }
+    } else if (exitCode != 0) {
+      notes.add('dev session root exit not exactly 0 (observed=$exitCode)');
     }
     if (finalLivenessIncomplete) {
       notes.add('final survivor liveness inspection incomplete within budget');

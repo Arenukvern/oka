@@ -7,16 +7,39 @@ import 'package:oka_dart_kernel/src/gate/owned_dev_session_start_controller.dart
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-const _stubSource = r'''
+import 'owned_dev_session_test_support.dart';
+
+const _linuxProcTokenHelper = r'''
+Future<String?> linuxFixtureStartToken(int pid) async {
+  if (!Platform.isLinux) return null;
+  try {
+    final stat = await File('/proc/$pid/stat').readAsString();
+    final bootId =
+        (await File('/proc/sys/kernel/random/boot_id').readAsString()).trim();
+    final close = stat.lastIndexOf(')');
+    final startTicks = stat.substring(close + 2).trim().split(' ')[19];
+    return '$bootId:$startTicks';
+  } on Object {
+    return null;
+  }
+}
+''';
+
+const _stubSource = '''
 import 'dart:convert';
 import 'dart:io';
+
+$_linuxProcTokenHelper
+'''
+    r'''
 
 Future<void> main(List<String> args) async {
   final hang = args.contains('--hang-on-quit');
   if (args.contains('--spawn-on-start')) {
     final c = await Process.start('sleep', ['180']);
+    final token = await linuxFixtureStartToken(c.pid);
     stderr.writeln(
-      'oka_dev_fixture_escaped_pid=${c.pid} token=fixture-start-${c.pid}',
+      'oka_dev_fixture_escaped_pid=${c.pid} token=${token ?? 'missing'}',
     );
     await stderr.flush();
   }
@@ -36,8 +59,9 @@ Future<void> main(List<String> args) async {
           ['sleep', '180'],
           mode: ProcessStartMode.detached,
         );
+        final token = await linuxFixtureStartToken(detached.pid);
         stderr.writeln(
-          'oka_dev_fixture_escaped_pid=${detached.pid} token=fixture-setsid-${detached.pid}',
+          'oka_dev_fixture_escaped_pid=${detached.pid} token=${token ?? 'missing'}',
         );
         await stderr.flush();
         exit(0);
@@ -247,11 +271,12 @@ exit 0
       expect(td.verified, isTrue, reason: td.notes.join('; '));
       expect(td.clean, isTrue, reason: td.notes.join('; '));
       expect(td.survivors, isEmpty);
-      expect(session.fixtureEscaped, isNotEmpty);
+      final escaped = fixtureEscapedFromTranscript(session.transcript);
+      expect(escaped, isNotEmpty);
       expect(session.drainAck?.nonce, session.sessionNonce);
       expect(session.drainAck?.settled, isTrue);
       expect(session.drainAck?.verified, isTrue);
-      for (final pid in session.fixtureEscaped.keys) {
+      for (final pid in escaped.keys) {
         expect(
           await liveness.isAlive(pid),
           isFalse,
@@ -288,10 +313,11 @@ exit 0
       final td = await session.teardown(quitGrace: const Duration(seconds: 30));
       expect(td.verified, isFalse, reason: td.notes.join('; '));
       expect(td.clean, isFalse);
-      expect(session.fixtureEscaped, isNotEmpty);
+      final escaped = fixtureEscapedFromTranscript(session.transcript);
+      expect(escaped, isNotEmpty);
       expect(session.drainAck?.settled, isFalse);
       expect(session.drainAck?.verified, isFalse);
-      for (final pid in session.fixtureEscaped.keys) {
+      for (final pid in escaped.keys) {
         addTearDown(() async {
           if (await liveness.isAlive(pid)) {
             await liveness.kill(pid, grace: const Duration(milliseconds: 200));
@@ -370,8 +396,9 @@ exit 0
       expect(await liveness.isAlive(spawned!.pid), isFalse);
       final session = bootstrapped;
       expect(session, isNotNull);
-      expect(session!.fixtureEscaped, isNotEmpty);
-      for (final pid in session.fixtureEscaped.keys) {
+      final escapedBoot = fixtureEscapedFromTranscript(session!.transcript);
+      expect(escapedBoot, isNotEmpty);
+      for (final pid in escapedBoot.keys) {
         expect(
           await liveness.isAlive(pid),
           isFalse,

@@ -34,11 +34,13 @@ Future<void> main(List<String> args) async {
   final arguments = args.sublist(2);
   final cwd = Platform.environment['OKA_DEV_SESSION_CWD']?.trim();
 
+  await ensureSupervisorControlWriter();
   final child = await Process.start(
     executable,
     arguments,
     workingDirectory: cwd?.isNotEmpty == true ? cwd : null,
-    environment: sanitizeWorkloadEnvironment(Platform.environment),
+    environment: workloadProcessEnvironment(),
+    includeParentEnvironment: false,
   );
   await appendSupervisorControlLine('oka_dev_workload_pid=${child.pid}');
 
