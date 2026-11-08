@@ -53,6 +53,10 @@ void main() {
         adbForwardRemoveArgs(hostPort: 8080, serial: 'emu'),
         ['-s', 'emu', 'forward', '--remove', 'tcp:8080'],
       );
+      expect(
+        adbShellSentinelArgs(serial: 'emu'),
+        ['-s', 'emu', 'shell', 'echo', adbShellSentinelToken],
+      );
       expect(adbLogcatDumpArgs(), ['logcat', '-d']);
       expect(adbLogcatClearArgs(), ['logcat', '-c']);
     });

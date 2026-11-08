@@ -179,6 +179,111 @@ final class ForceStopAction {
   final bool timedOut;
 }
 
+/// Outcome of interpreting one `adb shell pidof` sample on a verified shell.
+enum PidofAbsentSignal {
+  /// Process still running (stdout has pid token(s)).
+  present,
+
+  /// Package not running (`pidof` exit 0 or 1 with empty stdout on Android).
+  absent,
+
+  /// Device/shell transport or authorization failure.
+  transportFailure,
+
+  /// Healthy shell but pidof outcome not attributable (fail-closed).
+  inconclusive,
+}
+
+/// Pure Android pidof semantics (exit 1 + empty = not running when shell OK).
+PidofAbsentSignal interpretPidofAbsentProbe({
+  required int exitCode,
+  required String stdout,
+  required String stderr,
+  required bool deviceShellHealthy,
+}) {
+  if (!deviceShellHealthy) {
+    return PidofAbsentSignal.inconclusive;
+  }
+  final out = stdout.trim();
+  final combined = '$stdout$stderr';
+  if (exitCode == 0 && out.isNotEmpty) {
+    return PidofAbsentSignal.present;
+  }
+  final classified = classifyAdbFailure(combined);
+  if (classified.kind != 'unknown') {
+    return PidofAbsentSignal.transportFailure;
+  }
+  if (out.isEmpty && (exitCode == 0 || exitCode == 1)) {
+    return PidofAbsentSignal.absent;
+  }
+  return PidofAbsentSignal.inconclusive;
+}
+
+final class DeviceShellHealth {
+  const DeviceShellHealth({
+    required this.ok,
+    this.message,
+    this.failureKind,
+  });
+
+  final bool ok;
+  final String? message;
+  final String? failureKind;
+}
+
+Future<DeviceShellHealth> probeDeviceShellHealth({
+  required String adbPath,
+  required String deviceSerial,
+  AdbArgvRunner? runAdb,
+  DevSessionTeardownBudget? budget,
+}) async {
+  final runner = runAdb ?? Process.run;
+  try {
+    final r = budget == null
+        ? await runner(adbPath, adbShellSentinelArgs(serial: deviceSerial))
+        : await budget.run(
+            () => runner(adbPath, adbShellSentinelArgs(serial: deviceSerial)),
+            cap: const Duration(seconds: 5),
+          );
+    final out = '${r.stdout}'.trim();
+    final combined = '${r.stdout}${r.stderr}'.trim();
+    if (r.exitCode == 0 && out.contains(adbShellSentinelToken)) {
+      return const DeviceShellHealth(ok: true);
+    }
+    if (r.exitCode != 0) {
+      final f = classifyAdbFailure(combined);
+      return DeviceShellHealth(
+        ok: false,
+        failureKind: f.kind,
+        message: combined.isEmpty ? 'adb shell sentinel failed' : f.message,
+      );
+    }
+    return DeviceShellHealth(
+      ok: false,
+      failureKind: 'unknown',
+      message: 'shell sentinel echo mismatch',
+    );
+  } on TimeoutException {
+    return const DeviceShellHealth(
+      ok: false,
+      failureKind: 'unknown',
+      message: 'adb shell sentinel timed out',
+    );
+  } on DevSessionTeardownBudgetExhausted {
+    return const DeviceShellHealth(
+      ok: false,
+      failureKind: 'unknown',
+      message: 'teardown budget exhausted before shell sentinel',
+    );
+  } on Object catch (e) {
+    return DeviceShellHealth(
+      ok: false,
+      failureKind: 'unknown',
+      message: e.toString(),
+    );
+  }
+}
+
 final class PidofWaitAction {
   const PidofWaitAction({
     required this.attempted,
@@ -187,6 +292,8 @@ final class PidofWaitAction {
     this.lastPidOutput,
     this.timedOut = false,
     this.adbFailed = false,
+    this.inconclusive = false,
+    this.deviceShellVerified = false,
     this.message,
   });
 
@@ -196,6 +303,8 @@ final class PidofWaitAction {
   final String? lastPidOutput;
   final bool timedOut;
   final bool adbFailed;
+  final bool inconclusive;
+  final bool deviceShellVerified;
   final String? message;
 }
 
@@ -411,6 +520,24 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
   AdbArgvRunner? runAdb,
   DevSessionTeardownBudget? budget,
 }) async {
+  final shell = await probeDeviceShellHealth(
+    adbPath: adbPath,
+    deviceSerial: deviceSerial,
+    runAdb: runAdb,
+    budget: budget,
+  );
+  if (!shell.ok) {
+    final transport = shell.failureKind != null && shell.failureKind != 'unknown';
+    return PidofWaitAction(
+      attempted: true,
+      absentObserved: false,
+      proven: false,
+      adbFailed: transport,
+      inconclusive: !transport,
+      message: shell.message,
+    );
+  }
+
   final runner = runAdb ?? Process.run;
   final deadline = DateTime.now().add(timeout);
   String? lastOut;
@@ -439,6 +566,7 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
         absentObserved: false,
         proven: false,
         adbFailed: true,
+        deviceShellVerified: true,
         message: 'pidof adb call timed out',
       );
     } on DevSessionTeardownBudgetExhausted {
@@ -447,28 +575,48 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
         absentObserved: false,
         proven: false,
         adbFailed: true,
+        deviceShellVerified: true,
         message: 'teardown budget exhausted during pidof',
         timedOut: true,
       );
     }
-    if (r.exitCode != 0) {
+    final signal = interpretPidofAbsentProbe(
+      exitCode: r.exitCode,
+      stdout: r.stdout as String,
+      stderr: r.stderr as String,
+      deviceShellHealthy: true,
+    );
+    if (signal == PidofAbsentSignal.absent) {
+      return const PidofWaitAction(
+        attempted: true,
+        absentObserved: true,
+        proven: false,
+        deviceShellVerified: true,
+      );
+    }
+    if (signal == PidofAbsentSignal.transportFailure) {
       final msg = '${r.stdout}${r.stderr}'.trim();
       return PidofWaitAction(
         attempted: true,
         absentObserved: false,
         proven: false,
         adbFailed: true,
-        message: msg.isEmpty ? 'pidof failed (exit ${r.exitCode})' : msg,
+        deviceShellVerified: true,
+        message: msg.isEmpty ? 'pidof transport failure' : msg,
       );
     }
-    lastOut = (r.stdout as String).trim();
-    if (lastOut.isEmpty) {
-      return const PidofWaitAction(
+    if (signal == PidofAbsentSignal.inconclusive) {
+      return PidofWaitAction(
         attempted: true,
-        absentObserved: true,
+        absentObserved: false,
         proven: false,
+        inconclusive: true,
+        deviceShellVerified: true,
+        message:
+            'pidof exit ${r.exitCode} not attributable after shell sentinel',
       );
     }
+    lastOut = '${r.stdout}'.trim();
     if (DateTime.now().isAfter(deadline) || (budget?.exhausted ?? false)) {
       return PidofWaitAction(
         attempted: true,
@@ -476,6 +624,7 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
         proven: false,
         lastPidOutput: lastOut,
         timedOut: true,
+        deviceShellVerified: true,
       );
     }
     await Future<void>.delayed(pollInterval);
@@ -558,6 +707,8 @@ final class DevSessionTeardownReport {
         'absentObserved': pidofWait!.absentObserved,
         'timedOut': pidofWait!.timedOut,
         'adbFailed': pidofWait!.adbFailed,
+        'inconclusive': pidofWait!.inconclusive,
+        'deviceShellVerified': pidofWait!.deviceShellVerified,
         if (pidofWait!.lastPidOutput != null) 'lastPid': pidofWait!.lastPidOutput,
         if (pidofWait!.message != null) 'message': pidofWait!.message,
       },

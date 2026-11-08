@@ -1,8 +1,20 @@
 import 'dart:io';
 
+import 'package:oka_android/src/dev/adb_tool.dart';
 import 'package:oka_android/src/dev/dev_session_teardown.dart';
 import 'package:oka_android/src/dev/dev_session_teardown_budget.dart';
 import 'package:test/test.dart';
+
+Future<ProcessResult> _healthyShellPidof(
+  String adb,
+  List<String> args, {
+  required Future<ProcessResult> Function() pidof,
+}) async {
+  if (args.contains('echo')) {
+    return ProcessResult(0, 0, '$adbShellSentinelToken\n', '');
+  }
+  return pidof();
+}
 
 const _remove34381 = <String>[
   '-s',
@@ -127,31 +139,91 @@ void main() {
     });
   });
 
-  group('waitDevicePackageAbsent', () {
-    test('empty stdout with nonzero adb exit is not absent', () async {
-      final report = await waitDevicePackageAbsent(
-        adbPath: '/adb',
-        deviceSerial: 'emu',
-        packageName: 'com.example.app',
-        pollInterval: Duration.zero,
-        timeout: const Duration(milliseconds: 10),
-        runAdb: (adb, args) async => ProcessResult(0, 1, '', 'device offline'),
+  group('interpretPidofAbsentProbe (Android semantics)', () {
+    test('exit 1 empty means absent when shell verified', () {
+      expect(
+        interpretPidofAbsentProbe(
+          exitCode: 1,
+          stdout: '',
+          stderr: '',
+          deviceShellHealthy: true,
+        ),
+        PidofAbsentSignal.absent,
       );
-      expect(report.absentObserved, isFalse);
-      expect(report.adbFailed, isTrue);
     });
 
-    test('absent only when pidof exit zero and empty', () async {
+    test('exit 0 empty means absent when shell verified', () {
+      expect(
+        interpretPidofAbsentProbe(
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+          deviceShellHealthy: true,
+        ),
+        PidofAbsentSignal.absent,
+      );
+    });
+
+    test('unverified shell is inconclusive not absent', () {
+      expect(
+        interpretPidofAbsentProbe(
+          exitCode: 1,
+          stdout: '',
+          stderr: '',
+          deviceShellHealthy: false,
+        ),
+        PidofAbsentSignal.inconclusive,
+      );
+    });
+
+    test('offline stderr is transport not absent', () {
+      expect(
+        interpretPidofAbsentProbe(
+          exitCode: 1,
+          stdout: '',
+          stderr: 'device offline',
+          deviceShellHealthy: true,
+        ),
+        PidofAbsentSignal.transportFailure,
+      );
+    });
+  });
+
+  group('waitDevicePackageAbsent', () {
+    test('pidof exit 1 empty on healthy shell is absent', () async {
       final report = await waitDevicePackageAbsent(
         adbPath: '/adb',
         deviceSerial: 'emu',
         packageName: 'com.example.app',
         pollInterval: Duration.zero,
         timeout: const Duration(milliseconds: 50),
-        runAdb: (adb, args) async => ProcessResult(0, 0, '', ''),
+        runAdb: (adb, args) => _healthyShellPidof(
+          adb,
+          args,
+          pidof: () async => ProcessResult(0, 1, '', ''),
+        ),
       );
       expect(report.absentObserved, isTrue);
-      expect(report.proven, isFalse);
+      expect(report.adbFailed, isFalse);
+      expect(report.deviceShellVerified, isTrue);
+    });
+
+    test('device offline is transport failure not absent', () async {
+      final report = await waitDevicePackageAbsent(
+        adbPath: '/adb',
+        deviceSerial: 'emu',
+        packageName: 'com.example.app',
+        pollInterval: Duration.zero,
+        timeout: const Duration(milliseconds: 10),
+        runAdb: (adb, args) async {
+          if (args.contains('echo')) {
+            return ProcessResult(0, 1, '', 'device offline');
+          }
+          return ProcessResult(0, 1, '', '');
+        },
+      );
+      expect(report.absentObserved, isFalse);
+      expect(report.adbFailed, isTrue);
     });
 
     test('times out when pid keeps reporting', () async {
@@ -161,7 +233,11 @@ void main() {
         packageName: 'com.example.app',
         pollInterval: Duration.zero,
         timeout: const Duration(milliseconds: 1),
-        runAdb: (adb, args) async => ProcessResult(0, 0, '4242', ''),
+        runAdb: (adb, args) => _healthyShellPidof(
+          adb,
+          args,
+          pidof: () async => ProcessResult(0, 0, '4242', ''),
+        ),
       );
       expect(report.timedOut, isTrue);
       expect(report.absentObserved, isFalse);

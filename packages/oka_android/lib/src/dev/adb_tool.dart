@@ -101,6 +101,17 @@ List<String> adbForwardRemoveArgs({
 
 /// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
 /// no stream).
+/// Token echoed by [adbShellSentinelArgs] when `adb shell` is healthy.
+const adbShellSentinelToken = '__oka_dev_shell_ok__';
+
+/// `adb shell echo __oka_dev_shell_ok__` — bounded device transport probe.
+List<String> adbShellSentinelArgs({String? serial}) => [
+  ...adbSerialArgs(serial),
+  'shell',
+  'echo',
+  adbShellSentinelToken,
+];
+
 List<String> adbLogcatDumpArgs({String? serial}) => [
   ...adbSerialArgs(serial),
   'logcat',
