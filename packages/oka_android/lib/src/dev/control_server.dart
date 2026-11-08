@@ -12,7 +12,7 @@
 ///   tool; anything on the machine may drive the session. Documented as
 ///   such everywhere this surface appears.
 /// * JSON lines (`\n`-terminated). Request:
-///   `{"id": <int>, "method": "reload"|"restart"|"stop"|"status"}`.
+///   `{"id": <int>, "method": "reload"|"restart"|"stop"|"quit"|"detach"|"status"}`.
 ///   Response: `{"id": int, "ok": true, "result": {...}}` (angle brackets omitted) |
 ///   `{"id": <int>, "ok": false, "error": "<human-readable fix>"}`.
 /// * reload/restart carry the ACTUAL daemon outcome (`fallback: true`
@@ -21,6 +21,7 @@
 ///   clients must handle EOF by re-reading
 ///   `.flutter_mcp/runner-session.json`.
 /// * stop stops the app; the session keeps running.
+/// * quit / detach end the owning session (same commands as `--json` stdin).
 /// * status answers from session metadata (no daemon round-trip).
 /// * Unknown method / malformed JSON → per-id error response; the
 ///   connection stays open.
@@ -230,7 +231,7 @@ class DevControlServer {
         'ok': false,
         'error':
             'Missing or non-string "method" — expected one of '
-            'reload | restart | stop | status.',
+            'reload | restart | stop | quit | detach | status.',
       });
       return;
     }
@@ -247,6 +248,8 @@ class DevControlServer {
             'mode': info.mode,
           },
         });
+      case 'quit' || 'detach':
+        unawaited(_handleSessionEnd(method.trim(), id, socket));
       case 'reload' || 'restart' || 'stop':
         unawaited(_handleOperation(method.trim(), id, socket));
       default:
@@ -255,9 +258,32 @@ class DevControlServer {
           'ok': false,
           'error':
               "Unknown method '$method' — expected one of "
-              'reload | restart | stop | status.',
+              'reload | restart | stop | quit | detach | status.',
         });
     }
+  }
+
+  /// Accepts `quit` / `detach` on the delegation channel (automation path).
+  ///
+  /// Responds immediately once the command is queued; the client must still
+  /// observe runner discovery absence and process exit (the writer-owned
+  /// liveness contract — not proof of device-side teardown).
+  Future<void> _handleSessionEnd(
+    String method,
+    int id,
+    Socket socket,
+  ) async {
+    final command = method == 'quit'
+        ? DevControlCommand.quit
+        : DevControlCommand.detach;
+    _onCommand(command);
+    _respond(socket, {
+      'id': id,
+      'ok': true,
+      'result': {
+        'session': method == 'quit' ? 'quit_accepted' : 'detach_accepted',
+      },
+    });
   }
 
   /// Maps one control method to a [DevControlCommand], waits (bounded) for

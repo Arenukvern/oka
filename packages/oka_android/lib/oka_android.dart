@@ -123,6 +123,8 @@ export 'src/dependency_plan.dart';
 export 'src/dev/adb_tool.dart';
 export 'src/dev/avd_session_state.dart';
 export 'src/dev/control_server.dart';
+export 'src/dev/dev_control_client.dart';
+export 'src/dev/dev_session_stop.dart';
 export 'src/dev/daemon_adapter.dart';
 export 'src/dev/detached_spawn.dart';
 export 'src/dev/dev_discovery_store.dart';

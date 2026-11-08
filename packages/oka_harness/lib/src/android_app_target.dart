@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_mcp_harness/flutter_mcp_harness.dart';
+import 'package:flutter_mcp_harness/flutter_mcp_harness.dart'
+    show LogTap, ToolkitDriver, VmClient;
 import 'package:oka_android/oka_android.dart';
 
+import 'oka_launched_app.dart';
 import 'session_composition.dart';
 
 /// Brings an Android app up through oka's owning dev session.
@@ -22,7 +24,7 @@ import 'session_composition.dart';
 /// App logs under automation surface through adb logcat streamed into the
 /// same [LaunchedApp.stdout] tap (prefixed `[logcat] `), so log-based
 /// assertions work the same as on desktop targets.
-final class AndroidAppTarget implements AppTarget {
+final class AndroidAppTarget {
   AndroidAppTarget({
     required this.projectDir,
     this.deviceId,
@@ -31,6 +33,7 @@ final class AndroidAppTarget implements AppTarget {
     this.name = 'android-app',
     this.okaBin = 'oka',
     this.logcat = true,
+    this.jsonControl = true,
     this.sessionTimeout = const Duration(minutes: 5),
   });
 
@@ -52,10 +55,12 @@ final class AndroidAppTarget implements AppTarget {
   /// Override in tests (a fake `oka` script); defaults to `oka` on PATH.
   final String okaBin;
   final bool logcat;
+
+  /// Enables the `--json` stdin quit line when the control port is unreachable.
+  final bool jsonControl;
   final Duration sessionTimeout;
 
-  @override
-  Future<LaunchedApp> launch({bool build = true}) async {
+  Future<OkaLaunchedApp> launch({bool build = true}) async {
     // A stale file would look like a live session; the runner deletes it on
     // exit, so anything left is debris (crash, SIGKILL).
     await clearRunnerSessionFile(projectDir);
@@ -94,6 +99,7 @@ final class AndroidAppTarget implements AppTarget {
     final args = <String>[
       'dev',
       'android',
+      if (jsonControl) '--json',
       if (deviceId != null) ...['--device', deviceId!],
       ...defineArgs,
     ];
@@ -118,12 +124,15 @@ final class AndroidAppTarget implements AppTarget {
       if (logcat) {
         logcatProcess = await _startLogcat(session.deviceId, tap);
       }
-      return LaunchedApp(
+      return OkaLaunchedApp(
         name: name,
         process: process,
         stdout: tap,
         vmUri: Uri.parse(session.vmServiceUri),
-        onStop: () async {
+        projectDir: projectDir,
+        controlPort: session.controlPort,
+        stdinJsonQuitEnabled: jsonControl,
+        onStopExtra: () async {
           logcatProcess?.kill();
         },
       );

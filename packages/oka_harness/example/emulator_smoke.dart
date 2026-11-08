@@ -55,7 +55,10 @@ Future<void> main(List<String> args) async {
       );
     }
   } finally {
-    await app.stop();
+    final report = await app.stopSession();
+    stdout.writeln('stop: ${report.disposition.name} '
+        'discovery=${report.runnerSessionCleared} '
+        'limits=${report.limits}');
   }
   exit(passed ? 0 : 1);
 }

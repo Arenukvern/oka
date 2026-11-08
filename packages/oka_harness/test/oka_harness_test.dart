@@ -7,7 +7,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_mcp_harness/flutter_mcp_harness.dart' show LaunchedApp;
+import 'package:oka_android/oka_android.dart';
 import 'package:oka_harness/oka_harness.dart';
 import 'package:test/test.dart';
 
@@ -41,6 +41,16 @@ cat > .flutter_mcp/runner-session.json <<'JSON'
 }
 JSON
 echo "fake session published"
+if echo " $*" | grep -q ' --json'; then
+  while read -r line; do
+    case "$line" in quit|exit)
+      rm -f .flutter_mcp/runner-session.json
+      echo "fake-oka cooperative quit"
+      exit 0
+      ;;
+    esac
+  done
+fi
 sleep 300
 ''';
 
@@ -82,7 +92,7 @@ Future<Directory> _withFakeOka(String script) async {
 /// Polls the session tap for [needle] — stdout lines arrive as stream
 /// events, so a just-launched session's echo may lag the returned
 /// [LaunchedApp] by a few hundred milliseconds.
-Future<bool> tapContains(LaunchedApp app, String needle) async {
+Future<bool> tapContains(OkaLaunchedApp app, String needle) async {
   for (var i = 0; i < 30; i++) {
     if (app.stdout.firstMatch(needle) != null) return true;
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -156,7 +166,7 @@ void main() {
     },
   );
 
-  test('stop terminates the owning session', () async {
+  test('stopSession clears discovery cooperatively (not bare SIGTERM)', () async {
     final target = AndroidAppTarget(
       projectDir: workspace.path,
       okaBin: '${workspace.path}/fake_oka',
@@ -164,8 +174,12 @@ void main() {
     );
     final app = await target.launch();
     final pid = app.process.pid;
-    final code = await app.stop();
-    expect(code, isNonZero, reason: 'SIGTERM should end the fake session');
+    final report = await app.stopSession();
+    expect(report.controlQuitAcknowledged, isTrue);
+    expect(report.runnerSessionCleared, isTrue);
+    expect(report.disposition, DevSessionStopDisposition.cooperative);
+    expect(report.ok, isTrue);
+    expect(report.limits, contains('Does not verify adb'));
     // The named observable, checked directly rather than trusted to the
     // exit-code plumbing: the owning session's pid leaves the process
     // table. Generous deadline — CI load can stretch reaping.
@@ -176,8 +190,10 @@ void main() {
         '-o',
         'pid=',
       ]).stdout.toString().trim().isEmpty,
-      reason: 'owning session pid $pid survived stop()',
+      reason: 'owning session pid $pid survived stopSession()',
     );
+    expect(File('${workspace.path}/.flutter_mcp/runner-session.json').existsSync(),
+        isFalse);
   });
 
   test(
