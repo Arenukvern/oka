@@ -20,6 +20,8 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:oka_core/oka_core.dart';
+
 import 'dev_control_client.dart';
 import 'dev_session.dart';
 import 'runner_session_spawn_binding.dart';
@@ -106,6 +108,7 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
   Duration quitTimeout = const Duration(seconds: 45),
   Duration discoveryPoll = const Duration(seconds: 10),
   Duration forceSignalGrace = const Duration(seconds: 5),
+  ProcessTreeProbe spawnBindingProbe = const HostProcessTreeProbe(),
 }) async {
   const limits =
       'Verifies only owning-process exit and runner-session.json absence. '
@@ -133,14 +136,22 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
       final binding = await verifyRunnerSessionSpawnBindingPids(
         discoveryPid: liveDiscovery.pid,
         spawnPid: owningProcess.pid,
+        probe: spawnBindingProbe,
       );
-      if (binding.binding == RunnerSessionSpawnBinding.unrelated) {
+      if (!binding.isPlausibleOwnership) {
         resolvedControlPort = null;
+        final detail = switch (binding.binding) {
+          RunnerSessionSpawnBinding.unrelated =>
+            'runner-session pid ${liveDiscovery.pid} not owned by spawn '
+            '${owningProcess.pid}',
+          RunnerSessionSpawnBinding.unknown =>
+            'spawn ownership unverified (invalid pid or process table '
+            'unavailable)',
+          _ => 'spawn ownership not plausible',
+        };
         controlResponse = {
           'ok': false,
-          'error':
-              'runner-session pid ${liveDiscovery.pid} not owned by spawn '
-              '${owningProcess.pid}; skipping control quit',
+          'error': '$detail; skipping control quit',
         };
       } else if (liveDiscovery.controlPort != resolvedControlPort) {
         resolvedControlPort = liveDiscovery.controlPort;

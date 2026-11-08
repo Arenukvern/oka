@@ -55,6 +55,14 @@ Future<void> _alignDiscoveryPid(
   );
 }
 
+/// Forces [RunnerSessionSpawnBinding.unknown] for fail-closed stop tests.
+final class _UnavailableProcessTreeProbe implements ProcessTreeProbe {
+  const _UnavailableProcessTreeProbe();
+
+  @override
+  Future<ProcessTree?> enumerate(int rootPid) async => null;
+}
+
 Future<Process> _startOwnerShell({
   required Directory root,
   required String scriptBody,
@@ -173,6 +181,54 @@ void main() {
       expect(report.processExitCode, 0);
       expect(report.disposition, DevSessionStopDisposition.cooperative);
       expect(report.ok, isTrue);
+    },
+  );
+
+  test(
+    'unknown spawn binding skips TCP and falls back to stdin quit',
+    () async {
+      final root = await Directory.systemTemp.createTemp('oka_stop_unknown');
+      addTearDown(() => root.delete(recursive: true));
+      var tcpSeen = false;
+      final server = await DevControlServer.start(
+        info: const DevControlSessionInfo(
+          deviceId: 'emu',
+          target: 'lib/main.dart',
+          mode: 'debug',
+        ),
+        onCommand: (_) {
+          tcpSeen = true;
+        },
+      );
+      addTearDown(server.close);
+      final process = await _startOwnerShell(
+        root: root,
+        scriptBody: _stdinQuitOwner,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await writeRunnerSessionFile(
+        root.path,
+        vmServiceUri: 'http://127.0.0.1:1/x',
+        controlPort: server.port,
+        deviceId: 'emu',
+        processPid: 9_999_999,
+      );
+      final report = await stopOkaDevAndroidSession(
+        owningProcess: process,
+        projectPath: root.path,
+        controlPort: server.port,
+        spawnBindingProbe: const _UnavailableProcessTreeProbe(),
+        quitTimeout: const Duration(seconds: 10),
+      );
+      expect(tcpSeen, isFalse);
+      expect(report.controlQuitSent, isFalse);
+      expect(report.controlQuitAcknowledged, isFalse);
+      expect(report.controlQuitConnectFailed, isFalse);
+      expect(report.controlReplyLost, isFalse);
+      expect(report.stdinQuitWritten, isTrue);
+      expect(report.controlResponse?['error'], contains('skipping control quit'));
+      expect(report.runnerSessionCleared, isTrue);
+      expect(report.disposition, DevSessionStopDisposition.cooperative);
     },
   );
 
