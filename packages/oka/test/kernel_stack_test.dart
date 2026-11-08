@@ -20,6 +20,19 @@ void main() {
     expect(root, p.normalize(inner.path));
   });
 
+  test('kernelStackRootForScript finds runner in differently named checkout', () async {
+    final tmp = await Directory.systemTemp.createTemp('oka_kernel_rename');
+    addTearDown(() => tmp.delete(recursive: true));
+    await File(p.join(tmp.path, _runner)).create(recursive: true);
+    final script =
+        File(p.join(tmp.path, 'vendor', 'fork', 'packages', 'oka', 'bin', 'oka.dart'));
+    await script.create(recursive: true);
+    expect(
+      kernelStackRootForScript(script.path, _runner),
+      p.normalize(tmp.path),
+    );
+  });
+
   test('OKA_KERNEL_ROOT overrides walk when runner exists', () async {
     final tmp = await Directory.systemTemp.createTemp('oka_kernel_env');
     addTearDown(() => tmp.delete(recursive: true));

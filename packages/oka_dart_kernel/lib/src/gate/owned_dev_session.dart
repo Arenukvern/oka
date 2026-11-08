@@ -59,6 +59,7 @@ final class OwnedDevSession {
   final StringBuffer _buffer = StringBuffer();
   late StreamSubscription<String> _stdoutSub;
   late StreamSubscription<String> _stderrSub;
+  Completer<OwnedDevSessionTeardown>? _teardownOnce;
 
   String get transcript => _buffer.toString();
   SessionOwnedTree? get ownedTree => _ownedTree;
@@ -238,6 +239,28 @@ final class OwnedDevSession {
     Duration quitGrace = const Duration(seconds: 45),
     Duration stopGrace = const Duration(seconds: 5),
     Duration settle = const Duration(milliseconds: 250),
+  }) async {
+    if (_teardownOnce != null) return _teardownOnce!.future;
+    final once = Completer<OwnedDevSessionTeardown>();
+    _teardownOnce = once;
+  try {
+    final td = await _teardownImpl(
+      quitGrace: quitGrace,
+      stopGrace: stopGrace,
+      settle: settle,
+    );
+    once.complete(td);
+    return td;
+  } on Object catch (e, st) {
+    once.completeError(e, st);
+    rethrow;
+  }
+  }
+
+  Future<OwnedDevSessionTeardown> _teardownImpl({
+    required Duration quitGrace,
+    required Duration stopGrace,
+    required Duration settle,
   }) async {
     final notes = <String>[];
     final rootAliveBefore = await liveness.isAlive(process.pid);

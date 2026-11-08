@@ -3,8 +3,10 @@
 
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
+import 'package:oka_core/oka_core.dart';
 import 'package:oka_dart_kernel/oka_dart_kernel.dart';
+import 'package:oka_dart_kernel/src/gate/dev_gate_signals.dart';
+import 'package:path/path.dart' as p;
 
 Future<void> main(List<String> args) async {
   var leg = 'all';
@@ -20,6 +22,7 @@ Future<void> main(List<String> args) async {
   final useXvfb = Platform.environment['OKA_LINUX_DEV_GATE_USE_XVFB'] == '1';
 
   final gate = LinuxDevGate(workspace: workspace, useXvfb: useXvfb);
+  DevGateSignalCoordinator(onSignal: gate.interruptCleanup).install();
   var failed = 0;
 
   if (leg == 'reload' || leg == 'all') {
@@ -64,18 +67,22 @@ Future<void> main(List<String> args) async {
 }
 
 Future<String> _hostArch() async {
-  final r = await Process.run('uname', ['-m']);
-  return r.exitCode == 0 ? '${r.stdout}'.trim() : 'unknown';
+  final r = await runBoundedProcess(
+    'uname',
+    ['-m'],
+    timeout: const Duration(seconds: 10),
+  );
+  return r.exitCode == 0 ? r.stdout.trim() : 'unknown';
 }
 
 Future<String> _flutterHead(String flutterBin) async {
-  try {
-    final r = await Process.run(flutterBin, ['--version']);
-    if (r.exitCode != 0) return 'unknown';
-    final first = '${r.stdout}'.split('\n').first.trim();
-    final idx = first.indexOf(' • ');
-    return idx == -1 ? first : first.substring(0, idx);
-  } on Object {
-    return 'unknown';
-  }
+  final r = await runBoundedProcess(
+    flutterBin,
+    ['--version'],
+    timeout: const Duration(seconds: 30),
+  );
+  if (r.exitCode != 0) return 'unknown';
+  final first = r.stdout.split('\n').first.trim();
+  final idx = first.indexOf(' • ');
+  return idx == -1 ? first : first.substring(0, idx);
 }

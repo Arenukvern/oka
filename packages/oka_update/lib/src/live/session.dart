@@ -11,6 +11,7 @@ import 'dart:io';
 
 import '../patch_plan.dart';
 import 'events.dart';
+import 'probe_match.dart';
 import 'receipt.dart';
 import 'spec.dart';
 import 'staged_target.dart';
@@ -304,13 +305,14 @@ class LivePatchSession {
         if (outcome.ok) {
           try {
             after = await entry.value.evaluate(p);
-            if (p.expect != null && !after.contains(p.expect!)) {
+            if (p.expect != null &&
+                !probeObservationMatchesExpect(after, p.expect!)) {
               final deadline = DateTime.now().add(
                   Duration(milliseconds: settleBudget));
               while (DateTime.now().isBefore(deadline)) {
                 await Future<void>.delayed(const Duration(seconds: 2));
                 after = await entry.value.evaluate(p);
-                if (after.contains(p.expect!)) break;
+                if (probeObservationMatchesExpect(after, p.expect!)) break;
               }
             }
           } catch (e) {
@@ -326,7 +328,7 @@ class LivePatchSession {
           held = after == before;
           ok = held;
         } else if (ok && p.expect != null) {
-          ok = after.contains(p.expect!);
+          ok = probeObservationMatchesExpect(after, p.expect!);
         }
         results.add(ProbeResult(
             probe: p.expression,

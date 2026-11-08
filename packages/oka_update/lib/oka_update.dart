@@ -23,6 +23,7 @@ export 'src/channel/update_client.dart';
 export 'src/live/agent.dart';
 export 'src/live/assets.dart';
 export 'src/live/events.dart';
+export 'src/live/probe_match.dart';
 export 'src/live/receipt.dart';
 export 'src/live/session.dart';
 export 'src/live/spec.dart';

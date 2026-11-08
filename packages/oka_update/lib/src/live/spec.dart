@@ -151,8 +151,8 @@ class TargetSpec {
 
 /// An observation that must hold or flip after the apply.
 ///
-/// - `expect` set: the value must CONTAIN it after the apply (the patch
-///   took effect).
+/// - `expect` set: the observed value must match it after the apply (exact for
+///   text; integer equality for numeric probes such as ticks/fingerprints).
 /// - `hold: true`: the value must be IDENTICAL before and after — evidence
 ///   the process was never restarted.
 class ProbeSpec {

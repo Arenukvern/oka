@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
+import 'live_verify_receipt.dart';
 import 'owned_dev_session.dart';
 
 /// L0 Linux desktop dev gates driven from Dart (ADR-0036 / UA review).
@@ -31,6 +32,15 @@ final class LinuxDevGate {
     DevSessionSpawner spawn,
   }) sessionStart;
   final DevSessionSpawner sessionSpawn;
+
+  OwnedDevSession? _activeSession;
+
+  /// Stops the in-flight dev session (SIGTERM / gate interrupt).
+  Future<void> interruptCleanup() async {
+    final session = _activeSession;
+    if (session == null) return;
+    await session.teardown();
+  }
 
   String get _appRoot => p.join(workspace, appProject);
   String get _okaDart => p.join(workspace, 'packages/oka/bin/oka.dart');
@@ -85,6 +95,7 @@ final class LinuxDevGate {
         workingDirectory: _sessionCwd,
         spawn: sessionSpawn,
       );
+      _activeSession = session;
 
       if (!await session.waitForPattern('dev: ready')) {
         stderr.writeln('gate: timeout waiting for dev session (linux)');
@@ -199,6 +210,7 @@ final class LinuxDevGate {
       await restore();
       if (session != null) {
         final td = await session.teardown();
+        _activeSession = null;
         if (!td.clean) {
           stderr.writeln(
             'gate: teardown incomplete (survivors: ${td.survivors}; '
@@ -243,12 +255,42 @@ final class LinuxDevGate {
         workingDirectory: _sessionCwd,
         spawn: sessionSpawn,
       );
+      _activeSession = session;
 
       if (!await session.waitForPattern('dev: ready')) {
         stderr.writeln('gate: timeout waiting for dev session (linux)');
         return 1;
       }
       await session.snapshotOwnedTree();
+
+      final vmBoot = _extractVmUri(session.transcript);
+      if (vmBoot == null) {
+        stderr.writeln('FAIL: no VM uri at boot');
+        return 1;
+      }
+      if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmBoot,
+        tag: 'assets-tick-boot',
+        probes: const [_VmProbe('devGateSessionTick()', '0')],
+      )) {
+        stderr.writeln('FAIL: assets leg expects session tick 0 at boot');
+        return 1;
+      }
+      if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmBoot,
+        tag: 'assets-tick-pre',
+        probes: const [
+          _VmProbe('devGateSessionBump()', '1'),
+          _VmProbe('devGateSessionTick()', '1'),
+        ],
+      )) {
+        stderr.writeln('FAIL: assets leg must establish nonzero tick before lanes');
+        return 1;
+      }
 
       stderr.writeln('== [2/5] r <leaf dart>: delta lane');
       await File(leafFile).writeAsString(
@@ -260,6 +302,18 @@ final class LinuxDevGate {
       }
       if (!session.transcript.contains('"reassemble": "ok"')) {
         stderr.writeln('FAIL: reassemble missing');
+        return 1;
+      }
+      final vmAfterReload =
+          _extractVmUri(session.transcript) ?? vmBoot;
+      if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmAfterReload,
+        tag: 'assets-tick-after-reload',
+        probes: const [_VmProbe('devGateSessionTick()', '1')],
+      )) {
+        stderr.writeln('FAIL: reload must preserve session tick');
         return 1;
       }
 
@@ -328,6 +382,7 @@ final class LinuxDevGate {
       await restore();
       if (session != null) {
         final td = await session.teardown();
+        _activeSession = null;
         if (!td.clean) {
           stderr.writeln(
             'gate: teardown incomplete (survivors: ${td.survivors})',
@@ -389,7 +444,14 @@ final class LinuxDevGate {
     final live = p.join(workspace, 'packages/oka_dart_kernel/tool/oka_live.dart');
     final result = await runBoundedProcess(
       Platform.resolvedExecutable,
-      ['--packages=$_packageConfig', live, 'verify', '--spec', specPath],
+      [
+        '--packages=$_packageConfig',
+        live,
+        'verify',
+        '--spec',
+        specPath,
+        '--json',
+      ],
       timeout: const Duration(minutes: 3),
       workingDirectory: workspace,
     );
@@ -397,7 +459,13 @@ final class LinuxDevGate {
     await File(logPath).writeAsString(
       'exit=${result.exitCode}\n${result.stdout}\n${result.stderr}',
     );
-    return result.exitCode == 0 && result.stdout.contains('live patch OK');
+    if (result.exitCode != 0) return false;
+    return assertLiveVerifyReceiptJson(
+      result.stdout,
+      probes: [
+        for (final p in probes) (expression: p.expression, expect: p.expect),
+      ],
+    );
   }
 }
 

@@ -16,6 +16,11 @@ Future<void> main(List<String> args) async {
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     final t = line.trim();
     if (t == 'q') {
+      if (args.contains('--spawn-on-q')) {
+        await Process.start('sleep', ['180']);
+        await Future<void>.delayed(const Duration(seconds: 2));
+        exit(0);
+      }
       if (hang) {
         await Future<void>.delayed(const Duration(hours: 1));
       }
@@ -125,7 +130,8 @@ exit 0
         reason: 'unrelated decoy must survive owned teardown');
   });
 
-  test('teardown: hang-on-quit is tree-stopped', () async {
+  test('teardown: hang-on-quit physically terminates owned tree', () async {
+    const liveness = HostProcessLiveness();
     final session = await OwnedDevSession.start(
       workspace: _scratch.path,
       dartInvocation: [_stub, '--hang-on-quit'],
@@ -135,10 +141,63 @@ exit 0
       isTrue,
       reason: session.transcript,
     );
+    await session.snapshotOwnedTree();
+    final tracked = session.ownedTree!.allTrackedPids;
+
+  final decoy = await Process.start('sleep', ['3600']);
+  addTearDown(() {
+    if (decoy.pid > 0) {
+      Process.killPid(decoy.pid, ProcessSignal.sigkill);
+    }
+  });
+
     final td = await session.teardown(
       quitGrace: const Duration(milliseconds: 200),
       stopGrace: const Duration(seconds: 3),
     );
-    expect(td.survivors, isEmpty, reason: 'owned tree must not survive teardown');
+    expect(td.survivors, isEmpty, reason: td.notes.join('; '));
+    expect(td.clean, isTrue);
+    for (final pid in tracked) {
+      expect(
+        await liveness.isAlive(pid),
+        isFalse,
+        reason: 'tracked pid $pid must be terminated',
+      );
+    }
+    expect(await liveness.isAlive(decoy.pid), isTrue);
+  });
+
+  test('teardown: q spawns owned sleep then exits; sleep must not survive', () async {
+    const liveness = HostProcessLiveness();
+    final session = await OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub, '--spawn-on-q'],
+    );
+    expect(
+      await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
+      isTrue,
+    );
+    await session.snapshotOwnedTree();
+    expect(session.ownedTree!.descendantPids, isEmpty);
+
+    final decoy = await Process.start('sleep', ['3600']);
+    addTearDown(() {
+      if (decoy.pid > 0) {
+        Process.killPid(decoy.pid, ProcessSignal.sigkill);
+      }
+    });
+
+    session.sendLine('q');
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    await session.snapshotOwnedTree();
+    final ownedSleep = session.ownedTree?.descendantPids ?? const <int>[];
+    expect(ownedSleep, isNotEmpty, reason: 'q must leave an owned sleep child');
+
+    final td = await session.teardown(quitGrace: const Duration(seconds: 1));
+    expect(td.clean, isTrue, reason: td.notes.join('; '));
+    for (final pid in ownedSleep) {
+      expect(await liveness.isAlive(pid), isFalse);
+    }
+    expect(await liveness.isAlive(decoy.pid), isTrue);
   });
 }
