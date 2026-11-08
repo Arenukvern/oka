@@ -255,7 +255,10 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
     }
   }
 
-  final sessionCleanup = readSessionTeardownFile(projectPath);
+  final sessionCleanup = readSessionTeardownForOwningStop(
+    projectPath: projectPath,
+    owningPid: owningProcess.pid,
+  );
   final cleanupOk = sessionCleanup == null
       ? null
       : sessionCleanup['actionsSucceeded'] == true;

@@ -258,7 +258,7 @@ Future<DeviceShellHealth> probeDeviceShellHealth({
         message: combined.isEmpty ? 'adb shell sentinel failed' : f.message,
       );
     }
-    return DeviceShellHealth(
+    return const DeviceShellHealth(
       ok: false,
       failureKind: 'unknown',
       message: 'shell sentinel echo mismatch',
@@ -759,16 +759,39 @@ Future<ForwardReleaseAction> releaseSessionOwnedResources(
 
 const sessionTeardownFileName = 'session-teardown.json';
 
+/// Matches `.flutter_mcp/runner-session.json` at teardown write time.
+final class SessionTeardownIdentity {
+  const SessionTeardownIdentity({
+    required this.runnerPid,
+    required this.controlPort,
+    required this.sessionStartedAtUtc,
+  });
+
+  final int runnerPid;
+  final int controlPort;
+  final String sessionStartedAtUtc;
+
+  Map<String, Object?> toJson() => {
+    'runnerPid': runnerPid,
+    'controlPort': controlPort,
+    'sessionStartedAtUtc': sessionStartedAtUtc,
+  };
+}
+
 Future<void> writeSessionTeardownFile(
   String projectPath,
-  DevSessionTeardownReport report,
-) async {
+  DevSessionTeardownReport report, {
+  SessionTeardownIdentity? identity,
+}) async {
   final dir = Directory('$projectPath/.flutter_mcp');
   await dir.create(recursive: true);
   final file = File('${dir.path}/$sessionTeardownFileName');
-  await file.writeAsString(
-    '${jsonEncode(report.toJson())}\n',
-  );
+  final payload = <String, Object?>{
+    'schema': 1,
+    if (identity != null) 'identity': identity.toJson(),
+    ...report.toJson(),
+  };
+  await file.writeAsString('${jsonEncode(payload)}\n');
 }
 
 Map<String, Object?>? readSessionTeardownFile(String projectPath) {
@@ -781,6 +804,23 @@ Map<String, Object?>? readSessionTeardownFile(String projectPath) {
   } on Object {
     return null;
   }
+}
+
+/// Ignores receipts whose [SessionTeardownIdentity.runnerPid] ≠ [owningPid].
+Map<String, Object?>? readSessionTeardownForOwningStop({
+  required String projectPath,
+  required int owningPid,
+}) {
+  final raw = readSessionTeardownFile(projectPath);
+  if (raw == null) return null;
+  final id = raw['identity'];
+  if (id is Map) {
+    final runnerPid = id['runnerPid'];
+    if (runnerPid is int && runnerPid != owningPid) {
+      return null;
+    }
+  }
+  return raw;
 }
 
 Future<void> clearSessionTeardownFile(String projectPath) async {

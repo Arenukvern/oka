@@ -151,7 +151,7 @@ class DevLaunchPrepared {
     required this.vmServiceUri,
     required this.vmServiceLocalPort,
     required this.vmServiceDevicePort,
-    required this.vmServiceHttpAttachUrl,
+    required this.vmServiceDeviceDebugUrl,
     this.devicePackage,
   });
 
@@ -167,8 +167,8 @@ class DevLaunchPrepared {
   /// Device-side VM port at forward creation (logcat announcement).
   final int vmServiceDevicePort;
 
-  /// `flutter attach --debug-url` via the SDK forward (no second adb forward).
-  final String vmServiceHttpAttachUrl;
+  /// Logcat VM service URI (device side) for `flutter attach --debug-url`.
+  final String vmServiceDeviceDebugUrl;
 
   /// Package installed/launched in this pipeline run (`device_package`).
   final String? devicePackage;
@@ -378,14 +378,14 @@ Future<DevLaunchPrepared> prepareDevLaunch({
     uri: vmUri,
   );
   final hostUri = forwardedVmServiceUri(info, localPort);
-  final httpAttachUrl = forwardedVmServiceHttpAttachUrl(info, localPort);
+  final deviceDebugUrl = vmUri;
   await discoveryStore.writeVmUri(projectPath, hostUri);
   return DevLaunchPrepared(
     apkPath: state[apkPath.id] as String? ?? '',
     vmServiceUri: hostUri,
     vmServiceLocalPort: localPort,
     vmServiceDevicePort: devicePort,
-    vmServiceHttpAttachUrl: httpAttachUrl,
+    vmServiceDeviceDebugUrl: deviceDebugUrl,
     devicePackage: devicePackage,
   );
 }
@@ -553,6 +553,13 @@ class DevSession {
   final _queued = <DevControlCommand>[];
   bool _draining = false;
   late DevSessionTeardownBudget _activeTeardownBudget;
+  bool _teardownBudgetStarted = false;
+
+  void _ensureTeardownBudget() {
+    if (_teardownBudgetStarted) return;
+    _activeTeardownBudget = DevSessionTeardownBudget();
+    _teardownBudgetStarted = true;
+  }
 
   /// Runs the session to completion: wait `app.start` → `app.started` →
   /// serve control commands and render daemon events.
@@ -575,8 +582,6 @@ class DevSession {
         .listen((_) {});
 
     var outcome = DevSessionOutcome.daemonExited;
-    final teardownBudget = DevSessionTeardownBudget();
-    _activeTeardownBudget = teardownBudget;
     var budgetExhausted = false;
     try {
       try {
@@ -609,6 +614,8 @@ class DevSession {
     } finally {
       await eventSub.cancel();
       await exitSub.cancel();
+      _ensureTeardownBudget();
+      final teardownBudget = _activeTeardownBudget;
       ForwardReleaseAction? forwardReport;
       DaemonDisposeReport attachReport;
       try {
@@ -647,7 +654,18 @@ class DevSession {
       _emit('session.teardown', teardown.toJson());
       final root = projectPath;
       if (root != null && root.isNotEmpty) {
-        await writeSessionTeardownFile(root, teardown);
+        final discovery = readRunnerSessionFile(root);
+        await writeSessionTeardownFile(
+          root,
+          teardown,
+          identity: discovery == null
+              ? null
+              : SessionTeardownIdentity(
+                  runnerPid: discovery.pid,
+                  controlPort: discovery.controlPort,
+                  sessionStartedAtUtc: discovery.startedAt.toUtc().toIso8601String(),
+                ),
+        );
       }
     }
     return outcome;
@@ -695,6 +713,7 @@ class DevSession {
 
     // Tear-down per outcome before [disposeGracefully] in [run]'s finally.
     if (outcome == DevSessionOutcome.quit) {
+      _ensureTeardownBudget();
       await _stopAppOnQuit(_activeTeardownBudget);
     }
     if (outcome == DevSessionOutcome.detached) {

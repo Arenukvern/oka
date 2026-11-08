@@ -27,13 +27,22 @@ const _remove34381 = <String>[
 void main() {
   group('devSessionTeardownBudget', () {
     test('rejects work after overall budget elapsed', () async {
-      final budget = DevSessionTeardownBudget(
-        total: Duration.zero,
-      );
+      final budget = DevSessionTeardownBudget(total: Duration.zero);
       await Future<void>.delayed(const Duration(milliseconds: 2));
       expect(
         () => budget.run(() => Future<int>.value(1), cap: const Duration(seconds: 1)),
         throwsA(isA<DevSessionTeardownBudgetExhausted>()),
+      );
+    });
+
+    test('budget created at teardown gets full slice not prior session age', () {
+      var t = DateTime.utc(2026, 11, 8, 12);
+      // Simulate hours of attach before quit teardown instantiates budget.
+      t = t.add(const Duration(hours: 2));
+      final budget = DevSessionTeardownBudget(now: () => t);
+      expect(
+        budget.remaining.inSeconds,
+        kDevSessionTeardownBudgetTotal.inSeconds,
       );
     });
   });

@@ -161,15 +161,25 @@ class ProcessDaemonTransport implements DaemonTransport {
 
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
 /// [spawnAttachDaemon]).
+/// [deviceDebugUrl] must be the **device** VM service URI from logcat (not host
+/// forwarded). [hostVmServicePort] must be the SDK adb-forward local port.
 List<String> flutterAttachMachineArgs({
   required String deviceId,
-  String? debugUrl,
+  String? deviceDebugUrl,
+  int? hostVmServicePort,
 }) => [
   'attach',
   '--machine',
   '-d',
   deviceId,
-  if (debugUrl != null && debugUrl.isNotEmpty) ...['--debug-url', debugUrl],
+  if (deviceDebugUrl != null && deviceDebugUrl.isNotEmpty) ...[
+    '--debug-url',
+    deviceDebugUrl,
+  ],
+  if (hostVmServicePort != null && hostVmServicePort > 0) ...[
+    '--host-vmservice-port',
+    '$hostVmServicePort',
+  ],
 ];
 
 /// Spawns `<flutterBinary> attach --machine -d <deviceId>` and returns the
@@ -184,7 +194,8 @@ Future<DaemonTransport> spawnAttachDaemon({
   required String flutterBinary,
   required String deviceId,
   String? adbPath,
-  String? debugUrl,
+  String? deviceDebugUrl,
+  int? hostVmServicePort,
 }) async {
   final environment = <String, String>{...Platform.environment};
   if (adbPath != null && adbPath.isNotEmpty) {
@@ -193,7 +204,11 @@ Future<DaemonTransport> spawnAttachDaemon({
   }
   final process = await Process.start(
     flutterBinary,
-    flutterAttachMachineArgs(deviceId: deviceId, debugUrl: debugUrl),
+    flutterAttachMachineArgs(
+      deviceId: deviceId,
+      deviceDebugUrl: deviceDebugUrl,
+      hostVmServicePort: hostVmServicePort,
+    ),
     environment: environment,
   );
   return ProcessDaemonTransport(process);

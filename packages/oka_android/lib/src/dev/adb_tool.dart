@@ -658,8 +658,8 @@ String forwardedVmServiceUri(VmServiceInfo info, int localPort) {
   return '$scheme://127.0.0.1:$localPort/$authPath';
 }
 
-/// HTTP VM URL for `flutter attach --debug-url` via the SDK adb forward
-/// (avoids flutter creating a second host forward).
+/// Host-loopback HTTP URL (discovery / docs only — **not** for `flutter attach
+/// `--debug-url`, which expects the device logcat URI plus `--host-vmservice-port`).
 String forwardedVmServiceHttpAttachUrl(VmServiceInfo info, int localPort) {
   var auth = info.auth;
   if (auth.endsWith('/ws')) {

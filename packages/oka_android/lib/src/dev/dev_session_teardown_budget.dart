@@ -1,23 +1,34 @@
-/// Shared wall-clock budget for one [DevSession] quit teardown (caller ~45s).
+/// Shared wall-clock budget for one [DevSession] teardown phase only.
 library;
 
 import 'dart:async';
 
-/// One overall budget (default 44s) shared by app.stop, adb, and attach exit.
-final class DevSessionTeardownBudget {
-  DevSessionTeardownBudget({Duration total = const Duration(seconds: 44)})
-    : _deadline = DateTime.now().add(total);
+/// Injectable clock (tests prove budget is not created during long sessions).
+typedef TeardownBudgetNow = DateTime Function();
 
+/// In-session teardown wall time (leaves margin under 45s cooperative stop).
+///
+/// Attach kill backstop (+2s) and CLI control-close / file IO sit outside this.
+const kDevSessionTeardownBudgetTotal = Duration(seconds: 36);
+
+/// One budget created when quit/detach/daemon teardown begins — not at attach.
+final class DevSessionTeardownBudget {
+  DevSessionTeardownBudget({
+    Duration total = kDevSessionTeardownBudgetTotal,
+    TeardownBudgetNow? now,
+  }) : _now = now ?? DateTime.now,
+       _deadline = (now ?? DateTime.now)().add(total);
+
+  final TeardownBudgetNow _now;
   final DateTime _deadline;
 
-  bool get exhausted => DateTime.now().isAfter(_deadline);
+  bool get exhausted => _now().isAfter(_deadline);
 
   Duration get remaining {
-    final left = _deadline.difference(DateTime.now());
+    final left = _deadline.difference(_now());
     return left.isNegative ? Duration.zero : left;
   }
 
-  /// Caps [operation] at [cap] and at [remaining]; throws on overall expiry.
   Future<T> run<T>(
     Future<T> Function() operation, {
     required Duration cap,
@@ -33,5 +44,4 @@ final class DevSessionTeardownBudget {
   }
 }
 
-/// Thrown when the shared teardown budget is exhausted.
 final class DevSessionTeardownBudgetExhausted implements Exception {}

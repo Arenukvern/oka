@@ -28,6 +28,9 @@ class FakeDaemonTransport implements DaemonTransport {
   /// stops answering — e.g. the physical-device attach-mode restart hang).
   final Set<String> silentMethods = {};
 
+  /// When false, `app.stop` RPC succeeds but no `app.stop` event (attach-mode).
+  bool emitAppStopEventOnStop = true;
+
   void emit(String line) => _stdout.add(utf8.encode('$line\n'));
 
   void emitEvent(
@@ -102,7 +105,7 @@ class FakeDaemonTransport implements DaemonTransport {
       final responder = respondTo;
       if (responder != null) respond(id, result: responder(method));
     }
-    if (method == 'app.stop') {
+    if (method == 'app.stop' && emitAppStopEventOnStop) {
       emitEvent('app.stop');
     }
     if (method == 'daemon.shutdown' && !_exit.isCompleted) {
@@ -130,7 +133,8 @@ void main() {
       expect(
         flutterAttachMachineArgs(
           deviceId: 'emulator-5554',
-          debugUrl: 'http://127.0.0.1:34381/AbCd=/',
+          deviceDebugUrl: 'http://127.0.0.1:35699/AbCd=/',
+          hostVmServicePort: 34381,
         ),
         [
           'attach',
@@ -138,7 +142,9 @@ void main() {
           '-d',
           'emulator-5554',
           '--debug-url',
-          'http://127.0.0.1:34381/AbCd=/',
+          'http://127.0.0.1:35699/AbCd=/',
+          '--host-vmservice-port',
+          '34381',
         ],
       );
     });

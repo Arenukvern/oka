@@ -207,6 +207,7 @@ class DevCommand {
       // VM-service steps) then spawn the attach daemon from the recorded
       // SDK binary.
       prepare: () async {
+        await clearSessionTeardownFile(projectPath);
         // Device half first (install/launch/logscan + VM-service steps);
         // a failure throws DevLaunchException, handled by DevFlow.
         final prepared = await prepareDevLaunch(
@@ -219,7 +220,8 @@ class DevCommand {
           flutterBinary: flutterBinary,
           deviceId: deviceId,
           adbPath: devToolPath,
-          debugUrl: prepared.vmServiceHttpAttachUrl,
+          deviceDebugUrl: prepared.vmServiceDeviceDebugUrl,
+          hostVmServicePort: prepared.vmServiceLocalPort,
         );
         final adapter = FlutterDaemonAdapter(
           transport: transport,
@@ -291,7 +293,6 @@ class DevCommand {
       await controlServer.close();
       await clearVmUriFile(projectPath);
       await clearRunnerSessionFile(projectPath);
-      await clearSessionTeardownFile(projectPath);
     }
     exit(code);
   }
