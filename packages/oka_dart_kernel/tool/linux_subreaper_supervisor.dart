@@ -127,7 +127,10 @@ Future<bool> _runSettle({
         rootPid: child.pid,
       );
     }
-    final drain = await drainSubreaperAdoptees(supervisorPid: self);
+    final drain = await drainSubreaperAdoptees(
+      supervisorPid: self,
+      budget: const Duration(seconds: 30),
+    );
     await emitAck(drain);
     return drain.settled && drain.verified && drain.survivors.isEmpty;
   } on Object catch (e) {

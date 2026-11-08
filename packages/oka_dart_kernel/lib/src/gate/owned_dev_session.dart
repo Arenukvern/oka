@@ -637,15 +637,6 @@ final class OwnedDevSession {
     }
     _controlReader = null;
     try {
-      final dir = _controlSink?.parent;
-      if (dir != null && await dir.exists()) {
-        await dir.delete(recursive: true);
-      }
-    } on Object {
-      // Best-effort control sink cleanup after session finishes.
-    }
-
-    try {
       await process.stdin.close();
     } on Object catch (e) {
       notes.add('stdin close: $e');
@@ -756,6 +747,15 @@ final class OwnedDevSession {
         supervisorDrainVerified &&
         !finalLivenessIncomplete;
     final clean = verified && uniqueSurvivors.isEmpty;
+
+    try {
+      final dir = _controlSink?.parent;
+      if (dir != null && await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    } on Object {
+      // Best-effort control sink cleanup after session finishes.
+    }
 
     return OwnedDevSessionTeardown(
       clean: clean,
