@@ -208,6 +208,7 @@ class DevCommand {
       // SDK binary.
       prepare: () async {
         await clearSessionTeardownFile(projectPath);
+        await clearAttachHandshakeDiagnostic(projectPath);
         // Device half first (install/launch/logscan + VM-service steps);
         // a failure throws DevLaunchException, handled by DevFlow.
         final prepared = await prepareDevLaunch(
@@ -216,11 +217,16 @@ class DevCommand {
           adbPath: devToolPath,
           verbose: verbose,
         );
+        final attachArgv = flutterAttachMachineArgs(
+          deviceId: deviceId,
+          deviceVmServicePort: prepared.vmServiceDevicePort,
+          hostVmServicePort: prepared.vmServiceLocalPort,
+        );
         final transport = await spawnAttachDaemon(
           flutterBinary: flutterBinary,
           deviceId: deviceId,
           adbPath: devToolPath,
-          deviceDebugUrl: prepared.vmServiceDeviceDebugUrl,
+          deviceVmServicePort: prepared.vmServiceDevicePort,
           hostVmServicePort: prepared.vmServiceLocalPort,
         );
         final adapter = FlutterDaemonAdapter(
@@ -229,6 +235,10 @@ class DevCommand {
         );
         return DevSession(
           adapter: adapter,
+          attachFlutterArgv: attachArgv,
+          attachVmServiceDeviceDebugUrl: prepared.vmServiceDeviceDebugUrl,
+          attachVmServiceDevicePort: prepared.vmServiceDevicePort,
+          attachVmServiceHostPort: prepared.vmServiceLocalPort,
           session: session,
           deviceId: deviceId,
           json: json,

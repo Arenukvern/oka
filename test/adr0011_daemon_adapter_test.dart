@@ -133,7 +133,7 @@ void main() {
       expect(
         flutterAttachMachineArgs(
           deviceId: 'emulator-5554',
-          deviceDebugUrl: 'http://127.0.0.1:35699/AbCd=/',
+          deviceVmServicePort: 35699,
           hostVmServicePort: 34381,
         ),
         [
@@ -141,11 +141,16 @@ void main() {
           '--machine',
           '-d',
           'emulator-5554',
-          '--debug-url',
-          'http://127.0.0.1:35699/AbCd=/',
+          '--device-vmservice-port',
+          '35699',
           '--host-vmservice-port',
           '34381',
         ],
+      );
+
+      expect(
+        flutterAttachMachineArgs(deviceId: 'emu'),
+        ['attach', '--machine', '-d', 'emu'],
       );
     });
   });

@@ -161,20 +161,23 @@ class ProcessDaemonTransport implements DaemonTransport {
 
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
 /// [spawnAttachDaemon]).
-/// [deviceDebugUrl] must be the **device** VM service URI from logcat (not host
-/// forwarded). [hostVmServicePort] must be the SDK adb-forward local port.
+///
+/// When the SDK already owns an adb forward, pass [deviceVmServicePort] and
+/// [hostVmServicePort] only — **not** `--debug-url`. Pinned flutter_tools 3.47.x
+/// with explicit device `--debug-url` plus host port can emit `app.stop` shortly
+/// after `app.start` without reaching `app.started` (native b946 evidence).
 List<String> flutterAttachMachineArgs({
   required String deviceId,
-  String? deviceDebugUrl,
+  int? deviceVmServicePort,
   int? hostVmServicePort,
 }) => [
   'attach',
   '--machine',
   '-d',
   deviceId,
-  if (deviceDebugUrl != null && deviceDebugUrl.isNotEmpty) ...[
-    '--debug-url',
-    deviceDebugUrl,
+  if (deviceVmServicePort != null && deviceVmServicePort > 0) ...[
+    '--device-vmservice-port',
+    '$deviceVmServicePort',
   ],
   if (hostVmServicePort != null && hostVmServicePort > 0) ...[
     '--host-vmservice-port',
@@ -194,7 +197,7 @@ Future<DaemonTransport> spawnAttachDaemon({
   required String flutterBinary,
   required String deviceId,
   String? adbPath,
-  String? deviceDebugUrl,
+  int? deviceVmServicePort,
   int? hostVmServicePort,
 }) async {
   final environment = <String, String>{...Platform.environment};
@@ -206,7 +209,7 @@ Future<DaemonTransport> spawnAttachDaemon({
     flutterBinary,
     flutterAttachMachineArgs(
       deviceId: deviceId,
-      deviceDebugUrl: deviceDebugUrl,
+      deviceVmServicePort: deviceVmServicePort,
       hostVmServicePort: hostVmServicePort,
     ),
     environment: environment,
@@ -278,11 +281,29 @@ class FlutterDaemonAdapter {
   void _onStdoutData(String chunk) =>
       chunk.split('\n').forEach(_handleLine);
 
+  final _stderrRing = <String>[];
+  static const _stderrRingMax = 80;
+
+  /// Recent attach process stderr (for failure diagnostics).
+  List<String> get stderrTail => List<String>.unmodifiable(_stderrRing);
+
+  /// Machine events received so far (event name → latest params).
+  Map<String, Object?> snapshotMachineEvents() => {
+    for (final e in _seen.entries)
+      e.key: <String, Object?>{
+        'params': e.value.params,
+      },
+  };
+
   void _onStderrData(String chunk) {
-    if (!verbose) return;
     for (final line in chunk.split('\n')) {
       final t = line.trim();
-      if (t.isNotEmpty) onChatter?.call('[daemon:err] $t');
+      if (t.isEmpty) continue;
+      _stderrRing.add(t);
+      if (_stderrRing.length > _stderrRingMax) {
+        _stderrRing.removeAt(0);
+      }
+      if (verbose) onChatter?.call('[daemon:err] $t');
     }
   }
 

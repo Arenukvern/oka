@@ -31,6 +31,7 @@ import 'package:path/path.dart' as p;
 import '../android_artifacts.dart';
 import '../build/toolchain.dart';
 import 'adb_tool.dart';
+import 'attach_handshake_diagnostic.dart';
 import 'daemon_adapter.dart';
 import 'dev_discovery_store.dart';
 import 'dev_events.dart';
@@ -488,6 +489,10 @@ class DevSession {
     this.attachHost,
     this.projectPath,
     this.teardownBudgetTotal = kDevSessionTeardownBudgetTotal,
+    this.attachFlutterArgv,
+    this.attachVmServiceDeviceDebugUrl,
+    this.attachVmServiceDevicePort,
+    this.attachVmServiceHostPort,
     DevEventRenderer? renderer,
   }) : _renderer = renderer ??
             (json
@@ -543,6 +548,12 @@ class DevSession {
 
   /// Overall in-session teardown cap (tests may use a short value).
   final Duration teardownBudgetTotal;
+
+  /// Spawn argv for failure diagnostics (attach-handshake-failure.json).
+  final List<String>? attachFlutterArgv;
+  final String? attachVmServiceDeviceDebugUrl;
+  final int? attachVmServiceDevicePort;
+  final int? attachVmServiceHostPort;
   final DevEventRenderer _renderer;
 
   DevSessionTeardownReport? lastTeardownReport;
@@ -602,12 +613,28 @@ class DevSession {
           timeout: startupTimeout,
         );
         if (!started) {
+          final err =
+              'flutter attach did not reach app.started within '
+              '${startupTimeout.inSeconds}s';
           write(
-            '❌ flutter attach did not reach app.started within '
-            '${startupTimeout.inSeconds}s. Is the app running on $deviceId?\n'
+            '❌ $err. Is the app running on $deviceId?\n'
             '   fix: `oka run device` first (installs + launches the '
             'oka-built debug APK), then re-run `oka dev`.',
           );
+          final root = projectPath;
+          if (root != null &&
+              root.isNotEmpty &&
+              attachFlutterArgv != null) {
+            await writeAttachHandshakeDiagnostic(
+              projectPath: root,
+              flutterAttachArgv: attachFlutterArgv!,
+              adapter: adapter,
+              deviceDebugUrl: attachVmServiceDeviceDebugUrl,
+              deviceVmServicePort: attachVmServiceDevicePort,
+              hostVmServicePort: attachVmServiceHostPort,
+              primaryError: err,
+            );
+          }
         } else {
           _emit('session.ready', {
             'device': deviceId,
