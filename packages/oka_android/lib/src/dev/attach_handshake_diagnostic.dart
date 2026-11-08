@@ -29,7 +29,7 @@ Future<void> writeAttachHandshakeDiagnostic({
       if (hostVmServicePort != null)
         MapEntry('hostForwardPort', hostVmServicePort),
     ]),
-    'machineEvents': adapter.snapshotMachineEvents(),
+    'machineEventRing': adapter.snapshotMachineEventRing(),
     'stderrTail': adapter.stderrTail,
     'attachExited': adapter.exited,
     'appStartReceived': adapter.appStartReceived,

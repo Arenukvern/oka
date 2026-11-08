@@ -94,6 +94,32 @@ class DaemonException implements Exception {
   String toString() => message;
 }
 
+/// Why attach startup ended before `app.started`.
+enum AttachHandshakeFailure {
+  appStopBeforeStarted,
+  daemonExitedBeforeStarted,
+  timedOut,
+}
+
+/// One machine-protocol event in arrival order (duplicates retained).
+final class MachineEventRingEntry {
+  const MachineEventRingEntry({
+    required this.event,
+    required this.atUtc,
+    required this.params,
+  });
+
+  final String event;
+  final String atUtc;
+  final Map<String, Object?> params;
+
+  Map<String, Object?> toJson() => {
+    'event': event,
+    'atUtc': atUtc,
+    'params': params,
+  };
+}
+
 /// Outcome of [FlutterDaemonAdapter.disposeGracefully] (bounded attach exit).
 final class DaemonDisposeReport {
   const DaemonDisposeReport({
@@ -163,9 +189,9 @@ class ProcessDaemonTransport implements DaemonTransport {
 /// [spawnAttachDaemon]).
 ///
 /// When the SDK already owns an adb forward, pass [deviceVmServicePort] and
-/// [hostVmServicePort] only — **not** `--debug-url`. Pinned flutter_tools 3.47.x
-/// with explicit device `--debug-url` plus host port can emit `app.stop` shortly
-/// after `app.start` without reaching `app.started` (native b946 evidence).
+/// [hostVmServicePort] only — not `--debug-url`. Native pre-proof logs
+/// correlated `--debug-url` plus host port with `app.stop` soon after `app.start`
+/// and no `app.started`; treat as correlation until attach child logs confirm.
 List<String> flutterAttachMachineArgs({
   required String deviceId,
   int? deviceVmServicePort,
@@ -282,26 +308,53 @@ class FlutterDaemonAdapter {
       chunk.split('\n').forEach(_handleLine);
 
   final _stderrRing = <String>[];
-  static const _stderrRingMax = 80;
+  static const _stderrRingMaxLines = 80;
+  static const _stderrRingMaxBytes = 16 * 1024;
+  var _stderrRingBytes = 0;
+
+  final _eventRing = <MachineEventRingEntry>[];
+  static const _eventRingMaxEntries = 64;
+  static const _eventRingMaxBytes = 32 * 1024;
+  var _eventRingBytes = 0;
 
   /// Recent attach process stderr (for failure diagnostics).
   List<String> get stderrTail => List<String>.unmodifiable(_stderrRing);
 
-  /// Machine events received so far (event name → latest params).
-  Map<String, Object?> snapshotMachineEvents() => {
-    for (final e in _seen.entries)
-      e.key: <String, Object?>{
-        'params': e.value.params,
-      },
-  };
+  /// Machine events in arrival order (duplicates retained).
+  List<Map<String, Object?>> snapshotMachineEventRing() =>
+      _eventRing.map((e) => e.toJson()).toList(growable: false);
+
+  bool get appStartedReceived => _seen.containsKey('app.started');
+
+  void _appendEventRing(DaemonEvent event) {
+    final entry = MachineEventRingEntry(
+      event: event.event,
+      atUtc: DateTime.now().toUtc().toIso8601String(),
+      params: Map<String, Object?>.from(event.params),
+    );
+    final encoded = utf8.encode(jsonEncode(entry.toJson()));
+    _eventRing.add(entry);
+    _eventRingBytes += encoded.length;
+    while (_eventRing.length > _eventRingMaxEntries ||
+        _eventRingBytes > _eventRingMaxBytes) {
+      final removed = _eventRing.removeAt(0);
+      _eventRingBytes -= utf8.encode(jsonEncode(removed.toJson())).length;
+      if (_eventRingBytes < 0) _eventRingBytes = 0;
+    }
+  }
 
   void _onStderrData(String chunk) {
     for (final line in chunk.split('\n')) {
       final t = line.trim();
       if (t.isEmpty) continue;
+      final bytes = utf8.encode(t).length + 1;
       _stderrRing.add(t);
-      if (_stderrRing.length > _stderrRingMax) {
-        _stderrRing.removeAt(0);
+      _stderrRingBytes += bytes;
+      while (_stderrRing.length > _stderrRingMaxLines ||
+          _stderrRingBytes > _stderrRingMaxBytes) {
+        final dropped = _stderrRing.removeAt(0);
+        _stderrRingBytes -= utf8.encode(dropped).length + 1;
+        if (_stderrRingBytes < 0) _stderrRingBytes = 0;
       }
       if (verbose) onChatter?.call('[daemon:err] $t');
     }
@@ -361,6 +414,7 @@ class FlutterDaemonAdapter {
   void _handleEvent(DaemonEvent event) {
     final firstOfKind = !_seen.containsKey(event.event);
     _seen[event.event] = event;
+    _appendEventRing(event);
     if (event.event == 'app.start' && firstOfKind) {
       _appStart?.complete();
       _appStart = null;
@@ -416,6 +470,54 @@ class FlutterDaemonAdapter {
                   '${timeout.inSeconds}s — is a debug build running on the device?'
             : 'flutter attach exited before app.start',
       );
+    }
+  }
+
+  /// After [waitAppStart], wait for `app.started` or fail fast on `app.stop` /
+  /// daemon exit (no full [timeout] wait once fatal machine events are seen).
+  Future<AttachHandshakeFailure?> waitForAppStarted({
+    Duration timeout = const Duration(seconds: 90),
+  }) async {
+    if (appStartedReceived) return null;
+    if (_exited) return AttachHandshakeFailure.daemonExitedBeforeStarted;
+    final completer = Completer<AttachHandshakeFailure?>();
+    late final StreamSubscription<DaemonEvent> sub;
+    Timer? timer;
+    void done(AttachHandshakeFailure? failure) {
+      if (!completer.isCompleted) completer.complete(failure);
+    }
+
+    sub = events.listen((event) {
+      if (event.event == 'app.started') {
+        done(null);
+        return;
+      }
+      if (event.event == 'app.stop' && !appStartedReceived) {
+        done(AttachHandshakeFailure.appStopBeforeStarted);
+      }
+    });
+
+    timer = Timer(timeout, () {
+      if (!appStartedReceived) {
+        done(AttachHandshakeFailure.timedOut);
+      } else {
+        done(null);
+      }
+    });
+
+    late final StreamSubscription<void> exitSub;
+    exitSub = _transport.exitCode.then((_) {
+      if (!appStartedReceived && !completer.isCompleted) {
+        done(AttachHandshakeFailure.daemonExitedBeforeStarted);
+      }
+    }).asStream().listen((_) {});
+
+    try {
+      return await completer.future;
+    } finally {
+      timer.cancel();
+      await sub.cancel();
+      await exitSub.cancel();
     }
   }
 

@@ -603,38 +603,30 @@ class DevSession {
       try {
         await adapter.waitAppStart(timeout: startupTimeout);
       } on DaemonException catch (e) {
+        await _writeAttachHandshakeDiagnostic(e.message);
         write('❌ ${e.message}');
       }
 
       if (adapter.appStartReceived) {
-        // Wait for app.started (bounded) — attach syncs files first.
-        final started = await _waitForEvent(
-          'app.started',
+        final failure = await adapter.waitForAppStarted(
           timeout: startupTimeout,
         );
-        if (!started) {
-          final err =
+        if (failure != null) {
+          final err = switch (failure) {
+            AttachHandshakeFailure.appStopBeforeStarted =>
+              'flutter attach emitted app.stop before app.started',
+            AttachHandshakeFailure.daemonExitedBeforeStarted =>
+              'flutter attach exited before app.started',
+            AttachHandshakeFailure.timedOut =>
               'flutter attach did not reach app.started within '
-              '${startupTimeout.inSeconds}s';
+                  '${startupTimeout.inSeconds}s',
+          };
+          await _writeAttachHandshakeDiagnostic(err);
           write(
             '❌ $err. Is the app running on $deviceId?\n'
             '   fix: `oka run device` first (installs + launches the '
             'oka-built debug APK), then re-run `oka dev`.',
           );
-          final root = projectPath;
-          if (root != null &&
-              root.isNotEmpty &&
-              attachFlutterArgv != null) {
-            await writeAttachHandshakeDiagnostic(
-              projectPath: root,
-              flutterAttachArgv: attachFlutterArgv!,
-              adapter: adapter,
-              deviceDebugUrl: attachVmServiceDeviceDebugUrl,
-              deviceVmServicePort: attachVmServiceDevicePort,
-              hostVmServicePort: attachVmServiceHostPort,
-              primaryError: err,
-            );
-          }
         } else {
           _emit('session.ready', {
             'device': deviceId,
@@ -707,25 +699,19 @@ class DevSession {
   PidofWaitAction? _quitPidofAction;
   ForceStopAction? _quitForceStopAction;
 
-  Future<bool> _waitForEvent(
-    String name, {
-    required Duration timeout,
-  }) async {
-    if (adapter.lastEvent(name) != null) return true;
-    final completer = Completer<bool>();
-    late final StreamSubscription<DaemonEvent> sub;
-    sub = adapter.events.listen((e) {
-      if (e.event == name && !completer.isCompleted) {
-        completer.complete(true);
-      }
-    });
-    final timer = Timer(timeout, () {
-      if (!completer.isCompleted) completer.complete(false);
-    });
-    final result = await completer.future;
-    timer.cancel();
-    await sub.cancel();
-    return result;
+  Future<void> _writeAttachHandshakeDiagnostic(String primaryError) async {
+    final root = projectPath;
+    final argv = attachFlutterArgv;
+    if (root == null || root.isEmpty || argv == null) return;
+    await writeAttachHandshakeDiagnostic(
+      projectPath: root,
+      flutterAttachArgv: argv,
+      adapter: adapter,
+      deviceDebugUrl: attachVmServiceDeviceDebugUrl,
+      deviceVmServicePort: attachVmServiceDevicePort,
+      hostVmServicePort: attachVmServiceHostPort,
+      primaryError: primaryError,
+    );
   }
 
   Future<DevSessionOutcome> _serveCommands() async {

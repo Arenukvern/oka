@@ -155,6 +155,29 @@ void main() {
     });
   });
 
+  group('waitForAppStarted (fail-fast)', () {
+    test('app.stop before app.started returns immediately', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1', 'pid': 1});
+      t.emitEvent('app.start', {'appId': 'x', 'launchMode': 'attach'});
+      await adapter.waitAppStart();
+      final watch = Stopwatch()..start();
+      t.emitEvent('app.stop', {'appId': 'x'});
+      final failure = await adapter.waitForAppStarted(
+        timeout: const Duration(seconds: 30),
+      );
+      expect(failure, AttachHandshakeFailure.appStopBeforeStarted);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+      final ring = adapter.snapshotMachineEventRing();
+      expect(
+        ring.map((e) => e['event']).toList(),
+        ['daemon.connected', 'app.start', 'app.stop'],
+      );
+      adapter.dispose();
+    });
+  });
+
   group('event parsing (single-element JSON arrays; feature-detect)', () {
     test('parses the pinned H0 event sequence', () async {
       final t = FakeDaemonTransport();
