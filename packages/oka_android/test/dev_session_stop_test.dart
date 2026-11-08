@@ -260,7 +260,19 @@ void main() {
     addTearDown(() => root.delete(recursive: true));
     const deadPort = 31999;
     final process = await _startDartOwner(root: root, controlPort: deadPort);
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await _waitForDiscoveryFile(root);
+    // Fail-closed gate requires plausible ownership before any TCP dial.
+    await _alignDiscoveryPid(root, process, controlPort: deadPort);
+    final session = readRunnerSessionFile(root.path)!;
+    final binding = await verifyRunnerSessionSpawnBindingPids(
+      discoveryPid: session.pid,
+      spawnPid: process.pid,
+    );
+    expect(
+      binding.isPlausibleOwnership,
+      isTrue,
+      reason: 'fixture must pass ownership before refused-connect',
+    );
     final report = await stopOkaDevAndroidSession(
       owningProcess: process,
       projectPath: root.path,
@@ -271,6 +283,7 @@ void main() {
     addTearDown(() => process.kill(ProcessSignal.sigkill));
     expect(report.controlQuitConnectFailed, isTrue);
     expect(report.controlQuitSent, isFalse);
+    expect(report.controlReplyLost, isFalse);
     expect(report.stdinQuitWritten, isFalse);
     expect(report.disposition, isNot(DevSessionStopDisposition.cooperative));
   });
