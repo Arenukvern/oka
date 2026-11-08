@@ -21,9 +21,26 @@ void main() {
           '--host-vmservice-port',
           '36605',
           '--dds-port',
-          '${attachDdsPortWhenOkaOwnsHostForward}',
+          '$attachDdsPortWhenOkaOwnsHostForward',
         ],
       );
+    });
+
+    test('no host port omits --dds-port', () {
+      final argv = flutterAttachMachineArgs(
+        deviceId: 'emu',
+        deviceVmServicePort: 43239,
+      );
+      expect(argv, isNot(contains('--dds-port')));
+    });
+
+    test('explicit dds override is forwarded', () {
+      final argv = flutterAttachMachineArgs(
+        deviceId: 'emu',
+        hostVmServicePort: 36605,
+        ddsPort: 39123,
+      );
+      expect(argv, containsAll(['--dds-port', '39123']));
     });
   });
 }

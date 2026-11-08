@@ -7,123 +7,7 @@ import 'dart:convert';
 import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
-/// Scripted single-element-JSON-array daemon: records sent command lines,
-/// emits fixture stdout, completes a fake exit code.
-class FakeDaemonTransport implements DaemonTransport {
-  final _stdout = StreamController<List<int>>.broadcast();
-  final _exit = Completer<int>();
-  final sent = <String>[];
-  final killed = <bool>[];
-
-  /// Auto-responder: when non-null, every sent command gets this result
-  /// echoed back with the same id.
-  Object? Function(String method)? respondTo;
-
-  /// Auto-responder for **error** responses (checked before
-  /// [respondTo]); e.g. `(method) => method == 'app.reload'
-  ///     ? 'Observable wipe failed' : null`.
-  Object? Function(String method)? respondErrorTo;
-
-  /// Methods that never get an auto-response (simulates a daemon that
-  /// stops answering — e.g. the physical-device attach-mode restart hang).
-  final Set<String> silentMethods = {};
-
-  /// When false, `app.stop` RPC succeeds but no `app.stop` event (attach-mode).
-  bool emitAppStopEventOnStop = true;
-
-  void emit(String line) => _stdout.add(utf8.encode('$line\n'));
-
-  /// Multiple JSON lines in one stdout delivery (synchronous chunk parse).
-  void emitChunk(List<String> lines) =>
-      _stdout.add(utf8.encode('${lines.join('\n')}\n'));
-
-  void emitEvent(
-    String name, [
-    Map<String, Object?> params = const {},
-  ]) => emit(
-    jsonEncode([
-      {'event': name, 'params': params},
-    ]),
-  );
-
-  /// Emits a full H0-style attach startup sequence.
-  void emitStartup() {
-    emit(
-      jsonEncode([
-        {
-          'event': 'daemon.connected',
-          'params': {'version': '0.6.1'},
-        },
-      ]),
-    );
-    emitEvent('app.start', {
-      'appId': 'com.example.example',
-      'launchMode': 'attach',
-      'mode': 'debug',
-    });
-    emitEvent('app.debugPort', {
-      'port': 65462,
-      'wsUri': 'ws://127.0.0.1:65462/XZgHLBJKpIA=/ws',
-    });
-    emitEvent('app.progress', {
-      'progressId': 'devFS.update',
-      'message': 'Syncing files to device sdk gphone64 arm64...',
-    });
-    emitEvent('app.started', {'appId': 'com.example.example'});
-  }
-
-  void respond(int id, {Object? result, Object? error}) =>
-      emit(
-        jsonEncode([
-          {'id': id, 'result': ?result, 'error': ?error},
-        ]),
-      );
-
-  void exitWith(int code) {
-    if (!_exit.isCompleted) _exit.complete(code);
-  }
-
-  @override
-  Stream<List<int>> get stdout => _stdout.stream;
-
-  @override
-  Stream<List<int>> get stderr => const Stream<List<int>>.empty();
-
-  @override
-  Future<int> get exitCode => _exit.future;
-
-  @override
-  void writeLine(String line) {
-    sent.add(line);
-    // Auto-respond with the daemon's response shape (id echo) when a
-    // responder is installed; otherwise the test replies manually.
-    final decoded = jsonDecode(line) as List;
-    final id = (decoded.single as Map)['id'] as int;
-    final method = (decoded.single as Map)['method'] as String;
-    if (silentMethods.contains(method)) return;
-    final errorResponder = respondErrorTo;
-    final err = errorResponder?.call(method);
-    if (err != null) {
-      respond(id, error: err);
-    } else {
-      final responder = respondTo;
-      if (responder != null) respond(id, result: responder(method));
-    }
-    if (method == 'app.stop' && emitAppStopEventOnStop) {
-      emitEvent('app.stop');
-    }
-    if (method == 'daemon.shutdown' && !_exit.isCompleted) {
-      exitWith(0);
-    }
-  }
-
-  @override
-  bool kill() {
-    killed.add(true);
-    exitWith(0);
-    return true;
-  }
-}
+import '../packages/oka_android/test/support/fake_daemon_transport.dart';
 
 void main() {
   group('flutterAttachMachineArgs (pure argv)', () {
@@ -157,6 +41,36 @@ void main() {
       expect(
         flutterAttachMachineArgs(deviceId: 'emu'),
         ['attach', '--machine', '-d', 'emu'],
+      );
+
+      expect(
+        flutterAttachMachineArgs(
+          deviceId: 'emu',
+          deviceVmServicePort: 43239,
+        ),
+        [
+          'attach',
+          '--machine',
+          '-d',
+          'emu',
+          '--device-vmservice-port',
+          '43239',
+        ],
+      );
+
+      expect(
+        flutterAttachMachineArgs(
+          deviceId: 'emu',
+          deviceVmServicePort: 43239,
+          hostVmServicePort: 36605,
+          ddsPort: 39123,
+        ),
+        containsAll(<String>[
+          '--host-vmservice-port',
+          '36605',
+          '--dds-port',
+          '39123',
+        ]),
       );
     });
   });
@@ -214,6 +128,29 @@ void main() {
       adapter.dispose();
     });
 
+    test('app.stop before app.start is not fatal', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.stop', {'appId': 'x'});
+      await Future<void>.delayed(Duration.zero);
+      expect(adapter.stopAfterStartBeforeStarted, isFalse);
+      expect(adapter.precheckAttachHandshakeFailure(), isNull);
+      adapter.dispose();
+    });
+
+    test('mismatched appId stop before started is not fatal', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.start', {'appId': 'start-a'});
+      await adapter.waitAppStart();
+      t.emitEvent('app.stop', {'appId': 'other-b'});
+      expect(adapter.stopAfterStartBeforeStarted, isFalse);
+      expect(adapter.precheckAttachHandshakeFailure(), isNull);
+      adapter.dispose();
+    });
+
     test('app.stop after app.started does not fail handshake', () async {
       final t = FakeDaemonTransport();
       final adapter = FlutterDaemonAdapter(transport: t);
@@ -239,7 +176,21 @@ void main() {
       expect(ring, hasLength(1));
       expect(ring.single['event'], 'app.huge');
       expect(ring.single['paramsTruncated'], isTrue);
-      expect(ring.single['params'], isA<Map>());
+      expect(ring.single['params'], isA<Map<String, Object?>>());
+      adapter.dispose();
+    });
+
+    test('unicode oversized event preview stays UTF-8 safe', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      final huge = '🔥${'é' * 8192}';
+      t.emitEvent('app.unicode', {'text': huge});
+      await Future<void>.delayed(Duration.zero);
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring.single['paramsTruncated'], isTrue);
+      final preview = ring.single['params']! as Map<String, Object?>;
+      final text = preview['preview']! as String;
+      expect(utf8.decode(utf8.encode(text)), text);
       adapter.dispose();
     });
 

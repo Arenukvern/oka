@@ -307,6 +307,25 @@ DevSessionDiscovery? readRunnerSessionFile(
   );
 }
 
+/// Best-effort runner-session identity for attach failure sidecars only.
+/// Never throws (corrupt/missing/unknown-schema must not mask primary errors).
+SessionTeardownIdentity? tryRunnerSessionIdentityForDiagnostic(
+  String projectPath, {
+  DevDiscoveryStore store = const FileDevDiscoveryStore(),
+}) {
+  try {
+    final discovery = readRunnerSessionFile(projectPath, store: store);
+    if (discovery == null) return null;
+    return SessionTeardownIdentity(
+      runnerPid: discovery.pid,
+      controlPort: discovery.controlPort,
+      sessionStartedAtUtc: discovery.startedAt.toUtc().toIso8601String(),
+    );
+  } on Object {
+    return null;
+  }
+}
+
 /// Runs the device half of `oka dev` through the same validated [Pipeline]
 /// as every other flow (ADR-0002): the [DeviceTarget] steps (resolve newest
 /// APK → install → launch → logcat failure scan) followed by the H2
@@ -705,7 +724,6 @@ class DevSession {
     final root = projectPath;
     final argv = attachFlutterArgv;
     if (root == null || root.isEmpty || argv == null) return;
-    final discovery = readRunnerSessionFile(root);
     await tryWriteAttachHandshakeDiagnostic(
       projectPath: root,
       flutterAttachArgv: argv,
@@ -715,14 +733,7 @@ class DevSession {
       hostVmServicePort: attachVmServiceHostPort,
       attachDdsPort: attachVmServiceDdsPort,
       primaryError: primaryError,
-      sessionIdentity: discovery == null
-          ? null
-          : SessionTeardownIdentity(
-              runnerPid: discovery.pid,
-              controlPort: discovery.controlPort,
-              sessionStartedAtUtc:
-                  discovery.startedAt.toUtc().toIso8601String(),
-            ),
+      sessionIdentity: tryRunnerSessionIdentityForDiagnostic(root),
     );
   }
 

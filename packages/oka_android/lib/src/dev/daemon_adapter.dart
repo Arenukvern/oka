@@ -380,6 +380,17 @@ class FlutterDaemonAdapter {
     return true;
   }
 
+  static String _truncateUtf8(String input, int maxBytes) {
+    final units = utf8.encode(input);
+    if (units.length <= maxBytes) return input;
+    var end = maxBytes.clamp(0, units.length);
+    while (end > 0 && (units[end] & 0xC0) == 0x80) {
+      end--;
+    }
+    if (end == 0) return '';
+    return utf8.decode(units.sublist(0, end), allowMalformed: true);
+  }
+
   void _appendEventRing(DaemonEvent event) {
     final at = DateTime.now().toUtc().toIso8601String();
     var params = Map<String, Object?>.from(event.params);
@@ -390,21 +401,24 @@ class FlutterDaemonAdapter {
     );
     var encoded = utf8.encode(jsonEncode(entry.toJson()));
     if (encoded.length > _eventRingMaxSingleBytes) {
-      final preview = jsonEncode(params);
-      const maxPreview = _eventRingMaxSingleBytes ~/ 2;
-      params = {
-        '_truncated': true,
-        'preview': preview.length <= maxPreview
-            ? preview
-            : preview.substring(0, maxPreview),
-      };
-      entry = MachineEventRingEntry(
-        event: event.event,
-        atUtc: at,
-        params: params,
-        paramsTruncated: true,
-      );
-      encoded = utf8.encode(jsonEncode(entry.toJson()));
+      var preview = jsonEncode(params);
+      var maxPreview = _eventRingMaxSingleBytes ~/ 2;
+      for (var attempt = 0; attempt < 8; attempt++) {
+        preview = _truncateUtf8(preview, maxPreview);
+        params = {
+          '_truncated': true,
+          'preview': preview,
+        };
+        entry = MachineEventRingEntry(
+          event: event.event,
+          atUtc: at,
+          params: params,
+          paramsTruncated: true,
+        );
+        encoded = utf8.encode(jsonEncode(entry.toJson()));
+        if (encoded.length <= _eventRingMaxSingleBytes) break;
+        maxPreview ~/= 2;
+      }
     }
     _eventRing.add(entry);
     _eventRingBytes += encoded.length;

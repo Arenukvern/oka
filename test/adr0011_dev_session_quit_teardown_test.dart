@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
-import 'adr0011_daemon_adapter_test.dart' show FakeDaemonTransport;
+import '../packages/oka_android/test/support/fake_daemon_transport.dart';
 
 const _sessionJson = {
   'schema': 1,
