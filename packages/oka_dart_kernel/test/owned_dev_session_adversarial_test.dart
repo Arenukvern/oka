@@ -134,6 +134,37 @@ void main() {
   );
 
   test(
+    'spoofed success control ack without drain plus setsid stays unverified',
+    () async {
+      const liveness = HostProcessLiveness();
+      final spoof = await _fixture(
+        'linux_subreaper_supervisor_spoof_success_no_drain.dart',
+      );
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub, '--spawn-on-q-setsid'],
+        supervisorEntrypoint: spoof,
+      );
+      await session.waitForPattern('dev: ready');
+      await session.sendLine('q');
+      final td = await session.teardown(quitGrace: const Duration(seconds: 30));
+      expect(td.verified, isFalse, reason: td.notes.join('; '));
+      expect(td.clean, isFalse);
+      expect(session.drainAck?.verified, isTrue);
+      expect(session.fixtureEscaped, isNotEmpty);
+      for (final pid in session.fixtureEscaped.keys) {
+        expect(await liveness.isAlive(pid), isTrue);
+        addTearDown(() async {
+          if (await liveness.isAlive(pid)) {
+            await liveness.kill(pid, grace: const Duration(milliseconds: 200));
+          }
+        });
+      }
+    },
+    skip: Platform.isLinux ? false : 'linux supervisor',
+  );
+
+  test(
     'workload forged ack on stdout and stderr does not verify without control',
     () async {
       final session = await OwnedDevSession.start(
@@ -147,6 +178,25 @@ void main() {
       final td = await session.teardown(quitGrace: const Duration(seconds: 8));
       expect(td.verified, isFalse, reason: td.notes.join('; '));
       expect(session.transcript, contains('nonce=stolen'));
+      expect(td.notes, anyElement(contains('nonzero')));
+    },
+    skip: Platform.isLinux ? false : 'linux supervisor',
+  );
+
+  test(
+    'control ack plus supervisor SIGABRT exit (134) is unverified',
+    () async {
+      final sigabrt = await _fixture('linux_subreaper_supervisor_sigabrt.dart');
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub, '--forge-ack'],
+        supervisorEntrypoint: sigabrt,
+      );
+      await session.waitForPattern('dev: ready');
+      await session.sendLine('q');
+      final td = await session.teardown(quitGrace: const Duration(seconds: 10));
+      expect(td.verified, isFalse, reason: td.notes.join('; '));
+      expect(td.exitCode, 134);
       expect(td.notes, anyElement(contains('nonzero')));
     },
     skip: Platform.isLinux ? false : 'linux supervisor',

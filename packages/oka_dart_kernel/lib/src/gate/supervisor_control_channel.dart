@@ -21,9 +21,11 @@ const _workloadEnvDenylist = {
 /// Creates an append-only control log (mode 0600) for supervisor → session acks.
 ///
 /// The path is passed only in the supervisor environment ([kSupervisorAckPathEnv]).
-/// Workload children never receive the path, nonce, or any handle to this sink
-/// ([sanitizeWorkloadEnvironment]). Workload stdout/stderr are forwarded as raw
-/// bytes only — never parsed as control frames.
+/// [sanitizeWorkloadEnvironment] removes the path, nonce, and legacy session
+/// nonce from the workload child's environment map (accidental inheritance /
+/// forged output isolation — not a hostile same-UID filesystem sandbox).
+/// Workload stdout/stderr are forwarded as raw bytes only — never parsed as
+/// control frames.
 Future<File> createSupervisorControlSink() async {
   final dir = await Directory.systemTemp.createTemp('oka_supervisor_ctl');
   final file = File(p.join(dir.path, 'control.log'));

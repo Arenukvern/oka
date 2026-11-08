@@ -615,22 +615,57 @@ final class OwnedDevSession {
       notes.addAll(_ledger.errors);
     }
 
+    final inspectDeadline = DateTime.now().add(stopGrace);
+    Future<bool?> aliveBounded(int pid) async {
+      final left = inspectDeadline.difference(DateTime.now());
+      if (left <= Duration.zero) return null;
+      try {
+        return await liveness.isAlive(pid).timeout(left);
+      } on TimeoutException {
+        return null;
+      } on Object {
+        return null;
+      }
+    }
+
+    var finalLivenessIncomplete = false;
     final stillAlive = <int>[];
     for (final pid in _ledger.allTrackedPids) {
-      if (await liveness.isAlive(pid)) stillAlive.add(pid);
+      final alive = await aliveBounded(pid);
+      if (alive == null) {
+        finalLivenessIncomplete = true;
+        continue;
+      }
+      if (alive) stillAlive.add(pid);
     }
-    if (await liveness.isAlive(process.pid)) {
+    final rootAlive = await aliveBounded(process.pid);
+    if (rootAlive == null) {
+      finalLivenessIncomplete = true;
+    } else if (rootAlive) {
       stillAlive.add(process.pid);
     }
 
     final mergedSurvivors = {...stop.survivors, ...stillAlive}.toList();
     var fixtureEscapedAlive = false;
     for (final entry in _fixtureEscapedByPid.entries) {
-      if (await liveness.isAlive(entry.key)) {
+      final alive = await aliveBounded(entry.key);
+      if (alive == null) {
+        finalLivenessIncomplete = true;
+        notes.add(
+          'fixture escaped pid ${entry.key} liveness inspect incomplete',
+        );
+        continue;
+      }
+      if (alive) {
         fixtureEscapedAlive = true;
         mergedSurvivors.add(entry.key);
         notes.add('fixture-reported escaped pid ${entry.key} still alive');
-        final liveToken = await liveness.identityToken(entry.key);
+        final liveToken = await liveness
+            .identityToken(entry.key)
+            .timeout(
+              inspectDeadline.difference(DateTime.now()),
+              onTimeout: () => null,
+            );
         final expected = entry.value;
         if (liveToken != null && liveToken != expected) {
           notes.add(
@@ -666,10 +701,15 @@ final class OwnedDevSession {
         notes.add('fixture-reported escaped workload still alive');
       }
     }
+    if (finalLivenessIncomplete) {
+      notes.add('final survivor liveness inspection incomplete within budget');
+    }
 
     final uniqueSurvivors = mergedSurvivors.toSet().toList();
-    final verified =
-        !stop.unknown && _ledger.hasProvableOwnership && supervisorDrainVerified;
+    final verified = !stop.unknown &&
+        _ledger.hasProvableOwnership &&
+        supervisorDrainVerified &&
+        !finalLivenessIncomplete;
     final clean = verified && uniqueSurvivors.isEmpty;
 
     return OwnedDevSessionTeardown(

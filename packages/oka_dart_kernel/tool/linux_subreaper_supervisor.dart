@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:oka_dart_kernel/src/gate/linux_child_subreaper.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain.dart';
+import 'package:oka_dart_kernel/src/gate/linux_subreaper_settle_coordinator.dart';
 import 'package:oka_dart_kernel/src/gate/supervisor_control_channel.dart';
 
 Future<void> main(List<String> args) async {
@@ -44,21 +45,17 @@ Future<void> main(List<String> args) async {
   final self = LinuxChildSubreaper.currentProcessId();
   const probe = HostProcessTreeProbe();
   const liveness = HostProcessLiveness();
-  Future<bool>? settleFlight;
+  final settleCoordinator = LinuxSubreaperSettleCoordinator();
 
-  Future<bool> settleAll() {
-    if (settleFlight != null) {
-      return settleFlight!;
-    }
-    settleFlight = _runSettle(
-      child: child,
-      self: self,
-      probe: probe,
-      liveness: liveness,
-      nonce: nonce,
-    );
-    return settleFlight!;
-  }
+  Future<bool> settleAll() => settleCoordinator.settleOnce(
+        () => _runSettle(
+          child: child,
+          self: self,
+          probe: probe,
+          liveness: liveness,
+          nonce: nonce,
+        ),
+      );
 
   ProcessSignal.sigterm.watch().listen((_) async {
     final ok = await settleAll();

@@ -24,6 +24,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   }
 
   final deadline = DateTime.now().add(budget);
+  var sawAliveAdoptee = false;
   Duration remaining() {
     final left = deadline.difference(DateTime.now());
     return left.isNegative ? Duration.zero : left;
@@ -96,13 +97,25 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       }
       if (aliveState) alive.add(pid);
     }
+    if (alive.isNotEmpty) {
+      sawAliveAdoptee = true;
+    }
     if (alive.isEmpty) {
-      return SubreaperDrainResult(
-        settled: true,
-        verified: true,
-        survivors: const [],
-        notes: notes,
-      );
+      if (sawAliveAdoptee) {
+        return SubreaperDrainResult(
+          settled: true,
+          verified: true,
+          survivors: const [],
+          notes: notes,
+        );
+      }
+      if (remaining() > Duration.zero) {
+        final delay = poll > remaining() ? remaining() : poll;
+        if (delay <= Duration.zero) break;
+        await Future<void>.delayed(delay);
+        continue;
+      }
+      break;
     }
     for (final pid in alive.reversed) {
       if (remaining() <= Duration.zero) {
