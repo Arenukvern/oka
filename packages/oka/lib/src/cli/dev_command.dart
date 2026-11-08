@@ -219,6 +219,7 @@ class DevCommand {
           flutterBinary: flutterBinary,
           deviceId: deviceId,
           adbPath: devToolPath,
+          debugUrl: prepared.vmServiceHttpAttachUrl,
         );
         final adapter = FlutterDaemonAdapter(
           transport: transport,
@@ -262,6 +263,7 @@ class DevCommand {
                 deviceId: deviceId,
               ),
           onResult: controlServer.handleSessionResult,
+          projectPath: projectPath,
         );
       },
       // Full rebuild on native changes (with the exact parity flags the
@@ -289,6 +291,7 @@ class DevCommand {
       await controlServer.close();
       await clearVmUriFile(projectPath);
       await clearRunnerSessionFile(projectPath);
+      await clearSessionTeardownFile(projectPath);
     }
     exit(code);
   }

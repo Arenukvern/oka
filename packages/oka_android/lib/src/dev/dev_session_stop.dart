@@ -24,6 +24,7 @@ import 'package:oka_core/oka_core.dart';
 
 import 'dev_control_client.dart';
 import 'dev_session.dart';
+import 'dev_session_teardown.dart';
 import 'runner_session_spawn_binding.dart';
 
 /// How the owning session was stopped.
@@ -53,6 +54,8 @@ final class DevSessionStopReport {
     this.processExitCode,
     this.controlResponse,
     this.message,
+    this.sessionCleanup,
+    this.sessionCleanupActionsSucceeded,
   });
 
   final DevSessionStopDisposition disposition;
@@ -83,6 +86,13 @@ final class DevSessionStopReport {
 
   final Map<String, Object?>? controlResponse;
   final String? message;
+
+  /// Last in-session teardown receipt from `.flutter_mcp/session-teardown.json`
+  /// (runner wrote before exit — not consumer settlement proof).
+  final Map<String, Object?>? sessionCleanup;
+
+  /// [sessionCleanup] `actionsSucceeded` when the file was readable.
+  final bool? sessionCleanupActionsSucceeded;
 
   /// Runner discovery + cooperative disposition only (not device settlement).
   ///
@@ -245,6 +255,11 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
     }
   }
 
+  final sessionCleanup = readSessionTeardownFile(projectPath);
+  final cleanupOk = sessionCleanup == null
+      ? null
+      : sessionCleanup['actionsSucceeded'] == true;
+
   watch.stop();
   return DevSessionStopReport(
     disposition: disposition,
@@ -258,6 +273,8 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
     elapsed: watch.elapsed,
     limits: limits,
     controlResponse: controlResponse,
+    sessionCleanup: sessionCleanup,
+    sessionCleanupActionsSucceeded: cleanupOk,
     message: switch (disposition) {
       DevSessionStopDisposition.cooperative =>
         'Quit requested; discovery cleared; owning process exited.',

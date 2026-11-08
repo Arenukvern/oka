@@ -127,6 +127,20 @@ void main() {
         '-d',
         'emulator-5554',
       ]);
+      expect(
+        flutterAttachMachineArgs(
+          deviceId: 'emulator-5554',
+          debugUrl: 'http://127.0.0.1:34381/AbCd=/',
+        ),
+        [
+          'attach',
+          '--machine',
+          '-d',
+          'emulator-5554',
+          '--debug-url',
+          'http://127.0.0.1:34381/AbCd=/',
+        ],
+      );
     });
   });
 

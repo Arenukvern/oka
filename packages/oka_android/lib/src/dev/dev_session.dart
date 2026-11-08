@@ -35,6 +35,7 @@ import 'daemon_adapter.dart';
 import 'dev_discovery_store.dart';
 import 'dev_events.dart';
 import 'dev_session_teardown.dart';
+import 'dev_session_teardown_budget.dart';
 import 'device_target.dart';
 import 'run_session.dart';
 
@@ -150,6 +151,7 @@ class DevLaunchPrepared {
     required this.vmServiceUri,
     required this.vmServiceLocalPort,
     required this.vmServiceDevicePort,
+    required this.vmServiceHttpAttachUrl,
     this.devicePackage,
   });
 
@@ -164,6 +166,9 @@ class DevLaunchPrepared {
 
   /// Device-side VM port at forward creation (logcat announcement).
   final int vmServiceDevicePort;
+
+  /// `flutter attach --debug-url` via the SDK forward (no second adb forward).
+  final String vmServiceHttpAttachUrl;
 
   /// Package installed/launched in this pipeline run (`device_package`).
   final String? devicePackage;
@@ -373,12 +378,14 @@ Future<DevLaunchPrepared> prepareDevLaunch({
     uri: vmUri,
   );
   final hostUri = forwardedVmServiceUri(info, localPort);
+  final httpAttachUrl = forwardedVmServiceHttpAttachUrl(info, localPort);
   await discoveryStore.writeVmUri(projectPath, hostUri);
   return DevLaunchPrepared(
     apkPath: state[apkPath.id] as String? ?? '',
     vmServiceUri: hostUri,
     vmServiceLocalPort: localPort,
     vmServiceDevicePort: devicePort,
+    vmServiceHttpAttachUrl: httpAttachUrl,
     devicePackage: devicePackage,
   );
 }
@@ -479,6 +486,7 @@ class DevSession {
     this.onResult,
     this.resourceOwnership,
     this.attachHost,
+    this.projectPath,
     DevEventRenderer? renderer,
   }) : _renderer = renderer ??
             (json
@@ -526,18 +534,25 @@ class DevSession {
   /// SDK-created resources for this attach round (teardown on session end).
   final DevSessionResourceOwnership? resourceOwnership;
 
-  /// `flutter attach` host child identity at spawn (orphans not proven here).
+  /// Attach spawn diagnostic (no child-reap authority).
   final AttachHostProcessIdentity? attachHost;
+
+  /// When set, writes [sessionTeardownFileName] after teardown.
+  final String? projectPath;
   final DevEventRenderer _renderer;
 
   DevSessionTeardownReport? lastTeardownReport;
 
-  static const _appStopRpcTimeout = Duration(seconds: 15);
-  static const _appStopSettleTimeout = Duration(seconds: 15);
-  static const _pidofAbsentTimeout = Duration(seconds: 15);
+  /// True when quit-path in-session cleanup actions failed.
+  bool get quitCleanupFailed =>
+      lastTeardownReport != null && !lastTeardownReport!.actionsSucceeded;
+
+  static const _appStopRpcCap = Duration(seconds: 8);
+  static const _appStopEventCap = Duration(seconds: 8);
   final _commandGate = Completer<DevSessionOutcome>();
   final _queued = <DevControlCommand>[];
   bool _draining = false;
+  late DevSessionTeardownBudget _activeTeardownBudget;
 
   /// Runs the session to completion: wait `app.start` → `app.started` →
   /// serve control commands and render daemon events.
@@ -560,6 +575,9 @@ class DevSession {
         .listen((_) {});
 
     var outcome = DevSessionOutcome.daemonExited;
+    final teardownBudget = DevSessionTeardownBudget();
+    _activeTeardownBudget = teardownBudget;
+    var budgetExhausted = false;
     try {
       try {
         await adapter.waitAppStart(timeout: startupTimeout);
@@ -591,8 +609,25 @@ class DevSession {
     } finally {
       await eventSub.cancel();
       await exitSub.cancel();
-      final forwardReport = await _releaseOwnedForwards();
-      final attachReport = await adapter.disposeGracefully();
+      ForwardReleaseAction? forwardReport;
+      DaemonDisposeReport attachReport;
+      try {
+        forwardReport = await _releaseOwnedForwards(teardownBudget);
+      } on DevSessionTeardownBudgetExhausted {
+        budgetExhausted = true;
+      }
+      try {
+        attachReport = await adapter.disposeGracefully(budget: teardownBudget);
+      } on DevSessionTeardownBudgetExhausted {
+        budgetExhausted = true;
+        attachReport = const DaemonDisposeReport(
+          shutdownAttempted: true,
+          shutdownAcknowledged: false,
+          processExited: false,
+          killedAsBackstop: false,
+          message: 'teardown budget exhausted before attach dispose',
+        );
+      }
       if (!attachReport.processExited) {
         final detail = attachReport.message ?? 'attach process still running';
         write(
@@ -602,18 +637,25 @@ class DevSession {
       final teardown = DevSessionTeardownReport(
         appStop: _quitAppStopAction,
         pidofWait: _quitPidofAction,
+        forceStop: _quitForceStopAction,
         forward: forwardReport,
         attachDaemon: attachReport,
         attachHost: attachHost,
+        budgetExhausted: budgetExhausted || teardownBudget.exhausted,
       );
       lastTeardownReport = teardown;
       _emit('session.teardown', teardown.toJson());
+      final root = projectPath;
+      if (root != null && root.isNotEmpty) {
+        await writeSessionTeardownFile(root, teardown);
+      }
     }
     return outcome;
   }
 
   AppStopAction? _quitAppStopAction;
   PidofWaitAction? _quitPidofAction;
+  ForceStopAction? _quitForceStopAction;
 
   Future<bool> _waitForEvent(
     String name, {
@@ -653,7 +695,7 @@ class DevSession {
 
     // Tear-down per outcome before [disposeGracefully] in [run]'s finally.
     if (outcome == DevSessionOutcome.quit) {
-      await _stopAppOnQuit();
+      await _stopAppOnQuit(_activeTeardownBudget);
     }
     if (outcome == DevSessionOutcome.detached) {
       final ok = await _dispatch(adapter.detachApp, label: 'Detach');
@@ -669,20 +711,42 @@ class DevSession {
     return outcome;
   }
 
-  Future<void> _stopAppOnQuit() async {
+  Future<void> _stopAppOnQuit(DevSessionTeardownBudget budget) async {
     _render(DevEvent('operation.start', {'label': 'Stop app'}));
     final watch = Stopwatch()..start();
+    var stopEventSeen = adapter.lastEvent('app.stop') != null;
+    StreamSubscription<DaemonEvent>? stopSub;
+    if (!stopEventSeen) {
+      stopSub = adapter.events.listen((e) {
+        if (e.event == 'app.stop') stopEventSeen = true;
+      });
+    }
     AppStopAction action;
     try {
-      final r = await adapter
-          .stopApp()
-          .timeout(_appStopRpcTimeout);
+      final r = await budget.run(adapter.stopApp, cap: _appStopRpcCap);
       watch.stop();
+      if (!stopEventSeen) {
+        try {
+          await budget.run(
+            () async {
+              final deadline = DateTime.now().add(_appStopEventCap);
+              while (!stopEventSeen && DateTime.now().isBefore(deadline)) {
+                await Future<void>.delayed(const Duration(milliseconds: 10));
+              }
+              return stopEventSeen;
+            },
+            cap: _appStopEventCap,
+          );
+        } on Object {
+          // Event wait failure recorded below.
+        }
+      }
       if (r.ok) {
         action = AppStopAction(
           rpcOk: true,
           duration: watch.elapsed,
           resultSummary: r.result?.toString(),
+          stopEventSeen: stopEventSeen,
         );
         _render(DevEvent('operation.success', {'label': 'Stop app'}));
       } else {
@@ -691,6 +755,7 @@ class DevSession {
           duration: watch.elapsed,
           errorText: r.errorText,
           resultSummary: r.result?.toString(),
+          stopEventSeen: stopEventSeen,
         );
         write('⚠️ Quit: app.stop error: ${r.errorText}');
         _render(DevEvent('operation.failure', {
@@ -704,8 +769,17 @@ class DevSession {
         rpcOk: false,
         duration: watch.elapsed,
         timedOut: true,
-        errorText:
-            'app.stop timed out after ${_appStopRpcTimeout.inSeconds}s',
+        stopEventSeen: stopEventSeen,
+        errorText: 'app.stop timed out',
+      );
+      write('⚠️ Quit: ${action.errorText}');
+    } on DevSessionTeardownBudgetExhausted {
+      watch.stop();
+      action = AppStopAction(
+        rpcOk: false,
+        duration: watch.elapsed,
+        errorText: 'teardown budget exhausted before app.stop',
+        stopEventSeen: stopEventSeen,
       );
       write('⚠️ Quit: ${action.errorText}');
     } on DaemonException catch (e) {
@@ -714,52 +788,84 @@ class DevSession {
         rpcOk: false,
         duration: watch.elapsed,
         errorText: e.message,
+        stopEventSeen: stopEventSeen,
       );
       write('⚠️ Quit: app.stop failed: ${e.message}');
+    } finally {
+      await stopSub?.cancel();
     }
     _quitAppStopAction = action;
     _emit('quit.app_stop', {
       'rpcOk': action.rpcOk,
       'ms': action.duration.inMilliseconds,
+      'stopEventSeen': action.stopEventSeen,
       if (action.errorText != null) 'error': action.errorText,
     });
 
-    if (action.rpcOk) {
-      final sawStop = await _waitForEvent(
-        'app.stop',
-        timeout: _appStopSettleTimeout,
+    if (!stopEventSeen) {
+      write(
+        '⚠️ Quit: attach-mode app.stop did not yield app.stop event '
+        '(${action.duration.inMilliseconds}ms RPC).',
       );
-      if (!sawStop) {
-        write(
-          '⚠️ Quit: app.stop RPC ok (${action.duration.inMilliseconds}ms) '
-          'but no app.stop event within ${_appStopSettleTimeout.inSeconds}s '
-          '(attach mode may not stop the process).',
-        );
-        _emit('quit.stop_event_missing', {});
-      }
+      _emit('quit.stop_event_missing', {});
     }
 
     final launch = resourceOwnership?.launchIdentity;
-    if (launch != null && launch.packageName.isNotEmpty) {
-      final pidof = await waitDevicePackageAbsent(
+    if (launch == null || launch.packageName.isEmpty) return;
+
+    var needsForceStop =
+        !action.rpcOk || action.timedOut || !action.stopEventSeen;
+
+    Future<PidofWaitAction> pollAbsent() => waitDevicePackageAbsent(
+      adbPath: resourceOwnership!.adbPath,
+      deviceSerial: launch.deviceSerial,
+      packageName: launch.packageName,
+      budget: budget,
+    );
+
+    if (!needsForceStop) {
+      final pidof = await pollAbsent();
+      _quitPidofAction = pidof;
+      if (pidof.adbFailed) {
+        write('⚠️ Quit: pidof failed — ${pidof.message}');
+      } else if (!pidof.absentObserved) {
+        needsForceStop = true;
+      }
+    }
+
+    if (needsForceStop) {
+      write(
+        '⚠️ Quit: using bounded am force-stop for ${launch.packageName} '
+        'on ${launch.deviceSerial}.',
+      );
+      _quitForceStopAction = await forceStopLaunchedPackage(
         adbPath: resourceOwnership!.adbPath,
         deviceSerial: launch.deviceSerial,
         packageName: launch.packageName,
+        budget: budget,
       );
+      final pidof = await pollAbsent();
       _quitPidofAction = pidof;
-      if (pidof.timedOut) {
+      if (pidof.adbFailed) {
+        write('⚠️ Quit: post force-stop pidof failed — ${pidof.message}');
+      } else if (pidof.timedOut || !pidof.absentObserved) {
         write(
-          '⚠️ Quit: $deviceId still reports pidof ${launch.packageName} '
-          '(${pidof.lastPidOutput}) after ${_pidofAbsentTimeout.inSeconds}s.',
+          '⚠️ Quit: device still reports ${launch.packageName} '
+          '(${pidof.lastPidOutput}).',
         );
       }
     }
   }
 
-  Future<ForwardReleaseAction?> _releaseOwnedForwards() async {
+  Future<ForwardReleaseAction?> _releaseOwnedForwards(
+    DevSessionTeardownBudget budget,
+  ) async {
     final ownership = resourceOwnership;
     if (ownership == null) return null;
-    final report = await releaseSessionOwnedResources(ownership);
+    final report = await releaseSessionOwnedResources(
+      ownership,
+      budget: budget,
+    );
     if (report.refusedConcurrencyMismatch) {
       write('⚠️ ${report.message}');
     } else if (report.attempted && !report.removed) {
@@ -908,7 +1014,8 @@ class DevSession {
       case 'reload.result' ||
           'restart.result' ||
           'restart.fallback' ||
-          'app.stopped':
+          'app.stopped' ||
+          'session.teardown':
         onResult?.call(event, data);
     }
     _render(DevEvent(event, data));
@@ -964,8 +1071,9 @@ class DevFlow {
       final outcome = await session.run();
       switch (outcome) {
         case DevSessionOutcome.quit:
+          return session.quitCleanupFailed ? 1 : 0;
         case DevSessionOutcome.detached:
-          return 0;
+          return session.quitCleanupFailed ? 1 : 0;
         case DevSessionOutcome.daemonExited:
           return 1;
         case DevSessionOutcome.rebuildRequested:

@@ -43,6 +43,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'dev_session_teardown_budget.dart';
+
 /// One daemon event (`[{"event": name, "params": {...}}]`).
 class DaemonEvent {
   const DaemonEvent(this.event, {this.params = const {}});
@@ -159,11 +161,15 @@ class ProcessDaemonTransport implements DaemonTransport {
 
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
 /// [spawnAttachDaemon]).
-List<String> flutterAttachMachineArgs({required String deviceId}) => [
+List<String> flutterAttachMachineArgs({
+  required String deviceId,
+  String? debugUrl,
+}) => [
   'attach',
   '--machine',
   '-d',
   deviceId,
+  if (debugUrl != null && debugUrl.isNotEmpty) ...['--debug-url', debugUrl],
 ];
 
 /// Spawns `<flutterBinary> attach --machine -d <deviceId>` and returns the
@@ -178,6 +184,7 @@ Future<DaemonTransport> spawnAttachDaemon({
   required String flutterBinary,
   required String deviceId,
   String? adbPath,
+  String? debugUrl,
 }) async {
   final environment = <String, String>{...Platform.environment};
   if (adbPath != null && adbPath.isNotEmpty) {
@@ -186,7 +193,7 @@ Future<DaemonTransport> spawnAttachDaemon({
   }
   final process = await Process.start(
     flutterBinary,
-    flutterAttachMachineArgs(deviceId: deviceId),
+    flutterAttachMachineArgs(deviceId: deviceId, debugUrl: debugUrl),
     environment: environment,
   );
   return ProcessDaemonTransport(process);
@@ -475,8 +482,9 @@ class FlutterDaemonAdapter {
   /// Bounded attach daemon shutdown: `daemon.shutdown`, then await process
   /// exit; kill remains the backstop when the RPC or exit stalls.
   Future<DaemonDisposeReport> disposeGracefully({
-    Duration shutdownTimeout = const Duration(seconds: 10),
-    Duration exitTimeout = const Duration(seconds: 10),
+    DevSessionTeardownBudget? budget,
+    Duration shutdownTimeout = const Duration(seconds: 6),
+    Duration exitTimeout = const Duration(seconds: 6),
   }) async {
     var shutdownAttempted = false;
     var shutdownAcknowledged = false;
@@ -488,7 +496,12 @@ class FlutterDaemonAdapter {
       try {
         shutdownAttempted = true;
         if (appStartReceived) {
-          final r = await shutdown().timeout(shutdownTimeout);
+          final r = budget == null
+              ? await shutdown().timeout(shutdownTimeout)
+              : await budget.run(
+                  shutdown,
+                  cap: shutdownTimeout,
+                );
           shutdownAcknowledged = r.ok;
           if (!r.ok) {
             message = r.errorText;
@@ -510,11 +523,20 @@ class FlutterDaemonAdapter {
         message = e.toString();
       }
       try {
-        await exitCode.timeout(exitTimeout);
+        if (budget == null) {
+          await exitCode.timeout(exitTimeout);
+        } else {
+          await budget.run(
+            () => exitCode,
+            cap: exitTimeout,
+          );
+        }
         processExited = _exited;
       } on TimeoutException {
         message ??=
             'attach process did not exit within ${exitTimeout.inSeconds}s';
+      } on DevSessionTeardownBudgetExhausted {
+        message ??= 'teardown budget exhausted before attach exit';
       } on Object catch (e) {
         message ??= e.toString();
       }

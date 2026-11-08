@@ -1,18 +1,13 @@
 /// Physical teardown helpers for `oka dev android` (SDK-owned resources only).
-///
-/// Forward removal authority comes solely from [DevSessionCreatedForward]
-/// recorded at `adb forward` creation time (serial + local + remote). Listing
-/// or remote-port coincidence alone never authorizes removal. No `--remove-all`.
-///
-/// [DevSessionTeardownReport.proven*] fields stay false — consumers observe
-/// settlement; this layer only records action outcomes.
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'adb_tool.dart';
 import 'daemon_adapter.dart';
+import 'dev_session_teardown_budget.dart';
 
 /// Exact adb forward triplet recorded when the session created the mapping.
 final class DevSessionCreatedForward {
@@ -40,22 +35,24 @@ final class DevSessionLaunchIdentity {
   final String packageName;
 }
 
-/// Attach host child captured at [spawnAttachDaemon] (before cooperative stop).
+/// Attach host child at spawn — diagnostic only (no child-reap authority).
 final class AttachHostProcessIdentity {
   const AttachHostProcessIdentity({
-    required this.pid,
-    required this.startedAt,
+    required this.attachPid,
+    required this.spawnEpoch,
   });
 
-  final int pid;
-  final DateTime startedAt;
+  final int attachPid;
+
+  /// Wall-clock spawn instant — not OS process start time.
+  final DateTime spawnEpoch;
 }
 
 AttachHostProcessIdentity? attachHostIdentityFor(DaemonTransport transport) {
   if (transport is ProcessDaemonTransport) {
     return AttachHostProcessIdentity(
-      pid: transport.pid,
-      startedAt: transport.startedAt,
+      attachPid: transport.pid,
+      spawnEpoch: transport.startedAt,
     );
   }
   return null;
@@ -87,12 +84,9 @@ final class AdbForwardListEntry {
   final int deviceRemotePort;
 }
 
-/// Parses `adb forward --list` output (ignores banner lines).
 List<AdbForwardListEntry> parseAdbForwardList(String output) {
   final entries = <AdbForwardListEntry>[];
-  final lineRe = RegExp(
-    r'^(\S+)\s+tcp:(\d+)\s+tcp:(\d+)\s*$',
-  );
+  final lineRe = RegExp(r'^(\S+)\s+tcp:(\d+)\s+tcp:(\d+)\s*$');
   for (final raw in output.split('\n')) {
     final line = raw.trim();
     if (line.isEmpty || line.startsWith('List')) continue;
@@ -115,13 +109,29 @@ List<String> adbForwardListArgs({String? serial}) => [
   '--list',
 ];
 
-/// Result of removing one [DevSessionCreatedForward].
+final class ForwardListAction {
+  const ForwardListAction({
+    required this.ok,
+    this.entries = const [],
+    this.adbExitCode,
+    this.message,
+    this.timedOut = false,
+  });
+
+  final bool ok;
+  final List<AdbForwardListEntry> entries;
+  final int? adbExitCode;
+  final String? message;
+  final bool timedOut;
+}
+
 final class ForwardReleaseAction {
   const ForwardReleaseAction({
     required this.attempted,
     required this.removed,
     this.alreadyAbsent = false,
     this.refusedConcurrencyMismatch = false,
+    this.listFailed = false,
     this.adbExitCode,
     this.message,
   });
@@ -130,11 +140,11 @@ final class ForwardReleaseAction {
   final bool removed;
   final bool alreadyAbsent;
   final bool refusedConcurrencyMismatch;
+  final bool listFailed;
   final int? adbExitCode;
   final String? message;
 }
 
-/// `app.stop` RPC outcome on quit (not used on detach).
 final class AppStopAction {
   const AppStopAction({
     required this.rpcOk,
@@ -142,6 +152,7 @@ final class AppStopAction {
     this.errorText,
     this.resultSummary,
     this.timedOut = false,
+    this.stopEventSeen = false,
   });
 
   final bool rpcOk;
@@ -149,9 +160,25 @@ final class AppStopAction {
   final String? errorText;
   final String? resultSummary;
   final bool timedOut;
+  final bool stopEventSeen;
 }
 
-/// Bounded `pidof` poll after quit when [DevSessionLaunchIdentity] is set.
+final class ForceStopAction {
+  const ForceStopAction({
+    required this.attempted,
+    required this.commandOk,
+    this.adbExitCode,
+    this.message,
+    this.timedOut = false,
+  });
+
+  final bool attempted;
+  final bool commandOk;
+  final int? adbExitCode;
+  final String? message;
+  final bool timedOut;
+}
+
 final class PidofWaitAction {
   const PidofWaitAction({
     required this.attempted,
@@ -159,6 +186,8 @@ final class PidofWaitAction {
     required this.proven,
     this.lastPidOutput,
     this.timedOut = false,
+    this.adbFailed = false,
+    this.message,
   });
 
   final bool attempted;
@@ -166,29 +195,64 @@ final class PidofWaitAction {
   final bool proven;
   final String? lastPidOutput;
   final bool timedOut;
+  final bool adbFailed;
+  final String? message;
 }
 
 typedef AdbArgvRunner =
     Future<ProcessResult> Function(String adbPath, List<String> args);
 
 typedef ForwardListFetcher =
-    Future<List<AdbForwardListEntry>> Function(String adbPath, String? serial);
+    Future<ForwardListAction> Function(String adbPath, String? serial);
 
-Future<List<AdbForwardListEntry>> _defaultListForwards(
-  String adbPath,
+Future<ForwardListAction> listAdbForwards({
+  required String adbPath,
   String? serial,
-) async {
-  final r = await Process.run(adbPath, adbForwardListArgs(serial: serial));
-  if (r.exitCode != 0) return const [];
-  return parseAdbForwardList('${r.stdout}');
+  AdbArgvRunner? runAdb,
+  DevSessionTeardownBudget? budget,
+}) async {
+  final runner = runAdb ?? Process.run;
+  try {
+    final r = budget == null
+        ? await runner(adbPath, adbForwardListArgs(serial: serial))
+        : await budget.run(
+            () => runner(adbPath, adbForwardListArgs(serial: serial)),
+            cap: const Duration(seconds: 5),
+          );
+    if (r.exitCode != 0) {
+      return ForwardListAction(
+        ok: false,
+        adbExitCode: r.exitCode,
+        message: '${r.stdout}${r.stderr}'.trim(),
+      );
+    }
+    return ForwardListAction(
+      ok: true,
+      entries: parseAdbForwardList('${r.stdout}'),
+      adbExitCode: 0,
+    );
+  } on TimeoutException {
+    return const ForwardListAction(
+      ok: false,
+      timedOut: true,
+      message: 'adb forward --list timed out',
+    );
+  } on DevSessionTeardownBudgetExhausted {
+    return const ForwardListAction(
+      ok: false,
+      message: 'teardown budget exhausted before forward --list',
+    );
+  } on Object catch (e) {
+    return ForwardListAction(ok: false, message: e.toString());
+  }
 }
 
-/// Removes [forward] only when `--list` still shows the same serial/local/remote.
 Future<ForwardReleaseAction> releaseSessionCreatedForward(
   DevSessionCreatedForward forward, {
   required String adbPath,
   AdbArgvRunner? runAdb,
   ForwardListFetcher? listForwards,
+  DevSessionTeardownBudget? budget,
 }) async {
   if (forward.hostLocalPort <= 0 || forward.deviceRemotePort <= 0) {
     return const ForwardReleaseAction(
@@ -198,10 +262,25 @@ Future<ForwardReleaseAction> releaseSessionCreatedForward(
     );
   }
   final lister =
-      listForwards ?? _defaultListForwards;
+      listForwards ??
+      (adb, serial) => listAdbForwards(
+        adbPath: adb,
+        serial: serial,
+        runAdb: runAdb,
+        budget: budget,
+      );
   final runner = runAdb ?? Process.run;
 
-  final entries = await lister(adbPath, forward.deviceSerial);
+  final listed = await lister(adbPath, forward.deviceSerial);
+  if (!listed.ok) {
+    return ForwardReleaseAction(
+      attempted: false,
+      removed: false,
+      listFailed: true,
+      message: listed.message ?? 'forward --list failed',
+    );
+  }
+  final entries = listed.entries;
   final match = entries.where(
     (e) =>
         e.serial == forward.deviceSerial &&
@@ -231,7 +310,12 @@ Future<ForwardReleaseAction> releaseSessionCreatedForward(
     serial: forward.deviceSerial,
   );
   try {
-    final r = await runner(adbPath, args);
+    final r = budget == null
+        ? await runner(adbPath, args)
+        : await budget.run(
+            () => runner(adbPath, args),
+            cap: const Duration(seconds: 5),
+          );
     if (r.exitCode == 0) {
       return const ForwardReleaseAction(
         attempted: true,
@@ -246,6 +330,18 @@ Future<ForwardReleaseAction> releaseSessionCreatedForward(
       adbExitCode: r.exitCode,
       message: combined.isEmpty ? 'adb forward --remove failed' : combined,
     );
+  } on TimeoutException {
+    return const ForwardReleaseAction(
+      attempted: true,
+      removed: false,
+      message: 'adb forward --remove timed out',
+    );
+  } on DevSessionTeardownBudgetExhausted {
+    return const ForwardReleaseAction(
+      attempted: false,
+      removed: false,
+      message: 'teardown budget exhausted before forward --remove',
+    );
   } on Object catch (e) {
     return ForwardReleaseAction(
       attempted: true,
@@ -255,24 +351,116 @@ Future<ForwardReleaseAction> releaseSessionCreatedForward(
   }
 }
 
+Future<ForceStopAction> forceStopLaunchedPackage({
+  required String adbPath,
+  required String deviceSerial,
+  required String packageName,
+  AdbArgvRunner? runAdb,
+  DevSessionTeardownBudget? budget,
+}) async {
+  final runner = runAdb ?? Process.run;
+  final args = adbForceStopArgs(packageName, serial: deviceSerial);
+  try {
+    final r = budget == null
+        ? await runner(adbPath, args)
+        : await budget.run(
+            () => runner(adbPath, args),
+            cap: const Duration(seconds: 5),
+          );
+    if (r.exitCode == 0) {
+      return const ForceStopAction(
+        attempted: true,
+        commandOk: true,
+        adbExitCode: 0,
+      );
+    }
+    return ForceStopAction(
+      attempted: true,
+      commandOk: false,
+      adbExitCode: r.exitCode,
+      message: '${r.stdout}${r.stderr}'.trim(),
+    );
+  } on TimeoutException {
+    return const ForceStopAction(
+      attempted: true,
+      commandOk: false,
+      timedOut: true,
+      message: 'am force-stop timed out',
+    );
+  } on DevSessionTeardownBudgetExhausted {
+    return const ForceStopAction(
+      attempted: false,
+      commandOk: false,
+      message: 'teardown budget exhausted before force-stop',
+    );
+  } on Object catch (e) {
+    return ForceStopAction(
+      attempted: true,
+      commandOk: false,
+      message: e.toString(),
+    );
+  }
+}
+
 Future<PidofWaitAction> waitDevicePackageAbsent({
   required String adbPath,
   required String deviceSerial,
   required String packageName,
-  Duration timeout = const Duration(seconds: 15),
+  Duration timeout = const Duration(seconds: 8),
   Duration pollInterval = const Duration(milliseconds: 200),
   AdbArgvRunner? runAdb,
+  DevSessionTeardownBudget? budget,
 }) async {
   final runner = runAdb ?? Process.run;
   final deadline = DateTime.now().add(timeout);
   String? lastOut;
   while (true) {
-    final r = await runner(adbPath, [
-      ...adbSerialArgs(deviceSerial),
-      'shell',
-      'pidof',
-      packageName,
-    ]);
+    ProcessResult r;
+    try {
+      r = budget == null
+          ? await runner(adbPath, [
+              ...adbSerialArgs(deviceSerial),
+              'shell',
+              'pidof',
+              packageName,
+            ])
+          : await budget.run(
+              () => runner(adbPath, [
+                ...adbSerialArgs(deviceSerial),
+                'shell',
+                'pidof',
+                packageName,
+              ]),
+              cap: const Duration(seconds: 5),
+            );
+    } on TimeoutException {
+      return const PidofWaitAction(
+        attempted: true,
+        absentObserved: false,
+        proven: false,
+        adbFailed: true,
+        message: 'pidof adb call timed out',
+      );
+    } on DevSessionTeardownBudgetExhausted {
+      return const PidofWaitAction(
+        attempted: true,
+        absentObserved: false,
+        proven: false,
+        adbFailed: true,
+        message: 'teardown budget exhausted during pidof',
+        timedOut: true,
+      );
+    }
+    if (r.exitCode != 0) {
+      final msg = '${r.stdout}${r.stderr}'.trim();
+      return PidofWaitAction(
+        attempted: true,
+        absentObserved: false,
+        proven: false,
+        adbFailed: true,
+        message: msg.isEmpty ? 'pidof failed (exit ${r.exitCode})' : msg,
+      );
+    }
     lastOut = (r.stdout as String).trim();
     if (lastOut.isEmpty) {
       return const PidofWaitAction(
@@ -281,7 +469,7 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
         proven: false,
       );
     }
-    if (DateTime.now().isAfter(deadline)) {
+    if (DateTime.now().isAfter(deadline) || (budget?.exhausted ?? false)) {
       return PidofWaitAction(
         attempted: true,
         absentObserved: false,
@@ -294,47 +482,84 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
   }
 }
 
-/// Aggregated teardown actions for one [DevSession.run].
+/// Quit-path device absence: `app.stop` alone is insufficient on attach.
+bool deviceAbsentAfterQuitActions({required PidofWaitAction? pidofWait}) =>
+    pidofWait?.absentObserved == true;
+
 final class DevSessionTeardownReport {
   const DevSessionTeardownReport({
     this.appStop,
     this.pidofWait,
+    this.forceStop,
     this.forward,
     this.attachDaemon,
     this.attachHost,
+    this.budgetExhausted = false,
   });
 
   final AppStopAction? appStop;
   final PidofWaitAction? pidofWait;
+  final ForceStopAction? forceStop;
   final ForwardReleaseAction? forward;
   final DaemonDisposeReport? attachDaemon;
   final AttachHostProcessIdentity? attachHost;
+  final bool budgetExhausted;
 
-  /// Always false here — settlement is consumer-observed only.
   bool get provenForwardRemoved => false;
-
   bool get provenDeviceAppAbsent => false;
-
   bool get provenPhysicalSettlement => false;
 
+  /// In-session cleanup actions (not consumer settlement proof).
+  bool get actionsSucceeded {
+    if (budgetExhausted) return false;
+    final ad = attachDaemon;
+    if (ad != null && !ad.processExited) return false;
+    final fwd = forward;
+    if (fwd != null) {
+      if (fwd.listFailed) return false;
+      if (fwd.attempted && !fwd.removed && !fwd.alreadyAbsent) return false;
+      if (fwd.refusedConcurrencyMismatch) return false;
+    }
+    if (appStop != null ||
+        pidofWait != null ||
+        forceStop != null) {
+      if (pidofWait != null || forceStop != null) {
+        return deviceAbsentAfterQuitActions(pidofWait: pidofWait);
+      }
+    }
+    return true;
+  }
+
   Map<String, Object?> toJson() => {
+    'actionsSucceeded': actionsSucceeded,
     'provenForwardRemoved': provenForwardRemoved,
     'provenDeviceAppAbsent': provenDeviceAppAbsent,
     'provenPhysicalSettlement': provenPhysicalSettlement,
+    'budgetExhausted': budgetExhausted,
     if (appStop != null)
       'appStop': {
         'rpcOk': appStop!.rpcOk,
         'timedOut': appStop!.timedOut,
+        'stopEventSeen': appStop!.stopEventSeen,
         'ms': appStop!.duration.inMilliseconds,
         if (appStop!.errorText != null) 'error': appStop!.errorText,
         if (appStop!.resultSummary != null) 'result': appStop!.resultSummary,
+      },
+    if (forceStop != null)
+      'forceStop': {
+        'attempted': forceStop!.attempted,
+        'commandOk': forceStop!.commandOk,
+        'timedOut': forceStop!.timedOut,
+        if (forceStop!.message != null) 'message': forceStop!.message,
       },
     if (pidofWait != null)
       'pidofWait': {
         'attempted': pidofWait!.attempted,
         'absentObserved': pidofWait!.absentObserved,
         'timedOut': pidofWait!.timedOut,
+        'adbFailed': pidofWait!.adbFailed,
         if (pidofWait!.lastPidOutput != null) 'lastPid': pidofWait!.lastPidOutput,
+        if (pidofWait!.message != null) 'message': pidofWait!.message,
       },
     if (forward != null)
       'forward': {
@@ -342,6 +567,7 @@ final class DevSessionTeardownReport {
         'removed': forward!.removed,
         'alreadyAbsent': forward!.alreadyAbsent,
         'refusedMismatch': forward!.refusedConcurrencyMismatch,
+        'listFailed': forward!.listFailed,
         if (forward!.message != null) 'message': forward!.message,
       },
     if (attachDaemon != null)
@@ -354,15 +580,17 @@ final class DevSessionTeardownReport {
       },
     if (attachHost != null)
       'attachHost': {
-        'pid': attachHost!.pid,
-        'startedAt': attachHost!.startedAt.toUtc().toIso8601String(),
+        'attachPid': attachHost!.attachPid,
+        'spawnEpochUtc': attachHost!.spawnEpoch.toUtc().toIso8601String(),
+        'note': 'diagnostic only — not OS start-time identity',
       },
   };
 }
 
 Future<ForwardReleaseAction> releaseSessionOwnedResources(
-  DevSessionResourceOwnership ownership,
-) async {
+  DevSessionResourceOwnership ownership, {
+  DevSessionTeardownBudget? budget,
+}) async {
   final forward = ownership.vmServiceForward;
   if (forward == null) {
     return const ForwardReleaseAction(
@@ -374,5 +602,39 @@ Future<ForwardReleaseAction> releaseSessionOwnedResources(
   return releaseSessionCreatedForward(
     forward,
     adbPath: ownership.adbPath,
+    budget: budget,
   );
+}
+
+const sessionTeardownFileName = 'session-teardown.json';
+
+Future<void> writeSessionTeardownFile(
+  String projectPath,
+  DevSessionTeardownReport report,
+) async {
+  final dir = Directory('$projectPath/.flutter_mcp');
+  await dir.create(recursive: true);
+  final file = File('${dir.path}/$sessionTeardownFileName');
+  await file.writeAsString(
+    '${jsonEncode(report.toJson())}\n',
+  );
+}
+
+Map<String, Object?>? readSessionTeardownFile(String projectPath) {
+  final file = File('$projectPath/.flutter_mcp/$sessionTeardownFileName');
+  if (!file.existsSync()) return null;
+  try {
+    final decoded = jsonDecode(file.readAsStringSync());
+    if (decoded is! Map) return null;
+    return Map<String, Object?>.from(decoded);
+  } on Object {
+    return null;
+  }
+}
+
+Future<void> clearSessionTeardownFile(String projectPath) async {
+  final file = File('$projectPath/.flutter_mcp/$sessionTeardownFileName');
+  if (file.existsSync()) {
+    await file.delete();
+  }
 }
