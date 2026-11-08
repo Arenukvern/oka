@@ -27,6 +27,14 @@ Future<void> refreshHelloAsset() async {
 
 int helloAssetFingerprint() => _helloFingerprint;
 
+/// Gate-only in-memory session tick (L0 linux dev): survives hot **reload**,
+/// resets on hot **restart** / full isolate re-init.
+int _devGateSessionTick = 0;
+
+int devGateSessionTick() => _devGateSessionTick;
+
+int devGateSessionBump() => ++_devGateSessionTick;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await refreshHelloAsset();

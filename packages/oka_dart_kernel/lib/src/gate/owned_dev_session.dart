@@ -29,10 +29,7 @@ typedef DevSessionSpawner = Future<Process> Function(
 
 /// Dart-owned dev session: one root process, bounded stop, transcript capture.
 final class OwnedDevSession {
-  OwnedDevSession._({
-    required this.process,
-    this.identityToken,
-  });
+  OwnedDevSession._({required this.process});
 
   final Process process;
   String? identityToken;
@@ -65,7 +62,6 @@ final class OwnedDevSession {
         arguments,
         workingDirectory: workingDirectory,
         environment: environment,
-        mode: ProcessStartMode.normal,
       );
 
   /// Spawns `oka run dev` (optionally under `xvfb-run -a`) and begins capture.
@@ -163,7 +159,7 @@ final class OwnedDevSession {
     await _stdoutSub.cancel();
     await _stderrSub.cancel();
 
-    final liveness = const HostProcessLiveness();
+    const liveness = HostProcessLiveness();
     final alive =
         exitCode == null && await liveness.isAlive(process.pid);
 

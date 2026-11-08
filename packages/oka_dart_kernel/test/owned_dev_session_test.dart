@@ -4,7 +4,7 @@ import 'package:oka_dart_kernel/oka_dart_kernel.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-const _stubSource = r'''
+const _stubSource = '''
 import 'dart:convert';
 import 'dart:io';
 

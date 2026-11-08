@@ -119,7 +119,12 @@ class _Harness {
         },
       ),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await h.ready.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw TimeoutException(
+        'session.ready not reached — startup log: ${h.lines.join('\n')}',
+      ),
+    );
     return h;
   }
 

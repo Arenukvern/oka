@@ -17,10 +17,13 @@ pack, or store upload.
 - **Tested locally (agent):** x86_64 Linux with Flutter 3.47.9, GTK, xvfb — gates
   when warm `flutter build linux --debug` is used in CI; local full convergence
   may take several minutes on cold compile.
-- **GitHub CI @ PR #17 HEAD `2b43ffd` (run `42430612507`):** `CI / test` failed
-  (`runner-session.json` readiness race); `CI / linux-desktop-dev` **cancelled**
-  after reload-leg timeout (~30m) / job limit (~45m). **Not green on GitHub until
-  a later HEAD passes both jobs.**
+- **GitHub CI @ prior HEAD `88805dd` (run `42469445453`):** `CI / test` failed on
+  `dart analyze --fatal-infos`; `CI / linux-desktop-dev` failed before gates ran
+  (`tool/tool/gate_linux_dev.dart` path + convergence script `WS` resolution).
+  **Superseded by post-fix HEAD** (see PR #17 checks after push).
+- **Local ubuntu x64 + xvfb (Flutter 3.47.9):** full
+  `gate_linux_dev_convergence.sh` — reload + assets **ALL PASS**; VM probes prove
+  `devGateSessionTick` preserved on hot reload and **reset to 0** after `R`.
 - **Not claimed:** arm64 linux desktop hosts, other distros, Snap Store or `oka build linux`.
 
 ## Later stages (not this PR)

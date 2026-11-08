@@ -64,7 +64,7 @@ void main() {
           exitCode: 0,
           stdout: '3.24.41\n',
         ),
-        'sh -c printf \'%s\\n\' \'int main(){return 0;}\' | clang++ -x c++ - -o /dev/null -lstdc++':
+        r"sh -c printf '%s\n' 'int main(){return 0;}' | clang++ -x c++ - -o /dev/null -lstdc++":
             const ToolProbeResult(ran: true, exitCode: 0),
       }),
     );
@@ -97,7 +97,7 @@ void main() {
         'ninja --version': const ToolProbeResult(ran: true, exitCode: 0, stdout: '1.0\n'),
         'pkg-config --exists gtk+-3.0': const ToolProbeResult(ran: true, exitCode: 0),
         'pkg-config --modversion gtk+-3.0': const ToolProbeResult(ran: true, exitCode: 0, stdout: '3\n'),
-        'sh -c printf \'%s\\n\' \'int main(){return 0;}\' | clang++ -x c++ - -o /dev/null -lstdc++':
+        r"sh -c printf '%s\n' 'int main(){return 0;}' | clang++ -x c++ - -o /dev/null -lstdc++":
             const ToolProbeResult(ran: true, exitCode: 0),
       }),
     );

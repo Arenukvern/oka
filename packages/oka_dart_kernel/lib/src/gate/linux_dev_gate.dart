@@ -77,14 +77,31 @@ final class LinuxDevGate {
         spawn: sessionSpawn,
       );
 
-      if (!await session.waitForPattern(
-        'dev: ready',
-        timeout: const Duration(minutes: 30),
-      )) {
+      if (!await session.waitForPattern('dev: ready')) {
         stderr.writeln('gate: timeout waiting for dev session (linux)');
         stderr.writeln('gate: --- log tail (last 40 lines) ---');
         final lines = session.transcript.split('\n');
         stderr.writeln(lines.skip(lines.length > 40 ? lines.length - 40 : 0).join('\n'));
+        return 1;
+      }
+
+      final vmUri = _extractVmUri(session.transcript);
+      if (vmUri == null) {
+        stderr.writeln('FAIL: no VM uri before reload');
+        return 1;
+      }
+
+      if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmUri,
+        tag: 'reload-pre',
+        probes: const [
+          _VmProbe('devGateSessionBump()', '1'),
+          _VmProbe('devGateSessionTick()', '1'),
+        ],
+      )) {
+        stderr.writeln('FAIL: session tick bump (pre-reload)');
         return 1;
       }
 
@@ -106,6 +123,36 @@ final class LinuxDevGate {
         return 1;
       }
 
+      final vmAfterReload = _extractVmUri(session.transcript) ?? vmUri;
+      if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmAfterReload,
+        tag: 'reload-post',
+        probes: const [
+          _VmProbe('devGateSessionTick()', '1'),
+        ],
+      )) {
+        stderr.writeln(
+          'FAIL: hot reload must preserve in-memory session tick '
+          '(got != 1)',
+        );
+        return 1;
+      }
+
+      if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmAfterReload,
+        tag: 'reload-bump',
+        probes: const [
+          _VmProbe('devGateSessionBump()', '2'),
+        ],
+      )) {
+        stderr.writeln('FAIL: session tick bump before restart');
+        return 1;
+      }
+
       session.sendLine('R');
       if (!await session.waitForPattern(
         'restart: OK (platform lane',
@@ -120,7 +167,23 @@ final class LinuxDevGate {
         _logTail(session.transcript);
         exitCode = 1;
       } else {
-        exitCode = 0;
+        final vmAfterRestart = _extractVmUri(session.transcript) ?? vmAfterReload;
+        if (!await _vmProbesOk(
+          workspace: workspace,
+          outDir: out,
+          vmUri: vmAfterRestart,
+          tag: 'restart-reset',
+          probes: const [
+            _VmProbe('devGateSessionTick()', '0'),
+          ],
+        )) {
+          stderr.writeln(
+            'FAIL: hot restart must reset in-memory session tick to 0',
+          );
+          exitCode = 1;
+        } else {
+          exitCode = 0;
+        }
       }
     } finally {
       await restore();
@@ -170,10 +233,7 @@ final class LinuxDevGate {
         spawn: sessionSpawn,
       );
 
-      if (!await session.waitForPattern(
-        'dev: ready',
-        timeout: const Duration(minutes: 30),
-      )) {
+      if (!await session.waitForPattern('dev: ready')) {
         stderr.writeln('gate: timeout waiting for dev session (linux)');
         return 1;
       }
@@ -230,44 +290,23 @@ final class LinuxDevGate {
         stderr.writeln('FAIL: no VM uri');
         return 1;
       }
-      final verifySpec = {
-        'revision': 'gate',
-        'unit': 'gate',
-        'patches': <Object>[],
-        'targets': [
-          {
-            'kind': 'vm',
-            'id': 'app',
-            'ws': '${vmUri.replaceFirst('http', 'ws')}/ws',
-            'http': vmUri,
-            'devfs': 'oka_gate_verify_linux',
-            'applyVia': 'reloadSources',
-          },
-        ],
-        'probes': [
-          {
-            'library': 'main.dart',
-            'expression': 'helloAssetFingerprint()',
-            'expect': '$fprint',
-          },
-        ],
-      };
-      final specPath = p.join(out, 'verify.json');
-      await File(specPath).writeAsString(jsonEncode(verifySpec));
-      final verifyLog = p.join(out, 'verify.log');
-      final live = p.join(workspace, 'packages/oka_dart_kernel/tool/oka_live.dart');
-      final result = await runBoundedProcess(
-        Platform.resolvedExecutable,
-        ['--packages=$_packageConfig', live, 'verify', '--spec', specPath],
-        timeout: const Duration(minutes: 3),
-        workingDirectory: workspace,
-      );
-      await File(verifyLog).writeAsString('${result.stdout}\n${result.stderr}');
-      if (!result.stdout.contains('live patch OK')) {
-        stderr.writeln('FAIL: fingerprint not verified');
-        await stderr.flush();
-        stdout.writeln(result.stdout);
-        stdout.writeln(result.stderr);
+      if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmUri,
+        tag: 'assets-fingerprint',
+        probes: [_VmProbe('helloAssetFingerprint()', '$fprint')],
+      )) {
+        stderr.writeln('FAIL: post-restart asset fingerprint not verified');
+        exitCode = 1;
+      } else if (!await _vmProbesOk(
+        workspace: workspace,
+        outDir: out,
+        vmUri: vmUri,
+        tag: 'assets-restart-tick',
+        probes: const [_VmProbe('devGateSessionTick()', '0')],
+      )) {
+        stderr.writeln('FAIL: asset leg restart did not reset session tick');
         exitCode = 1;
       } else {
         exitCode = 0;
@@ -302,4 +341,56 @@ final class LinuxDevGate {
     if (matches.isEmpty) return null;
     return matches.last.group(1);
   }
+
+  Future<bool> _vmProbesOk({
+    required String workspace,
+    required String outDir,
+    required String vmUri,
+    required String tag,
+    required List<_VmProbe> probes,
+  }) async {
+    final verifySpec = {
+      'revision': 'gate-$tag',
+      'unit': 'gate',
+      'patches': <Object>[],
+      'targets': [
+        {
+          'kind': 'vm',
+          'id': 'app',
+          'ws': '${vmUri.replaceFirst('http', 'ws')}/ws',
+          'http': vmUri,
+          'devfs': 'oka_gate_verify_linux_$tag',
+          'applyVia': 'reloadSources',
+        },
+      ],
+      'probes': [
+        for (final p in probes)
+          {
+            'library': 'main.dart',
+            'expression': p.expression,
+            'expect': p.expect,
+          },
+      ],
+    };
+    final specPath = p.join(outDir, 'verify-$tag.json');
+    await File(specPath).writeAsString(jsonEncode(verifySpec));
+    final live = p.join(workspace, 'packages/oka_dart_kernel/tool/oka_live.dart');
+    final result = await runBoundedProcess(
+      Platform.resolvedExecutable,
+      ['--packages=$_packageConfig', live, 'verify', '--spec', specPath],
+      timeout: const Duration(minutes: 3),
+      workingDirectory: workspace,
+    );
+    final logPath = p.join(outDir, 'verify-$tag.log');
+    await File(logPath).writeAsString(
+      'exit=${result.exitCode}\n${result.stdout}\n${result.stderr}',
+    );
+    return result.exitCode == 0 && result.stdout.contains('live patch OK');
+  }
+}
+
+final class _VmProbe {
+  const _VmProbe(this.expression, this.expect);
+  final String expression;
+  final String expect;
 }
