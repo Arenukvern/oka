@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
@@ -8,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../package_root.dart';
 
 import 'owned_dev_session_start_controller.dart';
+import 'supervisor_session_protocol.dart';
 
 /// Frozen view of the last successful probe (debug/tests).
 final class SessionOwnedTree {
@@ -88,23 +90,30 @@ typedef DevSessionSpawner = Future<Process> Function(
 final class OwnedDevSession {
   OwnedDevSession._({
     required this.process,
+    required this.sessionNonce,
     this.treeProbe = const HostProcessTreeProbe(),
     this.liveness = const HostProcessLiveness(),
     this.useSubreaperSupervisor = false,
   });
 
   final Process process;
+  final String sessionNonce;
   final ProcessTreeProbe treeProbe;
   final ProcessLiveness liveness;
   final bool useSubreaperSupervisor;
   String? identityToken;
   int? _workloadPid;
+  SupervisorDrainAck? _drainAck;
+  final Map<int, String> _fixtureEscapedByPid = {};
   SessionOwnedTree? _ownedTree;
   final _OwnershipLedger _ledger = _OwnershipLedger();
   final StringBuffer _buffer = StringBuffer();
   late StreamSubscription<String> _stdoutSub;
   late StreamSubscription<String> _stderrSub;
   Completer<OwnedDevSessionTeardown>? _teardownOnce;
+
+  SupervisorDrainAck? get drainAck => _drainAck;
+  Map<int, String> get fixtureEscaped => Map.unmodifiable(_fixtureEscapedByPid);
 
   String get transcript => _buffer.toString();
   SessionOwnedTree? get ownedTree => _ownedTree;
@@ -120,7 +129,29 @@ final class OwnedDevSession {
       if (match != null) {
         _workloadPid = int.parse(match.group(1)!);
       }
+      final ack = parseSupervisorDrainAck(trimmed);
+      if (ack != null) _drainAck = ack;
+      final escaped = parseFixtureEscapedReport(trimmed);
+      if (escaped != null) {
+        _fixtureEscapedByPid[escaped.pid] = escaped.token;
+      }
     }
+  }
+
+  void _attachLineStreams() {
+    _stdoutSub = process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) => _append('$line\n'));
+    _stderrSub = process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) => _append('$line\n'));
+  }
+
+  static String _freshSessionNonce() {
+    final r = Random();
+    return '${DateTime.now().microsecondsSinceEpoch}-${r.nextInt(0x7fffffff)}';
   }
 
   static String _dartVmExecutable() {
@@ -151,6 +182,8 @@ final class OwnedDevSession {
     required List<String> arguments,
     required bool useSupervisor,
     required DevSessionSpawner spawn,
+    required String sessionNonce,
+    String? supervisorEntrypoint,
     String? workingDirectory,
     Map<String, String>? environment,
   }) async {
@@ -163,12 +196,10 @@ final class OwnedDevSession {
       );
     }
     final kernelRoot = await resolveOkaDartKernelRoot();
-    final supervisor = p.join(
-      kernelRoot,
-      'tool',
-      'linux_subreaper_supervisor.dart',
-    );
+    final supervisor = supervisorEntrypoint ??
+        p.join(kernelRoot, 'tool', 'linux_subreaper_supervisor.dart');
     final env = Map<String, String>.from(environment ?? Platform.environment);
+    env['OKA_DEV_SESSION_NONCE'] = sessionNonce;
     final cwd = workingDirectory;
     if (cwd != null && cwd.isNotEmpty) {
       env['OKA_DEV_SESSION_CWD'] = cwd;
@@ -228,6 +259,7 @@ final class OwnedDevSession {
     bool useSubreaperSupervisor = true,
     Map<String, String>? environment,
     String? workingDirectory,
+    String? supervisorEntrypoint,
     Duration identityBudget = const Duration(seconds: 2),
     DevSessionSpawner spawn = defaultDevSessionSpawn,
     ProcessTreeProbe? treeProbe,
@@ -239,36 +271,32 @@ final class OwnedDevSession {
     final useSupervisor = useSubreaperSupervisor && Platform.isLinux;
     final probe = treeProbe ?? const HostProcessTreeProbe();
     final live = liveness ?? const HostProcessLiveness();
+    final sessionNonce = _freshSessionNonce();
+    final env = Map<String, String>.from(environment ?? {});
+    env['OKA_DEV_SESSION_NONCE'] = sessionNonce;
 
     final proc = await _spawnWithOptionalSupervisor(
       executable: useXvfb ? 'xvfb-run' : dart,
       arguments:
           useXvfb ? ['-a', dart, ...dartInvocation] : dartInvocation,
       workingDirectory: cwd,
-      environment: environment,
+      environment: env,
       useSupervisor: useSupervisor,
       spawn: spawn,
+      sessionNonce: sessionNonce,
+      supervisorEntrypoint: supervisorEntrypoint,
     );
     startController?.onProcessSpawned(proc);
-    if (startController?.abortRequested == true) {
-      await startController!.requestAbort();
-      throw StateError('owned dev session start aborted before attach');
-    }
 
     final session = OwnedDevSession._(
       process: proc,
+      sessionNonce: sessionNonce,
       treeProbe: probe,
       liveness: live,
       useSubreaperSupervisor: useSupervisor,
     );
-    session._stdoutSub = proc.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) => session._append('$line\n'));
-    session._stderrSub = proc.stderr
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) => session._append('$line\n'));
+    session._attachLineStreams();
+    startController?.onBootstrap(session);
 
     if (startController?.abortRequested == true) {
       await startController!.requestAbort();
@@ -317,6 +345,15 @@ final class OwnedDevSession {
     if (pattern is RegExp) return pattern.hasMatch(text);
     if (pattern is String) return text.contains(pattern);
     return pattern.allMatches(text).isNotEmpty;
+  }
+
+  Future<void> _waitForSupervisorAck(Duration budget) async {
+    final deadline = DateTime.now().add(budget);
+    while (DateTime.now().isBefore(deadline)) {
+      final ack = _drainAck;
+      if (ack != null && ack.nonce == sessionNonce) return;
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
   }
 
   Future<bool> _killIfOwnedIdentity(int pid, String? expected) async {
@@ -456,6 +493,10 @@ final class OwnedDevSession {
       }
     }
 
+    if (useSubreaperSupervisor) {
+      await _waitForSupervisorAck(const Duration(seconds: 2));
+    }
+
     try {
       await process.stdin.close();
     } on Object catch (e) {
@@ -482,18 +523,45 @@ final class OwnedDevSession {
     }
 
     final mergedSurvivors = {...stop.survivors, ...stillAlive}.toList();
-    if (transcript.contains('oka_supervisor_survivors=')) {
-      notes.add('supervisor reported adoptee survivors');
+    for (final entry in _fixtureEscapedByPid.entries) {
+      if (await liveness.isAlive(entry.key)) {
+        mergedSurvivors.add(entry.key);
+        notes.add('fixture-reported escaped pid ${entry.key} still alive');
+      }
     }
 
-    final verified = !stop.unknown && _ledger.hasProvableOwnership;
-    final clean = verified && mergedSurvivors.isEmpty;
+    var supervisorDrainVerified = true;
+    if (useSubreaperSupervisor) {
+      final ack = _drainAck;
+      if (ack == null || ack.nonce != sessionNonce) {
+        supervisorDrainVerified = false;
+        notes.add('supervisor drain ack missing or nonce mismatch');
+      } else if (!ack.settled || !ack.verified) {
+        supervisorDrainVerified = false;
+        notes.add(
+          'supervisor drain ack failed settled=${ack.settled} '
+          'verified=${ack.verified}',
+        );
+      } else if (ack.survivors.isNotEmpty) {
+        supervisorDrainVerified = false;
+        notes.add('supervisor drain ack survivors=${ack.survivors}');
+      }
+      if (exitCode == 9 || exitCode == -9) {
+        supervisorDrainVerified = false;
+        notes.add('supervisor exit SIGKILL');
+      }
+    }
+
+    final uniqueSurvivors = mergedSurvivors.toSet().toList();
+    final verified =
+        !stop.unknown && _ledger.hasProvableOwnership && supervisorDrainVerified;
+    final clean = verified && uniqueSurvivors.isEmpty;
 
     return OwnedDevSessionTeardown(
       clean: clean,
       verified: verified,
       exitCode: exitCode,
-      survivors: mergedSurvivors,
+      survivors: uniqueSurvivors,
       notes: notes,
     );
   }

@@ -10,17 +10,18 @@ import 'package:oka_dart_kernel/src/gate/owned_dev_session_start_controller.dart
 Future<void> main(List<String> args) async {
   final workspace = args[0];
   final stub = args[1];
-  final startCtl = OwnedDevSessionStartController(liveness: const _SlowLiveness());
+  final startCtl = OwnedDevSessionStartController();
   DevGateSignalCoordinator(onSignal: startCtl.requestAbort).install();
 
   stdout.writeln('GATE_STARTUP_DRIVER_READY');
   try {
     await OwnedDevSession.start(
       workspace: workspace,
-      dartInvocation: [stub, '--hang-on-quit'],
+      dartInvocation: [stub],
       useSubreaperSupervisor: false,
       startController: startCtl,
-      liveness: const _SlowLiveness(),
+      liveness: const _StartupSlowLiveness(),
+      identityBudget: const Duration(seconds: 2),
     );
   } on Object {
     exit(2);
@@ -28,12 +29,12 @@ Future<void> main(List<String> args) async {
   exit(0);
 }
 
-final class _SlowLiveness implements ProcessLiveness {
-  const _SlowLiveness();
+final class _StartupSlowLiveness implements ProcessLiveness {
+  const _StartupSlowLiveness();
 
   @override
   Future<String?> identityToken(int pid) async {
-    await Future<void>.delayed(const Duration(hours: 1));
+    await Future<void>.delayed(const Duration(seconds: 5));
     return const HostProcessLiveness().identityToken(pid);
   }
 

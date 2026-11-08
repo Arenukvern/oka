@@ -24,8 +24,22 @@ Future<void> main(List<String> args) async {
         exit(0);
       }
       if (args.contains('--spawn-on-q-setsid')) {
-        await Process.start('/bin/sh', ['-c', 'setsid sleep 180 </dev/null &']);
+        final p = await Process.start('/bin/sh', [
+          '-c',
+          'setsid sleep 180 </dev/null &',
+        ]);
+        stderr.writeln(
+          'oka_dev_fixture_escaped_pid=\${p.pid} token=fixture-setsid-\${p.pid}',
+        );
+        await stderr.flush();
         exit(0);
+      }
+      if (args.contains('--spawn-on-start')) {
+        final c = await Process.start('sleep', ['180']);
+        stderr.writeln(
+          'oka_dev_fixture_escaped_pid=\${c.pid} token=fixture-start-\${c.pid}',
+        );
+        await stderr.flush();
       }
       if (hang) {
         await Future<void>.delayed(const Duration(hours: 1));
@@ -118,6 +132,7 @@ exit 0
     final session = await OwnedDevSession.start(
       workspace: _scratch.path,
       dartInvocation: const [],
+      useSubreaperSupervisor: false,
       spawn: orphanSpawn,
     );
     expect(
@@ -231,11 +246,15 @@ exit 0
       expect(td.verified, isTrue, reason: td.notes.join('; '));
       expect(td.clean, isTrue, reason: td.notes.join('; '));
       expect(td.survivors, isEmpty);
-      for (final pid in session.ownershipLedger.descendantPids) {
+      expect(session.fixtureEscaped, isNotEmpty);
+      expect(session.drainAck?.nonce, session.sessionNonce);
+      expect(session.drainAck?.settled, isTrue);
+      expect(session.drainAck?.verified, isTrue);
+      for (final pid in session.fixtureEscaped.keys) {
         expect(
           await liveness.isAlive(pid),
           isFalse,
-          reason: 'setsid adoptee pid $pid',
+          reason: 'fixture-reported escaped pid $pid',
         );
       }
       expect(await liveness.isAlive(decoy.pid), isTrue);
@@ -244,50 +263,41 @@ exit 0
   );
 
   test(
-    'regression: supervisor without drain leaves setsid adoptee alive',
+    'regression: supervisor without drain fails verified and leaves escaped pid',
     () async {
-      Future<Process> skipDrainSpawn(
-        String executable,
-        List<String> arguments, {
-        String? workingDirectory,
-        Map<String, String>? environment,
-      }) =>
-          OwnedDevSession.defaultDevSessionSpawn(
-            executable,
-            arguments,
-            workingDirectory: workingDirectory,
-            environment: {
-              ...?environment,
-              'OKA_SUPERVISOR_SKIP_DRAIN': '1',
-            },
-          );
+      const liveness = HostProcessLiveness();
+      final kernelRoot = await resolveOkaDartKernelRoot();
+      final noDrain = p.join(
+        kernelRoot,
+        'test',
+        'fixtures',
+        'linux_subreaper_supervisor_no_drain.dart',
+      );
 
       final session = await OwnedDevSession.start(
         workspace: _scratch.path,
         dartInvocation: [_stub, '--spawn-on-q-setsid'],
-        spawn: skipDrainSpawn,
+        supervisorEntrypoint: noDrain,
       );
       expect(await session.waitForPattern('dev: ready'), isTrue);
       final decoy = await Process.start('sleep', ['3600']);
       addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
 
       session.sendLine('q');
-      await session.teardown(quitGrace: const Duration(seconds: 8));
-      final pgrep = await Process.run('pgrep', ['-x', 'sleep']);
-      final extra = pgrep.stdout
-          .toString()
-          .trim()
-          .split('\n')
-          .where((s) => s.trim().isNotEmpty)
-          .map(int.parse)
-          .where((p) => p != decoy.pid)
-          .toList();
-      expect(
-        extra,
-        isNotEmpty,
-        reason: 'OKA_SUPERVISOR_SKIP_DRAIN must leave adoptee sleep running',
-      );
-      Process.killPid(extra.first, ProcessSignal.sigkill);
+      final td = await session.teardown(quitGrace: const Duration(seconds: 8));
+      expect(td.verified, isFalse, reason: td.notes.join('; '));
+      expect(td.clean, isFalse);
+      expect(session.fixtureEscaped, isNotEmpty);
+      expect(session.drainAck?.settled, isFalse);
+      expect(session.drainAck?.verified, isFalse);
+      for (final pid in session.fixtureEscaped.keys) {
+        addTearDown(() async {
+          if (await liveness.isAlive(pid)) {
+            await liveness.kill(pid, grace: const Duration(milliseconds: 200));
+          }
+        });
+      }
+      expect(await liveness.isAlive(decoy.pid), isTrue);
     },
     skip: Platform.isLinux ? false : 'posix setsid',
   );
@@ -305,6 +315,72 @@ exit 0
     expect(td.clean, isFalse);
     expect(td.notes, anyElement(contains('enumeration')));
   });
+
+  test(
+    'abort during slow startup (subreaper) drains owned startup child',
+    () async {
+      const liveness = HostProcessLiveness();
+      OwnedDevSession? bootstrapped;
+      final ctl = OwnedDevSessionStartController(
+        onBootstrapExtra: (s) => bootstrapped = s,
+      );
+      Process? spawned;
+
+      Future<Process> laggedSpawn(
+        String executable,
+        List<String> arguments, {
+        String? workingDirectory,
+        Map<String, String>? environment,
+      }) async {
+        final p = await Process.start(
+          executable,
+          arguments,
+          workingDirectory: workingDirectory,
+          environment: environment,
+        );
+        spawned = p;
+        return p;
+      }
+
+      final startFuture = OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub, '--spawn-on-start'],
+        startController: ctl,
+        liveness: const _SlowLiveness(),
+        spawn: laggedSpawn,
+      );
+
+      for (var i = 0; i < 50 && spawned == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(spawned, isNotNull);
+
+      final decoy = await Process.start('sleep', ['3600']);
+      addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+
+      await ctl.requestAbort();
+      try {
+        await startFuture;
+      } on Object {
+        // aborted during identity capture
+      }
+
+      await Future<void>.delayed(const Duration(seconds: 2));
+      expect(await liveness.isAlive(spawned!.pid), isFalse);
+      final session = bootstrapped;
+      expect(session, isNotNull);
+      expect(session!.fixtureEscaped, isNotEmpty);
+      for (final pid in session.fixtureEscaped.keys) {
+        expect(
+          await liveness.isAlive(pid),
+          isFalse,
+          reason: 'startup child fixture pid $pid',
+        );
+      }
+      expect(await liveness.isAlive(decoy.pid), isTrue);
+    },
+    skip: Platform.isLinux ? false : 'linux subreaper supervisor',
+  );
 
   test('abort during slow startup stops spawned root', () async {
     const liveness = HostProcessLiveness();
@@ -329,7 +405,7 @@ exit 0
 
     final startFuture = OwnedDevSession.start(
       workspace: _scratch.path,
-      dartInvocation: [_stub, '--hang-on-quit'],
+      dartInvocation: [_stub],
       useSubreaperSupervisor: false,
       startController: ctl,
       liveness: const _SlowLiveness(),

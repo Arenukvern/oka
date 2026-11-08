@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 /// Locates the experimental live-update stack checkout for the delegating
 /// CLI verbs (`oka live`, `oka ship`, `oka run dev`): the stack is
@@ -58,9 +59,11 @@ bool isOkaKernelWorkspaceRoot(String root) {
   final normalized = p.normalize(root);
   final workspacePubspec = File(p.join(normalized, 'pubspec.yaml'));
   if (!workspacePubspec.existsSync()) return false;
-  final workspaceText = workspacePubspec.readAsStringSync();
-  if (!workspaceText.contains('name: oka_workspace') &&
-      !workspaceText.contains('oka_workspace')) {
+  try {
+    final doc = loadYaml(workspacePubspec.readAsStringSync());
+    if (doc is! YamlMap) return false;
+    if (doc['name']?.toString() != 'oka_workspace') return false;
+  } on Object {
     return false;
   }
   return File(p.join(normalized, 'packages', 'oka', 'pubspec.yaml'))

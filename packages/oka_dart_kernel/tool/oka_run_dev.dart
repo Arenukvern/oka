@@ -483,6 +483,12 @@ Future<void> runRunDevCli(
   final out = output ?? print;
   final err = errorOutput ?? (m) => stderr.writeln(m);
   final exitWith = setExitCode ?? (c) => exitCode = c;
+  if (args.isNotEmpty &&
+      args.every((a) => a == '--help' || a == '-h')) {
+    err(_usage);
+    exitWith(0);
+    return;
+  }
   final parsed = RunDevArgs.parse(
     args,
     cwd: workingDir ?? Directory.current.path,

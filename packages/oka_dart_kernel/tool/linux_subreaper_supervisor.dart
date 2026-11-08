@@ -17,15 +17,20 @@ Future<void> main(List<String> args) async {
     );
     exit(2);
   }
+
+  final nonce =
+      Platform.environment['OKA_DEV_SESSION_NONCE']?.trim() ?? 'missing-nonce';
+
   if (!LinuxChildSubreaper.activate()) {
-    stderr.writeln('oka_supervisor: subreaper unavailable');
+    stderr.writeln(
+      'oka_dev_supervisor_drain_ack nonce=$nonce settled=false verified=false survivors=',
+    );
     exit(4);
   }
 
   final executable = args[1];
   final arguments = args.sublist(2);
   final cwd = Platform.environment['OKA_DEV_SESSION_CWD']?.trim();
-  final skipDrain = Platform.environment['OKA_SUPERVISOR_SKIP_DRAIN'] == '1';
 
   final child = await Process.start(
     executable,
@@ -43,7 +48,13 @@ Future<void> main(List<String> args) async {
 
   Future<bool> settleAll() async {
     if (settleOnce) {
-      return drainSubreaperAdoptees(supervisorPid: self).then((d) => d.settled);
+      final drain = await drainSubreaperAdoptees(supervisorPid: self);
+      final surv = drain.survivors.isEmpty ? '' : drain.survivors.join(',');
+      stderr.writeln(
+        'oka_dev_supervisor_drain_ack nonce=$nonce '
+        'settled=${drain.settled} verified=${drain.verified} survivors=$surv',
+      );
+      return drain.settled && drain.verified && drain.survivors.isEmpty;
     }
     settleOnce = true;
     if (child.pid > 0 && await liveness.isAlive(child.pid)) {
@@ -53,12 +64,13 @@ Future<void> main(List<String> args) async {
         rootPid: child.pid,
       );
     }
-    if (skipDrain) return true;
     final drain = await drainSubreaperAdoptees(supervisorPid: self);
-    if (!drain.settled) {
-      stderr.writeln('oka_supervisor_survivors=${drain.survivors.join(',')}');
-    }
-    return drain.settled;
+    final surv = drain.survivors.isEmpty ? '' : drain.survivors.join(',');
+    stderr.writeln(
+      'oka_dev_supervisor_drain_ack nonce=$nonce '
+      'settled=${drain.settled} verified=${drain.verified} survivors=$surv',
+    );
+    return drain.settled && drain.verified && drain.survivors.isEmpty;
   }
 
   ProcessSignal.sigterm.watch().listen((_) async {
@@ -70,8 +82,18 @@ Future<void> main(List<String> args) async {
     exit(130);
   });
 
-  unawaited(child.stdout.pipe(stdout));
-  unawaited(child.stderr.pipe(stderr));
+  child.stdout.listen(
+    stdout.add,
+    onError: (_) {},
+    onDone: () {},
+    cancelOnError: true,
+  );
+  child.stderr.listen(
+    stderr.add,
+    onError: (_) {},
+    onDone: () {},
+    cancelOnError: true,
+  );
   stdin.cast<List<int>>().listen(
     child.stdin.add,
     onDone: () => child.stdin.close(),
@@ -79,7 +101,7 @@ Future<void> main(List<String> args) async {
   );
 
   final code = await child.exitCode;
-  final settled = await settleAll();
-  if (!settled) exit(1);
+  final ok = await settleAll();
+  if (!ok) exit(1);
   exit(code);
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
@@ -10,10 +11,12 @@ final class OwnedDevSessionStartController {
   OwnedDevSessionStartController({
     this.treeProbe = const HostProcessTreeProbe(),
     this.liveness = const HostProcessLiveness(),
-  });
+    void Function(OwnedDevSession session)? onBootstrapExtra,
+  }) : _onBootstrapExtra = onBootstrapExtra;
 
   final ProcessTreeProbe treeProbe;
   final ProcessLiveness liveness;
+  final void Function(OwnedDevSession session)? _onBootstrapExtra;
   Process? _spawnedRoot;
   OwnedDevSession? _session;
   var _abortRequested = false;
@@ -22,6 +25,13 @@ final class OwnedDevSessionStartController {
 
   // ignore: use_setters_to_change_properties
   void onProcessSpawned(Process proc) => _spawnedRoot = proc;
+
+  /// Called as soon as streams are attached (before identity / ready).
+  // ignore: use_setters_to_change_properties
+  void onBootstrap(OwnedDevSession session) {
+    _onBootstrapExtra?.call(session);
+    _session = session;
+  }
 
   // ignore: use_setters_to_change_properties
   void onSessionReady(OwnedDevSession session) => _session = session;
@@ -37,13 +47,17 @@ final class OwnedDevSessionStartController {
     }
     final proc = _spawnedRoot;
     if (proc == null || proc.pid <= 0) return;
-    final stop = await stopProcessTree(
-      probe: treeProbe,
-      liveness: liveness,
-      rootPid: proc.pid,
-    );
-    if (!stop.stopped || stop.survivors.isNotEmpty) {
-      await liveness.kill(proc.pid, grace: const Duration(milliseconds: 500));
+  // Bounded graceful stop inside the dedicated supervisor — never tear down
+  // the supervision root before its drain ack (no stopProcessTree here).
+    try {
+      proc.kill(ProcessSignal.sigterm);
+    } on Object {
+      return;
+    }
+    try {
+      await proc.exitCode.timeout(quitGrace);
+    } on TimeoutException {
+      // Leave process running; caller must treat start as unverified.
     }
   }
 }

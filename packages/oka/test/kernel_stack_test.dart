@@ -65,6 +65,27 @@ void main() {
     );
   });
 
+  test('substring oka_workspace without pubspec name is rejected', () async {
+    final tmp = await Directory.systemTemp.createTemp('oka_kernel_fake_name');
+    addTearDown(() => tmp.delete(recursive: true));
+    File(p.join(tmp.path, 'pubspec.yaml')).writeAsStringSync(
+      'name: unrelated_parent\n# mentions oka_workspace in a comment\n',
+    );
+    File(p.join(tmp.path, 'packages', 'oka', 'pubspec.yaml'))
+        .createSync(recursive: true);
+    File(p.join(tmp.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
+        .createSync(recursive: true);
+    await File(p.join(tmp.path, _runner)).create(recursive: true);
+    final script = File(p.join(tmp.path, 'packages', 'oka', 'bin', 'oka.dart'));
+    await script.create(recursive: true);
+
+    expect(
+      kernelStackRootForScript(script.path, _runner),
+      isNull,
+      reason: 'name field must be oka_workspace, not substring match',
+    );
+  });
+
   test('OKA_KERNEL_ROOT overrides walk when runner exists', () async {
     final tmp = await Directory.systemTemp.createTemp('oka_kernel_env');
     addTearDown(() => tmp.delete(recursive: true));

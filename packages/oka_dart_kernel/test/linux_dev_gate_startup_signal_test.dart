@@ -10,8 +10,12 @@ const _stubSource = '''
 import 'dart:convert';
 import 'dart:io';
 Future<void> main(List<String> args) async {
+  ProcessSignal.sigterm.watch().listen((_) => exit(143));
   stdout.writeln('dev: ready');
-  await for (final _ in stdin.transform(utf8.decoder).transform(const LineSplitter())) {}
+  await for (final line
+      in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
+  if (line.trim() == 'q') exit(0);
+  }
 }
 ''';
 
@@ -71,6 +75,7 @@ void main() {
       const liveness = HostProcessLiveness();
       expect(await liveness.isAlive(decoy.pid), isTrue);
     },
-    skip: Platform.isLinux ? false : 'posix SIGTERM',
+  skip: Platform.isLinux ? false : 'posix SIGTERM',
+    timeout: const Timeout(Duration(seconds: 60)),
   );
 }

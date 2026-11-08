@@ -14,63 +14,114 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   Duration killGrace = const Duration(milliseconds: 400),
 }) async {
   final notes = <String>[];
-  final deadline = DateTime.now().add(budget);
-  final survivors = <int>{};
+  if (supervisorPid <= 0) {
+    return const SubreaperDrainResult(
+      settled: false,
+      verified: false,
+      survivors: [],
+      notes: ['invalid supervisor pid'],
+    );
+  }
 
-  while (DateTime.now().isBefore(deadline)) {
-    if (supervisorPid <= 0) {
-      notes.add('invalid supervisor pid');
-      break;
+  final deadline = DateTime.now().add(budget);
+  Duration remaining() {
+    final left = deadline.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  while (remaining() > Duration.zero) {
+    ProcessTree? tree;
+    try {
+      tree = await probe
+          .enumerate(supervisorPid)
+          .timeout(remaining(), onTimeout: () => null);
+    } on Object catch (e) {
+      notes.add('enumerate failed: $e');
+      tree = null;
     }
-    final tree = await probe.enumerate(supervisorPid);
     if (tree == null) {
-      notes.add('process table unavailable during subreaper drain');
-      survivors.addAll(survivors);
-      break;
+      return SubreaperDrainResult(
+        settled: false,
+        verified: false,
+        survivors: const [],
+        notes: [...notes, 'process table unavailable during subreaper drain'],
+      );
     }
     final descendants = tree.descendants();
     final alive = <int>[];
     for (final pid in descendants) {
-      if (await liveness.isAlive(pid)) alive.add(pid);
+      if (remaining() <= Duration.zero) break;
+      try {
+        if (await liveness
+            .isAlive(pid)
+            .timeout(remaining(), onTimeout: () => true)) {
+          alive.add(pid);
+        }
+      } on Object {
+        alive.add(pid);
+      }
     }
     if (alive.isEmpty) {
       return SubreaperDrainResult(
         settled: true,
+        verified: true,
         survivors: const [],
         notes: notes,
       );
     }
     for (final pid in alive.reversed) {
-      await liveness.kill(pid, grace: killGrace);
+      if (remaining() <= Duration.zero) break;
+      try {
+        await liveness
+            .kill(pid, grace: killGrace)
+            .timeout(remaining(), onTimeout: () => false);
+      } on Object catch (e) {
+        notes.add('kill $pid: $e');
+      }
     }
-    survivors
-      ..clear()
-      ..addAll(alive);
-    await Future<void>.delayed(poll);
+    await Future<void>.delayed(
+      poll > remaining() ? remaining() : poll,
+    );
   }
 
-  final tree = supervisorPid > 0 ? await probe.enumerate(supervisorPid) : null;
-  if (tree != null) {
-    for (final pid in tree.descendants()) {
-      if (await liveness.isAlive(pid)) survivors.add(pid);
-    }
+  ProcessTree? tree;
+  try {
+    tree = await probe
+        .enumerate(supervisorPid)
+        .timeout(remaining(), onTimeout: () => null);
+  } on Object {
+    tree = null;
   }
-
+  if (tree == null) {
+    return SubreaperDrainResult(
+      settled: false,
+      verified: false,
+      survivors: const [],
+      notes: [...notes, 'final enumerate unavailable'],
+    );
+  }
+  final survivors = <int>[];
+  for (final pid in tree.descendants()) {
+    if (await liveness.isAlive(pid)) survivors.add(pid);
+  }
   return SubreaperDrainResult(
-    settled: survivors.isEmpty,
-    survivors: survivors.toList(),
-    notes: notes,
+    settled: false,
+    verified: survivors.isEmpty,
+    survivors: survivors,
+    notes: [...notes, 'drain budget exhausted'],
   );
 }
 
 final class SubreaperDrainResult {
   const SubreaperDrainResult({
     required this.settled,
+    required this.verified,
     required this.survivors,
     this.notes = const [],
   });
 
   final bool settled;
+  final bool verified;
   final List<int> survivors;
   final List<String> notes;
 }
