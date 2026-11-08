@@ -54,7 +54,8 @@ if [ "$1" = "build" ]; then
 fi
 if [ "$1" = "dev" ] && [ "$2" = "android" ]; then
   echo "fake-oka stalling"
-  sleep 300
+  echo $$ > .session-pid
+  exec sleep 300
 fi
 ''';
 
@@ -216,6 +217,29 @@ void main() {
     },
   );
 
+  test(
+    'exitCode observation fails fast without the build phase',
+    () async {
+      final failing = await _withFakeOka(_failingDevOkaScript);
+      addTearDown(() => failing.delete(recursive: true));
+      final target = AndroidAppTarget(
+        projectDir: failing.path,
+        okaBin: '${failing.path}/fake_oka',
+        logcat: false,
+      );
+      await expectLater(
+        target.launch(build: false),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('exited (4)'), contains('no manifest')),
+          ),
+        ),
+      );
+    },
+  );
+
   test('exiting dev android fails fast with exit evidence', () async {
     final failing = await _withFakeOka(_failingDevOkaScript);
     addTearDown(() => failing.delete(recursive: true));
@@ -247,12 +271,16 @@ void main() {
       sessionTimeout: const Duration(seconds: 2),
     );
     await expectLater(target.launch(), throwsA(isA<TimeoutException>()));
-    // The failed bring-up must not leave an `oka` process behind.
-    final leftover = await Process.run('pgrep', ['-f', 'fake_oka']);
-    expect(
-      leftover.stdout.toString().trim(),
-      isEmpty,
-      reason: 'no fake oka process should survive a failed launch',
+    final pidText = File('${stalling.path}/.session-pid').readAsStringSync();
+    final pid = int.parse(pidText.trim());
+    await waitFor(
+      () => Process.runSync('ps', [
+        '-p',
+        '$pid',
+        '-o',
+        'pid=',
+      ]).stdout.toString().trim().isEmpty,
+      reason: 'owning session pid $pid survived a failed launch',
     );
   });
 }

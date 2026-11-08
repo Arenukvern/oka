@@ -129,7 +129,7 @@ final class AndroidAppTarget implements AppTarget {
       );
     } on Object {
       // Never leave an owning session behind on a failed bring-up.
-      process.kill();
+      await _stopOwningSession(process);
       rethrow;
     }
   }
@@ -142,8 +142,7 @@ final class AndroidAppTarget implements AppTarget {
     while (DateTime.now().isBefore(deadline)) {
       final earlyExit = await _tryProcessExitCode(process);
       if (earlyExit != null) {
-        // Let the stdout/stderr pumps publish child diagnostics first.
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await _drainChildDiagnostics(process, tap);
         throw StateError(
           'oka dev android exited ($earlyExit) before publishing '
           '.flutter_mcp/runner-session.json; session tail:\n'
@@ -174,6 +173,39 @@ final class AndroidAppTarget implements AppTarget {
       return await process.exitCode.timeout(Duration.zero);
     } on TimeoutException {
       return null;
+    }
+  }
+
+  /// Await exit after signaling the owning `oka dev android` child; escalate
+  /// to SIGKILL when the grace budget is exhausted.
+  Future<void> _stopOwningSession(Process process) async {
+    if (await _tryProcessExitCode(process) != null) return;
+    process.kill();
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 5));
+      return;
+    } on TimeoutException {
+      process.kill(ProcessSignal.sigkill);
+      await process.exitCode.timeout(const Duration(seconds: 5));
+    }
+  }
+
+  /// After the child exits, let stdout/stderr pumps catch up before building
+  /// the failure tail (bounded, not a blind fixed sleep).
+  Future<void> _drainChildDiagnostics(Process process, LogTap tap) async {
+    final deadline = DateTime.now().add(const Duration(milliseconds: 500));
+    var lastLen = -1;
+    var stableTicks = 0;
+    while (DateTime.now().isBefore(deadline)) {
+      final tailLen = tap.tail(20).join('\n').length;
+      if (tailLen == lastLen) {
+        stableTicks++;
+        if (stableTicks >= 3) return;
+      } else {
+        stableTicks = 0;
+        lastLen = tailLen;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
     }
   }
 

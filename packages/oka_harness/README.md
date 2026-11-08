@@ -1,7 +1,7 @@
 # oka_harness
 
 Device E2E targets over oka's owning dev sessions (ADR-0026): launch an
-Android app via `oka dev`, pick the forwarded VM service URI up from the
+Android app via `oka dev android`, pick the forwarded VM service URI up from the
 runner-session contract, and drive/assert it with the
 [flutter_mcp_harness](https://pub.dev/packages/flutter_mcp_harness)
 scenario core.
@@ -15,12 +15,12 @@ observation oracle (ADR-0024). Test flows used to bridge the two with shell
 
 ```text
 provision/install → launch/connect → observe → assert → report → teardown
-        oka dev ▸ ▸ AndroidAppTarget      WidgetDriver ▸ Scenario ▸ stop()
+        oka dev android ▸ AndroidAppTarget   WidgetDriver ▸ Scenario ▸ stop()
 ```
 
 Contract notes:
 
-- `oka dev` is the **single owning attach session**. The target never opens
+- `oka dev android` is the **single owning attach session**. The target never opens
   a second attach (which would kill the owner) and never scrapes logcat for
   the VM URI — it reads `.flutter_mcp/runner-session.json` (spec v2, see
   mcp_flutter ADR-0014), whose absence is the liveness signal.

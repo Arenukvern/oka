@@ -27,13 +27,16 @@ jobs:
           # Google Maven R8 jar so the release-shrink evidence runs on CI.
           OKA_R8_FIXTURE_ALLOW_DOWNLOAD: '1'
         run: |
-          set -e
+          failed=0
           for pkg in packages/*/; do
             if [ -d "$pkg/test" ]; then
               echo "=== $pkg"
-              (cd "$pkg" && dart test)
+              if ! (cd "$pkg" && dart test); then
+                failed=1
+              fi
             fi
           done
+          exit $failed
 
   windows-session-observation:
     runs-on: windows-latest
