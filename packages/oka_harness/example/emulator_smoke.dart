@@ -16,7 +16,7 @@ Future<void> main(List<String> args) async {
     projectDir: projectDir,
     // deviceId: 'emulator-5554', // pin on multi-device hosts
     dartDefines: {'MY_APP_FLOW': 'smoke'},
-  ).launch();
+  ).launchOka();
 
   var passed = false;
   try {

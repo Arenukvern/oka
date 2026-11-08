@@ -17,13 +17,13 @@ import 'dev_session.dart';
 
 /// How the owning session was stopped.
 enum DevSessionStopDisposition {
-  /// Control or stdin `quit`/`detach` accepted; process exited; discovery gone.
+  /// Quit requested; process exited; discovery gone (see receipt flags).
   cooperative,
 
   /// Quit path incomplete; a signal was used to reap the owning process.
   forcedProcessSignal,
 
-  /// Owning process ended but discovery or quit ack did not fully verify.
+  /// Owning process ended but discovery or quit path did not fully verify.
   incomplete,
 }
 
@@ -33,6 +33,9 @@ final class DevSessionStopReport {
     required this.disposition,
     required this.runnerSessionCleared,
     required this.controlQuitAcknowledged,
+    required this.controlQuitSent,
+    required this.controlReplyLost,
+    required this.stdinQuitWritten,
     required this.elapsed,
     required this.limits,
     this.processExitCode,
@@ -46,8 +49,17 @@ final class DevSessionStopReport {
   /// `.flutter_mcp/runner-session.json` is absent after stop (spec v2 liveness).
   final bool runnerSessionCleared;
 
-  /// Loopback `quit`/`detach` returned `ok: true`, or stdin quit was written.
+  /// Loopback `quit`/`detach` returned `ok: true` on the wire.
   final bool controlQuitAcknowledged;
+
+  /// A TCP `quit`/`detach` was sent (even if the reply was lost).
+  final bool controlQuitSent;
+
+  /// Reply line never arrived (EOF / server tore down first).
+  final bool controlReplyLost;
+
+  /// `quit` line written to `--json` stdin (not an ack).
+  final bool stdinQuitWritten;
 
   final Duration elapsed;
 
@@ -57,6 +69,7 @@ final class DevSessionStopReport {
   final Map<String, Object?>? controlResponse;
   final String? message;
 
+  /// Runner discovery + cooperative disposition only (not device settlement).
   bool get ok =>
       disposition == DevSessionStopDisposition.cooperative &&
       runnerSessionCleared;
@@ -64,10 +77,6 @@ final class DevSessionStopReport {
 
 /// Stops an owning `oka dev android` [owningProcess] without relying on
 /// SIGTERM for discovery cleanup.
-///
-/// [controlPort] from [readRunnerSessionFile] when available; when null or
-/// zero, only the stdin `quit` line is attempted (requires `oka dev android
-/// --json`).
 Future<DevSessionStopReport> stopOkaDevAndroidSession({
   required Process owningProcess,
   required String projectPath,
@@ -75,6 +84,7 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
   bool stdinJsonQuitEnabled = true,
   Duration quitTimeout = const Duration(seconds: 45),
   Duration discoveryPoll = const Duration(seconds: 10),
+  Duration forceSignalGrace = const Duration(seconds: 5),
 }) async {
   const limits =
       'Verifies only owning-process exit and runner-session.json absence. '
@@ -83,13 +93,27 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
   final watch = Stopwatch()..start();
   Map<String, Object?>? controlResponse;
   var controlQuitAcknowledged = false;
+  var controlQuitSent = false;
+  var controlReplyLost = false;
+  var stdinQuitWritten = false;
 
   if (controlPort != null && controlPort > 0) {
+    controlQuitSent = true;
     try {
       final client = await DevControlClient.connect(port: controlPort);
       try {
-        controlResponse = await client.requestQuit();
-        controlQuitAcknowledged = controlResponse['ok'] == true;
+        final result = await client.requestQuit(
+          timeout: const Duration(seconds: 5),
+        );
+        if (result.timedOut) {
+          controlResponse = {'ok': false, 'error': 'control request timed out'};
+        } else if (result.replyLost) {
+          controlReplyLost = true;
+          controlResponse = {'ok': false, 'error': 'reply lost (EOF)'};
+        } else {
+          controlResponse = result.response;
+          controlQuitAcknowledged = result.ok;
+        }
       } finally {
         await client.close();
       }
@@ -102,28 +126,29 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
     try {
       owningProcess.stdin.writeln('quit');
       await owningProcess.stdin.flush();
-      controlQuitAcknowledged = true;
+      stdinQuitWritten = true;
     } on Object {
       // Pipe closed or session not in --json mode.
     }
   }
 
+  final quitRequested = controlQuitSent || stdinQuitWritten;
+
   int? exitCode;
   var disposition = DevSessionStopDisposition.incomplete;
   try {
     exitCode = await owningProcess.exitCode.timeout(quitTimeout);
-    disposition = controlQuitAcknowledged
-        ? DevSessionStopDisposition.cooperative
-        : DevSessionStopDisposition.incomplete;
   } on TimeoutException {
     owningProcess.kill();
     try {
-      exitCode = await owningProcess.exitCode.timeout(
-        const Duration(seconds: 5),
-      );
+      exitCode = await owningProcess.exitCode.timeout(forceSignalGrace);
     } on TimeoutException {
       owningProcess.kill(ProcessSignal.sigkill);
-      exitCode = await owningProcess.exitCode;
+      try {
+        exitCode = await owningProcess.exitCode.timeout(forceSignalGrace);
+      } on TimeoutException {
+        exitCode = null;
+      }
     }
     disposition = DevSessionStopDisposition.forcedProcessSignal;
   }
@@ -133,9 +158,16 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
     deadline: DateTime.now().add(discoveryPoll),
   );
 
-  if (disposition == DevSessionStopDisposition.cooperative &&
-      (!runnerSessionCleared || exitCode != 0)) {
-    disposition = DevSessionStopDisposition.incomplete;
+  if (disposition != DevSessionStopDisposition.forcedProcessSignal) {
+    final cleanExit = exitCode == 0;
+    final quitPathHonest = controlQuitAcknowledged ||
+        stdinQuitWritten ||
+        (controlReplyLost && controlQuitSent);
+    if (cleanExit && runnerSessionCleared && quitRequested && quitPathHonest) {
+      disposition = DevSessionStopDisposition.cooperative;
+    } else {
+      disposition = DevSessionStopDisposition.incomplete;
+    }
   }
 
   watch.stop();
@@ -144,12 +176,15 @@ Future<DevSessionStopReport> stopOkaDevAndroidSession({
     processExitCode: exitCode,
     runnerSessionCleared: runnerSessionCleared,
     controlQuitAcknowledged: controlQuitAcknowledged,
+    controlQuitSent: controlQuitSent,
+    controlReplyLost: controlReplyLost,
+    stdinQuitWritten: stdinQuitWritten,
     elapsed: watch.elapsed,
     limits: limits,
     controlResponse: controlResponse,
     message: switch (disposition) {
       DevSessionStopDisposition.cooperative =>
-        'Session quit accepted; discovery cleared; process exited.',
+        'Quit requested; discovery cleared; owning process exited.',
       DevSessionStopDisposition.forcedProcessSignal =>
         'Quit did not finish within timeout; owning process was signalled.',
       DevSessionStopDisposition.incomplete =>

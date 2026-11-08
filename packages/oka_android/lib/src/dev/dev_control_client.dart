@@ -1,70 +1,148 @@
 /// Loopback JSON-lines client for the owning `oka dev` delegation channel
 /// (`DevControlServer`, ADR-0011).
-///
-/// **Contract (read independently — do not assume SIGTERM runs Dart `finally`):**
-/// * Request: `{"id": <int>, "method": "reload"|"restart"|"stop"|"quit"|"detach"|"status"}`.
-/// * `stop` stops the app; the **session keeps running**.
-/// * `quit` / `detach` end the owning session (writer clears discovery on exit).
-/// * TCP `127.0.0.1` only; no auth.
 library;
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// The server accepted the command but the TCP reply line was lost (EOF).
+final class DevControlReplyLost implements Exception {
+  DevControlReplyLost([this.message = 'control channel closed before reply']);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// Outcome of one control request (ack, lost reply, or timeout).
+final class DevControlRequestResult {
+  const DevControlRequestResult.acknowledged(this.response)
+      : replyLost = false,
+        timedOut = false;
+
+  const DevControlRequestResult.replyLost()
+      : response = null,
+        replyLost = true,
+        timedOut = false;
+
+  const DevControlRequestResult.timedOut()
+      : response = null,
+        replyLost = false,
+        timedOut = true;
+
+  final Map<String, Object?>? response;
+  final bool replyLost;
+  final bool timedOut;
+
+  bool get ok => response?['ok'] == true;
+}
+
 /// A single JSON-line request/response on the session control port.
 final class DevControlClient {
   DevControlClient._(this._socket) {
+    _lines = StreamController<String>.broadcast(sync: true);
     _sub = _socket
         .map(utf8.decode)
         .transform(const LineSplitter())
-        .listen(_pending.add);
+        .listen(_lines.add);
+    unawaited(
+      _socket.done.whenComplete(() async {
+        if (!_lines.isClosed) {
+          await _lines.close();
+        }
+      }),
+    );
   }
 
   final Socket _socket;
   late final StreamSubscription<String> _sub;
-  final _pending = <String>[];
+  late final StreamController<String> _lines;
 
-  /// Connects to the published `control_port` from
-  /// `.flutter_mcp/runner-session.json`.
   static Future<DevControlClient> connect({
     required int port,
     String host = '127.0.0.1',
     Duration connectTimeout = const Duration(seconds: 5),
   }) async {
-    // Caller owns the socket lifetime via [close].
     // ignore: close_sinks
     final socket = await Socket.connect(host, port).timeout(connectTimeout);
     return DevControlClient._(socket);
   }
 
-  /// Sends one request and waits for the first response line (bounded).
-  Future<Map<String, Object?>> request(
+  Future<DevControlRequestResult> request(
     Map<String, Object?> body, {
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    _pending.clear();
-    _socket.write('${jsonEncode(body)}\n');
-    final deadline = DateTime.now().add(timeout);
-    while (_pending.isEmpty) {
-      if (DateTime.now().isAfter(deadline)) {
-        throw TimeoutException('control channel response', timeout);
+    final waiter = Completer<DevControlRequestResult>();
+    late final StreamSubscription<String> lineSub;
+    lineSub = _lines.stream.listen(
+      (line) {
+        if (waiter.isCompleted) return;
+        waiter.complete(
+          DevControlRequestResult.acknowledged(
+            jsonDecode(line) as Map<String, Object?>,
+          ),
+        );
+        unawaited(lineSub.cancel());
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!waiter.isCompleted) {
+          waiter.complete(const DevControlRequestResult.replyLost());
+        }
+        unawaited(lineSub.cancel());
+      },
+      onDone: () {
+        if (!waiter.isCompleted) {
+          waiter.complete(const DevControlRequestResult.replyLost());
+        }
+        unawaited(lineSub.cancel());
+      },
+    );
+    unawaited(
+      _socket.done.then((_) {
+        if (!waiter.isCompleted) {
+          waiter.complete(const DevControlRequestResult.replyLost());
+        }
+      }),
+    );
+    try {
+      _socket.write('${jsonEncode(body)}\n');
+      await _socket.flush();
+    } on Object {
+      if (!waiter.isCompleted) {
+        waiter.complete(const DevControlRequestResult.replyLost());
       }
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+      return waiter.future;
     }
-    return jsonDecode(_pending.first) as Map<String, Object?>;
+    try {
+      return await waiter.future.timeout(
+        timeout,
+        onTimeout: () {
+          if (!waiter.isCompleted) {
+            waiter.complete(const DevControlRequestResult.timedOut());
+          }
+          return const DevControlRequestResult.timedOut();
+        },
+      );
+    } finally {
+      await lineSub.cancel();
+    }
   }
 
-  /// Ends the owning session (`DevControlCommand.quit` on the server).
-  Future<Map<String, Object?>> requestQuit({int id = 1}) =>
-      request({'id': id, 'method': 'quit'});
+  Future<DevControlRequestResult> requestQuit({
+    int id = 1,
+    Duration timeout = const Duration(seconds: 30),
+  }) =>
+      request({'id': id, 'method': 'quit'}, timeout: timeout);
 
-  /// Detach: app keeps running, session ends.
-  Future<Map<String, Object?>> requestDetach({int id = 1}) =>
-      request({'id': id, 'method': 'detach'});
+  Future<DevControlRequestResult> requestDetach({
+    int id = 1,
+    Duration timeout = const Duration(seconds: 30),
+  }) =>
+      request({'id': id, 'method': 'detach'}, timeout: timeout);
 
   Future<void> close() async {
     await _sub.cancel();
+    await _lines.close();
     _socket.destroy();
   }
 }

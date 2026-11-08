@@ -264,6 +264,12 @@ class DevSessionDiscovery {
   final int controlPort;
 
   final String deviceId;
+
+  /// Live pid of the owning `oka dev` session process at publish time.
+  ///
+  /// May differ from a harness [Process.start] handle when the `oka`
+  /// entrypoint is a wrapper that execs/spawns a child Dart VM — compare with
+  /// [verifyRunnerSessionSpawnBinding], not `==` on raw pids.
   final int pid;
   final DateTime startedAt;
 }

@@ -16,6 +16,8 @@ final class OkaLaunchedApp {
     required this.vmUri,
     required this.projectDir,
     required this.controlPort,
+    required this.sessionOwnerPid,
+    required this.spawnBinding,
     this.stdinJsonQuitEnabled = false,
     this.onStopExtra,
   });
@@ -26,6 +28,12 @@ final class OkaLaunchedApp {
   final Uri vmUri;
   final String projectDir;
   final int controlPort;
+
+  /// `runner-session.json` `pid` (session owner — may differ from [pid]).
+  final int sessionOwnerPid;
+
+  /// Ancestry link between [sessionOwnerPid] and the spawn handle [pid].
+  final RunnerSessionSpawnBindingReport spawnBinding;
 
   /// When true, [stopSession] may write `quit` on stdin (`--json` surface).
   final bool stdinJsonQuitEnabled;
@@ -48,7 +56,11 @@ final class OkaLaunchedApp {
       stdinJsonQuitEnabled: stdinJsonQuitEnabled,
       quitTimeout: quitTimeout,
     );
-    await onStopExtra?.call().catchError((Object _) {});
+    try {
+      await onStopExtra?.call();
+    } on Object {
+      // Logcat tap is best-effort; session receipt is authoritative.
+    }
     await stdout.close();
     return report;
   }

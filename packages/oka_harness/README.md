@@ -24,6 +24,10 @@ Contract notes:
   a second attach (which would kill the owner) and never scrapes logcat for
   the VM URI — it reads `.flutter_mcp/runner-session.json` (spec v2, see
   mcp_flutter ADR-0014), whose absence is the liveness signal.
+- Discovery `pid` is the **session owner** (the live Dart VM running `oka dev`),
+  not necessarily `Process.start(...).pid` when `oka` on PATH is a wrapper.
+  Use `verifyRunnerSessionSpawnBinding` / [OkaLaunchedApp.spawnBinding]; prefer
+  `control_port` for cooperative stop (`stopSession()` / `stopOkaDevAndroidSession`).
 - App logs stream in from `adb logcat` (prefixed `[logcat] `) into the same
   `LogTap`, so log assertions read the same as desktop targets.
 - `launch(build: false)` deliberately refuses: bring-up through a second

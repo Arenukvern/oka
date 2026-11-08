@@ -180,9 +180,10 @@ void main() {
       final client = await DevControlClient.connect(port: h.server.port);
       final r = await client.requestQuit(id: 3);
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(r['id'], 3);
-      expect(r['ok'], isTrue);
-      expect((r['result'] as Map)['session'], 'quit_accepted');
+      expect(r.ok, isTrue);
+      expect(r.response!['id'], 3);
+      final result = r.response!['result'] as Map<String, Object?>?;
+      expect(result?['session'], 'quit_accepted');
       expect(commands, contains(DevControlCommand.quit));
       await sub.cancel();
       await client.close();

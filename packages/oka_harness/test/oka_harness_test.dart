@@ -29,14 +29,14 @@ if [ "$1" = "dev" ] && [ "$2" != "android" ]; then
 fi
 echo "fake-oka dev android session args"
 mkdir -p .flutter_mcp
-cat > .flutter_mcp/runner-session.json <<'JSON'
+cat > .flutter_mcp/runner-session.json <<JSON
 {
   "schema": 1,
   "runner": "fake-oka-dev",
   "vm_service_uri": "http://127.0.0.1:45671/abc123=/",
-  "control_port": 45672,
+  "control_port": 0,
   "device_id": "emulator-5554",
-  "pid": 42424,
+  "pid": $$,
   "started_at": "2026-09-27T00:00:00.000Z"
 }
 JSON
@@ -143,7 +143,7 @@ void main() {
         dartDefines: const {'INSPECTOR_EVIDENCE': 'fixture'},
         logcat: false,
       );
-      final app = await target.launch();
+      final app = await target.launchOka();
 
       addTearDown(app.stop);
       expect(app.vmUri.host, '127.0.0.1');
@@ -161,21 +161,26 @@ void main() {
         isTrue,
       );
       expect(await tapContains(app, 'fake-oka args: dev android'), isTrue);
+      expect(app.sessionOwnerPid, app.process.pid);
+      expect(app.spawnBinding.binding, RunnerSessionSpawnBinding.exact);
       // The build ran with the SAME defines the dev session requests
       // (the parity check the real oka enforces).
     },
   );
 
-  test('stopSession clears discovery cooperatively (not bare SIGTERM)', () async {
+  test(
+    'stopSession clears discovery cooperatively (not bare SIGTERM)',
+    () async {
     final target = AndroidAppTarget(
       projectDir: workspace.path,
       okaBin: '${workspace.path}/fake_oka',
       logcat: false,
     );
-    final app = await target.launch();
+    final app = await target.launchOka();
     final pid = app.process.pid;
     final report = await app.stopSession();
-    expect(report.controlQuitAcknowledged, isTrue);
+    expect(report.stdinQuitWritten, isTrue);
+    expect(report.controlQuitAcknowledged, isFalse);
     expect(report.runnerSessionCleared, isTrue);
     expect(report.disposition, DevSessionStopDisposition.cooperative);
     expect(report.ok, isTrue);
@@ -192,9 +197,12 @@ void main() {
       ]).stdout.toString().trim().isEmpty,
       reason: 'owning session pid $pid survived stopSession()',
     );
-    expect(File('${workspace.path}/.flutter_mcp/runner-session.json').existsSync(),
-        isFalse);
-  });
+    expect(
+      File('${workspace.path}/.flutter_mcp/runner-session.json').existsSync(),
+      isFalse,
+    );
+  },
+  );
 
   test(
     'launch(build: false) skips the build phase and attaches directly',

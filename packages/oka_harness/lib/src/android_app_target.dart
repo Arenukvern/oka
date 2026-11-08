@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_mcp_harness/flutter_mcp_harness.dart'
-    show LogTap, ToolkitDriver, VmClient;
+import 'package:flutter_mcp_harness/flutter_mcp_harness.dart';
 import 'package:oka_android/oka_android.dart';
 
 import 'oka_launched_app.dart';
@@ -24,7 +23,11 @@ import 'session_composition.dart';
 /// App logs under automation surface through adb logcat streamed into the
 /// same [LaunchedApp.stdout] tap (prefixed `[logcat] `), so log-based
 /// assertions work the same as on desktop targets.
-final class AndroidAppTarget {
+///
+/// **Stop:** use [launchOka] + [OkaLaunchedApp.stopSession], or
+/// [stopCooperatively] for [AppTarget.launch] compat. Do not call
+/// [LaunchedApp.stop] (SIGTERM — stale discovery).
+final class AndroidAppTarget implements AppTarget {
   AndroidAppTarget({
     required this.projectDir,
     this.deviceId,
@@ -35,6 +38,7 @@ final class AndroidAppTarget {
     this.logcat = true,
     this.jsonControl = true,
     this.sessionTimeout = const Duration(minutes: 5),
+    this.requirePlausibleSpawnOwnership = true,
   });
 
   /// Flutter project directory (oka runs against it and the runner-session
@@ -60,7 +64,41 @@ final class AndroidAppTarget {
   final bool jsonControl;
   final Duration sessionTimeout;
 
-  Future<OkaLaunchedApp> launch({bool build = true}) async {
+  /// When true, refuses bring-up when discovery `pid` is unrelated to the
+  /// [Process.start] handle ([verifyRunnerSessionSpawnBinding]).
+  final bool requirePlausibleSpawnOwnership;
+
+  static final _bindings = <int, OkaLaunchedApp>{};
+
+  /// Cooperative owning session (preferred).
+  Future<OkaLaunchedApp> launchOka({bool build = true}) =>
+      _launchOka(build: build);
+
+  /// [AppTarget] compat: returns [LaunchedApp] for scenario typing only.
+  @override
+  Future<LaunchedApp> launch({bool build = true}) async {
+    final app = await _launchOka(build: build);
+    _bindings[app.pid] = app;
+    return LaunchedApp(
+      name: app.name,
+      process: app.process,
+      stdout: app.stdout,
+      vmUri: app.vmUri,
+    );
+  }
+
+  /// Cooperative stop for apps from [launch] — not [LaunchedApp.stop].
+  static Future<DevSessionStopReport> stopCooperatively(LaunchedApp app) {
+    final bound = _bindings.remove(app.process.pid);
+    if (bound == null) {
+      throw StateError(
+        'no oka-owned binding for pid ${app.process.pid} — use launchOka()',
+      );
+    }
+    return bound.stopSession();
+  }
+
+  Future<OkaLaunchedApp> _launchOka({bool build = true}) async {
     // A stale file would look like a live session; the runner deletes it on
     // exit, so anything left is debris (crash, SIGKILL).
     await clearRunnerSessionFile(projectDir);
@@ -121,6 +159,19 @@ final class AndroidAppTarget {
     Process? logcatProcess;
     try {
       final session = await _waitForSession(process, tap);
+      final spawnBinding = await verifyRunnerSessionSpawnBinding(
+        discovery: session,
+        spawnHandle: process,
+      );
+      if (requirePlausibleSpawnOwnership &&
+          !spawnBinding.isPlausibleOwnership) {
+        await _stopOwningSession(process);
+        throw StateError(
+          'runner-session pid ${session.pid} is not owned by oka spawn '
+          'handle ${process.pid} (binding=${spawnBinding.binding}). '
+          'Use verifyRunnerSessionSpawnBinding — do not assert pid equality.',
+        );
+      }
       if (logcat) {
         logcatProcess = await _startLogcat(session.deviceId, tap);
       }
@@ -131,9 +182,19 @@ final class AndroidAppTarget {
         vmUri: Uri.parse(session.vmServiceUri),
         projectDir: projectDir,
         controlPort: session.controlPort,
+        sessionOwnerPid: session.pid,
+        spawnBinding: spawnBinding,
         stdinJsonQuitEnabled: jsonControl,
         onStopExtra: () async {
-          logcatProcess?.kill();
+          final lp = logcatProcess;
+          if (lp == null) return;
+          lp.kill();
+          try {
+            await lp.exitCode.timeout(const Duration(seconds: 3));
+          } on TimeoutException {
+            lp.kill(ProcessSignal.sigkill);
+            await lp.exitCode.timeout(const Duration(seconds: 2));
+          }
         },
       );
     } on Object {
