@@ -35,12 +35,23 @@ void main() {
     });
 
     test('explicit dds override is forwarded', () {
-      final argv = flutterAttachMachineArgs(
-        deviceId: 'emu',
-        hostVmServicePort: 36605,
-        ddsPort: 39123,
+      expect(
+        flutterAttachMachineArgs(
+          deviceId: 'emu',
+          hostVmServicePort: 36605,
+          ddsPort: 39123,
+        ),
+        [
+          'attach',
+          '--machine',
+          '-d',
+          'emu',
+          '--host-vmservice-port',
+          '36605',
+          '--dds-port',
+          '39123',
+        ],
       );
-      expect(argv, containsAll(['--dds-port', '39123']));
     });
   });
 }

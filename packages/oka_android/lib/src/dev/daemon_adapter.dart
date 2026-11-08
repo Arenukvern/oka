@@ -419,6 +419,28 @@ class FlutterDaemonAdapter {
         if (encoded.length <= _eventRingMaxSingleBytes) break;
         maxPreview ~/= 2;
       }
+      if (encoded.length > _eventRingMaxSingleBytes) {
+        final shortEvent = _truncateUtf8(event.event, 96);
+        entry = MachineEventRingEntry(
+          event: shortEvent,
+          atUtc: at,
+          params: const {
+            '_truncated': true,
+            '_eventNameTruncated': true,
+          },
+          paramsTruncated: true,
+        );
+        encoded = utf8.encode(jsonEncode(entry.toJson()));
+        if (encoded.length > _eventRingMaxSingleBytes) {
+          entry = MachineEventRingEntry(
+            event: 'app.overflow',
+            atUtc: at,
+            params: const {'_truncated': true},
+            paramsTruncated: true,
+          );
+          encoded = utf8.encode(jsonEncode(entry.toJson()));
+        }
+      }
     }
     _eventRing.add(entry);
     _eventRingBytes += encoded.length;

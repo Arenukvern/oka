@@ -56,6 +56,10 @@ void main() {
 
     tearDown(() => root.deleteSync(recursive: true));
 
+    test('returns null when runner-session is absent', () {
+      expect(tryRunnerSessionIdentityForDiagnostic(root.path), isNull);
+    });
+
     test('returns null for malformed runner-session', () {
       final dir = Directory('${root.path}/.flutter_mcp')
         ..createSync(recursive: true);

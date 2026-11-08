@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
+import '../packages/oka_android/test/support/daemon_adapter_test_helpers.dart';
 import '../packages/oka_android/test/support/fake_daemon_transport.dart';
 
 void main() {
@@ -139,6 +140,22 @@ void main() {
       adapter.dispose();
     });
 
+    test('matching appId stop before started fails handshake', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.start', {'appId': 'same-id'});
+      await adapter.waitAppStart();
+      t.emitEvent('app.stop', {'appId': 'same-id'});
+      await waitForDaemonEvent(adapter, 'app.stop');
+      expect(adapter.stopAfterStartBeforeStarted, isTrue);
+      expect(
+        adapter.precheckAttachHandshakeFailure(),
+        AttachHandshakeFailure.appStopBeforeStarted,
+      );
+      adapter.dispose();
+    });
+
     test('mismatched appId stop before started is not fatal', () async {
       final t = FakeDaemonTransport();
       final adapter = FlutterDaemonAdapter(transport: t);
@@ -146,6 +163,7 @@ void main() {
       t.emitEvent('app.start', {'appId': 'start-a'});
       await adapter.waitAppStart();
       t.emitEvent('app.stop', {'appId': 'other-b'});
+      await waitForDaemonEvent(adapter, 'app.stop');
       expect(adapter.stopAfterStartBeforeStarted, isFalse);
       expect(adapter.precheckAttachHandshakeFailure(), isNull);
       adapter.dispose();
@@ -181,16 +199,33 @@ void main() {
     });
 
     test('unicode oversized event preview stays UTF-8 safe', () async {
+      const maxRingEntryBytes = 4096;
       final t = FakeDaemonTransport();
       final adapter = FlutterDaemonAdapter(transport: t);
       final huge = '🔥${'é' * 8192}';
       t.emitEvent('app.unicode', {'text': huge});
-      await Future<void>.delayed(Duration.zero);
+      await waitForDaemonEvent(adapter, 'app.unicode');
       final ring = adapter.snapshotMachineEventRing();
       expect(ring.single['paramsTruncated'], isTrue);
+      final entryBytes = utf8.encode(jsonEncode(ring.single));
+      expect(entryBytes.length, lessThanOrEqualTo(maxRingEntryBytes));
       final preview = ring.single['params']! as Map<String, Object?>;
       final text = preview['preview']! as String;
-      expect(utf8.decode(utf8.encode(text)), text);
+      expect(text, isNot(contains('\uFFFD')));
+      expect(utf8.decode(utf8.encode(text), allowMalformed: false), text);
+      adapter.dispose();
+    });
+
+    test('oversized event name is still capped in ring', () async {
+      const maxRingEntryBytes = 4096;
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      final longName = 'app.${'n' * 8192}';
+      t.emitEvent(longName, {'k': 'v'});
+      await waitForDaemonEvent(adapter, longName);
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring, hasLength(1));
+      expect(utf8.encode(jsonEncode(ring.single)).length, lessThanOrEqualTo(maxRingEntryBytes));
       adapter.dispose();
     });
 
