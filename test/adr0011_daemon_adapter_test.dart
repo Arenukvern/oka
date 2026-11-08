@@ -33,6 +33,10 @@ class FakeDaemonTransport implements DaemonTransport {
 
   void emit(String line) => _stdout.add(utf8.encode('$line\n'));
 
+  /// Multiple JSON lines in one stdout delivery (synchronous chunk parse).
+  void emitChunk(List<String> lines) =>
+      _stdout.add(utf8.encode('${lines.join('\n')}\n'));
+
   void emitEvent(
     String name, [
     Map<String, Object?> params = const {},
@@ -174,6 +178,81 @@ void main() {
         ring.map((e) => e['event']).toList(),
         ['daemon.connected', 'app.start', 'app.stop'],
       );
+      adapter.dispose();
+    });
+
+    test('app.start and app.stop same stdout chunk prechecks stop', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitChunk([
+        jsonEncode([
+          {
+            'event': 'daemon.connected',
+            'params': {'version': '0.6.1'},
+          },
+        ]),
+        jsonEncode([
+          {
+            'event': 'app.start',
+            'params': {'appId': 'x', 'launchMode': 'attach'},
+          },
+        ]),
+        jsonEncode([
+          {'event': 'app.stop', 'params': {'appId': 'x'}},
+        ]),
+      ]);
+      await adapter.waitAppStart();
+      final watch = Stopwatch()..start();
+      final failure = await adapter.waitForAppStarted(
+        timeout: const Duration(seconds: 30),
+      );
+      expect(failure, AttachHandshakeFailure.appStopBeforeStarted);
+      expect(watch.elapsed, lessThan(const Duration(milliseconds: 50)));
+      expect(adapter.stopAfterStartBeforeStarted, isTrue);
+      adapter.dispose();
+    });
+
+    test('app.stop after app.started does not fail handshake', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.start', {'appId': 'x', 'launchMode': 'attach'});
+      await adapter.waitAppStart();
+      t.emitEvent('app.started', {'appId': 'x'});
+      t.emitEvent('app.stop', {'appId': 'x'});
+      final failure = await adapter.waitForAppStarted();
+      expect(failure, isNull);
+      adapter.dispose();
+    });
+  });
+
+  group('machine event ring', () {
+    test('oversized single event is retained truncated', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      final huge = 'x' * 16 * 1024;
+      t.emitEvent('app.huge', {'blob': huge});
+      await Future<void>.delayed(Duration.zero);
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring, hasLength(1));
+      expect(ring.single['event'], 'app.huge');
+      expect(ring.single['paramsTruncated'], isTrue);
+      expect(ring.single['params'], isA<Map>());
+      adapter.dispose();
+    });
+
+    test('total byte cap evicts oldest not the new oversized entry', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      for (var i = 0; i < 80; i++) {
+        t.emitEvent('app.progress', {'i': i, 'pad': 'y' * 512});
+      }
+      await Future<void>.delayed(Duration.zero);
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring.length, lessThanOrEqualTo(64));
+      expect(ring.last['event'], 'app.progress');
+      final lastParams = ring.last['params'] as Map<String, Object?>?;
+      expect(lastParams?['i'], 79);
       adapter.dispose();
     });
   });

@@ -107,16 +107,19 @@ final class MachineEventRingEntry {
     required this.event,
     required this.atUtc,
     required this.params,
+    this.paramsTruncated = false,
   });
 
   final String event;
   final String atUtc;
   final Map<String, Object?> params;
+  final bool paramsTruncated;
 
   Map<String, Object?> toJson() => {
     'event': event,
     'atUtc': atUtc,
     'params': params,
+    if (paramsTruncated) 'paramsTruncated': true,
   };
 }
 
@@ -275,6 +278,7 @@ class FlutterDaemonAdapter {
   var _nextId = 1;
   var _exited = false;
   Completer<void>? _appStart;
+  var _stopAfterStartBeforeStarted = false;
 
   /// All daemon events (broadcast — multiple consumers allowed).
   Stream<DaemonEvent> get events => _events.stream;
@@ -315,6 +319,7 @@ class FlutterDaemonAdapter {
   final _eventRing = <MachineEventRingEntry>[];
   static const _eventRingMaxEntries = 64;
   static const _eventRingMaxBytes = 32 * 1024;
+  static const _eventRingMaxSingleBytes = 4096;
   var _eventRingBytes = 0;
 
   /// Recent attach process stderr (for failure diagnostics).
@@ -326,13 +331,58 @@ class FlutterDaemonAdapter {
 
   bool get appStartedReceived => _seen.containsKey('app.started');
 
+  bool get stopAfterStartBeforeStarted => _stopAfterStartBeforeStarted;
+
+  /// State precheck for [waitForAppStarted] (handles same-chunk delivery).
+  AttachHandshakeFailure? precheckAttachHandshakeFailure() {
+    if (appStartedReceived) return null;
+    if (_exited) return AttachHandshakeFailure.daemonExitedBeforeStarted;
+    if (_stopAfterStartBeforeStarted) {
+      return AttachHandshakeFailure.appStopBeforeStarted;
+    }
+    return null;
+  }
+
+  bool _isStopFatalBeforeStarted(DaemonEvent event) {
+    if (appStartedReceived || !appStartReceived) return false;
+    if (event.event != 'app.stop') return false;
+    final startId = appId;
+    final stopId = event.field('appId') as String?;
+    if (startId != null &&
+        stopId != null &&
+        stopId.isNotEmpty &&
+        startId != stopId) {
+      return false;
+    }
+    return true;
+  }
+
   void _appendEventRing(DaemonEvent event) {
-    final entry = MachineEventRingEntry(
+    final at = DateTime.now().toUtc().toIso8601String();
+    var params = Map<String, Object?>.from(event.params);
+    MachineEventRingEntry entry = MachineEventRingEntry(
       event: event.event,
-      atUtc: DateTime.now().toUtc().toIso8601String(),
-      params: Map<String, Object?>.from(event.params),
+      atUtc: at,
+      params: params,
     );
-    final encoded = utf8.encode(jsonEncode(entry.toJson()));
+    var encoded = utf8.encode(jsonEncode(entry.toJson()));
+    if (encoded.length > _eventRingMaxSingleBytes) {
+      final preview = jsonEncode(params);
+      const maxPreview = _eventRingMaxSingleBytes ~/ 2;
+      params = {
+        '_truncated': true,
+        'preview': preview.length <= maxPreview
+            ? preview
+            : preview.substring(0, maxPreview),
+      };
+      entry = MachineEventRingEntry(
+        event: event.event,
+        atUtc: at,
+        params: params,
+        paramsTruncated: true,
+      );
+      encoded = utf8.encode(jsonEncode(entry.toJson()));
+    }
     _eventRing.add(entry);
     _eventRingBytes += encoded.length;
     while (_eventRing.length > _eventRingMaxEntries ||
@@ -415,6 +465,12 @@ class FlutterDaemonAdapter {
     final firstOfKind = !_seen.containsKey(event.event);
     _seen[event.event] = event;
     _appendEventRing(event);
+    if (event.event == 'app.started') {
+      _stopAfterStartBeforeStarted = false;
+    }
+    if (_isStopFatalBeforeStarted(event)) {
+      _stopAfterStartBeforeStarted = true;
+    }
     if (event.event == 'app.start' && firstOfKind) {
       _appStart?.complete();
       _appStart = null;
@@ -479,7 +535,8 @@ class FlutterDaemonAdapter {
     Duration timeout = const Duration(seconds: 90),
   }) async {
     if (appStartedReceived) return null;
-    if (_exited) return AttachHandshakeFailure.daemonExitedBeforeStarted;
+    final pre = precheckAttachHandshakeFailure();
+    if (pre != null) return pre;
     final completer = Completer<AttachHandshakeFailure?>();
     late final StreamSubscription<DaemonEvent> sub;
     Timer? timer;
@@ -492,7 +549,7 @@ class FlutterDaemonAdapter {
         done(null);
         return;
       }
-      if (event.event == 'app.stop' && !appStartedReceived) {
+      if (_isStopFatalBeforeStarted(event)) {
         done(AttachHandshakeFailure.appStopBeforeStarted);
       }
     });

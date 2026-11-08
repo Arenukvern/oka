@@ -603,8 +603,8 @@ class DevSession {
       try {
         await adapter.waitAppStart(timeout: startupTimeout);
       } on DaemonException catch (e) {
-        await _writeAttachHandshakeDiagnostic(e.message);
         write('❌ ${e.message}');
+        await _writeAttachHandshakeDiagnostic(e.message);
       }
 
       if (adapter.appStartReceived) {
@@ -621,12 +621,12 @@ class DevSession {
               'flutter attach did not reach app.started within '
                   '${startupTimeout.inSeconds}s',
           };
-          await _writeAttachHandshakeDiagnostic(err);
           write(
             '❌ $err. Is the app running on $deviceId?\n'
             '   fix: `oka run device` first (installs + launches the '
             'oka-built debug APK), then re-run `oka dev`.',
           );
+          await _writeAttachHandshakeDiagnostic(err);
         } else {
           _emit('session.ready', {
             'device': deviceId,
@@ -703,7 +703,8 @@ class DevSession {
     final root = projectPath;
     final argv = attachFlutterArgv;
     if (root == null || root.isEmpty || argv == null) return;
-    await writeAttachHandshakeDiagnostic(
+    final discovery = readRunnerSessionFile(root);
+    await tryWriteAttachHandshakeDiagnostic(
       projectPath: root,
       flutterAttachArgv: argv,
       adapter: adapter,
@@ -711,6 +712,14 @@ class DevSession {
       deviceVmServicePort: attachVmServiceDevicePort,
       hostVmServicePort: attachVmServiceHostPort,
       primaryError: primaryError,
+      sessionIdentity: discovery == null
+          ? null
+          : SessionTeardownIdentity(
+              runnerPid: discovery.pid,
+              controlPort: discovery.controlPort,
+              sessionStartedAtUtc:
+                  discovery.startedAt.toUtc().toIso8601String(),
+            ),
     );
   }
 
