@@ -116,6 +116,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+      - run: dart pub get --no-example
       - name: Contract gates (version sync, docs drift, changelog hygiene)
         env:
           OKA_ROOT: ${{ github.workspace }}
