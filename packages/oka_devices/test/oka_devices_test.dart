@@ -1,4 +1,5 @@
-import 'package:oka_android/oka_android.dart' hide LeaseOwnership;
+import 'package:oka_android/oka_android.dart'
+    hide LeaseOwnership, attachDdsPortWhenOkaOwnsHostForward;
 import 'package:oka_devices/oka_devices.dart';
 import 'package:test/test.dart';
 
@@ -29,15 +30,8 @@ RunSpec _minimalRun({
       );
   return RunSpec(
     device: emu,
-    app: const AppSpec(projectPath: '/proj'),
-    ports:
-        ports ??
-        const PortPlan(
-          hostVmService: OkaAllocated(),
-          dds: OkaAllocated(),
-          adbForward: Delegated(),
-          control: OkaAllocated(),
-        ),
+    app: AppSpec(projectPath: '/proj'),
+    ports: ports ?? PortPlan.okaOwnsHostForward(),
   );
 }
 
@@ -94,6 +88,43 @@ void main() {
     });
   });
 
+  group('PortPlan DDS when oka owns host forward', () {
+    test('validate rejects OkaAllocated dds with oka-owned host', () {
+      const plan = PortPlan(
+        hostVmService: OkaAllocated(),
+        dds: OkaAllocated(),
+        adbForward: Delegated(),
+        control: OkaAllocated(),
+      );
+      expect(
+        plan.validate().single,
+        contains('dds must be FixedPort($attachDdsPortWhenOkaOwnsHostForward)'),
+      );
+    });
+
+    test('plan emits --dds-port 0 for oka-owned host forward default', () {
+      final spec = _minimalRun();
+      expect(spec.plan(), [
+        'attach',
+        '--machine',
+        '-d',
+        'emulator-5554',
+        '--dds-port',
+        '$attachDdsPortWhenOkaOwnsHostForward',
+      ]);
+    });
+
+    test('host and dds port 0 do not conflict', () {
+      const plan = PortPlan(
+        hostVmService: FixedPort(8181),
+        dds: FixedPort(0),
+        adbForward: Delegated(),
+        control: OkaAllocated(),
+      );
+      expect(plan.validate(), isEmpty);
+    });
+  });
+
   group('RunSpec.validate collects every violation', () {
     test('multi-error spec returns all problems at once', () {
       final spec = RunSpec(
@@ -103,7 +134,7 @@ void main() {
           consolePort: 5555,
           ownership: LeaseOwnership.borrowed,
         ),
-        app: const AppSpec(projectPath: ''),
+        app: AppSpec(projectPath: ''),
         ports: const PortPlan(
           hostVmService: FixedPort(9100),
           dds: FixedPort(9100),
@@ -133,9 +164,8 @@ void main() {
     });
 
     test('borrowed + start fails', () {
-      final problems = _minimalRun(
-        ownership: LeaseOwnership.borrowed,
-      ).validate();
+      final problems = _minimalRun(ownership: LeaseOwnership.borrowed)
+          .validate();
       expect(problems, hasLength(1));
       expect(problems.single, contains('borrowed ownership requires'));
     });
@@ -149,10 +179,10 @@ void main() {
         adbForward: Delegated(),
         control: OkaAllocated(),
       );
-      expect(
-        plan.validate().single,
-        contains('must not use the same fixed port'),
-      );
+      final problems = plan.validate();
+      expect(problems.length, greaterThanOrEqualTo(2));
+      expect(problems, anyElement(contains('must not use the same fixed port')));
+      expect(problems, anyElement(contains('dds must be FixedPort(0)')));
     });
   });
 
@@ -172,30 +202,33 @@ void main() {
   });
 
   group('RunSpec.plan vs flutterAttachMachineArgs', () {
-    test('attach prefix agrees with daemon_adapter', () {
-      final spec = _minimalRun();
-      final planned = spec.plan();
-      final expected = flutterAttachMachineArgs(deviceId: spec.attachDeviceId);
-      expect(planned.sublist(0, expected.length), expected);
-    });
-
-    test('fixed ports append flutter flags', () {
+    test('equals flutterAttachMachineArgs with host forward and dds 0', () {
       final spec = _minimalRun(
         ports: const PortPlan(
           hostVmService: FixedPort(8181),
-          dds: FixedPort(8182),
+          dds: FixedPort(0),
           adbForward: Delegated(),
           control: OkaAllocated(),
         ),
       );
-      expect(spec.plan(), [
-        'attach',
-        '--machine',
-        '-d',
-        'emulator-5554',
-        '--host-vmservice-port=8181',
-        '--dds-port=8182',
-      ]);
+      expect(
+        spec.plan(),
+        flutterAttachMachineArgs(
+          deviceId: spec.attachDeviceId,
+          hostVmServicePort: 8181,
+          ddsPort: attachDdsPortWhenOkaOwnsHostForward,
+        ),
+      );
+    });
+
+    test('rejects non-zero dds when oka owns host forward', () {
+      const plan = PortPlan(
+        hostVmService: FixedPort(8181),
+        dds: FixedPort(8182),
+        adbForward: Delegated(),
+        control: OkaAllocated(),
+      );
+      expect(plan.validate().single, contains('dds must be FixedPort(0)'));
     });
   });
 
@@ -204,6 +237,14 @@ void main() {
       final physical = PhysicalDeviceSpec(id: 'phone', serial: 'ABC123');
       expect(physical.ownership, LeaseOwnership.borrowed);
       expect(physical.adbSerial, 'ABC123');
+      expect(physical.flutterDeviceId, 'ABC123');
+    });
+  });
+
+  group('AppSpec', () {
+    test('defines map is unmodifiable', () {
+      final spec = AppSpec(projectPath: '/p', defines: const {'A': '1'});
+      expect(() => spec.defines['B'] = '2', throwsUnsupportedError);
     });
   });
 }

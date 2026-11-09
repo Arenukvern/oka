@@ -8,11 +8,11 @@ import 'spec_violation.dart';
 /// Build/launch surface for a dev session (install/attach wiring is R4+).
 @immutable
 final class AppSpec with TypedSpec {
-  const AppSpec({
+  AppSpec({
     required this.projectPath,
     this.entrypoint = 'lib/main.dart',
-    this.defines = const {},
-  });
+    Map<String, String> defines = const {},
+  }) : defines = Map.unmodifiable(defines);
 
   final String projectPath;
   final String entrypoint;

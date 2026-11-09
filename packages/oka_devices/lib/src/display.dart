@@ -47,6 +47,9 @@ final class Headless extends Display {
 }
 
 /// Virtual X11 display (e.g. Xvfb) identified by display number.
+///
+/// R4 must declare `DISPLAY=:<displayNumber>` in the provision plan env, not
+/// only emulator argv.
 final class VirtualX11 extends Display {
   const VirtualX11({required this.displayNumber, required this.geometry});
 

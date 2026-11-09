@@ -26,8 +26,8 @@ final class RunSpec with TypedSpec {
   final Duration teardownBudget;
   final bool publishRunnerSession;
 
-  /// adb serial for `flutter attach -d`.
-  String get attachDeviceId => device.adbSerial;
+  /// Flutter `attach -d` device id.
+  String get attachDeviceId => device.flutterDeviceId;
 
   @override
   List<String> validate() {
@@ -47,24 +47,86 @@ final class RunSpec with TypedSpec {
     return const [];
   }
 
-  /// Flutter `attach` argv: machine attach prefix plus declared port flags.
+  /// Flutter `attach --machine` argv from declared ports.
   ///
-  /// The attach prefix matches `flutterAttachMachineArgs` in
-  /// `oka_android` (`attach`, `--machine`, `-d`, device id). Port flags
-  /// follow only for fixed [PortPlan.hostVmService] / [PortPlan.dds]
-  /// choices ([OkaAllocated] omits a flag until R4 binds).
-  List<String> plan() => [
+  /// Token spelling matches [flutterAttachMachineArgs] in `oka_android`
+  /// (separate `--flag` / value tokens).
+  List<String> plan() {
+    final hostVmServicePort = switch (ports.hostVmService) {
+      FixedPort(:final port) when port > 0 => port,
+      _ => null,
+    };
+    final declaredDds = ports.dds is FixedPort
+        ? (ports.dds as FixedPort).port
+        : null;
+    if (hostVmServicePort != null) {
+      return flutterAttachArgv(
+        deviceId: attachDeviceId,
+        hostVmServicePort: hostVmServicePort,
+        ddsPort: declaredDds,
+      );
+    }
+    if (ports.okaOwnsHostVmServiceForward &&
+        declaredDds == attachDdsPortWhenOkaOwnsHostForward) {
+      return flutterAttachArgv(
+        deviceId: attachDeviceId,
+        ddsPort: attachDdsPortWhenOkaOwnsHostForward,
+        okaOwnedForwardWithoutHostPort: true,
+      );
+    }
+    return flutterAttachArgv(deviceId: attachDeviceId, ddsPort: declaredDds);
+  }
+}
+
+/// Mirrors `flutterAttachMachineArgs` in `oka_android` (keep in sync).
+List<String> flutterAttachArgv({
+  required String deviceId,
+  int? deviceVmServicePort,
+  int? hostVmServicePort,
+  int? ddsPort,
+  bool okaOwnedForwardWithoutHostPort = false,
+}) {
+  final hostForward = hostVmServicePort != null && hostVmServicePort > 0
+      ? hostVmServicePort
+      : null;
+  final effectiveDds = hostForward != null
+      ? (ddsPort ?? attachDdsPortWhenOkaOwnsHostForward)
+      : ddsPort;
+  if (hostForward != null &&
+      effectiveDds != null &&
+      effectiveDds > 0 &&
+      effectiveDds == hostForward) {
+    throw ArgumentError.value(
+      effectiveDds,
+      'ddsPort',
+      'must not equal hostVmServicePort ($hostForward) when oka owns the '
+          'forward',
+    );
+  }
+  if (okaOwnedForwardWithoutHostPort &&
+      effectiveDds == attachDdsPortWhenOkaOwnsHostForward) {
+    return [
+      'attach',
+      '--machine',
+      '-d',
+      deviceId,
+      '--dds-port',
+      '$attachDdsPortWhenOkaOwnsHostForward',
+    ];
+  }
+  return [
     'attach',
     '--machine',
     '-d',
-    attachDeviceId,
-    ..._flutterPortFlags(ports.hostVmService, '--host-vmservice-port'),
-    ..._flutterPortFlags(ports.dds, '--dds-port'),
+    deviceId,
+    if (deviceVmServicePort != null && deviceVmServicePort > 0) ...[
+      '--device-vmservice-port',
+      '$deviceVmServicePort',
+    ],
+    if (hostForward != null) ...[
+      '--host-vmservice-port',
+      '$hostForward',
+      if (effectiveDds != null) ...['--dds-port', '$effectiveDds'],
+    ],
   ];
 }
-
-List<String> _flutterPortFlags(PortChoice choice, String flag) =>
-    switch (choice) {
-      FixedPort(:final port) => ['$flag=$port'],
-      OkaAllocated() || Delegated() => const [],
-    };

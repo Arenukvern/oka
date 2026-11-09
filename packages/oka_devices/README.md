@@ -18,3 +18,6 @@ Specs are fail-closed values: call `validate()` to collect every violation, or
 ## Status
 
 R2 — **no behavior change** in the main oka CLI or `oka dev android` path.
+
+**Publishing:** `publish_to: none` until R4 settles the API (not on the release
+train).

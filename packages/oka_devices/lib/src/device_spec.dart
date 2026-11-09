@@ -18,8 +18,8 @@ sealed class DeviceSpec with TypedSpec {
   final LeaseOwnership ownership;
   final StartMode startMode;
 
-  /// adb serial used by attach and adb `-s`.
-  String get adbSerial;
+  /// Flutter `attach -d` device id (platform-specific serial or target name).
+  String get flutterDeviceId;
 
   List<String> validateOwnershipStart() {
     if (ownership == LeaseOwnership.borrowed && startMode == StartMode.start) {
@@ -36,8 +36,26 @@ sealed class DeviceSpec with TypedSpec {
   }
 }
 
+/// Android adb target — serial for `adb -s` and attach `-d`.
+sealed class AndroidDeviceSpec extends DeviceSpec {
+  const AndroidDeviceSpec({
+    required super.id,
+    required super.ownership,
+    required super.startMode,
+  });
+
+  String get adbSerial;
+
+  @override
+  String get flutterDeviceId => adbSerial;
+}
+
 /// Android emulator — serial is known from [consolePort] before boot.
-final class EmulatorSpec extends DeviceSpec {
+///
+/// **R4:** after boot, verify the emulator on [consolePort] is this [avd]
+/// (`adb -s emulator-<port> emu avd name` must equal [avd.name]); if another
+/// instance already holds the port, fail closed instead of attaching.
+final class EmulatorSpec extends AndroidDeviceSpec {
   EmulatorSpec({
     required super.id,
     required this.avd,
@@ -103,16 +121,13 @@ final class EmulatorSpec extends DeviceSpec {
       gpu.trim().isEmpty ? ['$id: gpu must not be empty'] : const [];
 
   List<String> validateDisplay() => switch (display) {
-    VirtualX11(:final displayNumber, :final geometry) => [
-      if (displayNumber < 0) '$id: VirtualX11 displayNumber must be >= 0',
-      ...geometry.validate(prefix: '$id.display.geometry'),
-    ],
+    final VirtualX11 virtual => virtual.validate(prefix: '$id.display'),
     Windowed() || Headless() => const <String>[],
   };
 }
 
 /// USB/emulator serial for a physical Android device — always borrowed.
-final class PhysicalDeviceSpec extends DeviceSpec {
+final class PhysicalDeviceSpec extends AndroidDeviceSpec {
   PhysicalDeviceSpec({
     required super.id,
     required this.serial,
@@ -128,20 +143,12 @@ final class PhysicalDeviceSpec extends DeviceSpec {
   List<String> validate() => [
     ...validateId(),
     ...validateSerial(),
-    ...validateBorrowedPosture(),
     ...validateOwnershipStart(),
   ];
 
   List<String> validateSerial() {
     if (serial.trim().isEmpty) {
       return ['$id: serial must not be empty'];
-    }
-    return const [];
-  }
-
-  List<String> validateBorrowedPosture() {
-    if (ownership != LeaseOwnership.borrowed) {
-      return ['$id: physical devices are always borrowed'];
     }
     return const [];
   }
