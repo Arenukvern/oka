@@ -724,7 +724,10 @@ final class OwnedDevSession {
           'supervisor drain ack failed settled=${ack.settled} '
           'verified=${ack.verified}',
         );
-        for (final receipt in _drainReceipts) {
+        final tail = _drainReceipts.length > 8
+            ? _drainReceipts.sublist(_drainReceipts.length - 8)
+            : _drainReceipts;
+        for (final receipt in tail) {
           notes.add(
             'supervisor drain diag phase=${receipt.phase} '
             'remaining_ms=${receipt.remainingMs} enumerate=${receipt.enumerateSource} '

@@ -3,9 +3,16 @@ import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
 
+import 'linux_proc_process_tree_probe.dart';
 import 'linux_proc_state.dart';
 import 'linux_subreaper_drain_receipt.dart';
 import 'linux_subreaper_reap.dart';
+
+/// Pids reparented directly under a child subreaper ([supervisorPid]).
+List<int> directSubreaperAdoptees(ProcessTree tree, int supervisorPid) => [
+      for (final entry in tree.parentOf.entries)
+        if (entry.value == supervisorPid) entry.key,
+    ];
 
 /// Kills every live descendant of [supervisorPid] (subreaper adoptees). Repeats
 /// until none remain or [budget] expires — needed because reparenting after the
@@ -31,12 +38,13 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
 
   final deadline = DateTime.now().add(budget);
   var sawAliveAdoptee = false;
-  var enumerateSource = 'ps';
-  var preferProcEnumerate = false;
+  var enumerateSource = Platform.isLinux ? '/proc' : 'ps';
+  var preferProcEnumerate = Platform.isLinux;
   Map<int, int>? procParentCache;
   DateTime? procParentCacheAt;
   var totalReaped = 0;
   var emptyDescendantPolls = 0;
+  String? _lastEnumerateReceiptKey;
 
   Duration remaining() {
     final left = deadline.difference(DateTime.now());
@@ -48,6 +56,11 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     List<int> inspectPids = const [],
     List<String> errors = const [],
   }) async {
+    if (phase == 'enumerate') {
+      final key = inspectPids.join(',');
+      if (key == _lastEnumerateReceiptKey && errors.isEmpty) return;
+      _lastEnumerateReceiptKey = key;
+    }
     final obs = <String>[
       for (final pid in inspectPids)
         if (linuxProcDiagLabel(pid) != null) linuxProcDiagLabel(pid)!,
@@ -77,30 +90,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     return ProcessTree(rootPid: supervisorPid, parentOf: procParentCache!);
   }
     try {
-      final parentOf = <int, int>{};
-      final scanStarted = DateTime.now();
-      for (final ent in Directory('/proc').listSync(followLinks: false)) {
-        if (DateTime.now().difference(scanStarted) >
-            const Duration(seconds: 3)) {
-          notes.add('/proc enumerate: scan wall clock capped');
-          break;
-        }
-        final name = ent.path.split('/').last;
-        final pid = int.tryParse(name);
-        if (pid == null || pid <= 0) continue;
-        try {
-          final stat = File('/proc/$pid/stat').readAsStringSync();
-          final close = stat.lastIndexOf(')');
-          if (close < 0) continue;
-          final fields = stat.substring(close + 2).trim().split(RegExp(r'\s+'));
-          if (fields.length < 2) continue;
-          final ppid = int.tryParse(fields[1]);
-          if (ppid == null) continue;
-          parentOf[pid] = ppid;
-        } on Object {
-          continue;
-        }
-      }
+      final parentOf = buildLinuxProcParentMap();
       if (parentOf.isEmpty) return null;
       procParentCache = parentOf;
       procParentCacheAt = DateTime.now();
@@ -183,7 +173,10 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
 
   while (remaining() > Duration.zero) {
     final tree = await enumerateBounded();
-    await receipt('enumerate', inspectPids: tree?.descendants() ?? const []);
+    final adoptees = tree == null
+        ? const <int>[]
+        : directSubreaperAdoptees(tree, supervisorPid);
+    await receipt('enumerate', inspectPids: adoptees);
     if (tree == null) {
       return SubreaperDrainResult(
         settled: false,
@@ -192,7 +185,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
         notes: [...notes, 'process table unavailable during subreaper drain'],
       );
     }
-    final descendants = tree.descendants();
+    final descendants = directSubreaperAdoptees(tree, supervisorPid);
     final alive = <int>[];
     for (final pid in descendants) {
       if (remaining() <= Duration.zero) {
@@ -293,7 +286,10 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   }
 
   final tree = await enumerateBounded();
-  await receipt('final_enumerate', inspectPids: tree?.descendants() ?? const []);
+  final finalAdoptees = tree == null
+      ? const <int>[]
+      : directSubreaperAdoptees(tree, supervisorPid);
+  await receipt('final_enumerate', inspectPids: finalAdoptees);
   if (tree == null) {
     return SubreaperDrainResult(
       settled: false,
@@ -303,10 +299,10 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     );
   }
   final survivors = <int>[];
-  for (final pid in tree.descendants()) {
+  for (final pid in finalAdoptees) {
     if (remaining() <= Duration.zero) {
       notes.add('incomplete final liveness inspection');
-      await receipt('final_liveness_budget', inspectPids: tree.descendants());
+      await receipt('final_liveness_budget', inspectPids: finalAdoptees);
       return SubreaperDrainResult(
         settled: false,
         verified: false,
@@ -316,7 +312,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     }
     final aliveState = await adopteeAliveBounded(pid);
     if (aliveState == null) {
-      await receipt('final_liveness_incomplete', inspectPids: tree.descendants());
+      await receipt('final_liveness_incomplete', inspectPids: finalAdoptees);
       return SubreaperDrainResult(
         settled: false,
         verified: false,
@@ -336,7 +332,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       notes: [...notes, 'survivors remain after drain budget'],
     );
   }
-  await receipt('complete', inspectPids: tree.descendants());
+  await receipt('complete', inspectPids: finalAdoptees);
   return SubreaperDrainResult(
     settled: true,
     verified: true,

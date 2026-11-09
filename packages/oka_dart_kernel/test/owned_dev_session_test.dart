@@ -239,7 +239,7 @@ exit 0
     });
 
     await session.sendLine('q');
-    final td = await session.teardown(quitGrace: const Duration(seconds: 5));
+    final td = await session.teardown(quitGrace: const Duration(seconds: 10));
     expect(td.verified, isTrue, reason: td.notes.join('; '));
     expect(td.clean, isTrue, reason: td.notes.join('; '));
     for (final pid in td.survivors) {

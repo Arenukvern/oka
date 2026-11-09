@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
 import 'package:oka_dart_kernel/src/gate/linux_child_subreaper.dart';
+import 'package:oka_dart_kernel/src/gate/linux_proc_process_tree_probe.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain_receipt.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_settle_coordinator.dart';
@@ -46,7 +47,7 @@ Future<void> main(List<String> args) async {
   await appendSupervisorControlLine('oka_dev_workload_pid=${child.pid}');
 
   final self = LinuxChildSubreaper.currentProcessId();
-  const probe = HostProcessTreeProbe();
+  const probe = LinuxProcProcessTreeProbe();
   const liveness = HostProcessLiveness();
   final settleCoordinator = LinuxSubreaperSettleCoordinator();
 
@@ -107,7 +108,7 @@ Future<void> main(List<String> args) async {
 Future<bool> _runSettle({
   required Process child,
   required int self,
-  required HostProcessTreeProbe probe,
+  required ProcessTreeProbe probe,
   required HostProcessLiveness liveness,
   required String nonce,
 }) async {
@@ -120,6 +121,25 @@ Future<bool> _runSettle({
     );
   }
 
+  Future<void> stopDirectAdoptees() async {
+    final tree = await probe.enumerate(self);
+    if (tree == null) return;
+    final direct = directSubreaperAdoptees(tree, self);
+    final capped = direct.length > 32 ? direct.sublist(0, 32) : direct;
+    for (final pid in capped) {
+      if (pid == child.pid) continue;
+      try {
+        await stopProcessTree(
+          probe: probe,
+          liveness: liveness,
+          rootPid: pid,
+        ).timeout(const Duration(seconds: 3));
+      } on TimeoutException {
+        await liveness.kill(pid, grace: const Duration(milliseconds: 200));
+      }
+    }
+  }
+
   try {
     if (child.pid > 0 && await liveness.isAlive(child.pid)) {
       await stopProcessTree(
@@ -128,6 +148,7 @@ Future<bool> _runSettle({
         rootPid: child.pid,
       );
     }
+    await stopDirectAdoptees();
     Future<void> emitDiag(SubreaperDrainReceipt receipt) async {
       await appendSupervisorControlLine(receipt.toControlLine());
     }

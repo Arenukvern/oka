@@ -46,8 +46,15 @@ final class _LateChildListingProbe implements ProcessTreeProbe {
 }
 
 void main() {
+  test('directSubreaperAdoptees lists only ppid==supervisor', () {
+    const tree = ProcessTree(
+      rootPid: 10,
+      parentOf: {10: 1, 11: 10, 12: 10, 13: 11, 14: 9},
+    );
+    expect(directSubreaperAdoptees(tree, 10), orderedEquals([11, 12]));
+  });
   test(
-    'linux /proc fallback when ps probe returns null',
+    'linux drain verifies empty direct adoptees via /proc without ps',
     () async {
       final leaf = await Process.start('sleep', ['120']);
       addTearDown(() => Process.killPid(leaf.pid, ProcessSignal.sigkill));
@@ -59,10 +66,7 @@ void main() {
       );
       expect(result.verified, isTrue, reason: result.notes.join('; '));
       expect(result.settled, isTrue);
-      expect(
-        result.notes,
-        anyElement(contains('ps enumerate unavailable')),
-      );
+      expect(result.notes, isEmpty);
     },
     skip: Platform.isLinux ? false : 'linux proc fallback',
   );
