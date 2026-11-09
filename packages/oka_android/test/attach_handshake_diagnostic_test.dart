@@ -45,6 +45,29 @@ void main() {
       expect(payload['primaryError'], primary);
       adapter.dispose();
     });
+
+    test('written failure artifact contains no VM service auth token', () async {
+      const secret = 'XZgHLBJKpIA=';
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.debugPort', {
+        'wsUri': 'ws://127.0.0.1:65462/$secret/ws',
+      });
+      await tryWriteAttachHandshakeDiagnostic(
+        projectPath: root.path,
+        flutterAttachArgv: const ['attach', '--machine', '-d', 'emu'],
+        adapter: adapter,
+        deviceDebugUrl: 'http://127.0.0.1:43239/$secret/',
+        primaryError: 'handshake failed',
+      );
+      final text = File(
+        '${root.path}/.flutter_mcp/$attachHandshakeDiagnosticFileName',
+      ).readAsStringSync();
+      expect(text, isNot(contains(secret)));
+      expect(text, contains('<redacted>'));
+      adapter.dispose();
+    });
   });
 
   group('tryRunnerSessionIdentityForDiagnostic', () {

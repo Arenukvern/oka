@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'daemon_adapter.dart';
 import 'dev_session_teardown.dart';
+import 'vm_service_redaction.dart';
 
 const attachHandshakeDiagnosticFileName = 'attach-handshake-failure.json';
 
@@ -19,7 +20,8 @@ Map<String, Object?> buildAttachHandshakeDiagnosticPayload({
   int? attachDdsPort,
   String? primaryError,
   SessionTeardownIdentity? sessionIdentity,
-}) => {
+}) {
+  final raw = <String, Object?>{
     'schema': 1,
     'primaryError': primaryError,
     'flutterAttachArgv': flutterAttachArgv,
@@ -38,6 +40,10 @@ Map<String, Object?> buildAttachHandshakeDiagnosticPayload({
     'attachExited': adapter.exited,
     'appStartReceived': adapter.appStartReceived,
   };
+  return Map<String, Object?>.from(
+    redactVmServiceAuthDeep(raw) as Map<Object?, Object?>,
+  );
+}
 
 /// Persisted when attach never reaches `app.started` (bounded, failure-only).
 /// Returns false when the sidecar cannot be written (caller keeps primary error).
