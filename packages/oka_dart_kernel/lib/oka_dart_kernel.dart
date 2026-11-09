@@ -10,4 +10,5 @@ export 'src/command_lane.dart';
 export 'src/live_pipeline.dart';
 export 'src/live_watch_launch.dart';
 export 'src/package_root.dart';
+export 'src/slot_registry.dart';
 export 'src/unit_graph.dart';

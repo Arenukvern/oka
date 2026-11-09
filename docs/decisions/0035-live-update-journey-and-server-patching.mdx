@@ -99,6 +99,35 @@ Missing before this lane exists (gaps, not hand-waving): the generator
 emits static bindings today, not the indirection seam; and the runtime
 needs a tiny update handler (see the ownership rule below).
 
+**Status update 2026-11-09 — both gaps landed, gated.** The seam is
+`oka_dart_kernel`'s slot-registry generator (`lib/src/slot_registry.dart`,
+`tool/emit_slot_registry.dart`): revision-suffixed slot imports
+(`slot_feature_r1/r2`), the registry indirection (`get featureUnit` /
+`set featureUnit` over a null-backed current, uniform for any declared
+contract type), `loadFeatureSlot` (load-then-flip; unprovisioned
+revisions throw `slot_revision_unknown`), fail-closed on malformed
+provisions. The handler is `oka_update`'s `SlotRuntime`
+(`runtime/slot_runtime.dart`): signed slot-update envelopes
+(`channel/slot_envelope.dart`) under the air channel's ed25519
+pinned-anchor identity — no second trust surface — a pure decision core
+(`decideSlotUpdate`), artifact digest verified before any flip, and
+receipts with named refusals. Eligibility composes the frozen
+`planRevisions` verdict with the provisioned slot reality and the
+per-process slot budget (`slot_plan.dart`: `planSlotSwap`). End-to-end:
+`oka_dart_kernel/tool/gate_s2_slots.sh` — the generator (not the shell)
+emits the registry, a fully AOT program boots through it (host SDK's
+`gen_kernel` lane, no SDK checkout), a signed envelope flips
+`feature_r1 -> feature_r2` IN-PROCESS (same pid), and the negatives
+refuse by name (`slot_envelope_signature_invalid`, `slot_revision_unknown`,
+replay receipts `already-current`). The gate's [record]-only probe settled
+the open empirical question with a named refusal: staging a RE-COMPILED
+part ELF over the provisioned slot file is refused at boot —
+`DeferredLoadException: 'Deferred loading unit is from a different
+program than the main loading unit'` — so delivery beyond pre-provisioned
+slots cannot bypass the loader's program-identity check by file staging;
+that check is exactly the seam sdk#64162 / the embedder
+`Dart_SetDeferredLoadHandler` work must relax (G-AC9 stays gated).
+
 ### S3 — Snapshot swap with process handoff (the AOT default)
 
 Rebuild the exe, hand the listener to a fresh process (SO_REUSEPORT /
