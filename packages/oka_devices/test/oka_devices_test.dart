@@ -181,7 +181,10 @@ void main() {
       );
       final problems = plan.validate();
       expect(problems.length, greaterThanOrEqualTo(2));
-      expect(problems, anyElement(contains('must not use the same fixed port')));
+      expect(
+        problems,
+        anyElement(contains('must not use the same fixed port')),
+      );
       expect(problems, anyElement(contains('dds must be FixedPort(0)')));
     });
   });
