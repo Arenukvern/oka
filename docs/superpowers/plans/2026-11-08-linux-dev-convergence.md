@@ -8,6 +8,8 @@
 
 **Tech Stack:** Dart 3.13 workspace, bash gates, Flutter stable linux desktop embedder.
 
+**Internal gate APIs:** `lib/src/gate/linux_dev_gate.dart` and `lib/src/gate/owned_dev_session.dart` are intentionally **not** exported from `package:oka_dart_kernel/oka_dart_kernel.dart`. Callers inside this repo use `package:oka_dart_kernel/src/gate/...` until the declarative refactor (**R2–R8**: declarative device/run spec set before the run, single supervision via `oka_process`, no output parsing) decides their public shape.
+
 ## Global Constraints
 
 - Base: `main` @ `0ffa098e7479ef18b01b24828e9857cf952cc9d9` (post PR #16 merge).

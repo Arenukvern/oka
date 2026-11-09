@@ -7,8 +7,6 @@
 library;
 
 export 'src/command_lane.dart';
-export 'src/gate/linux_dev_gate.dart';
-export 'src/gate/owned_dev_session.dart';
 export 'src/live_pipeline.dart';
 export 'src/live_watch_launch.dart';
 export 'src/package_root.dart';

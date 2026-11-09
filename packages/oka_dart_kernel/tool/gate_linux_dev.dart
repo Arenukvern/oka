@@ -4,8 +4,8 @@
 import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
-import 'package:oka_dart_kernel/oka_dart_kernel.dart';
 import 'package:oka_dart_kernel/src/gate/dev_gate_signals.dart';
+import 'package:oka_dart_kernel/src/gate/linux_dev_gate.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> main(List<String> args) async {

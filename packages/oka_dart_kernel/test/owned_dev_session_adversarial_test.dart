@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
-import 'package:oka_dart_kernel/oka_dart_kernel.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain.dart';
+import 'package:oka_dart_kernel/src/gate/owned_dev_session.dart';
 import 'package:oka_dart_kernel/src/gate/owned_dev_session_start_controller.dart';
+import 'package:oka_dart_kernel/src/package_root.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
