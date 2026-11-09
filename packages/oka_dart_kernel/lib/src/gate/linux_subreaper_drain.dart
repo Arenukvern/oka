@@ -44,7 +44,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   DateTime? procParentCacheAt;
   var totalReaped = 0;
   var emptyDescendantPolls = 0;
-  String? _lastEnumerateReceiptKey;
+  String? lastEnumerateReceiptKey;
 
   Duration remaining() {
     final left = deadline.difference(DateTime.now());
@@ -58,8 +58,8 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   }) async {
     if (phase == 'enumerate') {
       final key = inspectPids.join(',');
-      if (key == _lastEnumerateReceiptKey && errors.isEmpty) return;
-      _lastEnumerateReceiptKey = key;
+      if (key == lastEnumerateReceiptKey && errors.isEmpty) return;
+      lastEnumerateReceiptKey = key;
     }
     final obs = <String>[
       for (final pid in inspectPids)
