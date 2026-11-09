@@ -483,6 +483,12 @@ Future<void> runRunDevCli(
   final out = output ?? print;
   final err = errorOutput ?? (m) => stderr.writeln(m);
   final exitWith = setExitCode ?? (c) => exitCode = c;
+  if (args.isNotEmpty &&
+      args.every((a) => a == '--help' || a == '-h')) {
+    err(_usage);
+    exitWith(0);
+    return;
+  }
   final parsed = RunDevArgs.parse(
     args,
     cwd: workingDir ?? Directory.current.path,
@@ -680,10 +686,13 @@ Future<void> runRunDevCli(
     final sw = Stopwatch()..start();
     app.write('R');
     try {
-      await app.waitFor(
+      final restartLine = await app.waitFor(
         RegExp('Restarted application'),
         timeout: const Duration(minutes: 5),
       );
+      // Gates and agents observe platform state-reset independently of the
+      // summary receipt (harness lines are not otherwise on stdout).
+      out(restartLine.trim());
       if (overrides['app'] case final WebDwdsTarget web) {
         // A web restart reloads the page; the old CDP wire dies with it.
         await web.invalidateCdp();

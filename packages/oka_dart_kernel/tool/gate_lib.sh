@@ -14,6 +14,13 @@ wait_for() {
     sleep "$interval"; i=$((i+1))
   done
   echo "gate: timeout waiting for $4 (pattern: $2, log: $1)" >&2
+  if [ -f "$1" ]; then
+    echo "gate: --- log tail (last 40 lines) ---" >&2
+    tail -n 40 "$1" >&2 || true
+    if grep -qE '(FAIL|Error:|error:|CMake Error|ninja: build stopped)' "$1" 2>/dev/null; then
+      echo "gate: log contains build/compile failure markers (see tail above)" >&2
+    fi
+  fi
   return 1
 }
 
@@ -30,7 +37,12 @@ pkill_pattern() {
 # restore_marker <file> <from> <to> — revert one live-patch marker
 # (best-effort: a missing file or absent marker is not an error).
 restore_marker() {
-  sed -i '' "s/$2/$3/g" "$1" 2>/dev/null || true
+  # GNU sed (Linux) vs BSD sed (macOS).
+  if sed --version 2>/dev/null | grep -qi gnu; then
+    sed -i "s/$2/$3/g" "$1" 2>/dev/null || true
+  else
+    sed -i '' "s/$2/$3/g" "$1" 2>/dev/null || true
+  fi
 }
 
 # require_env <NAME> [<NAME>…] — fail loudly before a leg starts.

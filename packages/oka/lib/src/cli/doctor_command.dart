@@ -5,6 +5,7 @@ import 'package:oka_web/oka_web.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../doctor/linux_desktop_doctor.dart';
 import '../version.dart';
 import 'session_state_entrypoint.dart';
 
@@ -182,6 +183,16 @@ class DoctorCommand {
       allGood = false;
     }
     print('');
+
+    // ── Linux desktop dev (L0) ─────────────────────────────────────
+    print('[Linux Desktop Dev (L0)]');
+    final linuxDesktop = await linuxDesktopDoctorChecks();
+    linuxDesktop.lines.forEach(print);
+    if (linuxDesktop.blocking) {
+      allGood = false;
+    }
+    print('');
+    // ── End Linux desktop dev block ───────────────────────────────
 
     // Check Android SDK (ADR-0015: the check mechanics live in oka_android;
     // the command formats the returned check results).

@@ -6,6 +6,7 @@ import 'package:args/args.dart';
 import 'package:oka_android/oka_android.dart';
 
 import 'delegation_dart.dart';
+import 'dev_android_attach.dart';
 
 import 'kernel_stack.dart';
 
@@ -207,6 +208,8 @@ class DevCommand {
       // VM-service steps) then spawn the attach daemon from the recorded
       // SDK binary.
       prepare: () async {
+        await clearSessionTeardownFile(projectPath);
+        await clearAttachHandshakeDiagnostic(projectPath);
         // Device half first (install/launch/logscan + VM-service steps);
         // a failure throws DevLaunchException, handled by DevFlow.
         final prepared = await prepareDevLaunch(
@@ -215,16 +218,30 @@ class DevCommand {
           adbPath: devToolPath,
           verbose: verbose,
         );
+        final attachArgv = buildDevAndroidAttachArgv(
+          deviceId: deviceId,
+          prepared: prepared,
+        );
+        const attachDdsPort = attachDdsPortWhenOkaOwnsHostForward;
+        final transport = await spawnDevAndroidAttachTransport(
+          projectPath: projectPath,
+          flutterBinary: flutterBinary,
+          attachArgv: attachArgv,
+          adbPath: devToolPath,
+          deviceId: deviceId,
+          prepared: prepared,
+        );
         final adapter = FlutterDaemonAdapter(
-          transport: await spawnAttachDaemon(
-            flutterBinary: flutterBinary,
-            deviceId: deviceId,
-            adbPath: devToolPath,
-          ),
+          transport: transport,
           verbose: verbose,
         );
         return DevSession(
           adapter: adapter,
+          attachFlutterArgv: attachArgv,
+          attachVmServiceDeviceDebugUrl: prepared.vmServiceDeviceDebugUrl,
+          attachVmServiceDevicePort: prepared.vmServiceDevicePort,
+          attachVmServiceHostPort: prepared.vmServiceLocalPort,
+          attachVmServiceDdsPort: attachDdsPort,
           session: session,
           deviceId: deviceId,
           json: json,
@@ -232,6 +249,24 @@ class DevCommand {
           commands: control.stream,
           verbose: verbose,
           rebuildOnNative: results['rebuild-on-native'] as bool,
+          attachHost: attachHostIdentityFor(transport),
+          resourceOwnership: DevSessionResourceOwnership(
+            adbPath: devToolPath,
+            vmServiceForward: DevSessionCreatedForward(
+              deviceSerial: deviceId,
+              hostLocalPort: prepared.vmServiceLocalPort,
+              deviceRemotePort: prepared.vmServiceDevicePort,
+              recordedAt: DateTime.now().toUtc(),
+            ),
+            launchIdentity:
+                prepared.devicePackage != null &&
+                    prepared.devicePackage!.isNotEmpty
+                ? DevSessionLaunchIdentity(
+                    deviceSerial: deviceId,
+                    packageName: prepared.devicePackage!,
+                  )
+                : null,
+          ),
           // Delegation channel: the spec-v2 runner-session file at each
           // ready (the forwarded host-reachable endpoint of THIS attach
           // round), real outcomes fed back to waiting control clients.
@@ -243,6 +278,7 @@ class DevCommand {
                 deviceId: deviceId,
               ),
           onResult: controlServer.handleSessionResult,
+          projectPath: projectPath,
         );
       },
       // Full rebuild on native changes (with the exact parity flags the

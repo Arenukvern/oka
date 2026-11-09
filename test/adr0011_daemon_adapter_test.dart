@@ -7,110 +7,8 @@ import 'dart:convert';
 import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
-/// Scripted single-element-JSON-array daemon: records sent command lines,
-/// emits fixture stdout, completes a fake exit code.
-class FakeDaemonTransport implements DaemonTransport {
-  final _stdout = StreamController<List<int>>.broadcast();
-  final _exit = Completer<int>();
-  final sent = <String>[];
-  final killed = <bool>[];
-
-  /// Auto-responder: when non-null, every sent command gets this result
-  /// echoed back with the same id.
-  Object? Function(String method)? respondTo;
-
-  /// Auto-responder for **error** responses (checked before
-  /// [respondTo]); e.g. `(method) => method == 'app.reload'
-  ///     ? 'Observable wipe failed' : null`.
-  Object? Function(String method)? respondErrorTo;
-
-  /// Methods that never get an auto-response (simulates a daemon that
-  /// stops answering — e.g. the physical-device attach-mode restart hang).
-  final Set<String> silentMethods = {};
-
-  void emit(String line) => _stdout.add(utf8.encode('$line\n'));
-
-  void emitEvent(
-    String name, [
-    Map<String, Object?> params = const {},
-  ]) => emit(
-    jsonEncode([
-      {'event': name, 'params': params},
-    ]),
-  );
-
-  /// Emits a full H0-style attach startup sequence.
-  void emitStartup() {
-    emit(
-      jsonEncode([
-        {
-          'event': 'daemon.connected',
-          'params': {'version': '0.6.1'},
-        },
-      ]),
-    );
-    emitEvent('app.start', {
-      'appId': 'com.example.example',
-      'launchMode': 'attach',
-      'mode': 'debug',
-    });
-    emitEvent('app.debugPort', {
-      'port': 65462,
-      'wsUri': 'ws://127.0.0.1:65462/XZgHLBJKpIA=/ws',
-    });
-    emitEvent('app.progress', {
-      'progressId': 'devFS.update',
-      'message': 'Syncing files to device sdk gphone64 arm64...',
-    });
-    emitEvent('app.started', {'appId': 'com.example.example'});
-  }
-
-  void respond(int id, {Object? result, Object? error}) =>
-      emit(
-        jsonEncode([
-          {'id': id, 'result': ?result, 'error': ?error},
-        ]),
-      );
-
-  void exitWith(int code) {
-    if (!_exit.isCompleted) _exit.complete(code);
-  }
-
-  @override
-  Stream<List<int>> get stdout => _stdout.stream;
-
-  @override
-  Stream<List<int>> get stderr => const Stream<List<int>>.empty();
-
-  @override
-  Future<int> get exitCode => _exit.future;
-
-  @override
-  void writeLine(String line) {
-    sent.add(line);
-    // Auto-respond with the daemon's response shape (id echo) when a
-    // responder is installed; otherwise the test replies manually.
-    final decoded = jsonDecode(line) as List;
-    final id = (decoded.single as Map)['id'] as int;
-    final method = (decoded.single as Map)['method'] as String;
-    if (silentMethods.contains(method)) return;
-    final errorResponder = respondErrorTo;
-    final err = errorResponder?.call(method);
-    if (err != null) {
-      respond(id, error: err);
-    } else {
-      final responder = respondTo;
-      if (responder != null) respond(id, result: responder(method));
-    }
-  }
-
-  @override
-  bool kill() {
-    killed.add(true);
-    exitWith(0);
-    return true;
-  }
-}
+import '../packages/oka_android/test/support/daemon_adapter_test_helpers.dart';
+import '../packages/oka_android/test/support/fake_daemon_transport.dart';
 
 void main() {
   group('flutterAttachMachineArgs (pure argv)', () {
@@ -121,6 +19,229 @@ void main() {
         '-d',
         'emulator-5554',
       ]);
+      expect(
+        flutterAttachMachineArgs(
+          deviceId: 'emulator-5554',
+          deviceVmServicePort: 35699,
+          hostVmServicePort: 34381,
+        ),
+        [
+          'attach',
+          '--machine',
+          '-d',
+          'emulator-5554',
+          '--device-vmservice-port',
+          '35699',
+          '--host-vmservice-port',
+          '34381',
+          '--dds-port',
+          '0',
+        ],
+      );
+
+      expect(
+        flutterAttachMachineArgs(deviceId: 'emu'),
+        ['attach', '--machine', '-d', 'emu'],
+      );
+
+      expect(
+        flutterAttachMachineArgs(
+          deviceId: 'emu',
+          deviceVmServicePort: 43239,
+        ),
+        [
+          'attach',
+          '--machine',
+          '-d',
+          'emu',
+          '--device-vmservice-port',
+          '43239',
+        ],
+      );
+
+      expect(
+        flutterAttachMachineArgs(
+          deviceId: 'emu',
+          deviceVmServicePort: 43239,
+          hostVmServicePort: 36605,
+          ddsPort: 39123,
+        ),
+        containsAll(<String>[
+          '--host-vmservice-port',
+          '36605',
+          '--dds-port',
+          '39123',
+        ]),
+      );
+    });
+  });
+
+  group('waitForAppStarted (fail-fast)', () {
+    test('app.stop before app.started returns immediately', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1', 'pid': 1});
+      t.emitEvent('app.start', {'appId': 'x', 'launchMode': 'attach'});
+      await adapter.waitAppStart();
+      final watch = Stopwatch()..start();
+      t.emitEvent('app.stop', {'appId': 'x'});
+      final failure = await adapter.waitForAppStarted(
+        timeout: const Duration(seconds: 30),
+      );
+      expect(failure, AttachHandshakeFailure.appStopBeforeStarted);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+      final ring = adapter.snapshotMachineEventRing();
+      expect(
+        ring.map((e) => e['event']).toList(),
+        ['daemon.connected', 'app.start', 'app.stop'],
+      );
+      adapter.dispose();
+    });
+
+    test('app.start and app.stop same stdout chunk prechecks stop', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitChunk([
+        jsonEncode([
+          {
+            'event': 'daemon.connected',
+            'params': {'version': '0.6.1'},
+          },
+        ]),
+        jsonEncode([
+          {
+            'event': 'app.start',
+            'params': {'appId': 'x', 'launchMode': 'attach'},
+          },
+        ]),
+        jsonEncode([
+          {'event': 'app.stop', 'params': {'appId': 'x'}},
+        ]),
+      ]);
+      await adapter.waitAppStart();
+      final watch = Stopwatch()..start();
+      final failure = await adapter.waitForAppStarted(
+        timeout: const Duration(seconds: 30),
+      );
+      expect(failure, AttachHandshakeFailure.appStopBeforeStarted);
+      expect(watch.elapsed, lessThan(const Duration(milliseconds: 50)));
+      expect(adapter.stopAfterStartBeforeStarted, isTrue);
+      adapter.dispose();
+    });
+
+    test('app.stop before app.start is not fatal', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.stop', {'appId': 'x'});
+      await Future<void>.delayed(Duration.zero);
+      expect(adapter.stopAfterStartBeforeStarted, isFalse);
+      expect(adapter.precheckAttachHandshakeFailure(), isNull);
+      adapter.dispose();
+    });
+
+    test('matching appId stop before started fails handshake', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.start', {'appId': 'same-id'});
+      await adapter.waitAppStart();
+      t.emitEvent('app.stop', {'appId': 'same-id'});
+      await waitForDaemonEvent(adapter, 'app.stop');
+      expect(adapter.stopAfterStartBeforeStarted, isTrue);
+      expect(
+        adapter.precheckAttachHandshakeFailure(),
+        AttachHandshakeFailure.appStopBeforeStarted,
+      );
+      adapter.dispose();
+    });
+
+    test('mismatched appId stop before started is not fatal', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.start', {'appId': 'start-a'});
+      await adapter.waitAppStart();
+      t.emitEvent('app.stop', {'appId': 'other-b'});
+      await waitForDaemonEvent(adapter, 'app.stop');
+      expect(adapter.stopAfterStartBeforeStarted, isFalse);
+      expect(adapter.precheckAttachHandshakeFailure(), isNull);
+      adapter.dispose();
+    });
+
+    test('app.stop after app.started does not fail handshake', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      t.emitEvent('daemon.connected', {'version': '0.6.1'});
+      t.emitEvent('app.start', {'appId': 'x', 'launchMode': 'attach'});
+      await adapter.waitAppStart();
+      t.emitEvent('app.started', {'appId': 'x'});
+      t.emitEvent('app.stop', {'appId': 'x'});
+      final failure = await adapter.waitForAppStarted();
+      expect(failure, isNull);
+      adapter.dispose();
+    });
+  });
+
+  group('machine event ring', () {
+    test('oversized single event is retained truncated', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      final huge = 'x' * 16 * 1024;
+      t.emitEvent('app.huge', {'blob': huge});
+      await Future<void>.delayed(Duration.zero);
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring, hasLength(1));
+      expect(ring.single['event'], 'app.huge');
+      expect(ring.single['paramsTruncated'], isTrue);
+      expect(ring.single['params'], isA<Map<String, Object?>>());
+      adapter.dispose();
+    });
+
+    test('unicode oversized event preview stays UTF-8 safe', () async {
+      const maxRingEntryBytes = 4096;
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      final huge = '🔥${'é' * 8192}';
+      t.emitEvent('app.unicode', {'text': huge});
+      await waitForDaemonEvent(adapter, 'app.unicode');
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring.single['paramsTruncated'], isTrue);
+      final entryBytes = utf8.encode(jsonEncode(ring.single));
+      expect(entryBytes.length, lessThanOrEqualTo(maxRingEntryBytes));
+      final preview = ring.single['params']! as Map<String, Object?>;
+      final text = preview['preview']! as String;
+      expect(text, isNot(contains('\uFFFD')));
+      expect(utf8.decode(utf8.encode(text), allowMalformed: false), text);
+      adapter.dispose();
+    });
+
+    test('oversized event name is still capped in ring', () async {
+      const maxRingEntryBytes = 4096;
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      final longName = 'app.${'n' * 8192}';
+      t.emitEvent(longName, {'k': 'v'});
+      await waitForDaemonEvent(adapter, longName);
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring, hasLength(1));
+      expect(utf8.encode(jsonEncode(ring.single)).length, lessThanOrEqualTo(maxRingEntryBytes));
+      adapter.dispose();
+    });
+
+    test('total byte cap evicts oldest not the new oversized entry', () async {
+      final t = FakeDaemonTransport();
+      final adapter = FlutterDaemonAdapter(transport: t);
+      for (var i = 0; i < 80; i++) {
+        t.emitEvent('app.progress', {'i': i, 'pad': 'y' * 512});
+      }
+      await Future<void>.delayed(Duration.zero);
+      final ring = adapter.snapshotMachineEventRing();
+      expect(ring.length, lessThanOrEqualTo(64));
+      expect(ring.last['event'], 'app.progress');
+      final lastParams = ring.last['params'] as Map<String, Object?>?;
+      expect(lastParams?['i'], 79);
+      adapter.dispose();
     });
   });
 

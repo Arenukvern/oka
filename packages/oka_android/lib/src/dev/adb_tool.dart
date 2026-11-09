@@ -6,6 +6,7 @@
 ///
 /// * **Pure command construction + parsers** ([adbDevicesArgs],
 ///   [adbInstallArgs], [adbLaunchArgs], [adbForwardArgs],
+///   [adbForwardRemoveArgs],
 ///   [parseAdbDevices], [parseVmServiceUri], [parseForwardPort],
 ///   [classifyAdbFailure]) — unit-tested against recorded fixture output,
 ///   no binary needed.
@@ -55,6 +56,15 @@ List<String> adbInstallMultipleArgs(
   String? serial,
 }) => [...adbSerialArgs(serial), 'install-multiple', '-r', ...apks];
 
+/// `adb [-s <serial>] shell am force-stop <package>` — quit fallback only.
+List<String> adbForceStopArgs(String packageName, {String? serial}) => [
+  ...adbSerialArgs(serial),
+  'shell',
+  'am',
+  'force-stop',
+  packageName,
+];
+
 /// `adb [-s <serial>] shell am start -n <package>/<activity>`.
 List<String> adbLaunchArgs(
   String packageName,
@@ -76,6 +86,29 @@ List<String> adbForwardArgs({
   int hostPort = 0,
   String? serial,
 }) => [...adbSerialArgs(serial), 'forward', 'tcp:$hostPort', 'tcp:$devicePort'];
+
+/// `adb [-s <serial>] forward --remove tcp:<hostPort>` — drops one host
+/// forward; never use `--remove-all` (would delete unrelated sessions).
+List<String> adbForwardRemoveArgs({
+  required int hostPort,
+  String? serial,
+}) => [
+  ...adbSerialArgs(serial),
+  'forward',
+  '--remove',
+  'tcp:$hostPort',
+];
+
+/// Token echoed by [adbShellSentinelArgs] when `adb shell` is healthy.
+const adbShellSentinelToken = '__oka_dev_shell_ok__';
+
+/// `adb shell echo __oka_dev_shell_ok__` — bounded device transport probe.
+List<String> adbShellSentinelArgs({String? serial}) => [
+  ...adbSerialArgs(serial),
+  'shell',
+  'echo',
+  adbShellSentinelToken,
+];
 
 /// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
 /// no stream).

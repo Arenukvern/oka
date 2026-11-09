@@ -1,0 +1,3 @@
+# Large kernel suites compile many isolates in parallel; CI and constrained VMs
+# intermittently fail loads at VMPlatform._compileToKernel without dart errors.
+concurrency: 1

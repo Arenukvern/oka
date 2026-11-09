@@ -303,14 +303,9 @@ void _boundedRunTests() {
         } finally {
           final root = await tracking.root.future;
           const host = HostProcessLiveness();
-          final token = await host.identityToken(root);
-          if (await verifyKillIdentity(host, root, token) ==
-              KillIdentity.verified) {
-            await host.kill(root, grace: Duration.zero);
-          }
           if (!gate.isCompleted) gate.complete();
+          await reapFixtureRoot(host, root);
           await run;
-          expect(await host.isAlive(root), isFalse);
         }
         expect(
           failure,
@@ -357,13 +352,8 @@ void _boundedRunTests() {
       // Only this fixture owns the child. Reap with a real identity check;
       // production must not bypass unavailable subtree discovery.
       const host = HostProcessLiveness();
-      final token = await host.identityToken(root);
-      if (await verifyKillIdentity(host, root, token) ==
-          KillIdentity.verified) {
-        await host.kill(root, grace: Duration.zero);
-      }
+      await reapFixtureRoot(host, root);
       await run;
-      expect(await host.isAlive(root), isFalse);
     }
     expect(
       failure,
@@ -532,11 +522,7 @@ void _runnerDeadlineTests() {
       const host = HostProcessLiveness();
       token = await host.identityToken(root);
       rootWasAlive = await host.isAlive(root);
-      if (await verifyKillIdentity(host, root, token) ==
-          KillIdentity.verified) {
-        await host.kill(root, grace: Duration.zero);
-      }
-      expect(await host.isAlive(root), isFalse);
+      await reapFixtureRoot(host, root);
       try {
         await run;
       } on TimeoutException {
@@ -672,6 +658,26 @@ class _DelayedVerificationProbe implements ProcessTreeProbe {
     if (fail) throw StateError('forced probe error');
     return null;
   }
+}
+
+/// Test-only: identity-gated reap with a bounded wait. Loaded CI can leave
+/// `yes` alive briefly after a zero-grace kill; poll until the fixture root
+/// is gone or fail the test (never weaken the is-dead expectation).
+Future<void> reapFixtureRoot(HostProcessLiveness host, int root) async {
+  final token = await host.identityToken(root);
+  if (token != null &&
+      await verifyKillIdentity(host, root, token) == KillIdentity.verified) {
+    await host.kill(root, grace: const Duration(milliseconds: 100));
+    if (await host.isAlive(root)) {
+      Process.killPid(root, ProcessSignal.sigkill);
+    }
+  }
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (DateTime.now().isBefore(deadline)) {
+    if (!await host.isAlive(root)) return;
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+  }
+  expect(await host.isAlive(root), isFalse);
 }
 
 class _UnavailableRootProbe implements ProcessTreeProbe {
