@@ -24,6 +24,18 @@ void main() {
       const plain = 'flutter attach exited before app.started';
       expect(redactVmServiceAuthInString(plain), plain);
     });
+
+    test('leaves GitHub URLs in stderr untouched', () {
+      const github =
+          'See https://github.com/Arenukvern/oka/issues/20 for context';
+      expect(redactVmServiceAuthInString(github), github);
+    });
+
+    test('does not redact non-loopback vm-looking paths without auth token', () {
+      const device =
+          'http://192.168.0.12:5555/some-path=/';
+      expect(redactVmServiceAuthInString(device), device);
+    });
   });
 
   group('redactVmServiceAuthDeep', () {
