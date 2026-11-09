@@ -28,6 +28,9 @@ final class DevSessionTeardownBudget {
     return left.isNegative ? Duration.zero : left;
   }
 
+  /// Elapsed monotonic time since this budget started.
+  Duration get elapsed => _stopwatch.elapsed;
+
   Future<T> run<T>(
     Future<T> Function() operation, {
     required Duration cap,
