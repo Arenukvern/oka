@@ -1,0 +1,16 @@
+name: oka_harness_hosted_compat
+description: Analyze oka_harness against pub-hosted flutter_mcp_harness (no workspace).
+publish_to: none
+environment:
+  sdk: ^3.13.0
+dependencies:
+  flutter_mcp_harness: ^7.0.0
+  oka_harness:
+    path: ../..
+dependency_overrides:
+  oka_android:
+    path: ../../../oka_android
+  oka_core:
+    path: ../../../oka_core
+  resource_composition:
+    path: ../../../resource_composition

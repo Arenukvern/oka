@@ -1,7 +1,7 @@
 # oka_harness
 
 Device E2E targets over oka's owning dev sessions (ADR-0026): launch an
-Android app via `oka dev`, pick the forwarded VM service URI up from the
+Android app via `oka dev android`, pick the forwarded VM service URI up from the
 runner-session contract, and drive/assert it with the
 [flutter_mcp_harness](https://pub.dev/packages/flutter_mcp_harness)
 scenario core.
@@ -15,15 +15,19 @@ observation oracle (ADR-0024). Test flows used to bridge the two with shell
 
 ```text
 provision/install → launch/connect → observe → assert → report → teardown
-        oka dev ▸ ▸ AndroidAppTarget      WidgetDriver ▸ Scenario ▸ stop()
+        oka dev android ▸ AndroidAppTarget   WidgetDriver ▸ Scenario ▸ stop()
 ```
 
 Contract notes:
 
-- `oka dev` is the **single owning attach session**. The target never opens
+- `oka dev android` is the **single owning attach session**. The target never opens
   a second attach (which would kill the owner) and never scrapes logcat for
   the VM URI — it reads `.flutter_mcp/runner-session.json` (spec v2, see
   mcp_flutter ADR-0014), whose absence is the liveness signal.
+- Discovery `pid` is the **session owner** (the live Dart VM running `oka dev`),
+  not necessarily `Process.start(...).pid` when `oka` on PATH is a wrapper.
+  Use `verifyRunnerSessionSpawnBinding` / [OkaLaunchedApp.spawnBinding]; prefer
+  `control_port` for cooperative stop (`stopSession()` / `stopOkaDevAndroidSession`).
 - App logs stream in from `adb logcat` (prefixed `[logcat] `) into the same
   `LogTap`, so log assertions read the same as desktop targets.
 - `launch(build: false)` deliberately refuses: bring-up through a second
@@ -42,7 +46,12 @@ final driver = WidgetDriver(await app.vm());
 final ref = await driver.findRef('start');
 await driver.tap(ref!);
 
-await app.stop(); // tears down the owning session
+final okaApp = await AndroidAppTarget(projectDir: '.').launchOka();
+// ... scenario ...
+await okaApp.stopSession(); // cooperative — clears discovery
+
+// AppTarget.launch() is deprecated compat only; do not call LaunchedApp.stop()
+// on Android (SIGTERM, stale discovery). Use AndroidAppTarget.stopCooperatively(app).
 ```
 
 See `example/emulator_smoke.dart` for a runnable composition root.

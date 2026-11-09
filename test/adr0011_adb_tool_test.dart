@@ -49,6 +49,14 @@ void main() {
         adbForwardArgs(devicePort: 41235, hostPort: 8080),
         ['forward', 'tcp:8080', 'tcp:41235'],
       );
+      expect(
+        adbForwardRemoveArgs(hostPort: 8080, serial: 'emu'),
+        ['-s', 'emu', 'forward', '--remove', 'tcp:8080'],
+      );
+      expect(
+        adbShellSentinelArgs(serial: 'emu'),
+        ['-s', 'emu', 'shell', 'echo', adbShellSentinelToken],
+      );
       expect(adbLogcatDumpArgs(), ['logcat', '-d']);
       expect(adbLogcatClearArgs(), ['logcat', '-c']);
     });

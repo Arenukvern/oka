@@ -10,6 +10,7 @@ import 'build/dependency_cache.dart';
 import 'build/launcher_icon.dart';
 import 'build/provenance.dart';
 import 'build/toolchain.dart';
+import 'dev/run_session.dart';
 import 'manifest_spec.dart';
 import 'pipeline/default_pipeline.dart';
 import 'pipeline/steps/asset_steps.dart';
@@ -143,6 +144,7 @@ class AndroidPipeline implements PlatformPipeline {
       ValidateArtifactStep(),
       PackageAndSignStep(toolchain: toolchain),
       ValidateLayoutStep(),
+      RecordRunSessionStep(toolchain: toolchain),
       PostBuildLintStep(),
     ];
   }

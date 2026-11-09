@@ -14,4 +14,5 @@ library;
 
 export 'src/android_app_target.dart';
 export 'src/ios_simulator_app_target.dart';
+export 'src/oka_launched_app.dart';
 export 'src/session_composition.dart';

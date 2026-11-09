@@ -1,7 +1,7 @@
 name: oka_harness
 description: >-
   Device E2E targets over oka's owning dev sessions (ADR-0026): launch an
-  Android app via `oka dev`, pick the forwarded VM service URI up from the
+  Android app via `oka dev android`, pick the forwarded VM service URI up from the
   runner-session contract, and drive/assert it with the
   flutter_mcp_harness scenario core.
 version: 0.9.1 # x-release-please-version
