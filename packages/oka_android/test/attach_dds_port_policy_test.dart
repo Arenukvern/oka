@@ -34,6 +34,27 @@ void main() {
       expect(argv, isNot(contains('--dds-port')));
     });
 
+    test('ddsPort equal to host forward is rejected', () {
+      expect(
+        () => flutterAttachMachineArgs(
+          deviceId: 'emu',
+          hostVmServicePort: 36605,
+          ddsPort: 36605,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('user ddsPort without host forward is omitted from argv', () {
+      final argv = flutterAttachMachineArgs(
+        deviceId: 'emu',
+        deviceVmServicePort: 43239,
+        ddsPort: 39123,
+      );
+      expect(argv, isNot(contains('--dds-port')));
+      expect(argv, isNot(contains('--host-vmservice-port')));
+    });
+
     test('explicit dds override is forwarded', () {
       expect(
         flutterAttachMachineArgs(

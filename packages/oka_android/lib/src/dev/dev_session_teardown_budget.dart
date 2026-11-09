@@ -3,8 +3,8 @@ library;
 
 import 'dart:async';
 
-/// Injectable clock (tests prove budget is not created during long sessions).
-typedef TeardownBudgetNow = DateTime Function();
+/// Injectable monotonic clock (tests prove budget is not created during long sessions).
+typedef TeardownBudgetStopwatch = Stopwatch Function();
 
 /// In-session teardown wall time (leaves margin under 45s cooperative stop).
 ///
@@ -14,20 +14,22 @@ const kDevSessionTeardownBudgetTotal = Duration(seconds: 36);
 /// One budget created when quit/detach/daemon teardown begins — not at attach.
 final class DevSessionTeardownBudget {
   DevSessionTeardownBudget({
-    Duration total = kDevSessionTeardownBudgetTotal,
-    TeardownBudgetNow? now,
-  }) : _now = now ?? DateTime.now,
-       _deadline = (now ?? DateTime.now)().add(total);
+    this.total = kDevSessionTeardownBudgetTotal,
+    Stopwatch? stopwatch,
+  }) : _stopwatch = stopwatch ?? (Stopwatch()..start());
 
-  final TeardownBudgetNow _now;
-  final DateTime _deadline;
+  final Duration total;
+  final Stopwatch _stopwatch;
 
-  bool get exhausted => _now().isAfter(_deadline);
+  bool get exhausted => _stopwatch.elapsed >= total;
 
   Duration get remaining {
-    final left = _deadline.difference(_now());
+    final left = total - _stopwatch.elapsed;
     return left.isNegative ? Duration.zero : left;
   }
+
+  /// Elapsed monotonic time since this budget started.
+  Duration get elapsed => _stopwatch.elapsed;
 
   Future<T> run<T>(
     Future<T> Function() operation, {

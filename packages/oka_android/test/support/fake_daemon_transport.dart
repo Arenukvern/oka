@@ -9,6 +9,7 @@ import 'package:oka_android/oka_android.dart';
 /// emits fixture stdout, completes a fake exit code.
 class FakeDaemonTransport implements DaemonTransport {
   final _stdout = StreamController<List<int>>.broadcast();
+  final _stderr = StreamController<List<int>>.broadcast();
   final _exit = Completer<int>();
   final sent = <String>[];
   final killed = <bool>[];
@@ -71,8 +72,10 @@ class FakeDaemonTransport implements DaemonTransport {
   @override
   Stream<List<int>> get stdout => _stdout.stream;
 
+  void emitStderr(String chunk) => _stderr.add(utf8.encode(chunk));
+
   @override
-  Stream<List<int>> get stderr => const Stream<List<int>>.empty();
+  Stream<List<int>> get stderr => _stderr.stream;
 
   @override
   Future<int> get exitCode => _exit.future;
