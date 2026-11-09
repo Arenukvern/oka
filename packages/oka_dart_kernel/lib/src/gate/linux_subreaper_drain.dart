@@ -114,7 +114,8 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       return (tree: null, scan: null);
     }
     if (preferProcEnumerate && Platform.isLinux) {
-      return await enumerateLinuxProcFresh();
+      final procTree = await enumerateLinuxProcFresh();
+      return procTree;
     }
     try {
       final tree = await probe
@@ -127,21 +128,24 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       notes.add('ps enumerate unavailable');
       if (Platform.isLinux) {
         preferProcEnumerate = true;
-        return await enumerateLinuxProcFresh();
+        final procTree = await enumerateLinuxProcFresh();
+        return procTree;
       }
       return (tree: null, scan: null);
     } on TimeoutException {
       notes.add('enumerate timed out');
       if (Platform.isLinux) {
         preferProcEnumerate = true;
-        return await enumerateLinuxProcFresh();
+        final procTree = await enumerateLinuxProcFresh();
+        return procTree;
       }
       return (tree: null, scan: null);
     } on Object catch (e) {
       notes.add('enumerate failed: $e');
       if (Platform.isLinux) {
         preferProcEnumerate = true;
-        return await enumerateLinuxProcFresh();
+        final procTree = await enumerateLinuxProcFresh();
+        return procTree;
       }
       return (tree: null, scan: null);
     }
@@ -313,7 +317,8 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     }
     if (alive.isEmpty) {
       if (sawAliveAdoptee) {
-        return verifiedDrainComplete('settled_after_kill');
+        final settled = await verifiedDrainComplete('settled_after_kill');
+        return settled;
       }
       if (adoptees.isEmpty && enumerated.scan?.complete == true) {
         final confirm = await enumerateLinuxProcFresh();
@@ -382,7 +387,8 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     await Future<void>.delayed(delay);
   }
 
-  return verifiedDrainComplete('final_complete');
+  final done = await verifiedDrainComplete('final_complete');
+  return done;
 }
 
 final class SubreaperDrainResult {
