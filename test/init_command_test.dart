@@ -7,24 +7,22 @@ import 'package:yaml/yaml.dart';
 
 void main() {
   late Directory tmp;
-  late Directory previousCwd;
 
   setUp(() {
     tmp = Directory.systemTemp.createTempSync('oka-init-');
-    previousCwd = Directory.current;
-    Directory.current = tmp.path;
     File(
       p.join(tmp.path, 'pubspec.yaml'),
     ).writeAsStringSync('name: my_app\nversion: 2.3.4+7\n');
   });
 
   tearDown(() {
-    Directory.current = previousCwd;
     tmp.deleteSync(recursive: true);
   });
 
+  InitCommand initInTmp() => InitCommand(workingDirectory: tmp.path);
+
   test('default init scaffolds a full-Dart pipeline (no oka.yaml)', () async {
-    await InitCommand().run([]);
+    await initInTmp().run([]);
 
     // ADR-0010: typed entrypoint at the discovery convention; no YAML.
     final entry = File(p.join(tmp.path, 'tool', 'oka_pipeline.dart'));
@@ -44,7 +42,7 @@ void main() {
   });
 
   test('--yaml opts into the legacy YAML-first scaffold', () async {
-    await InitCommand().run(['--yaml']);
+    await initInTmp().run(['--yaml']);
 
     final file = File(p.join(tmp.path, 'oka.yaml'));
     expect(file.existsSync(), isTrue);
@@ -71,7 +69,7 @@ void main() {
   });
 
   test('--yaml scaffold preserves the rest of the generated config', () async {
-    await InitCommand().run(['--yaml']);
+    await initInTmp().run(['--yaml']);
     final parsed =
         loadYaml(File(p.join(tmp.path, 'oka.yaml')).readAsStringSync()) as Map;
     final android = parsed['android'] as Map;
@@ -95,7 +93,7 @@ pipeline:
   extra_deps:
     - "com.squareup.okhttp3:okhttp:4.12.0"
 ''');
-    await InitCommand().run(['--from-yaml']);
+    await initInTmp().run(['--from-yaml']);
 
     final code = File(p.join(tmp.path, 'tool', 'oka_pipeline.dart'));
     expect(code.existsSync(), isTrue);
@@ -117,7 +115,7 @@ pipeline:
   });
 
   test('--dart scaffolds a full-Dart entrypoint without oka.yaml', () async {
-    await InitCommand().run(['--dart']);
+    await initInTmp().run(['--dart']);
     final entry = File(p.join(tmp.path, 'tool', 'oka_pipeline.dart'));
     expect(entry.existsSync(), isTrue);
     expect(File(p.join(tmp.path, 'oka.yaml')).existsSync(), isFalse);
