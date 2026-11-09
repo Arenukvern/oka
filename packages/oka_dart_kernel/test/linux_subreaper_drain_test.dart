@@ -66,7 +66,7 @@ void main() {
       );
       expect(result.verified, isTrue, reason: result.notes.join('; '));
       expect(result.settled, isTrue);
-      expect(result.notes, isEmpty);
+      expect(result.notes, isEmpty, reason: result.notes.join('; '));
     },
     skip: Platform.isLinux ? false : 'linux proc fallback',
   );
