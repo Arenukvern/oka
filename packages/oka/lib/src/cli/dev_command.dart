@@ -6,6 +6,7 @@ import 'package:args/args.dart';
 import 'package:oka_android/oka_android.dart';
 
 import 'delegation_dart.dart';
+import 'dev_android_attach.dart';
 
 import 'kernel_stack.dart';
 
@@ -217,21 +218,26 @@ class DevCommand {
           adbPath: devToolPath,
           verbose: verbose,
         );
+        final attachArgv = buildDevAndroidAttachArgv(
+          deviceId: deviceId,
+          prepared: prepared,
+        );
         const attachDdsPort = attachDdsPortWhenOkaOwnsHostForward;
-        final attachArgv = flutterAttachMachineArgs(
-          deviceId: deviceId,
-          deviceVmServicePort: prepared.vmServiceDevicePort,
-          hostVmServicePort: prepared.vmServiceLocalPort,
-          ddsPort: attachDdsPort,
-        );
-        final transport = await spawnAttachDaemon(
-          flutterBinary: flutterBinary,
-          deviceId: deviceId,
-          adbPath: devToolPath,
-          deviceVmServicePort: prepared.vmServiceDevicePort,
-          hostVmServicePort: prepared.vmServiceLocalPort,
-          ddsPort: attachDdsPort,
-        );
+        final DaemonTransport transport;
+        try {
+          transport = await spawnAttachDaemon(
+            flutterBinary: flutterBinary,
+            flutterAttachArgv: attachArgv,
+            adbPath: devToolPath,
+          );
+        } on Object {
+          await releaseDevLaunchOwnedForward(
+            adbPath: devToolPath,
+            deviceId: deviceId,
+            hostLocalPort: prepared.vmServiceLocalPort,
+          );
+          rethrow;
+        }
         final adapter = FlutterDaemonAdapter(
           transport: transport,
           verbose: verbose,

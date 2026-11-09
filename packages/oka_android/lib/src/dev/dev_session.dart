@@ -168,7 +168,7 @@ class DevLaunchPrepared {
   /// Device-side VM port at forward creation (logcat announcement).
   final int vmServiceDevicePort;
 
-  /// Logcat VM service URI (device side) for `flutter attach --debug-url`.
+  /// Logcat VM service URI (device side); attach uses host forward ports.
   final String vmServiceDeviceDebugUrl;
 
   /// Package installed/launched in this pipeline run (`device_package`).
@@ -346,6 +346,7 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   int waitSeconds = 3,
   bool verbose = false,
   DevDiscoveryStore discoveryStore = const FileDevDiscoveryStore(),
+  AdbArgvRunner? runAdb,
 }) async {
   final ctx = BuildContext(
     projectPath: projectPath,
@@ -373,41 +374,72 @@ Future<DevLaunchPrepared> prepareDevLaunch({
     throw DevLaunchException(validationError);
   }
   final state = PipelineState();
-  final result = await pipeline.run(ctx, initialState: state);
-  if (!result.ok) {
-    throw DevLaunchException(result.error ?? 'device launch failed');
-  }
-  final vmUri = state[vmServiceUri.id] as String?;
-  final localPort = state[vmServiceLocalPort.id] as int?;
-  if (vmUri == null || localPort == null) {
-    throw DevLaunchException(
-      'device steps completed without the VM service artifacts '
-      '(vm_service_uri=$vmUri, vm_service_local_port=$localPort)',
+  var forwardHandedOff = false;
+  int? ownedForwardPort;
+  String? ownedForwardAdb;
+  try {
+    final result = await pipeline.run(ctx, initialState: state);
+    ownedForwardPort = state[vmServiceLocalPort.id] as int?;
+    if (ownedForwardPort != null && ownedForwardPort > 0) {
+      try {
+        ownedForwardAdb = await resolveAdbForSteps(
+          state,
+          adbPath: adbPath,
+          toolchain: toolchain,
+        );
+      } on Object {
+        ownedForwardAdb = adbPath;
+      }
+    }
+    if (!result.ok) {
+      throw DevLaunchException(result.error ?? 'device launch failed');
+    }
+    final vmUri = state[vmServiceUri.id] as String?;
+    final localPort = state[vmServiceLocalPort.id] as int?;
+    if (vmUri == null || localPort == null) {
+      throw DevLaunchException(
+        'device steps completed without the VM service artifacts '
+        '(vm_service_uri=$vmUri, vm_service_local_port=$localPort)',
+      );
+    }
+    // Rebuild the host-reachable endpoint from the forwarded port (pure H2
+    // helper — the forward rewired host→loopback).
+    final parsed = Uri.parse(vmUri);
+    final devicePort = parsed.port;
+    final devicePackage = state['device_package'] as String?;
+    final info = VmServiceInfo(
+      scheme: parsed.scheme,
+      host: parsed.host,
+      port: parsed.port,
+      auth: parsed.path.replaceAll(RegExp(r'^/+|/+$'), ''),
+      uri: vmUri,
     );
+    final hostUri = forwardedVmServiceUri(info, localPort);
+    final deviceDebugUrl = vmUri;
+    await discoveryStore.writeVmUri(projectPath, hostUri);
+    forwardHandedOff = true;
+    return DevLaunchPrepared(
+      apkPath: state[apkPath.id] as String? ?? '',
+      vmServiceUri: hostUri,
+      vmServiceLocalPort: localPort,
+      vmServiceDevicePort: devicePort,
+      vmServiceDeviceDebugUrl: deviceDebugUrl,
+      devicePackage: devicePackage,
+    );
+  } finally {
+    if (!forwardHandedOff &&
+        ownedForwardPort != null &&
+        ownedForwardPort > 0 &&
+        ownedForwardAdb != null &&
+        ownedForwardAdb.isNotEmpty) {
+      await releaseDevLaunchOwnedForward(
+        adbPath: ownedForwardAdb,
+        deviceId: deviceId,
+        hostLocalPort: ownedForwardPort,
+        runAdb: runAdb,
+      );
+    }
   }
-  // Rebuild the host-reachable endpoint from the forwarded port (pure H2
-  // helper — the forward rewired host→loopback).
-  final parsed = Uri.parse(vmUri);
-  final devicePort = parsed.port;
-  final devicePackage = state['device_package'] as String?;
-  final info = VmServiceInfo(
-    scheme: parsed.scheme,
-    host: parsed.host,
-    port: parsed.port,
-    auth: parsed.path.replaceAll(RegExp(r'^/+|/+$'), ''),
-    uri: vmUri,
-  );
-  final hostUri = forwardedVmServiceUri(info, localPort);
-  final deviceDebugUrl = vmUri;
-  await discoveryStore.writeVmUri(projectPath, hostUri);
-  return DevLaunchPrepared(
-    apkPath: state[apkPath.id] as String? ?? '',
-    vmServiceUri: hostUri,
-    vmServiceLocalPort: localPort,
-    vmServiceDevicePort: devicePort,
-    vmServiceDeviceDebugUrl: deviceDebugUrl,
-    devicePackage: devicePackage,
-  );
 }
 
 // -- Control surface ---------------------------------------------------------
@@ -513,6 +545,7 @@ class DevSession {
     this.attachVmServiceDevicePort,
     this.attachVmServiceHostPort,
     this.attachVmServiceDdsPort,
+    this.sessionTeardownWriter,
     DevEventRenderer? renderer,
   }) : _renderer = renderer ??
             (json
@@ -575,6 +608,10 @@ class DevSession {
   final int? attachVmServiceDevicePort;
   final int? attachVmServiceHostPort;
   final int? attachVmServiceDdsPort;
+
+  /// Test hook for [writeSessionTeardownFile].
+  final SessionTeardownWriter? sessionTeardownWriter;
+
   final DevEventRenderer _renderer;
 
   DevSessionTeardownReport? lastTeardownReport;
@@ -699,18 +736,16 @@ class DevSession {
       _emit('session.teardown', teardown.toJson());
       final root = projectPath;
       if (root != null && root.isNotEmpty) {
-        final discovery = readRunnerSessionFile(root);
-        await writeSessionTeardownFile(
-          root,
-          teardown,
-          identity: discovery == null
-              ? null
-              : SessionTeardownIdentity(
-                  runnerPid: discovery.pid,
-                  controlPort: discovery.controlPort,
-                  sessionStartedAtUtc: discovery.startedAt.toUtc().toIso8601String(),
-                ),
-        );
+        final identity = tryRunnerSessionIdentityForDiagnostic(root);
+        final writer = sessionTeardownWriter ?? writeSessionTeardownFile;
+        try {
+          await writer(root, teardown, identity: identity);
+        } on Object catch (sidecarError) {
+          write(
+            '⚠️ session teardown sidecar write failed '
+            '($sidecarError); teardown actions still ran.',
+          );
+        }
       }
     }
     return outcome;

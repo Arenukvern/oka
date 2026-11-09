@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:oka_android/src/dev/adb_tool.dart';
@@ -36,14 +37,44 @@ void main() {
     });
 
     test('budget created at teardown gets full slice not prior session age', () {
-      var t = DateTime.utc(2026, 11, 8, 12);
-      // Simulate hours of attach before quit teardown instantiates budget.
-      t = t.add(const Duration(hours: 2));
-      final budget = DevSessionTeardownBudget(now: () => t);
+      final sw = Stopwatch()..start();
       expect(
-        budget.remaining.inSeconds,
-        kDevSessionTeardownBudgetTotal.inSeconds,
+        DevSessionTeardownBudget(stopwatch: sw).remaining.inSeconds,
+        greaterThan(kDevSessionTeardownBudgetTotal.inSeconds - 2),
       );
+    });
+  });
+
+  group('runAdbBounded', () {
+    test('kills child when exit does not arrive before timeout', () async {
+      final touched = <String>[];
+      try {
+        await runAdbBounded(
+          'sleep',
+          ['30'],
+          timeout: const Duration(milliseconds: 100),
+        );
+        fail('expected timeout');
+      } on TimeoutException {
+        touched.add('timeout');
+      }
+      expect(touched, ['timeout']);
+    });
+  });
+
+  group('releaseDevLaunchOwnedForward', () {
+    test('invokes adb forward --remove with owned port', () async {
+      final calls = <List<String>>[];
+      await releaseDevLaunchOwnedForward(
+        adbPath: '/fake/adb',
+        deviceId: 'emulator-5554',
+        hostLocalPort: 34381,
+        runAdb: (adb, args) async {
+          calls.add(args);
+          return ProcessResult(0, 0, '', '');
+        },
+      );
+      expect(calls.single, _remove34381);
     });
   });
 

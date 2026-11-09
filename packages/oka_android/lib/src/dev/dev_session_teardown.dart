@@ -71,7 +71,7 @@ final class DevSessionResourceOwnership {
   final DevSessionCreatedForward? vmServiceForward;
   final DevSessionLaunchIdentity? launchIdentity;
 
-  /// Test hook — production uses [Process.run].
+  /// Test hook — production uses [runAdbBounded].
   final AdbArgvRunner? runAdb;
 }
 
@@ -244,7 +244,7 @@ Future<DeviceShellHealth> probeDeviceShellHealth({
   AdbArgvRunner? runAdb,
   DevSessionTeardownBudget? budget,
 }) async {
-  final runner = runAdb ?? Process.run;
+  final runner = runAdb ?? defaultAdbArgvRunner;
   try {
     final r = budget == null
         ? await runner(adbPath, adbShellSentinelArgs(serial: deviceSerial))
@@ -318,6 +318,64 @@ final class PidofWaitAction {
 typedef AdbArgvRunner =
     Future<ProcessResult> Function(String adbPath, List<String> args);
 
+typedef SessionTeardownWriter = Future<void> Function(
+  String projectPath,
+  DevSessionTeardownReport report, {
+  SessionTeardownIdentity? identity,
+});
+
+/// Bounded adb child: kill the process when [timeout] elapses (default runner).
+Future<ProcessResult> runAdbBounded(
+  String adbPath,
+  List<String> args, {
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final process = await Process.start(adbPath, args);
+  final stdoutFuture = process.stdout.transform(utf8.decoder).join();
+  final stderrFuture = process.stderr.transform(utf8.decoder).join();
+  try {
+    final exitCode = await process.exitCode.timeout(timeout);
+    return ProcessResult(
+      process.pid,
+      exitCode,
+      await stdoutFuture,
+      await stderrFuture,
+    );
+  } on TimeoutException {
+    process.kill();
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      process.kill(ProcessSignal.sigkill);
+    }
+    rethrow;
+  }
+}
+
+AdbArgvRunner get defaultAdbArgvRunner => runAdbBounded;
+
+/// Drops a session-owned `adb forward` mapping (best effort).
+Future<void> releaseDevLaunchOwnedForward({
+  required String adbPath,
+  required int hostLocalPort,
+  String? deviceId,
+  AdbArgvRunner? runAdb,
+}) async {
+  if (hostLocalPort <= 0 || adbPath.isEmpty) return;
+  final runner = runAdb ?? defaultAdbArgvRunner;
+  try {
+    final r = await runner(
+      adbPath,
+      adbForwardRemoveArgs(hostPort: hostLocalPort, serial: deviceId),
+    );
+    if (r.exitCode != 0) {
+      // forward may already be gone — ignore
+    }
+  } on Object {
+    // best effort
+  }
+}
+
 typedef ForwardListFetcher =
     Future<ForwardListAction> Function(String adbPath, String? serial);
 
@@ -327,7 +385,7 @@ Future<ForwardListAction> listAdbForwards({
   AdbArgvRunner? runAdb,
   DevSessionTeardownBudget? budget,
 }) async {
-  final runner = runAdb ?? Process.run;
+  final runner = runAdb ?? defaultAdbArgvRunner;
   try {
     final r = budget == null
         ? await runner(adbPath, adbForwardListArgs(serial: serial))
@@ -385,7 +443,7 @@ Future<ForwardReleaseAction> releaseSessionCreatedForward(
         runAdb: runAdb,
         budget: budget,
       );
-  final runner = runAdb ?? Process.run;
+  final runner = runAdb ?? defaultAdbArgvRunner;
 
   final listed = await lister(adbPath, forward.deviceSerial);
   if (!listed.ok) {
@@ -474,7 +532,7 @@ Future<ForceStopAction> forceStopLaunchedPackage({
   AdbArgvRunner? runAdb,
   DevSessionTeardownBudget? budget,
 }) async {
-  final runner = runAdb ?? Process.run;
+  final runner = runAdb ?? defaultAdbArgvRunner;
   final args = adbForceStopArgs(packageName, serial: deviceSerial);
   try {
     final r = budget == null
@@ -545,7 +603,7 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
     );
   }
 
-  final runner = runAdb ?? Process.run;
+  final runner = runAdb ?? defaultAdbArgvRunner;
   final deadline = DateTime.now().add(timeout);
   String? lastOut;
   while (true) {
