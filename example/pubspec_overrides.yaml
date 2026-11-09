@@ -1,0 +1,24 @@
+# Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
+# your sibling checkouts via extra entries below.
+dependency_overrides:
+  cupertino_icons: ^1.0.8
+  # Local development: split packages from the oka checkout (ADR-0010).
+  # Remove once oka_core/oka_android are published to pub.dev.
+  oka:
+    path: ../packages/oka
+  oka_android:
+    path: ../packages/oka_android
+  oka_artifacts:
+    path: ../packages/oka_artifacts
+  oka_core:
+    path: ../packages/oka_core
+  oka_huawei:
+    path: ../packages/oka_huawei
+  oka_play:
+    path: ../packages/oka_play
+  resource_composition:
+    path: ../packages/resource_composition
+  oka_supervisor:
+    path: ../packages/oka_supervisor
+  oka_web:
+    path: ../packages/oka_web

@@ -1,5 +1,7 @@
-# Maintainer-local dependency overrides (sibling checkouts, dogfood packages).
-# Copy this file to pubspec_overrides.yaml — it is git-ignored.
+# Optional maintainer-local overrides (sibling checkouts, dogfood packages).
+# The repo commits `pubspec_overrides.yaml` beside this file for monorepo path
+# deps (CI/release resolution). Merge any personal overrides there locally and
+# do not commit private paths.
 dependency_overrides:
   # mcp_toolkit:
   #   path: ~/mcp/mcp_flutter/mcp_toolkit
