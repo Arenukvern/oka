@@ -53,12 +53,16 @@ dependency_overrides:
     path: ../packages/oka
   oka_android:
     path: ../packages/oka_android
+  oka_artifacts:
+    path: ../packages/oka_artifacts
   oka_core:
     path: ../packages/oka_core
   oka_huawei:
     path: ../packages/oka_huawei
   oka_play:
     path: ../packages/oka_play
+  resource_composition:
+    path: ../packages/resource_composition
   oka_supervisor:
     path: ../packages/oka_supervisor
   oka_web:
