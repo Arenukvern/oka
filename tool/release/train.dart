@@ -9,7 +9,6 @@ const packages = <String>[
   'resource_composition',
   'oka_artifacts',
   'oka_core',
-  'oka_devices',
   'oka_supervisor',
   'oka_conformance',
   'oka_android',

@@ -30,10 +30,6 @@
         },
         {
           "type": "generic",
-          "path": "packages/oka_devices/pubspec.yaml"
-        },
-        {
-          "type": "generic",
           "path": "packages/oka_android/pubspec.yaml"
         },
         {
@@ -99,10 +95,6 @@
         {
           "type": "generic",
           "path": "packages/oka_core/CHANGELOG.md"
-        },
-        {
-          "type": "generic",
-          "path": "packages/oka_devices/CHANGELOG.md"
         },
         {
           "type": "generic",
