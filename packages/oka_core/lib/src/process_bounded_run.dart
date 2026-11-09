@@ -192,8 +192,26 @@ Future<BoundedRunResult> runBoundedProcess(
   final watch = Stopwatch()..start();
   final stdoutBuffer = _BoundedBuffer(maxCapturedBytes);
   final stderrBuffer = _BoundedBuffer(maxCapturedBytes);
-  final stdoutSub = process.stdout.listen(stdoutBuffer.add);
-  final stderrSub = process.stderr.listen(stderrBuffer.add);
+  final stdoutClosed = Completer<void>();
+  final stderrClosed = Completer<void>();
+  final stdoutSub = process.stdout.listen(
+    stdoutBuffer.add,
+    onDone: () {
+      if (!stdoutClosed.isCompleted) stdoutClosed.complete();
+    },
+    onError: (_) {
+      if (!stdoutClosed.isCompleted) stdoutClosed.complete();
+    },
+  );
+  final stderrSub = process.stderr.listen(
+    stderrBuffer.add,
+    onDone: () {
+      if (!stderrClosed.isCompleted) stderrClosed.complete();
+    },
+    onError: (_) {
+      if (!stderrClosed.isCompleted) stderrClosed.complete();
+    },
+  );
 
   // Identity captured at spawn so the deadline kill is identity-gated.
   String? identityToken;
@@ -298,6 +316,15 @@ Future<BoundedRunResult> runBoundedProcess(
   }
 
   if (rootExitObserved) {
+  // Root exit can complete before the kernel flushes piped stdout; drain
+  // briefly so capture-bound truncation is not timing-sensitive on CI.
+    await Future.any<Object?>([
+      Future.wait([
+        stdoutClosed.future,
+        stderrClosed.future,
+      ]),
+      Future<void>.delayed(const Duration(milliseconds: 250)),
+    ]);
     await closeCapture();
   } else {
     // Closing a live writer's pipe can terminate it. A refused stop must not

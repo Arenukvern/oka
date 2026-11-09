@@ -7,7 +7,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_mcp_harness/flutter_mcp_harness.dart' show LaunchedApp;
+import 'package:oka_android/oka_android.dart';
 import 'package:oka_harness/oka_harness.dart';
 import 'package:test/test.dart';
 
@@ -22,20 +22,35 @@ if [ "$1" = "build" ]; then
   echo "fake build complete"
   exit 0
 fi
-echo "fake-oka dev session args"
+if [ "$1" = "dev" ] && [ "$2" != "android" ]; then
+  echo "fake-oka: dev without android subcommand (kernel stack path)"
+  sleep 300
+  exit 0
+fi
+echo "fake-oka dev android session args"
 mkdir -p .flutter_mcp
-cat > .flutter_mcp/runner-session.json <<'JSON'
+cat > .flutter_mcp/runner-session.json <<JSON
 {
   "schema": 1,
   "runner": "fake-oka-dev",
   "vm_service_uri": "http://127.0.0.1:45671/abc123=/",
-  "control_port": 45672,
+  "control_port": 0,
   "device_id": "emulator-5554",
-  "pid": 42424,
+  "pid": $$,
   "started_at": "2026-09-27T00:00:00.000Z"
 }
 JSON
 echo "fake session published"
+if echo " $*" | grep -q ' --json'; then
+  while read -r line; do
+    case "$line" in quit|exit)
+      rm -f .flutter_mcp/runner-session.json
+      echo "fake-oka cooperative quit"
+      exit 0
+      ;;
+    esac
+  done
+fi
 sleep 300
 ''';
 
@@ -43,11 +58,28 @@ sleep 300
 /// (for the timeout path).
 const String _stallingOkaScript = r'''
 #!/bin/sh
-if [ "$1" = "dev" ]; then
-  echo "fake-oka stalling"
-  sleep 300
+if [ "$1" = "build" ]; then
+  echo "fake build complete"
+  exit 0
 fi
-echo "fake-oka build ok"
+if [ "$1" = "dev" ] && [ "$2" = "android" ]; then
+  echo "fake-oka stalling"
+  echo $$ > .session-pid
+  exec sleep 300
+fi
+''';
+
+/// Exits immediately on `dev android` — surfaces early failure vs timeout.
+const String _failingDevOkaScript = r'''
+#!/bin/sh
+if [ "$1" = "build" ]; then
+  echo "fake build complete"
+  exit 0
+fi
+if [ "$1" = "dev" ] && [ "$2" = "android" ]; then
+  echo "fake-oka dev android refused: no manifest"
+  exit 4
+fi
 ''';
 
 Future<Directory> _withFakeOka(String script) async {
@@ -60,7 +92,7 @@ Future<Directory> _withFakeOka(String script) async {
 /// Polls the session tap for [needle] — stdout lines arrive as stream
 /// events, so a just-launched session's echo may lag the returned
 /// [LaunchedApp] by a few hundred milliseconds.
-Future<bool> tapContains(LaunchedApp app, String needle) async {
+Future<bool> tapContains(OkaLaunchedApp app, String needle) async {
   for (var i = 0; i < 30; i++) {
     if (app.stdout.firstMatch(needle) != null) return true;
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -111,7 +143,7 @@ void main() {
         dartDefines: const {'INSPECTOR_EVIDENCE': 'fixture'},
         logcat: false,
       );
-      final app = await target.launch();
+      final app = await target.launchOka();
 
       addTearDown(app.stop);
       expect(app.vmUri.host, '127.0.0.1');
@@ -124,22 +156,52 @@ void main() {
       );
       // Args threaded to the owning session.
       expect(await tapContains(app, '--device emulator-9999'), isTrue);
-      expect(await tapContains(app, 'fake-oka dev session args'), isTrue);
+      expect(
+        await tapContains(app, 'fake-oka dev android session args'),
+        isTrue,
+      );
+      expect(await tapContains(app, 'fake-oka args: dev android'), isTrue);
+      expect(app.sessionOwnerPid, app.process.pid);
+      expect(app.spawnBinding.binding, RunnerSessionSpawnBinding.exact);
       // The build ran with the SAME defines the dev session requests
       // (the parity check the real oka enforces).
     },
   );
 
-  test('stop terminates the owning session', () async {
+  test('stopCooperatively after launch clears discovery', () async {
     final target = AndroidAppTarget(
       projectDir: workspace.path,
       okaBin: '${workspace.path}/fake_oka',
       logcat: false,
     );
-    final app = await target.launch();
+    final launched = await target.launch(build: false);
+    final report = await AndroidAppTarget.stopCooperatively(launched);
+    expect(report.runnerSessionCleared, isTrue);
+    expect(report.disposition, DevSessionStopDisposition.cooperative);
+    expect(report.ok, isTrue);
+    await expectLater(
+      AndroidAppTarget.stopCooperatively(launched),
+      throwsStateError,
+    );
+  });
+
+  test(
+    'stopSession clears discovery cooperatively (not bare SIGTERM)',
+    () async {
+    final target = AndroidAppTarget(
+      projectDir: workspace.path,
+      okaBin: '${workspace.path}/fake_oka',
+      logcat: false,
+    );
+    final app = await target.launchOka();
     final pid = app.process.pid;
-    final code = await app.stop();
-    expect(code, isNonZero, reason: 'SIGTERM should end the fake session');
+    final report = await app.stopSession();
+    expect(report.stdinQuitWritten, isTrue);
+    expect(report.controlQuitAcknowledged, isFalse);
+    expect(report.runnerSessionCleared, isTrue);
+    expect(report.disposition, DevSessionStopDisposition.cooperative);
+    expect(report.ok, isTrue);
+    expect(report.limits, contains('Does not verify adb'));
     // The named observable, checked directly rather than trusted to the
     // exit-code plumbing: the owning session's pid leaves the process
     // table. Generous deadline — CI load can stretch reaping.
@@ -150,9 +212,14 @@ void main() {
         '-o',
         'pid=',
       ]).stdout.toString().trim().isEmpty,
-      reason: 'owning session pid $pid survived stop()',
+      reason: 'owning session pid $pid survived stopSession()',
     );
-  });
+    expect(
+      File('${workspace.path}/.flutter_mcp/runner-session.json').existsSync(),
+      isFalse,
+    );
+  },
+  );
 
   test(
     'launch(build: false) skips the build phase and attaches directly',
@@ -169,9 +236,71 @@ void main() {
         isNull,
         reason: 'build:false must not run the build phase',
       );
-      expect(app.stdout.firstMatch('fake-oka dev session args'), isNotNull);
+      expect(
+        app.stdout.firstMatch('fake-oka dev android session args'),
+        isNotNull,
+      );
     },
   );
+
+  test(
+    'dev android subcommand routes to the owning session (not bare dev)',
+    () async {
+      final target = AndroidAppTarget(
+        projectDir: workspace.path,
+        okaBin: '${workspace.path}/fake_oka',
+        logcat: false,
+      );
+      final app = await target.launch(build: false);
+      addTearDown(app.stop);
+      expect(app.stdout.firstMatch('kernel stack path'), isNull);
+      expect(app.stdout.firstMatch('dev android'), isNotNull);
+    },
+  );
+
+  test(
+    'exitCode observation fails fast without the build phase',
+    () async {
+      final failing = await _withFakeOka(_failingDevOkaScript);
+      addTearDown(() => failing.delete(recursive: true));
+      final target = AndroidAppTarget(
+        projectDir: failing.path,
+        okaBin: '${failing.path}/fake_oka',
+        logcat: false,
+      );
+      await expectLater(
+        target.launch(build: false),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('exited (4)'), contains('no manifest')),
+          ),
+        ),
+      );
+    },
+  );
+
+  test('exiting dev android fails fast with exit evidence', () async {
+    final failing = await _withFakeOka(_failingDevOkaScript);
+    addTearDown(() => failing.delete(recursive: true));
+    final target = AndroidAppTarget(
+      projectDir: failing.path,
+      okaBin: '${failing.path}/fake_oka',
+      logcat: false,
+      sessionTimeout: const Duration(minutes: 1),
+    );
+    await expectLater(
+      target.launch(),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('exited (4)'), contains('no manifest')),
+        ),
+      ),
+    );
+  });
 
   test('a session that never publishes times out and is torn down', () async {
     final stalling = await _withFakeOka(_stallingOkaScript);
@@ -183,12 +312,16 @@ void main() {
       sessionTimeout: const Duration(seconds: 2),
     );
     await expectLater(target.launch(), throwsA(isA<TimeoutException>()));
-    // The failed bring-up must not leave an `oka` process behind.
-    final leftover = await Process.run('pgrep', ['-f', 'fake_oka']);
-    expect(
-      leftover.stdout.toString().trim(),
-      isEmpty,
-      reason: 'no fake oka process should survive a failed launch',
+    final pidText = File('${stalling.path}/.session-pid').readAsStringSync();
+    final pid = int.parse(pidText.trim());
+    await waitFor(
+      () => Process.runSync('ps', [
+        '-p',
+        '$pid',
+        '-o',
+        'pid=',
+      ]).stdout.toString().trim().isEmpty,
+      reason: 'owning session pid $pid survived a failed launch',
     );
   });
 }

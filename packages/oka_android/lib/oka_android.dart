@@ -121,14 +121,19 @@ export 'src/dependency_plan.dart';
 // in the CLI verb layer). Provisioning (ADR-0013 T2) is store-backed.
 // ADR-0011 H1/H2: session manifest + adb tool layer.
 export 'src/dev/adb_tool.dart';
+export 'src/dev/attach_handshake_diagnostic.dart';
 export 'src/dev/avd_session_state.dart';
 export 'src/dev/control_server.dart';
 export 'src/dev/daemon_adapter.dart';
 export 'src/dev/detached_spawn.dart';
+export 'src/dev/dev_control_client.dart';
 export 'src/dev/dev_discovery_store.dart';
 export 'src/dev/dev_doctor.dart';
 export 'src/dev/dev_events.dart';
 export 'src/dev/dev_session.dart';
+export 'src/dev/dev_session_stop.dart';
+export 'src/dev/dev_session_teardown.dart';
+export 'src/dev/dev_session_teardown_budget.dart';
 export 'src/dev/device_provisioning.dart';
 export 'src/dev/device_target.dart';
 export 'src/dev/dex_probe.dart';
@@ -137,6 +142,7 @@ export 'src/dev/flutter_sdk_probe.dart';
 export 'src/dev/launch_failure_signatures.dart';
 export 'src/dev/run_manifest_repository.dart';
 export 'src/dev/run_session.dart';
+export 'src/dev/runner_session_spawn_binding.dart';
 export 'src/dev/verify_ladder.dart';
 export 'src/dev/verify_target.dart';
 export 'src/dev/watch.dart';

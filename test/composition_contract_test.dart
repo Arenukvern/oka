@@ -70,6 +70,16 @@ void main() {
       final pipeline = Pipeline(AndroidPipeline.defaultSteps);
       expect(pipeline.validate(), isNull);
     });
+
+    test('defaultSteps records run_session.json (parity with defaultApkPipeline)',
+        () {
+      final names = AndroidPipeline.defaultSteps.map((s) => s.name).toList();
+      expect(names, contains('record-run-session'));
+      final recorderIndex = names.indexOf('record-run-session');
+      final lintIndex = names.indexOf('post-build-lint');
+      expect(recorderIndex, greaterThan(names.indexOf('package-and-sign')));
+      expect(recorderIndex, lessThan(lintIndex));
+    });
   });
 
   group('typed BuildContext (ADR-0006)', () {

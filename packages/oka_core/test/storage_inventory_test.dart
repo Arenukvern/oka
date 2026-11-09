@@ -35,6 +35,16 @@ void main() {
     await target.writeAsBytes(List.filled(bytes, 1));
   }
 
+  Future<void> setModTime(String path, DateTime time) async {
+    if (Platform.isWindows) {
+      await File(path).setLastModified(time);
+      return;
+    }
+    final stamp =
+        time.toUtc().toIso8601String().replaceFirst('T', ' ').split('.').first;
+    await Process.run('touch', ['-m', '-d', stamp, path]);
+  }
+
   test('protects both host and explicitly injected home roots', () {
     final injectedHome = p.join(root.path, 'injected-home');
     final inventory = StorageInventory(
@@ -119,14 +129,22 @@ void main() {
   test(
     'budget selects oldest units and zero selects all nonempty units',
     () async {
+      final anchor = DateTime.now();
       await file('older/data', 10);
       await file('newer/data', 20);
-      // Explicit ages: filesystems with coarse mtime granularity give both
-      // files identical timestamps, and the selector's path tie-break would
-      // then order 'newer' before 'older' alphabetically.
-      await File(
-        p.join(root.path, 'older/data'),
-      ).setLastModified(DateTime.now().subtract(const Duration(minutes: 5)));
+      // _measure keeps the newest mtime under a location (files *and*
+      // directories). Touch both trees so age ordering is explicit even when
+      // directory mtimes dominate or platform mtime resolution is coarse.
+      final olderRoot = p.join(root.path, 'older');
+      final olderFile = p.join(root.path, 'older/data');
+      final newerRoot = p.join(root.path, 'newer');
+      final newerFile = p.join(root.path, 'newer/data');
+      final oldTime = anchor.subtract(const Duration(minutes: 10));
+      final newTime = anchor.subtract(const Duration(minutes: 1));
+      await setModTime(olderRoot, oldTime);
+      await setModTime(olderFile, oldTime);
+      await setModTime(newerRoot, newTime);
+      await setModTime(newerFile, newTime);
       final inventory = StorageInventory(
         locations: [location('older'), location('newer')],
       );

@@ -12,7 +12,7 @@ import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-import 'adr0011_daemon_adapter_test.dart' show FakeDaemonTransport;
+import '../packages/oka_android/test/support/fake_daemon_transport.dart';
 
 const _sessionJson = {
   'schema': 1,
@@ -176,6 +176,23 @@ class _ControlClient {
 
 void main() {
   group('DevControlServer (real loopback sockets, scripted fake session)', () {
+    test('quit accepts session end on the delegation channel', () async {
+      final h = await _Harness.start();
+      final commands = <DevControlCommand>[];
+      final sub = h.control.stream.listen(commands.add);
+      final client = await DevControlClient.connect(port: h.server.port);
+      final r = await client.requestQuit(id: 3);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(r.ok, isTrue);
+      expect(r.response!['id'], 3);
+      final result = r.response!['result'] as Map<String, Object?>?;
+      expect(result?['session'], 'quit_accepted');
+      expect(commands, contains(DevControlCommand.quit));
+      await sub.cancel();
+      await client.close();
+      h.projectDir.deleteSync(recursive: true);
+    });
+
     test('reload answers with the real daemon outcome', () async {
       final h = await _Harness.start();
       final client = _ControlClient(

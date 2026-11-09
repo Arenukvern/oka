@@ -16,7 +16,7 @@ Future<void> main(List<String> args) async {
     projectDir: projectDir,
     // deviceId: 'emulator-5554', // pin on multi-device hosts
     dartDefines: {'MY_APP_FLOW': 'smoke'},
-  ).launch();
+  ).launchOka();
 
   var passed = false;
   try {
@@ -55,7 +55,10 @@ Future<void> main(List<String> args) async {
       );
     }
   } finally {
-    await app.stop();
+    final report = await app.stopSession();
+    stdout.writeln('stop: ${report.disposition.name} '
+        'discovery=${report.runnerSessionCleared} '
+        'limits=${report.limits}');
   }
   exit(passed ? 0 : 1);
 }
