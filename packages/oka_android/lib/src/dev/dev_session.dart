@@ -549,8 +549,8 @@ class DevSession {
   /// Invoked once attach reaches `app.started`, before `session.ready` is
   /// rendered (the discovery-file hook — `oka dev` writes
   /// `.flutter_mcp/runner-session.json` here). May be async; the session
-  /// awaits it so readers see the file before `session.ready` on the stream.
-  final FutureOr<void> Function()? onReady;
+  /// discovery hook runs from [_emit] when `session.ready` is rendered.
+  final void Function()? onReady;
 
   /// Structured result hook for out-of-process delegation (the loopback
   /// control server): invoked from [_emit] for `reload.result`,
