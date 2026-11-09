@@ -99,7 +99,7 @@ void main() {
       expect(tryRunnerSessionIdentityForDiagnostic(root.path), isNull);
     });
 
-    test('malformed session does not block sidecar write', () async {
+    test('corrupt runner session identity does not block sidecar write', () async {
       final dir = Directory('${root.path}/.flutter_mcp')
         ..createSync(recursive: true);
       File('${dir.path}/runner-session.json').writeAsStringSync('{');

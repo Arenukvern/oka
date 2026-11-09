@@ -6,7 +6,7 @@ void main() {
 
   group('redactVmServiceAuthInString', () {
     test('redacts ws VM service URI auth segment', () {
-      final raw = 'ws://127.0.0.1:65462/$secret/ws';
+      const raw = 'ws://127.0.0.1:65462/$secret/ws';
       final redacted = redactVmServiceAuthInString(raw);
       expect(redacted, isNot(contains(secret)));
       expect(redacted, contains(vmServiceAuthRedacted));
@@ -14,7 +14,7 @@ void main() {
     });
 
     test('redacts http device announcement URI', () {
-      final raw = 'http://127.0.0.1:43239/$secret/';
+      const raw = 'http://127.0.0.1:43239/$secret/';
       final redacted = redactVmServiceAuthInString(raw);
       expect(redacted, isNot(contains(secret)));
       expect(redacted, contains(vmServiceAuthRedacted));
@@ -39,7 +39,7 @@ void main() {
           },
         ],
       };
-      final out = redactVmServiceAuthDeep(input) as Map;
+      final out = redactVmServiceAuthDeep(input)! as Map;
       final ring = out['machineEventRing'] as List;
       final params = (ring.first as Map)['params'] as Map;
       expect('${params['wsUri']}', isNot(contains(secret)));

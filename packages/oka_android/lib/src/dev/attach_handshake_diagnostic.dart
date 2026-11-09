@@ -40,9 +40,8 @@ Map<String, Object?> buildAttachHandshakeDiagnosticPayload({
     'attachExited': adapter.exited,
     'appStartReceived': adapter.appStartReceived,
   };
-  return Map<String, Object?>.from(
-    redactVmServiceAuthDeep(raw) as Map<Object?, Object?>,
-  );
+  final redacted = redactVmServiceAuthDeep(raw)! as Map<Object?, Object?>;
+  return Map<String, Object?>.from(redacted);
 }
 
 /// Persisted when attach never reaches `app.started` (bounded, failure-only).
