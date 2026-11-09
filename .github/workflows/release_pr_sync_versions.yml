@@ -95,6 +95,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+      - run: dart pub get --no-example
 
       - name: Run contract gates
         env:
