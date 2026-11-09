@@ -44,6 +44,27 @@ final class HidePidListLinuxProcStatReader implements LinuxProcStatReader {
   Future<LinuxProcStatRead> readStat(int pid) => inner.readStat(pid);
 }
 
+/// Minimal parent map for drain adversarial tests (avoids full-host /proc scans).
+final class SyntheticSubreaperProcReader implements LinuxProcStatReader {
+  SyntheticSubreaperProcReader({
+    required this.supervisorPid,
+    required this.adopteePids,
+  });
+
+  final int supervisorPid;
+  final List<int> adopteePids;
+
+  @override
+  Future<List<int>> listProcPids() async =>
+      [supervisorPid, ...adopteePids];
+
+  @override
+  Future<LinuxProcStatRead> readStat(int pid) async {
+    final ppid = adopteePids.contains(pid) ? supervisorPid : 0;
+    return LinuxProcStatRead.ok('$pid (t) S $ppid 0 0 0 0 0 0 0 0 0 0 0 0 0 0');
+  }
+}
+
 final class SlowLinuxProcStatReader implements LinuxProcStatReader {
   SlowLinuxProcStatReader({
     required this.perStatDelay,

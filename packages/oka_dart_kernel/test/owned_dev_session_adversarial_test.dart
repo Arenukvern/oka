@@ -8,6 +8,7 @@ import 'package:oka_dart_kernel/src/gate/owned_dev_session_start_controller.dart
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'linux_proc_reader_fixtures.dart';
 import 'owned_dev_session_test_support.dart';
 
 const _linuxProcTokenHelper = r'''
@@ -387,6 +388,10 @@ void main() {
       addTearDown(() => Process.killPid(child.pid, ProcessSignal.sigkill));
       final result = await drainSubreaperAdoptees(
         supervisorPid: 1,
+        procStatReader: SyntheticSubreaperProcReader(
+          supervisorPid: 1,
+          adopteePids: [child.pid],
+        ),
         probe: _SlowListingProbe(
           delay: Duration.zero,
           descendants: [child.pid],

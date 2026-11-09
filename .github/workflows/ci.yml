@@ -31,7 +31,13 @@ jobs:
           for pkg in packages/*/; do
             if [ -d "$pkg/test" ]; then
               echo "=== $pkg"
-              (cd "$pkg" && dart test)
+              if [ "$pkg" = "packages/oka_dart_kernel/" ]; then
+                # Long-lived adversarial suites can exhaust the test runner VM on
+                # ubuntu-latest; one dart test per file keeps loads independent.
+                (cd "$pkg" && for f in test/*_test.dart; do dart test "$f"; done)
+              else
+                (cd "$pkg" && dart test)
+              fi
             fi
           done
 
