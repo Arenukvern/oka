@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain_receipt.dart';
 import 'package:oka_dart_kernel/src/gate/supervisor_control_channel.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -78,6 +79,22 @@ void main() {
     expect(update.drainAck?.nonce, 'forged');
     expect(update.supervisorExitCode, 42);
     expect(update.workloadPid, 100);
+  });
+
+  test('parseSupervisorControlLines collects drain diagnostics', () {
+    final diag = SubreaperDrainReceipt(
+      phase: 'survivors',
+      remainingMs: 50,
+      observations: const ['9:Z:sleep'],
+      errors: const ['kill_timeout'],
+    ).toControlLine();
+    final update = parseSupervisorControlLines([
+      diag,
+      'oka_dev_supervisor_drain_ack nonce=n settled=false verified=false survivors=9',
+    ]);
+    expect(update.drainDiags, hasLength(1));
+    expect(update.drainDiags.first.phase, 'survivors');
+    expect(update.drainDiags.first.observations, ['9:Z:sleep']);
   });
 
   test('sanitizeWorkloadEnvironment strips supervisor-only keys', () {

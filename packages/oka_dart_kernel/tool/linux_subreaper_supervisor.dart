@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:oka_core/oka_core.dart';
 import 'package:oka_dart_kernel/src/gate/linux_child_subreaper.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain.dart';
+import 'package:oka_dart_kernel/src/gate/linux_subreaper_drain_receipt.dart';
 import 'package:oka_dart_kernel/src/gate/linux_subreaper_settle_coordinator.dart';
 import 'package:oka_dart_kernel/src/gate/supervisor_control_channel.dart';
 
@@ -127,10 +128,28 @@ Future<bool> _runSettle({
         rootPid: child.pid,
       );
     }
+    Future<void> emitDiag(SubreaperDrainReceipt receipt) async {
+      await appendSupervisorControlLine(receipt.toControlLine());
+    }
+
     final drain = await drainSubreaperAdoptees(
       supervisorPid: self,
+      probe: probe,
+      liveness: liveness,
       budget: const Duration(seconds: 30),
+      onReceipt: emitDiag,
     );
+    if (drain.notes.isNotEmpty) {
+      await emitDiag(
+        SubreaperDrainReceipt(
+          phase: 'notes',
+          remainingMs: 0,
+          observations: drain.notes.take(6).toList(),
+          errors: const [],
+          enumerateSource: 'n/a',
+        ),
+      );
+    }
     await emitAck(drain);
     return drain.settled && drain.verified && drain.survivors.isEmpty;
   } on Object catch (e) {

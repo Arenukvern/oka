@@ -46,16 +46,41 @@ final class _LateChildListingProbe implements ProcessTreeProbe {
 }
 
 void main() {
-  test('unavailable listing is not verified settled', () async {
-    final result = await drainSubreaperAdoptees(
-      supervisorPid: 999_999,
-      probe: const _AlwaysUnavailableProbe(),
-      budget: const Duration(milliseconds: 50),
-    );
-    expect(result.settled, isFalse);
-    expect(result.verified, isFalse);
-    expect(result.notes, anyElement(contains('unavailable')));
-  });
+  test(
+    'linux /proc fallback when ps probe returns null',
+    () async {
+      final leaf = await Process.start('sleep', ['120']);
+      addTearDown(() => Process.killPid(leaf.pid, ProcessSignal.sigkill));
+      final result = await drainSubreaperAdoptees(
+        supervisorPid: leaf.pid,
+        probe: const _AlwaysUnavailableProbe(),
+        budget: const Duration(milliseconds: 500),
+        poll: const Duration(milliseconds: 25),
+      );
+      expect(result.verified, isTrue, reason: result.notes.join('; '));
+      expect(result.settled, isTrue);
+      expect(
+        result.notes,
+        anyElement(contains('ps enumerate unavailable')),
+      );
+    },
+    skip: Platform.isLinux ? false : 'linux proc fallback',
+  );
+
+  test(
+    'unavailable listing is not verified settled',
+    () async {
+      final result = await drainSubreaperAdoptees(
+        supervisorPid: 999_999,
+        probe: const _AlwaysUnavailableProbe(),
+        budget: const Duration(milliseconds: 50),
+      );
+      expect(result.settled, isFalse);
+      expect(result.verified, isFalse);
+      expect(result.notes, anyElement(contains('unavailable')));
+    },
+    skip: Platform.isLinux ? 'linux uses /proc fallback' : false,
+  );
 
   test(
     'adoptee appears late within budget but liveness exhausts deadline',

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'linux_subreaper_drain_receipt.dart';
 import 'supervisor_session_protocol.dart';
 
 /// Environment keys visible only to the dedicated supervisor process — never
@@ -86,6 +87,7 @@ SupervisorControlUpdate parseSupervisorControlLines(Iterable<String> lines) {
   int? workloadPid;
   int? supervisorExit;
   int? workloadExit;
+  final drainDiags = <SubreaperDrainReceipt>[];
   for (final raw in lines) {
     final line = raw.trim();
     if (line.isEmpty) continue;
@@ -97,6 +99,11 @@ SupervisorControlUpdate parseSupervisorControlLines(Iterable<String> lines) {
     final parsedAck = parseSupervisorDrainAck(line);
     if (parsedAck != null) {
       ack = parsedAck;
+      continue;
+    }
+    final parsedDiag = parseSubreaperDrainDiag(line);
+    if (parsedDiag != null) {
+      drainDiags.add(parsedDiag);
       continue;
     }
     final shut = RegExp(
@@ -112,6 +119,7 @@ SupervisorControlUpdate parseSupervisorControlLines(Iterable<String> lines) {
     workloadPid: workloadPid,
     supervisorExitCode: supervisorExit,
     workloadExitCode: workloadExit,
+    drainDiags: drainDiags,
   );
 }
 
@@ -191,10 +199,12 @@ final class SupervisorControlUpdate {
     this.workloadPid,
     this.supervisorExitCode,
     this.workloadExitCode,
+    this.drainDiags = const [],
   });
 
   final SupervisorDrainAck? drainAck;
   final int? workloadPid;
   final int? supervisorExitCode;
   final int? workloadExitCode;
+  final List<SubreaperDrainReceipt> drainDiags;
 }

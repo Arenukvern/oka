@@ -1,6 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
+
+import 'linux_proc_state.dart';
+import 'linux_subreaper_drain_receipt.dart';
+import 'linux_subreaper_reap.dart';
 
 /// Kills every live descendant of [supervisorPid] (subreaper adoptees). Repeats
 /// until none remain or [budget] expires — needed because reparenting after the
@@ -12,6 +17,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   Duration budget = const Duration(seconds: 20),
   Duration poll = const Duration(milliseconds: 100),
   Duration killGrace = const Duration(milliseconds: 400),
+  Future<void> Function(SubreaperDrainReceipt receipt)? onReceipt,
 }) async {
   final notes = <String>[];
   if (supervisorPid <= 0) {
@@ -25,9 +31,85 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
 
   final deadline = DateTime.now().add(budget);
   var sawAliveAdoptee = false;
+  var enumerateSource = 'ps';
+  var preferProcEnumerate = false;
+  Map<int, int>? procParentCache;
+  DateTime? procParentCacheAt;
+  var totalReaped = 0;
+  var emptyDescendantPolls = 0;
+
   Duration remaining() {
     final left = deadline.difference(DateTime.now());
     return left.isNegative ? Duration.zero : left;
+  }
+
+  Future<void> receipt(
+    String phase, {
+    List<int> inspectPids = const [],
+    List<String> errors = const [],
+  }) async {
+    final obs = <String>[
+      for (final pid in inspectPids)
+        if (linuxProcDiagLabel(pid) != null) linuxProcDiagLabel(pid)!,
+    ];
+    final emit = onReceipt;
+    if (emit != null) {
+      await emit(
+        SubreaperDrainReceipt(
+          phase: phase,
+          remainingMs: remaining().inMilliseconds,
+          observations: obs,
+          errors: errors,
+          reapedZombies: totalReaped,
+          enumerateSource: enumerateSource,
+        ),
+      );
+    }
+  }
+
+  ProcessTree? enumerateLinuxProcSync() {
+    if (!Platform.isLinux) return null;
+  if (procParentCache != null &&
+      procParentCacheAt != null &&
+      DateTime.now().difference(procParentCacheAt!) <
+          const Duration(milliseconds: 300)) {
+    enumerateSource = '/proc';
+    return ProcessTree(rootPid: supervisorPid, parentOf: procParentCache!);
+  }
+    try {
+      final parentOf = <int, int>{};
+      final scanStarted = DateTime.now();
+      for (final ent in Directory('/proc').listSync(followLinks: false)) {
+        if (DateTime.now().difference(scanStarted) >
+            const Duration(seconds: 3)) {
+          notes.add('/proc enumerate: scan wall clock capped');
+          break;
+        }
+        final name = ent.path.split('/').last;
+        final pid = int.tryParse(name);
+        if (pid == null || pid <= 0) continue;
+        try {
+          final stat = File('/proc/$pid/stat').readAsStringSync();
+          final close = stat.lastIndexOf(')');
+          if (close < 0) continue;
+          final fields = stat.substring(close + 2).trim().split(RegExp(r'\s+'));
+          if (fields.length < 2) continue;
+          final ppid = int.tryParse(fields[1]);
+          if (ppid == null) continue;
+          parentOf[pid] = ppid;
+        } on Object {
+          continue;
+        }
+      }
+      if (parentOf.isEmpty) return null;
+      procParentCache = parentOf;
+      procParentCacheAt = DateTime.now();
+      enumerateSource = '/proc';
+      return ProcessTree(rootPid: supervisorPid, parentOf: parentOf);
+    } on Object catch (e) {
+      notes.add('/proc enumerate failed: $e');
+      return null;
+    }
   }
 
   Future<ProcessTree?> enumerateBounded() async {
@@ -36,22 +118,57 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       notes.add('enumerate skipped: budget exhausted');
       return null;
     }
+    if (preferProcEnumerate && Platform.isLinux) {
+      return enumerateLinuxProcSync();
+    }
     try {
-      return await probe.enumerate(supervisorPid).timeout(left);
+      final tree = await probe
+          .enumerate(supervisorPid)
+          .timeout(left, onTimeout: () => null);
+      if (tree != null) {
+        enumerateSource = 'ps';
+        return tree;
+      }
+      notes.add('ps enumerate unavailable');
+      if (Platform.isLinux) {
+        preferProcEnumerate = true;
+        return enumerateLinuxProcSync();
+      }
+      return null;
     } on TimeoutException {
       notes.add('enumerate timed out');
+      if (Platform.isLinux) {
+        preferProcEnumerate = true;
+        return enumerateLinuxProcSync();
+      }
       return null;
     } on Object catch (e) {
       notes.add('enumerate failed: $e');
+      if (Platform.isLinux) {
+        preferProcEnumerate = true;
+        return enumerateLinuxProcSync();
+      }
       return null;
     }
   }
 
-  Future<bool?> isAliveBounded(int pid) async {
+  Future<bool?> adopteeAliveBounded(int pid) async {
     final left = remaining();
     if (left <= Duration.zero) {
       notes.add('liveness inspect skipped for $pid: budget exhausted');
       return null;
+    }
+    if (Platform.isLinux) {
+      final state = linuxProcStateChar(pid);
+      if (state == 'Z') {
+        if (tryReapChildZombie(pid)) {
+          totalReaped++;
+          notes.add('reaped zombie adoptee $pid');
+          return false;
+        }
+        notes.add('live zombie adoptee $pid awaiting reap');
+        return true;
+      }
     }
     try {
       return await liveness.isAlive(pid).timeout(left);
@@ -66,6 +183,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
 
   while (remaining() > Duration.zero) {
     final tree = await enumerateBounded();
+    await receipt('enumerate', inspectPids: tree?.descendants() ?? const []);
     if (tree == null) {
       return SubreaperDrainResult(
         settled: false,
@@ -79,6 +197,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     for (final pid in descendants) {
       if (remaining() <= Duration.zero) {
         notes.add('incomplete descendant liveness inspection');
+        await receipt('liveness_budget', inspectPids: descendants, errors: notes);
         return SubreaperDrainResult(
           settled: false,
           verified: false,
@@ -86,8 +205,9 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
           notes: notes,
         );
       }
-      final aliveState = await isAliveBounded(pid);
+      final aliveState = await adopteeAliveBounded(pid);
       if (aliveState == null) {
+        await receipt('liveness_incomplete', inspectPids: descendants, errors: notes);
         return SubreaperDrainResult(
           settled: false,
           verified: false,
@@ -102,12 +222,27 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     }
     if (alive.isEmpty) {
       if (sawAliveAdoptee) {
+        await receipt('settled_empty', inspectPids: descendants);
         return SubreaperDrainResult(
           settled: true,
           verified: true,
           survivors: const [],
           notes: notes,
         );
+      }
+      if (descendants.isEmpty) {
+        emptyDescendantPolls++;
+        if (emptyDescendantPolls >= 3) {
+          await receipt('settled_no_adoptees', inspectPids: descendants);
+          return SubreaperDrainResult(
+            settled: true,
+            verified: true,
+            survivors: const [],
+            notes: notes,
+          );
+        }
+      } else {
+        emptyDescendantPolls = 0;
       }
       if (remaining() > Duration.zero) {
         final delay = poll > remaining() ? remaining() : poll;
@@ -117,9 +252,11 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       }
       break;
     }
+    await receipt('kill_pass', inspectPids: alive);
     for (final pid in alive.reversed) {
       if (remaining() <= Duration.zero) {
         notes.add('drain budget exhausted during kill pass');
+        await receipt('kill_budget', inspectPids: alive, errors: notes);
         return SubreaperDrainResult(
           settled: false,
           verified: false,
@@ -136,9 +273,15 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
         notes.add('kill $pid: $e');
       }
     }
+    final reaped = reapAvailableChildZombies();
+    if (reaped > 0) {
+      totalReaped += reaped;
+      notes.add('reaped $reaped zombie children after kill pass');
+    }
     final delay = poll > remaining() ? remaining() : poll;
     if (delay <= Duration.zero) {
       notes.add('drain budget exhausted before poll delay');
+      await receipt('poll_budget', inspectPids: alive, errors: notes);
       return SubreaperDrainResult(
         settled: false,
         verified: false,
@@ -150,6 +293,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   }
 
   final tree = await enumerateBounded();
+  await receipt('final_enumerate', inspectPids: tree?.descendants() ?? const []);
   if (tree == null) {
     return SubreaperDrainResult(
       settled: false,
@@ -162,6 +306,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
   for (final pid in tree.descendants()) {
     if (remaining() <= Duration.zero) {
       notes.add('incomplete final liveness inspection');
+      await receipt('final_liveness_budget', inspectPids: tree.descendants());
       return SubreaperDrainResult(
         settled: false,
         verified: false,
@@ -169,8 +314,9 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
         notes: notes,
       );
     }
-    final aliveState = await isAliveBounded(pid);
+    final aliveState = await adopteeAliveBounded(pid);
     if (aliveState == null) {
+      await receipt('final_liveness_incomplete', inspectPids: tree.descendants());
       return SubreaperDrainResult(
         settled: false,
         verified: false,
@@ -180,7 +326,9 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
     }
     if (aliveState) survivors.add(pid);
   }
+  totalReaped += reapAvailableChildZombies();
   if (survivors.isNotEmpty) {
+    await receipt('survivors', inspectPids: survivors, errors: notes);
     return SubreaperDrainResult(
       settled: false,
       verified: false,
@@ -188,6 +336,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
       notes: [...notes, 'survivors remain after drain budget'],
     );
   }
+  await receipt('complete', inspectPids: tree.descendants());
   return SubreaperDrainResult(
     settled: true,
     verified: true,

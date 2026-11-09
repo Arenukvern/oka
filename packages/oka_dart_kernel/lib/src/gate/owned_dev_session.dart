@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../package_root.dart';
 
+import 'linux_subreaper_drain_receipt.dart';
 import 'owned_dev_session_start_controller.dart';
 import 'supervisor_control_channel.dart';
 import 'supervisor_session_protocol.dart';
@@ -110,6 +111,7 @@ final class OwnedDevSession {
   String? identityToken;
   int? _workloadPid;
   SupervisorDrainAck? _drainAck;
+  final List<SubreaperDrainReceipt> _drainReceipts = [];
   SessionOwnedTree? _ownedTree;
   final _OwnershipLedger _ledger = _OwnershipLedger();
   final StringBuffer _buffer = StringBuffer();
@@ -143,6 +145,9 @@ final class OwnedDevSession {
     }
     if (update.drainAck != null) {
       _drainAck = update.drainAck;
+    }
+    if (update.drainDiags.isNotEmpty) {
+      _drainReceipts.addAll(update.drainDiags);
     }
     if (update.workloadExitCode != null) {
       _workloadExitFromControl = update.workloadExitCode;
@@ -455,6 +460,15 @@ final class OwnedDevSession {
       await _pumpControlFile();
       final ack = _drainAck;
       if (ack != null && ack.nonce == sessionNonce) return;
+      if (!await liveness.isAlive(process.pid)) {
+        for (var i = 0; i < 24; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 25));
+          await _pumpControlFile();
+          final late = _drainAck;
+          if (late != null && late.nonce == sessionNonce) return;
+        }
+        return;
+      }
       await Future<void>.delayed(const Duration(milliseconds: 25));
     }
   }
@@ -620,7 +634,7 @@ final class OwnedDevSession {
     }
 
     if (useSubreaperSupervisor) {
-      await _waitForSupervisorAck(const Duration(seconds: 2));
+      await _waitForSupervisorAck(const Duration(seconds: 8));
       await _pumpControlFile();
     }
 
@@ -710,6 +724,18 @@ final class OwnedDevSession {
           'supervisor drain ack failed settled=${ack.settled} '
           'verified=${ack.verified}',
         );
+        for (final receipt in _drainReceipts) {
+          notes.add(
+            'supervisor drain diag phase=${receipt.phase} '
+            'remaining_ms=${receipt.remainingMs} enumerate=${receipt.enumerateSource} '
+            'reaped_zombies=${receipt.reapedZombies} '
+            'obs=${receipt.observations.join(",")} '
+            'errors=${receipt.errors.join("|")}',
+          );
+        }
+        if (_drainReceipts.isEmpty) {
+          notes.add('supervisor drain diag missing from control log');
+        }
       } else if (ack.survivors.isNotEmpty) {
         supervisorDrainVerified = false;
         notes.add('supervisor drain ack survivors=${ack.survivors}');
