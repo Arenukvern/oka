@@ -1,4 +1,5 @@
 import 'events.dart';
+import 'probe_match.dart';
 import 'receipt.dart';
 import 'session.dart';
 import 'spec.dart';
@@ -49,21 +50,52 @@ Future<LivePatchReceipt> verifyLiveTargets(
     final errors = connectErrors[t.id];
     final values = baselines[t.id] ?? const <String, String>{};
     if (errors != null) ok = false;
+    final probeResults = <ProbeResult>[];
+    for (final p in spec.probes) {
+      final captured = values[probeKey(p)];
+      String observed;
+      String? probeError;
+      if (errors != null) {
+        observed = errors;
+        probeError = errors;
+      } else if (captured == null) {
+        observed = 'not captured';
+        probeError = 'probe not captured';
+      } else {
+        observed = captured;
+      }
+      var probeOk = errors == null && captured != null;
+      if (probeOk) {
+        probeOk = probeResultSatisfiesSpec(
+          observed: observed,
+          expect: p.expect,
+          hold: p.hold,
+          before: observed,
+        );
+        if (!probeOk && p.expect != null) {
+          probeError = 'expected `${p.expect}`, observed `$observed`';
+        } else if (!probeOk && p.hold) {
+          probeError = 'hold violated';
+        }
+      }
+      if (!probeOk) ok = false;
+      probeResults.add(
+        ProbeResult(
+          probe: p.expression,
+          before: observed,
+          after: observed,
+          ok: probeOk,
+          held: p.hold,
+          error: probeError,
+        ),
+      );
+    }
     targets.add(TargetReceipt(
       targetId: t.id,
       kind: t.kind,
-      ok: errors == null,
+      ok: errors == null && probeResults.every((r) => r.ok),
       mode: errors == null ? 'verify' : 'unreachable',
-      probes: [
-        for (final p in spec.probes)
-          ProbeResult(
-            probe: p.expression,
-            before: values[probeKey(p)] ?? (errors ?? 'not captured'),
-            after: values[probeKey(p)] ?? (errors ?? 'not captured'),
-            ok: errors == null && values.containsKey(probeKey(p)),
-            held: true,
-          ),
-      ],
+      probes: probeResults,
       refusal: errors,
     ));
   }

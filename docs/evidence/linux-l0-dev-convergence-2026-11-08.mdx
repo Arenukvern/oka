@@ -1,0 +1,47 @@
+# Evidence: Linux L0 dev convergence (2026-11-08)
+
+Stage **L0** only — JIT desktop dev diagnostics and gates. No release build, Snap
+pack, or store upload.
+
+## What was proven
+
+| Claim | Evidence |
+| --- | --- |
+| `oka doctor` reports Linux desktop dev honestly | `[Linux Desktop Dev (L0)]` block; JSON `flutter devices --machine` parse; bounded tool probes (`packages/oka/lib/src/doctor/`) |
+| `oka run dev --platform linux` reload + restart | Dart driver `packages/oka_dart_kernel/tool/gate_linux_dev.dart` (`--leg reload`) |
+| Asset sync + evict + restart + verify | Same driver (`--leg assets`); bump tick via VM before lanes; reset to `0` only after `R`; `helloAssetFingerprint` checked via `oka live verify --json` receipt |
+| VM probe expectations | `verifyLiveTargets` / `oka live verify --json` assert each `expect` (numeric equality); gate refuses exit-0-only acceptance |
+| Owned dev teardown | Identity-gated tree stop; physical liveness checks in `owned_dev_session_test.dart`; `gate_linux_dev.dart` SIGTERM/SIGINT → `interruptCleanup` |
+| CI | Workflow job `linux-desktop-dev` on `ubuntu-latest` |
+| Owned dev teardown | `OwnedDevSession.snapshotOwnedTree` at spawn + after `dev: ready`; identity-gated stop when root exits early (`owned_dev_session_test.dart`) |
+
+## Host scope (explicit)
+
+- **Tested locally (agent):** x86_64 Linux with Flutter 3.47.9, GTK, xvfb — gates
+  when warm `flutter build linux --debug` is used in CI; local full convergence
+  may take several minutes on cold compile.
+- **Public `oka run dev`:** auto-discovery walks upward from `packages/oka/bin/oka.dart`
+  (nested `work/oka/oka` layouts); **`OKA_KERNEL_ROOT`** for explicit checkout or
+  pub-global-only installs without a kernel tree. Gates use the **public** CLI from
+  **`OKA_LINUX_DEV_GATE_CWD=/tmp`** (outside repo); CI routing step asserts delegate
+  without `OKA_KERNEL_ROOT`.
+- **Hosted pub 0.9.1:** kernel stack is `publish_to: none` — live/dev verbs need
+  source checkout discovery or `OKA_KERNEL_ROOT`; not claimed on pub-only installs.
+- **GitHub CI @ `641daad` (run [`42526360936`](https://github.com/Arenukvern/oka/actions/runs/42526360936)):** `test`,
+  `linux-desktop-dev`, `contracts`, `validate`, `android-real-smoke`,
+  `windows-session-observation` **success** (`1175bd9` carries fixes; prior
+  `bc718886` green was false acceptance on probe `expect`).
+- **Local ubuntu x64 + xvfb (Flutter 3.47.9):** same convergence script as CI —
+  reload + assets **ALL PASS**; VM probes: `devGateSessionTick` preserved on hot
+  reload, **0** after `R`; post-restart `helloAssetFingerprint` matches synced
+  asset bytes.
+- **Not claimed:** arm64 linux desktop hosts, other distros, Snap Store or `oka build linux`.
+
+## Later stages (not this PR)
+
+See `docs/superpowers/plans/2026-11-08-linux-dev-convergence.md`:
+
+- **L3 Snap Store** requires **real** upload + channel release (not dry-run-only),
+  as another **PublishTarget** peer to Google Play / Huawei — reuse existing
+  account/store/publish architecture; dry-run previews the **same** operations with
+  side effects disabled.

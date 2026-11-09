@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 /// Locates the experimental live-update stack checkout for the delegating
 /// CLI verbs (`oka live`, `oka ship`, `oka run dev`): the stack is
@@ -8,20 +9,77 @@ import 'package:path/path.dart' as p;
 /// dependency — when a checkout is present (`OKA_KERNEL_ROOT`, or the
 /// source layout around this package …/oka/packages/oka → …/oka), verbs
 /// run its tool with the workspace package config. Pub-global installs
-/// live in .pub-cache — no checkout to find.
+/// live in .pub-cache — no checkout to find unless [OKA_KERNEL_ROOT] is set.
+///
+/// **Hosted `oka` on pub.dev:** `oka run dev` / `oka live` / `oka ship` need
+/// either this monorepo checkout (auto-discovered from the `oka` script path)
+/// or an explicit `OKA_KERNEL_ROOT` pointing at that checkout. CI must not
+/// mask missing discovery by setting `OKA_KERNEL_ROOT` unless also exercising
+/// the public auto-discovery path in a separate step.
 ///
 /// [runner] is the tool path relative to the checkout, e.g.
 /// `packages/oka_dart_kernel/tool/oka_live.dart`.
-String? kernelStackRoot(String runner) {
-  final env = Platform.environment['OKA_KERNEL_ROOT'];
-  if (env != null && File(p.join(env, runner)).existsSync()) return env;
-  final segments = p.split(Platform.script.toFilePath());
-  final okaIndex = segments.indexOf('oka');
-  if (okaIndex > 0) {
-    final candidate = p.joinAll(segments.sublist(0, okaIndex + 1));
-    if (File(p.join(candidate, runner)).existsSync()) return candidate;
+String? kernelStackRoot(String runner) =>
+    kernelStackRootForScript(Platform.script.toFilePath(), runner);
+
+/// Resolves the kernel checkout by walking upward from [scriptPath] until
+/// [runner] exists. Handles nested layouts (e.g. GitHub `…/work/oka/oka/…`
+/// where the first path segment named `oka` is not the repo root).
+String? kernelStackRootForScript(
+  String scriptPath,
+  String runner, {
+  Map<String, String>? environment,
+}) {
+  final env =
+      (environment ?? Platform.environment)['OKA_KERNEL_ROOT']?.trim();
+  if (env != null && env.isNotEmpty) {
+    final root = p.normalize(env);
+    if (File(p.join(root, runner)).existsSync() &&
+        isOkaKernelWorkspaceRoot(root)) {
+      return root;
+    }
+  }
+
+  var dir = File(scriptPath).parent;
+  while (true) {
+    final candidate = dir.path;
+    if (File(p.join(candidate, runner)).existsSync() &&
+        isOkaKernelWorkspaceRoot(candidate)) {
+      return candidate;
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
   }
   return null;
+}
+
+/// Runner-relative paths are insufficient — the tree must be an oka workspace.
+bool isOkaKernelWorkspaceRoot(String root) {
+  final normalized = p.normalize(root);
+  final workspacePubspec = File(p.join(normalized, 'pubspec.yaml'));
+  if (!workspacePubspec.existsSync()) return false;
+  try {
+    final doc = loadYaml(workspacePubspec.readAsStringSync());
+    if (doc is! YamlMap) return false;
+    if (doc['name']?.toString() != 'oka_workspace') return false;
+  } on Object {
+    return false;
+  }
+  return _packagePubspecNamed(normalized, 'oka', 'oka') &&
+      _packagePubspecNamed(normalized, 'oka_dart_kernel', 'oka_dart_kernel');
+}
+
+bool _packagePubspecNamed(String workspaceRoot, String folder, String name) {
+  final pubspec = File(p.join(workspaceRoot, 'packages', folder, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return false;
+  try {
+    final doc = loadYaml(pubspec.readAsStringSync());
+    if (doc is! YamlMap) return false;
+    return doc['name']?.toString() == name;
+  } on Object {
+    return false;
+  }
 }
 
 /// Spawns [tool] from the kernel-stack checkout with the workspace package

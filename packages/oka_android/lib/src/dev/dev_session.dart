@@ -589,9 +589,10 @@ class DevSession {
 
   final Duration startupTimeout;
 
-  /// Invoked once the session reaches `session.ready` (the discovery-file
-  /// hook — `oka dev` writes `.flutter_mcp/runner-session.json` here).
-  /// Purely additive: rendering is unchanged.
+  /// Invoked once attach reaches `app.started`, before `session.ready` is
+  /// rendered (the discovery-file hook — `oka dev` writes
+  /// `.flutter_mcp/runner-session.json` here). May be async; the session
+  /// discovery hook runs from [_emit] when `session.ready` is rendered.
   final void Function()? onReady;
 
   /// Structured result hook for out-of-process delegation (the loopback

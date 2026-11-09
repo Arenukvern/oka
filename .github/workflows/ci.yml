@@ -36,8 +36,16 @@ jobs:
           for pkg in packages/*/; do
             if [ -d "$pkg/test" ]; then
               echo "=== $pkg"
-              if ! (cd "$pkg" && dart test); then
-                failed=1
+              if [ "$pkg" = "packages/oka_dart_kernel/" ]; then
+                # Long-lived adversarial suites can exhaust the test runner VM on
+                # ubuntu-latest; one dart test per file keeps loads independent.
+                if ! (cd "$pkg" && for f in test/*_test.dart; do dart test "$f"; done); then
+                  failed=1
+                fi
+              else
+                if ! (cd "$pkg" && dart test); then
+                  failed=1
+                fi
               fi
             fi
           done
@@ -135,3 +143,48 @@ jobs:
               (cd "$pkg" && dart pub publish --dry-run)
             fi
           done
+
+  linux-desktop-dev:
+    # L0: Flutter Linux desktop JIT dev under `oka run dev` (not plain VM).
+    # Proves reload/restart/assets on ubuntu-amd64 only — not all Linux hosts.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Linux desktop GTK toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang cmake ninja-build libgtk-3-dev libstdc++-14-dev pkg-config xvfb
+      - name: Enable Flutter linux desktop
+        run: |
+          flutter config --no-analytics --enable-linux-desktop
+          flutter pub get
+          (cd example && flutter pub get)
+          flutter doctor -v
+          uname -m
+      - run: dart pub get --no-example
+      - name: Warm Linux debug bundle (CI cold-start)
+        env:
+          OKA_LINUX_DEV_GATE_USE_XVFB: '1'
+        run: (cd example && xvfb-run -a flutter build linux --debug)
+      - name: Public oka run dev routing (outside repo cwd, no OKA_KERNEL_ROOT)
+        run: |
+          unset OKA_KERNEL_ROOT
+          cd /tmp
+          log=$(dart "$GITHUB_WORKSPACE/packages/oka/bin/oka.dart" run dev \
+            --project "$GITHUB_WORKSPACE/example" \
+            --platform linux --no-watch --help 2>&1) || true
+          echo "$log" | head -20
+          echo "$log" | grep -qv 'experimental live-update stack is not available'
+      - name: Linux L0 dev convergence gate (public CLI path)
+        env:
+          OKA_LINUX_DEV_GATE_USE_XVFB: '1'
+          OKA_LINUX_DEV_GATE_CWD: /tmp
+        run: bash packages/oka_dart_kernel/tool/gate_linux_dev_convergence.sh

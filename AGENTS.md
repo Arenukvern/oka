@@ -32,7 +32,7 @@ follow links.
 | Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
 | Newcomer FAQ (what / who / prerequisites) | `docs/FAQ.md`, `llms.txt` |
 | Run/understand live update (first steps → JIT dev loop → AOT production, dangers) | `docs/guides/live_update.mdx` |
-| Dev session with watch-on-save + r/R on macOS/web (`oka dev` = `oka run dev`; android daemon = `oka dev android`) | `docs/guides/live_update.mdx` → "The converged session"; gate: `packages/oka_dart_kernel/tool/gate_run_dev.sh` |
+| Dev session with watch-on-save + r/R on macOS/web/linux (`oka dev` = `oka run dev`; android daemon = `oka dev android`) | `docs/guides/live_update.mdx` → "The converged session"; gates: `gate_run_dev.sh` (macos/web), `gate_linux_dev_convergence.sh` (linux L0) |
 | Inspect or clean storage across projects, devices and sessions | `docs/guides/cache_storage.mdx`, ADRs 0019–0021; `oka cache schema`, `oka session-state`; `StorageInventory`, `CacheDiagnostics` and `CacheProjectRegistry` in `oka_core` |
 | Migrate an existing Gradle app | `docs/guides/gradle_migration.mdx` (works / needs config / unsupported + verification loop) |
 | Set up multiple store accounts / white-label brands / ship to stores | `docs/guides/accounts_and_stores.mdx` (per-account targets, per-brand pipelines via `--flavor`, credential layout) |
