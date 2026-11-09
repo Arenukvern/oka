@@ -190,11 +190,11 @@ class ProcessDaemonTransport implements DaemonTransport {
 
 /// Default `--dds-port` when oka already created `adb forward tcp:<host> …`.
 ///
-/// Flutter attach `--dds-port` vs `--host-vmservice-port` (getter behaviour at
-/// least since stable 3.24; clearer failure text on 3.47+): without an explicit
-/// `--dds-port`, DDS may bind `--host-vmservice-port`, colliding with an
-/// existing adb forward. Parsed `--dds-port 0` keeps the host port for the
-/// forward and lets DDS pick a free port.
+/// Flutter 3.47.5 (`flutter_command.dart` `ddsPort` / `hostVmservicePort` on
+/// stable-3.47.5): without an explicit `--dds-port`, DDS binds
+/// `--host-vmservice-port`, which collides with an existing forward (`Address
+/// already in use` on loopback). Parsed `--dds-port 0` keeps the host port for
+/// the forward and lets DDS pick a free port.
 const attachDdsPortWhenOkaOwnsHostForward = 0;
 
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
