@@ -22,8 +22,8 @@ void main() {
           return p;
         },
       );
-    } on Object {
-      // Process.start may fail; argv capture is what we assert.
+    } on ProcessException {
+      // argv is captured inside processStartForTest before spawn may fail.
     }
     expect(seenArgv, isNotNull);
     final hostIdx = seenArgv!.indexOf('--host-vmservice-port');

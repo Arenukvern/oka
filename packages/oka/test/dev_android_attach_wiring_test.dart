@@ -19,5 +19,8 @@ void main() {
     final idx = argv.indexOf('--host-vmservice-port');
     expect(argv[idx + 1], '36605');
     expect(argv, contains('--device-vmservice-port'));
+    expect(argv, contains('--dds-port'));
+    final ddsIdx = argv.indexOf('--dds-port');
+    expect(argv[ddsIdx + 1], '0');
   });
 }
