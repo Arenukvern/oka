@@ -347,6 +347,7 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   bool verbose = false,
   DevDiscoveryStore discoveryStore = const FileDevDiscoveryStore(),
   AdbArgvRunner? runAdb,
+  List<BuildStep>? pipelineStepsForTest,
 }) async {
   final ctx = BuildContext(
     projectPath: projectPath,
@@ -358,16 +359,25 @@ Future<DevLaunchPrepared> prepareDevLaunch({
   );
   // DeviceTarget machinery (ADR-0015) — install/launch/logscan are the
   // exact steps `oka run device` runs; no duplicated device logic.
-  final steps = [
-    ...DeviceTarget(
-      waitSeconds: waitSeconds,
-      deviceId: deviceId,
-      adbPath: adbPath,
-      toolchain: toolchain,
-    ).compile(ctx),
-    AwaitVmServiceStep(deviceId: deviceId, adbPath: adbPath, toolchain: toolchain),
-    ForwardVmServiceStep(deviceId: deviceId, adbPath: adbPath, toolchain: toolchain),
-  ];
+  final steps = pipelineStepsForTest ??
+      [
+        ...DeviceTarget(
+          waitSeconds: waitSeconds,
+          deviceId: deviceId,
+          adbPath: adbPath,
+          toolchain: toolchain,
+        ).compile(ctx),
+        AwaitVmServiceStep(
+          deviceId: deviceId,
+          adbPath: adbPath,
+          toolchain: toolchain,
+        ),
+        ForwardVmServiceStep(
+          deviceId: deviceId,
+          adbPath: adbPath,
+          toolchain: toolchain,
+        ),
+      ];
   final pipeline = Pipeline(steps);
   final validationError = pipeline.validate();
   if (validationError != null) {

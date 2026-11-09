@@ -223,21 +223,14 @@ class DevCommand {
           prepared: prepared,
         );
         const attachDdsPort = attachDdsPortWhenOkaOwnsHostForward;
-        final DaemonTransport transport;
-        try {
-          transport = await spawnAttachDaemon(
-            flutterBinary: flutterBinary,
-            flutterAttachArgv: attachArgv,
-            adbPath: devToolPath,
-          );
-        } on Object {
-          await releaseDevLaunchOwnedForward(
-            adbPath: devToolPath,
-            deviceId: deviceId,
-            hostLocalPort: prepared.vmServiceLocalPort,
-          );
-          rethrow;
-        }
+        final transport = await spawnDevAndroidAttachTransport(
+          projectPath: projectPath,
+          flutterBinary: flutterBinary,
+          attachArgv: attachArgv,
+          adbPath: devToolPath,
+          deviceId: deviceId,
+          prepared: prepared,
+        );
         final adapter = FlutterDaemonAdapter(
           transport: transport,
           verbose: verbose,

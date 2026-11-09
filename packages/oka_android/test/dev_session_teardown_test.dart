@@ -65,7 +65,7 @@ void main() {
   group('releaseDevLaunchOwnedForward', () {
     test('invokes adb forward --remove with owned port', () async {
       final calls = <List<String>>[];
-      await releaseDevLaunchOwnedForward(
+      final released = await releaseDevLaunchOwnedForward(
         adbPath: '/fake/adb',
         deviceId: 'emulator-5554',
         hostLocalPort: 34381,
@@ -74,6 +74,7 @@ void main() {
           return ProcessResult(0, 0, '', '');
         },
       );
+      expect(released, isTrue);
       expect(calls.single, _remove34381);
     });
   });

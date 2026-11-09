@@ -355,24 +355,23 @@ Future<ProcessResult> runAdbBounded(
 AdbArgvRunner get defaultAdbArgvRunner => runAdbBounded;
 
 /// Drops a session-owned `adb forward` mapping (best effort).
-Future<void> releaseDevLaunchOwnedForward({
+/// Returns whether `adb forward --remove` was invoked (not whether it succeeded).
+Future<bool> releaseDevLaunchOwnedForward({
   required String adbPath,
   required int hostLocalPort,
   String? deviceId,
   AdbArgvRunner? runAdb,
 }) async {
-  if (hostLocalPort <= 0 || adbPath.isEmpty) return;
+  if (hostLocalPort <= 0 || adbPath.isEmpty) return false;
   final runner = runAdb ?? defaultAdbArgvRunner;
   try {
-    final r = await runner(
+    await runner(
       adbPath,
       adbForwardRemoveArgs(hostPort: hostLocalPort, serial: deviceId),
     );
-    if (r.exitCode != 0) {
-      // forward may already be gone — ignore
-    }
+    return true;
   } on Object {
-    // best effort
+    return false;
   }
 }
 
@@ -684,7 +683,10 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
       );
     }
     lastOut = '${r.stdout}'.trim();
-    if (DateTime.now().isAfter(deadline) || (budget?.exhausted ?? false)) {
+    final timedOut = budget != null
+        ? budget.elapsed >= timeout || budget.exhausted
+        : DateTime.now().isAfter(deadline);
+    if (timedOut) {
       return PidofWaitAction(
         attempted: true,
         absentObserved: false,
