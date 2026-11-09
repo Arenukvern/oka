@@ -1,0 +1,63 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+
+/// Workspace root anchor checked in at the repo root.
+const _anchorRelative = 'tool/release/train.dart';
+
+/// Resolves the oka repository root by walking parents from [start].
+///
+/// [start] defaults to [Directory.current] so callers can still find the repo
+/// after another suite (incorrectly) mutates the process-global cwd.
+String findOkaRepoRoot([String? start]) {
+  var dir = Directory(start ?? Directory.current.path).absolute;
+  while (true) {
+    final anchor = File(p.join(dir.path, _anchorRelative));
+    if (anchor.existsSync()) return dir.path;
+    final parent = dir.parent;
+    if (parent.path == dir.path) {
+      fail(
+        'Could not locate oka repo root (missing $_anchorRelative) '
+        'starting from ${start ?? Directory.current.path}',
+      );
+    }
+    dir = parent;
+  }
+}
+
+/// Repo-rooted file for source-contract tests (immune to [Directory.current] races).
+File repoFile(List<String> relativeSegments) => File(
+      p.joinAll([findOkaRepoRoot(), ...relativeSegments]),
+    );
+
+/// Fails loudly when [Directory.current] no longer looks like the oka workspace.
+///
+/// [Directory.current] is shared across every test isolate in the runner process;
+/// suites that chdir into temp dirs must not mutate it (see init_command_test).
+void guardOkaWorkspaceCwd() {
+  final cwd = Directory.current.path;
+  final pubspec = File(p.join(cwd, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) {
+    fail(
+      'Directory.current ($cwd) is not the oka workspace root '
+      '(pubspec.yaml missing). Another test suite likely mutated '
+      'Directory.current; resolve repo paths via test/support/repo_root.dart '
+      'instead of relative paths.',
+    );
+  }
+  final text = pubspec.readAsStringSync();
+  if (!RegExp(r'^name:\s*oka_workspace\s*$', multiLine: true).hasMatch(text)) {
+    fail(
+      'Directory.current ($cwd) is not the oka workspace root '
+      '(expected name: oka_workspace). Another test suite likely mutated '
+      'Directory.current while this suite was running.',
+    );
+  }
+  if (!File(p.join(cwd, _anchorRelative)).existsSync()) {
+    fail(
+      'Directory.current ($cwd) lacks $_anchorRelative despite oka_workspace '
+      'pubspec — treat this as a cwd leak or mis-rooted test run.',
+    );
+  }
+}

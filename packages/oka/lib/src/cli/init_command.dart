@@ -24,11 +24,22 @@ const kDefaultEntrypointPath = 'tool/oka_pipeline.dart';
 /// fresh project, or convert oka.yaml into a typed Dart pipeline entrypoint
 /// (ADR-0010: `--from-yaml`; fresh full-Dart scaffold: `--dart`).
 class InitCommand {
+  /// When set (tests), all project paths resolve under this directory instead of
+  /// [Directory.current] — the process cwd is global across test isolates.
+  InitCommand({this.workingDirectory});
+
+  final String? workingDirectory;
+
+  File _projectFile(String relative) {
+    final root = workingDirectory;
+    return File(root == null ? relative : p.join(root, relative));
+  }
+
   Future<void> run(List<String> args) async {
     print('🚀 Initializing Oka configuration...\n');
 
     // Check if this is a Flutter project
-    final pubspecFile = File('pubspec.yaml');
+    final pubspecFile = _projectFile('pubspec.yaml');
     if (!await pubspecFile.exists()) {
       print('❌ Not a Flutter project (pubspec.yaml not found)');
       print('   Run this command from the root of a Flutter project');
@@ -51,14 +62,14 @@ class InitCommand {
   /// Legacy YAML-first scaffold (opt-in via `oka init --yaml`).
   Future<void> _scaffoldYaml(List<String> args) async {
     // Check if oka.yaml already exists
-    final okaYamlFile = File('oka.yaml');
+    final okaYamlFile = _projectFile('oka.yaml');
     if (await okaYamlFile.exists()) {
       print('⚠️  oka.yaml already exists');
       if (!_confirmOrCancel('   Overwrite? (y/N): ')) return;
     }
 
     // Read pubspec.yaml for project info
-    final pubspecFile = File('pubspec.yaml');
+    final pubspecFile = _projectFile('pubspec.yaml');
     final pubspecContent = await pubspecFile.readAsString();
     final pubspec = loadYaml(pubspecContent) as Map<dynamic, dynamic>;
     final projectName = (pubspec['name'] as String?) ?? 'app';
@@ -67,7 +78,7 @@ class InitCommand {
     print('📦 Project: $projectName v$projectVersion');
 
     // Check for existing Gradle configuration
-    final gradleFile = File(p.join('android', 'app', 'build.gradle'));
+    final gradleFile = _projectFile(p.join('android', 'app', 'build.gradle'));
 
     if (await gradleFile.exists()) {
       // ADR-0012: oka does not embed an LLM. The driving agent (or human)
@@ -104,7 +115,7 @@ class InitCommand {
   /// ADR-0010: convert an existing oka.yaml into a typed Dart pipeline
   /// entrypoint at [kDefaultEntrypointPath].
   Future<void> _convertFromYaml({bool force = false}) async {
-    final okaYamlFile = File('oka.yaml');
+    final okaYamlFile = _projectFile('oka.yaml');
     if (!await okaYamlFile.exists()) {
       print('❌ --from-yaml requires an existing oka.yaml to convert');
       exit(1);
@@ -120,7 +131,7 @@ class InitCommand {
   /// ADR-0010: scaffold a fresh full-Dart pipeline (no oka.yaml).
   Future<void> _scaffoldDart(List<String> args) async {
     final force = args.contains('--force');
-    final target = File(p.join('tool', 'oka_pipeline.dart'));
+    final target = _projectFile(p.join('tool', 'oka_pipeline.dart'));
     if (await target.exists() && !force) {
       print('⚠️  $kDefaultEntrypointPath already exists');
       if (!_confirmOrCancel('   Overwrite? (y/N): ')) {
@@ -128,7 +139,7 @@ class InitCommand {
       }
     }
     final pubspec =
-        loadYaml(await File('pubspec.yaml').readAsString())
+        loadYaml(await _projectFile('pubspec.yaml').readAsString())
             as Map<dynamic, dynamic>;
     final name = (pubspec['name'] as String?) ?? 'app';
     final version = (pubspec['version'] as String?) ?? '1.0.0';
@@ -167,7 +178,7 @@ class InitCommand {
   }
 
   Future<void> _writeEntrypoint(String code, {bool force = false}) async {
-    final target = File(p.join('tool', 'oka_pipeline.dart'));
+    final target = _projectFile(p.join('tool', 'oka_pipeline.dart'));
     if (await target.exists() && !force) {
       print('⚠️  $kDefaultEntrypointPath already exists');
       if (!_confirmOrCancel('   Overwrite? (y/N): ')) {
@@ -198,7 +209,7 @@ class InitCommand {
       'dependencies': <Map<String, dynamic>>[],
     };
 
-    final okaYamlFile = File('oka.yaml');
+    final okaYamlFile = _projectFile('oka.yaml');
     await okaYamlFile.writeAsString(
       '${_toYamlString(okaYaml)}\n$_entrypointScaffold',
     );
