@@ -56,7 +56,6 @@ List<String> adbInstallMultipleArgs(
   String? serial,
 }) => [...adbSerialArgs(serial), 'install-multiple', '-r', ...apks];
 
-/// `adb [-s <serial>] shell am start -n <package>/<activity>`.
 /// `adb [-s <serial>] shell am force-stop <package>` — quit fallback only.
 List<String> adbForceStopArgs(String packageName, {String? serial}) => [
   ...adbSerialArgs(serial),
@@ -66,6 +65,7 @@ List<String> adbForceStopArgs(String packageName, {String? serial}) => [
   packageName,
 ];
 
+/// `adb [-s <serial>] shell am start -n <package>/<activity>`.
 List<String> adbLaunchArgs(
   String packageName,
   String activity, {
@@ -99,8 +99,6 @@ List<String> adbForwardRemoveArgs({
   'tcp:$hostPort',
 ];
 
-/// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
-/// no stream).
 /// Token echoed by [adbShellSentinelArgs] when `adb shell` is healthy.
 const adbShellSentinelToken = '__oka_dev_shell_ok__';
 
@@ -112,6 +110,8 @@ List<String> adbShellSentinelArgs({String? serial}) => [
   adbShellSentinelToken,
 ];
 
+/// `adb [-s <serial>] logcat -d` (dump the current buffer — bounded scrape,
+/// no stream).
 List<String> adbLogcatDumpArgs({String? serial}) => [
   ...adbSerialArgs(serial),
   'logcat',
@@ -468,15 +468,6 @@ class AdbTool {
     return port;
   }
 
-  /// `adb forward --remove tcp:<hostPort>` for a session-owned local port.
-  Future<void> removeForwardTcp({required int hostPort}) async {
-    final r = await _runProcess(
-      adbPath,
-      adbForwardRemoveArgs(hostPort: hostPort, serial: serial),
-    );
-    if (r.exitCode != 0) _fail('forward --remove', r);
-  }
-
   /// Bounded poll for the VM service announcement: dumps logcat every
   /// [pollInterval] until [parseVmServiceUri] matches or [timeout] passes.
   /// Returns null on timeout (caller decides the oka-branded failure).
@@ -656,16 +647,4 @@ String forwardedVmServiceUri(VmServiceInfo info, int localPort) {
   // service websocket endpoint is the same token path plus `/ws`.
   final authPath = info.auth.endsWith('/ws') ? info.auth : '${info.auth}/ws';
   return '$scheme://127.0.0.1:$localPort/$authPath';
-}
-
-/// Host-loopback HTTP URL (discovery / docs only — **not** for `flutter attach
-/// `--debug-url`, which expects the device logcat URI plus `--host-vmservice-port`).
-String forwardedVmServiceHttpAttachUrl(VmServiceInfo info, int localPort) {
-  var auth = info.auth;
-  if (auth.endsWith('/ws')) {
-    auth = auth.substring(0, auth.length - 3);
-  }
-  auth = auth.replaceAll(RegExp(r'^/+|/+$'), '');
-  final path = auth.isEmpty ? '' : '/$auth';
-  return 'http://127.0.0.1:$localPort$path';
 }

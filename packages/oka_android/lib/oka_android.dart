@@ -145,6 +145,7 @@ export 'src/dev/run_session.dart';
 export 'src/dev/runner_session_spawn_binding.dart';
 export 'src/dev/verify_ladder.dart';
 export 'src/dev/verify_target.dart';
+export 'src/dev/vm_service_redaction.dart';
 export 'src/dev/watch.dart';
 // GMS-dependency artifact seam (ADR-0013 two-axis law; additive for P2).
 export 'src/gms_artifacts.dart';

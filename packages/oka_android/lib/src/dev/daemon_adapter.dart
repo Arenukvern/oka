@@ -190,11 +190,11 @@ class ProcessDaemonTransport implements DaemonTransport {
 
 /// Default `--dds-port` when oka already created `adb forward tcp:<host> …`.
 ///
-/// Flutter 3.47+ (`flutter_command.dart` `ddsPort` / `hostVmservicePort` on
+/// Flutter 3.47.5 (`flutter_command.dart` `ddsPort` / `hostVmservicePort` on
 /// stable-3.47.5): without an explicit `--dds-port`, DDS binds
 /// `--host-vmservice-port`, which collides with an existing forward (`Address
 /// already in use` on loopback). Parsed `--dds-port 0` keeps the host port for
-/// the forward and lets DDS pick a free port (native f9/a92 pre-proof).
+/// the forward and lets DDS pick a free port.
 const attachDdsPortWhenOkaOwnsHostForward = 0;
 
 /// Pure argv builder for the attach spawn (unit-tested; the executor is
@@ -215,6 +215,16 @@ List<String> flutterAttachMachineArgs({
   final effectiveDds = hostForward != null
       ? (ddsPort ?? attachDdsPortWhenOkaOwnsHostForward)
       : ddsPort;
+  if (hostForward != null &&
+      effectiveDds != null &&
+      effectiveDds > 0 &&
+      effectiveDds == hostForward) {
+    throw ArgumentError.value(
+      effectiveDds,
+      'ddsPort',
+      'must not equal hostVmServicePort ($hostForward) when oka owns the forward',
+    );
+  }
   return [
     'attach',
     '--machine',
@@ -243,27 +253,28 @@ List<String> flutterAttachMachineArgs({
 /// child's PATH: the flutter tool discovers devices through `adb`, and the
 /// oka-managed SDK dir is often not on the ambient PATH (live e2e finding,
 /// 2026-09-07 — without this, attach reports "No supported devices found").
+typedef AttachDaemonProcessStarter = Future<Process> Function(
+  String executable,
+  List<String> arguments, {
+  Map<String, String>? environment,
+});
+
+/// Spawns attach with [flutterAttachArgv] verbatim (shared with diagnostics).
 Future<DaemonTransport> spawnAttachDaemon({
   required String flutterBinary,
-  required String deviceId,
+  required List<String> flutterAttachArgv,
   String? adbPath,
-  int? deviceVmServicePort,
-  int? hostVmServicePort,
-  int? ddsPort,
+  AttachDaemonProcessStarter? processStartForTest,
 }) async {
   final environment = <String, String>{...Platform.environment};
   if (adbPath != null && adbPath.isNotEmpty) {
     final dir = p.dirname(adbPath);
     environment['PATH'] = '$dir:${environment['PATH'] ?? ''}';
   }
-  final process = await Process.start(
+  final start = processStartForTest ?? Process.start;
+  final process = await start(
     flutterBinary,
-    flutterAttachMachineArgs(
-      deviceId: deviceId,
-      deviceVmServicePort: deviceVmServicePort,
-      hostVmServicePort: hostVmServicePort,
-      ddsPort: ddsPort,
-    ),
+    flutterAttachArgv,
     environment: environment,
   );
   return ProcessDaemonTransport(process);
@@ -337,6 +348,7 @@ class FlutterDaemonAdapter {
   final _stderrRing = <String>[];
   static const _stderrRingMaxLines = 80;
   static const _stderrRingMaxBytes = 16 * 1024;
+  static const _stderrRingMaxSingleLineBytes = 2048;
   var _stderrRingBytes = 0;
 
   final _eventRing = <MachineEventRingEntry>[];
@@ -454,8 +466,11 @@ class FlutterDaemonAdapter {
 
   void _onStderrData(String chunk) {
     for (final line in chunk.split('\n')) {
-      final t = line.trim();
+      var t = line.trim();
       if (t.isEmpty) continue;
+      if (utf8.encode(t).length > _stderrRingMaxSingleLineBytes) {
+        t = '${_truncateUtf8(t, _stderrRingMaxSingleLineBytes - 16)}…[truncated]';
+      }
       final bytes = utf8.encode(t).length + 1;
       _stderrRing.add(t);
       _stderrRingBytes += bytes;
