@@ -16,9 +16,6 @@ String _exampleDir(Directory root) =>
 File examplePubspecFile(Directory root) =>
     File('${_exampleDir(root)}${Platform.pathSeparator}pubspec.yaml');
 
-File exampleOverridesPubspecFile(Directory root) =>
-    File('${_exampleDir(root)}${Platform.pathSeparator}pubspec_overrides.yaml');
-
 YamlMap _loadYamlMap(File file, String label) {
   if (!file.existsSync()) {
     _fail('$label not found (${file.path})');
@@ -93,15 +90,8 @@ Set<String> _workspacePackagesInSection(
   return names;
 }
 
-Set<String> examplePathOverrides(YamlMap overridesPubspec) =>
-    pathResolvedInSection(overridesPubspec, 'dependency_overrides');
-
-/// Path `dependency_overrides` must live in [example/pubspec_overrides.yaml].
-List<String> pathOverridesForbiddenInPubspec(YamlMap pubspec) {
-  final forbidden = pathResolvedInSection(pubspec, 'dependency_overrides').toList()
-    ..sort();
-  return forbidden;
-}
+Set<String> examplePathOverrides(YamlMap pubspec) =>
+    pathResolvedInSection(pubspec, 'dependency_overrides');
 
 /// Reads regular [dependencies] (not dev_dependencies) workspace refs from a
 /// package manifest.
@@ -145,19 +135,16 @@ Set<String> reachableWorkspacePackages(
   return closure;
 }
 
-/// Packages in the closure that lack a path entry in [example/pubspec_overrides.yaml].
+/// Packages in the closure that lack a path entry in [example/pubspec.yaml]
+/// `dependency_overrides`.
 ///
 /// Direct `dependencies` path entries (e.g. `oka_update`) satisfy resolution
 /// without an override — they are excluded from this set.
 List<String> missingExamplePathOverrides(Directory root) {
   final pubspec = _loadYamlMap(examplePubspecFile(root), 'example/pubspec.yaml');
-  final overridesPubspec = _loadYamlMap(
-    exampleOverridesPubspecFile(root),
-    'example/pubspec_overrides.yaml',
-  );
 
   final closure = reachableWorkspacePackages(root, pubspec);
-  final overrides = examplePathOverrides(overridesPubspec);
+  final overrides = examplePathOverrides(pubspec);
   final directPathDeps = pathResolvedInSection(pubspec, 'dependencies');
 
   final missing = <String>[];
@@ -176,20 +163,10 @@ void main() {
         File.fromUri(Platform.script).parent.parent.parent.path,
   ).absolute;
 
-  final pubspec = _loadYamlMap(examplePubspecFile(root), 'example/pubspec.yaml');
-  final forbidden = pathOverridesForbiddenInPubspec(pubspec);
-  if (forbidden.isNotEmpty) {
-    _fail(
-      'example/pubspec.yaml must not declare path dependency_overrides '
-      '(use example/pubspec_overrides.yaml): '
-      '[${forbidden.map((n) => "'$n'").join(', ')}].',
-    );
-  }
-
   final missing = missingExamplePathOverrides(root);
   if (missing.isNotEmpty) {
     _fail(
-      'example/pubspec_overrides.yaml must path-override every workspace package '
+      'example/pubspec.yaml must path-override every workspace package '
       'reachable from example workspace deps; missing dependency_overrides for: '
       '[${missing.map((n) => "'$n'").join(', ')}]. '
       'Add `path: ../packages/<name>` entries under dependency_overrides.',

@@ -9,14 +9,6 @@ void main() {
   group('example path-override closure', () {
     test('real example covers reachable workspace packages', () {
       final root = Directory.current;
-      final pubspec = loadYaml(
-        overrides.examplePubspecFile(root).readAsStringSync(),
-      );
-      expect(pubspec, isA<YamlMap>());
-      expect(
-        overrides.pathOverridesForbiddenInPubspec(pubspec as YamlMap),
-        isEmpty,
-      );
       expect(overrides.missingExamplePathOverrides(root), isEmpty);
     });
 
@@ -49,10 +41,6 @@ environment:
   sdk: ^3.13.0
 dependencies:
   oka_supervisor: ^0.9.0
-''',
-      );
-      File('${root.path}/example/pubspec_overrides.yaml').writeAsStringSync(
-        '''
 dependency_overrides:
   oka_supervisor:
     path: ../packages/oka_supervisor
@@ -80,29 +68,11 @@ dependency_overrides:
 name: example
 dependencies:
   oka: ^99.0.0
+dependency_overrides:
 ''',
-      );
-      File('${root.path}/example/pubspec_overrides.yaml').writeAsStringSync(
-        'dependency_overrides:\n',
       );
 
       expect(overrides.missingExamplePathOverrides(root), ['oka']);
-    });
-
-    test('forbids path dependency_overrides in pubspec.yaml', () {
-      final pubspec = loadYaml(
-        '''
-name: example
-dependency_overrides:
-  oka:
-    path: ../packages/oka
-''',
-      );
-      expect(pubspec, isA<YamlMap>());
-      expect(
-        overrides.pathOverridesForbiddenInPubspec(pubspec as YamlMap),
-        ['oka'],
-      );
     });
 
     test('reachable closure follows dependencies only', () {
@@ -133,10 +103,6 @@ dev_dependencies:
 name: example
 dependencies:
   oka_web: ^0.9.0
-''',
-      );
-      File('${root.path}/example/pubspec_overrides.yaml').writeAsStringSync(
-        '''
 dependency_overrides:
   oka_web:
     path: ../packages/oka_web

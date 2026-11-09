@@ -38,6 +38,8 @@ coverage/
 
 # Local configuration
 *.local.yaml
+example/pubspec_overrides.yaml
+
 
 # Skill Steward benchmark evidence (machine-local)
 .steward/benchmark-summaries/*.json
