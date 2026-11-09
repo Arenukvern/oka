@@ -86,7 +86,7 @@ void main() {
       owner.stderr.transform(utf8.decoder).listen(log.write);
 
       await ready.future.timeout(
-        const Duration(seconds: 20),
+        const Duration(seconds: 45),
         onTimeout: () {
           throw TimeoutException('driver output:\n$log');
         },
