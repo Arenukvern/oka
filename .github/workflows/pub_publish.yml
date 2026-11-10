@@ -83,9 +83,6 @@ jobs:
       - run: dart pub get --no-example
 
       - name: Publish complete package train
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         run: bash tool/release/publish_packages.sh --publish
 
       - name: Verify published packages from a fresh hosted consumer

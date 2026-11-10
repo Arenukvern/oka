@@ -74,6 +74,9 @@ if not value:
 print(value, end="")
 PY
 )"
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    echo "::add-mask::${token}"
+  fi
   export PUB_TOKEN="$token"
   dart pub token add https://pub.dev --env-var PUB_TOKEN >/dev/null
 }
