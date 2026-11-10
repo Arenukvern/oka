@@ -254,11 +254,15 @@ void main() {
       extra: {'OKA_FAKE_PUBLISHED': ':oka_core:'},
     );
     expect(result.exitCode, 0, reason: output(result));
-    expect(
-      dartPackages(fake.log),
-      pubDevPackages().where((name) => name != 'oka_core').toList(),
-    );
+    final published = pubDevPackages().where((name) => name != 'oka_core').toList();
+    expect(dartPackages(fake.log), published);
     expect(output(result), contains('oka_core 0.2.0 already exists'));
+    expect(oidcRefreshCount(fake.log), published.length);
+    expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, published);
+    expect(
+      curlLog(fake.logCurl).split('\n').where((line) => line.contains('id-token')).length,
+      published.length,
+    );
   });
 
   test('publish aborts immediately when dart publish fails', () {
@@ -271,14 +275,33 @@ void main() {
       extra: {'OKA_FAKE_DART_FAIL': 'oka_android'},
     );
     expect(result.exitCode, isNot(0));
-    expect(dartPackages(fake.log), [
+    final attempted = [
       'resource_composition',
       'oka_artifacts',
       'oka_core',
       'oka_supervisor',
       'oka_conformance',
       'oka_android',
-    ]);
+    ];
+    expect(dartPackages(fake.log), attempted);
+    expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, attempted);
+  });
+
+  test('publish --publish requires OIDC env and never invokes dart publish', () {
+    expect(run(fixture, 'sync_version.sh').exitCode, 0);
+    final fake = fakeTools(fixture);
+    final result = runPublish(
+      fixture,
+      fake,
+      '--publish',
+      includeOidc: false,
+    );
+    expect(result.exitCode, 1);
+    expect(
+      output(result),
+      contains('publish_packages: --publish requires GitHub Actions OIDC env'),
+    );
+    expect(dartPublishInvocations(fake.log), isEmpty);
   });
 }
 
@@ -300,15 +323,23 @@ ProcessResult run(
 
 String output(ProcessResult result) => '${result.stdout}\n${result.stderr}';
 
-({String bin, String log}) fakeTools(Directory fixture) {
+const fakeOidcUrl = 'https://fake.actions/id-token?api-version=2.0';
+const fakeOidcToken = 'fake-request-token';
+
+({String bin, String log, String logCurl}) fakeTools(Directory fixture) {
   final bin = '${fixture.path}/fake-bin';
   final log = '${fixture.path}/dart.log';
+  final logCurl = '${fixture.path}/curl.log';
   Directory(bin).createSync();
   // ignore: leading_newlines_in_multiline_strings
   write(fixture, 'fake-bin/dart', r'''#!/usr/bin/env bash
 set -eu
 if [[ "${1:-}" == *train.dart ]]; then
   exec "$OKA_REAL_DART" "$@"
+fi
+if [[ "${1:-}" == "pub" && "${2:-}" == "token" ]]; then
+  printf 'oidc|%s\n' "$*" >> "$OKA_FAKE_DART_LOG"
+  exit 0
 fi
 package="${PWD##*/}"
 printf '%s|%s\n' "$package" "$*" >> "$OKA_FAKE_DART_LOG"
@@ -317,23 +348,36 @@ printf '%s|%s\n' "$package" "$*" >> "$OKA_FAKE_DART_LOG"
   // ignore: leading_newlines_in_multiline_strings
   write(fixture, 'fake-bin/curl', r'''#!/usr/bin/env bash
 set -eu
+printf '%s\n' "$*" >> "$OKA_FAKE_CURL_LOG"
+for arg in "$@"; do
+  if [[ "$arg" == *"id-token"* ]] || [[ "$arg" == *"fake.actions"* ]]; then
+    echo '{"value":"fake-oidc-token"}'
+    exit 0
+  fi
+done
 url="${!#}"
-rest="${url#*/packages/}"
-package="${rest%%/versions/*}"
-version="${rest##*/versions/}"
-[[ "$version" == "$(tr -d '[:space:]' < "$OKA_ROOT/VERSION")" ]] || exit 22
-[[ "${OKA_FAKE_PUBLISHED:-}" == *":$package:"* ]] && exit 0
-grep -q "^$package|pub publish --force" "$OKA_FAKE_DART_LOG" 2>/dev/null
+if [[ "$url" == https://pub.dev/api/packages/* ]]; then
+  rest="${url#*/packages/}"
+  package="${rest%%/versions/*}"
+  version="${rest##*/versions/}"
+  [[ "$version" == "$(tr -d '[:space:]' < "$OKA_ROOT/VERSION")" ]] || exit 22
+  [[ "${OKA_FAKE_PUBLISHED:-}" == *":$package:"* ]] && exit 0
+  grep -q "^$package|pub publish --force" "$OKA_FAKE_DART_LOG" 2>/dev/null
+  exit $?
+fi
+echo "fake-curl: unhandled invocation: $*" >&2
+exit 2
 ''');
   Process.runSync('chmod', ['+x', '$bin/dart', '$bin/curl']);
-  return (bin: bin, log: log);
+  return (bin: bin, log: log, logCurl: logCurl);
 }
 
 ProcessResult runPublish(
   Directory fixture,
-  ({String bin, String log}) fake,
+  ({String bin, String log, String logCurl}) fake,
   String mode, {
   Map<String, String> extra = const {},
+  bool includeOidc = true,
 }) => Process.runSync(
   'bash',
   ['tool/release/publish_packages.sh', mode],
@@ -342,15 +386,66 @@ ProcessResult runPublish(
     'OKA_ROOT': fixture.path,
     'PATH': '${fake.bin}:${Platform.environment['PATH']}',
     'OKA_FAKE_DART_LOG': fake.log,
+    'OKA_FAKE_CURL_LOG': fake.logCurl,
     'OKA_REAL_DART': Process.runSync('sh', [
       '-c',
       'command -v dart',
     ]).stdout.toString().trim(),
     'OKA_PUB_PROPAGATION_WAIT_SECONDS': '1',
     'OKA_PUB_PROPAGATION_TIMEOUT_SECONDS': '2',
+    if (includeOidc) 'ACTIONS_ID_TOKEN_REQUEST_URL': fakeOidcUrl,
+    if (includeOidc) 'ACTIONS_ID_TOKEN_REQUEST_TOKEN': fakeOidcToken,
     ...extra,
   },
 );
 
-List<String> dartPackages(String log) =>
-    File(log).readAsLinesSync().map((line) => line.split('|').first).toList();
+List<String> dartPackages(String log) {
+  if (!File(log).existsSync()) {
+    return [];
+  }
+  return File(log)
+      .readAsLinesSync()
+      .where((line) => line.contains('pub publish'))
+      .map((line) => line.split('|').first)
+      .where((name) => name != 'oidc')
+      .toList();
+}
+
+List<String> dartLogLines(String log) =>
+    File(log).existsSync() ? File(log).readAsLinesSync() : <String>[];
+
+List<String> dartPublishInvocations(String log) => dartLogLines(log)
+    .where((line) => line.contains('pub publish'))
+    .toList();
+
+int oidcRefreshCount(String log) =>
+    dartLogLines(log).where((line) => line.startsWith('oidc|')).length;
+
+String curlLog(String logCurl) =>
+    File(logCurl).existsSync() ? File(logCurl).readAsStringSync() : '';
+
+void expectOidcRefreshImmediatelyBeforeEachPublish(
+  String log,
+  List<String> packages,
+) {
+  final lines = dartLogLines(log);
+  var cursor = 0;
+  for (final package in packages) {
+    while (cursor < lines.length && !lines[cursor].startsWith('oidc|')) {
+      cursor++;
+    }
+    expect(
+      cursor < lines.length,
+      isTrue,
+      reason: 'missing oidc refresh before $package publish',
+    );
+    expect(
+      lines[cursor],
+      'oidc|pub token add https://pub.dev --env-var PUB_TOKEN',
+    );
+    cursor++;
+    expect(cursor < lines.length, isTrue, reason: 'missing publish for $package');
+    expect(lines[cursor], '$package|pub publish --force');
+    cursor++;
+  }
+}
