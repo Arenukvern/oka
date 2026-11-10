@@ -77,5 +77,36 @@ printf '%s\n' \
   '  if (details.isEmpty) throw StateError("Target.explainDetails returned no details");' \
   '}' > "$consumer_dir/lib/main.dart"
 
+run_consumer_project() {
+  (cd "$consumer_dir" && dart pub get --no-example && dart analyze && dart run lib/main.dart)
+}
+
 echo "Checking $mode consumer for oka $version"
-(cd "$consumer_dir" && dart pub get --no-example && dart analyze && dart run lib/main.dart)
+if [[ "$mode" == "hosted" ]]; then
+  retry_seconds="${OKA_HOSTED_CONSUMER_RETRY_SECONDS:-15}"
+  retry_timeout="${OKA_HOSTED_CONSUMER_TIMEOUT_SECONDS:-600}"
+  [[ "$retry_seconds" =~ ^[1-9][0-9]*$ && "$retry_timeout" =~ ^[1-9][0-9]*$ ]] || {
+    echo "check_package_consumer: retry intervals must be positive integers" >&2
+    exit 2
+  }
+  elapsed=0
+  attempt=1
+  backoff="$retry_seconds"
+  while true; do
+    if run_consumer_project; then
+      exit 0
+    fi
+    (( elapsed >= retry_timeout )) && {
+      echo "check_package_consumer: hosted consumer failed after ${elapsed}s (pub.dev indexing lag?)" >&2
+      exit 1
+    }
+    echo "check_package_consumer: attempt $attempt failed; retrying in ${backoff}s (elapsed ${elapsed}s)" >&2
+    sleep "$backoff"
+    elapsed=$((elapsed + backoff))
+    attempt=$((attempt + 1))
+    backoff=$((backoff * 2))
+    (( backoff > 60 )) && backoff=60
+  done
+else
+  run_consumer_project
+fi

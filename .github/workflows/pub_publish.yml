@@ -86,4 +86,6 @@ jobs:
         run: bash tool/release/publish_packages.sh --publish
 
       - name: Verify published packages from a fresh hosted consumer
+        env:
+          OKA_HOSTED_CONSUMER_TIMEOUT_SECONDS: "600"
         run: bash tool/ci/check_package_consumer.sh --hosted
