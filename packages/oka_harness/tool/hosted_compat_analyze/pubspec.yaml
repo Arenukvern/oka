@@ -4,7 +4,7 @@ publish_to: none
 environment:
   sdk: ^3.13.0
 dependencies:
-  flutter_mcp_harness: ^7.0.0
+  flutter_mcp_harness: ^7.0.2
   oka_harness:
     path: ../..
 dependency_overrides:
