@@ -48,12 +48,47 @@ wait_for_hosted_version() {
   done
 }
 
+require_pub_oidc_env() {
+  if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+    echo "publish_packages: --publish requires GitHub Actions OIDC env" >&2
+    echo "publish_packages: set ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN (job needs id-token: write)" >&2
+    exit 1
+  fi
+}
+
+refresh_pub_oidc_token() {
+  local response token
+  response="$(curl --fail --silent --show-error --max-time 30 \
+    -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+    "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://pub.dev")"
+  token="$(RESPONSE="$response" python3 - <<'PY'
+import json, os, sys
+try:
+    value = json.loads(os.environ["RESPONSE"])["value"]
+except (KeyError, json.JSONDecodeError, TypeError) as e:
+    print(f"publish_packages: failed to parse OIDC token response: {e}", file=sys.stderr)
+    sys.exit(1)
+if not value:
+    print("publish_packages: OIDC token response missing value", file=sys.stderr)
+    sys.exit(1)
+print(value, end="")
+PY
+)"
+  export PUB_TOKEN="$token"
+  dart pub token add https://pub.dev --env-var PUB_TOKEN >/dev/null
+}
+
+if [[ "$mode" == "publish" ]]; then
+  require_pub_oidc_env
+fi
+
 for package in "${packages[@]}"; do
   echo "publish_packages: $mode $package"
   if [[ "$mode" == "publish" ]]; then
     if published_version "$package"; then
       echo "publish_packages: $package $version already exists; skipping"
     else
+      refresh_pub_oidc_token
       (cd "packages/$package" && dart pub publish --force)
       wait_for_hosted_version "$package"
     fi
