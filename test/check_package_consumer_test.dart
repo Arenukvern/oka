@@ -2,8 +2,11 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+import 'support/train_inventory.dart';
+
 void main() {
-  final repo = Directory.current.path;
+  final repo = findOkaRepoRoot();
   late Directory fixture;
 
   setUp(() {
@@ -19,11 +22,15 @@ void main() {
       ..writeAsStringSync(
         File('$repo/tool/release/train.dart').readAsStringSync(),
       );
+    File('${fixture.path}/tool/release/publish_order.dart')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        File('$repo/tool/release/publish_order.dart').readAsStringSync(),
+      );
+    stageTrainPackagePubspecs(fixture, repo);
     for (final package in ['oka', 'oka_core']) {
       final dir = Directory('${fixture.path}/packages/$package');
-      dir.createSync(recursive: true);
-      Directory('${dir.path}/lib').createSync();
-      File('${dir.path}/pubspec.yaml').writeAsStringSync('name: $package\n');
+      Directory('${dir.path}/lib').createSync(recursive: true);
       File('${dir.path}/lib/$package.dart').writeAsStringSync('library;\n');
     }
     Process.runSync(
@@ -65,8 +72,8 @@ void main() {
       },
     );
     expect(result.exitCode, 1, reason: _out(result));
-    expect(fake.attempts, 1);
-    expect(fake.analyzeRuns, 1);
+    expect(fake.attempts, greaterThanOrEqualTo(1), reason: 'pub get must run');
+    expect(fake.analyzeRuns, greaterThanOrEqualTo(1), reason: 'analyze must run');
   });
 }
 

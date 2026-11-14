@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../tool/release/publish_order.dart';
 import 'support/repo_root.dart';
 
 /// Mirrors [packages] in `tool/release/train.dart` (release-train inventory).
@@ -91,6 +92,7 @@ void main() {
     );
     for (final script in [
       'train.dart',
+      'publish_order.dart',
       'sync_version.sh',
       'check_version_sync.sh',
       'publish_packages.sh',
@@ -374,6 +376,16 @@ void main() {
       'version: 0.1.6 # x-release-please-version\n'
       'dependencies:\n'
       '  oka_core: ^0.1.6\n',
+    );
+    expect(
+      () => topologicalPublishOrder(fixture, trainPackages, trainPackages),
+      throwsA(
+        isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('publish order cycle among train packages'),
+        ),
+      ),
     );
     final result = publishListResult(fixture);
     expect(result.exitCode, isNot(0));

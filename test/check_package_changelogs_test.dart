@@ -91,7 +91,11 @@ void _writeTrainFixture(
   final root = fixture.path;
   final repositoryRoot = findOkaRepoRoot();
   File('$root/VERSION').writeAsStringSync('$version\n');
-  for (final script in ['check_package_changelogs.sh', 'train.dart']) {
+  for (final script in [
+    'check_package_changelogs.sh',
+    'train.dart',
+    'publish_order.dart',
+  ]) {
     final source = File('$repositoryRoot/tool/release/$script');
     File('$root/tool/release/$script')
       ..createSync(recursive: true)
