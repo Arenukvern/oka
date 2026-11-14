@@ -31,7 +31,7 @@ Future<DaemonTransport> spawnDevAndroidAttachTransport({
       processStartForTest: processStartForTest,
     );
   } on Object catch (e) {
-    final forwardReleased = await releaseDevLaunchOwnedForward(
+    final forwardRelease = await releaseDevLaunchOwnedForward(
       adbPath: adbPath,
       deviceId: deviceId,
       hostLocalPort: prepared.vmServiceLocalPort,
@@ -41,7 +41,7 @@ Future<DaemonTransport> spawnDevAndroidAttachTransport({
       projectPath: projectPath,
       primaryError: e.toString(),
       flutterAttachArgv: attachArgv,
-      forwardReleased: forwardReleased,
+      forwardRelease: forwardRelease,
       hostVmServicePort: prepared.vmServiceLocalPort,
       deviceVmServicePort: prepared.vmServiceDevicePort,
       attachDdsPort: attachDdsPortWhenOkaOwnsHostForward,

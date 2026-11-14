@@ -20,8 +20,12 @@ Map<String, Object?> buildAttachHandshakeDiagnosticPayload({
   int? attachDdsPort,
   String? primaryError,
   SessionTeardownIdentity? sessionIdentity,
-  bool? forwardReleased,
+  bool? forwardReleaseAttempted,
+  bool? forwardReleaseRemoved,
+  int? forwardReleaseAdbExitCode,
+  @Deprecated('Use forwardReleaseAttempted') bool? forwardReleased,
 }) {
+  final attempted = forwardReleaseAttempted ?? forwardReleased;
   final raw = <String, Object?>{
     'schema': 1,
     'primaryError': primaryError,
@@ -41,8 +45,16 @@ Map<String, Object?> buildAttachHandshakeDiagnosticPayload({
     'attachExited': adapter.exited,
     'appStartReceived': adapter.appStartReceived,
   };
-  if (forwardReleased != null) {
-    raw['forwardReleased'] = forwardReleased;
+  if (attempted != null) {
+    raw['forwardReleaseAttempted'] = attempted;
+    // Deprecated alias kept for downstream readers (spawn-failure sidecar).
+    raw['forwardReleased'] = attempted;
+  }
+  if (forwardReleaseRemoved != null) {
+    raw['forwardReleaseRemoved'] = forwardReleaseRemoved;
+  }
+  if (forwardReleaseAdbExitCode != null) {
+    raw['forwardReleaseAdbExitCode'] = forwardReleaseAdbExitCode;
   }
   final redacted = redactVmServiceAuthDeep(raw)! as Map<Object?, Object?>;
   return Map<String, Object?>.from(redacted);
@@ -91,7 +103,7 @@ Future<bool> tryWriteAttachHandshakeDiagnostic({
 Map<String, Object?> buildAttachSpawnFailureDiagnosticPayload({
   required String primaryError,
   required List<String> flutterAttachArgv,
-  required bool forwardReleased,
+  required DevLaunchForwardReleaseResult forwardRelease,
   int? hostVmServicePort,
   int? deviceVmServicePort,
   int? attachDdsPort,
@@ -101,7 +113,12 @@ Map<String, Object?> buildAttachSpawnFailureDiagnosticPayload({
     'kind': 'attach_spawn_failure',
     'primaryError': primaryError,
     'flutterAttachArgv': flutterAttachArgv,
-    'forwardReleased': forwardReleased,
+    'forwardReleaseAttempted': forwardRelease.attempted,
+    'forwardReleaseRemoved': forwardRelease.removed,
+    if (forwardRelease.adbExitCode != null)
+      'forwardReleaseAdbExitCode': forwardRelease.adbExitCode,
+  // Deprecated alias (historical misleading name).
+  'forwardReleased': forwardRelease.attempted,
     'vmService': Map<String, Object?>.fromEntries([
       if (deviceVmServicePort != null)
         MapEntry('devicePort', deviceVmServicePort),
@@ -119,7 +136,7 @@ Future<bool> tryWriteAttachSpawnFailureDiagnostic({
   required String projectPath,
   required String primaryError,
   required List<String> flutterAttachArgv,
-  required bool forwardReleased,
+  required DevLaunchForwardReleaseResult forwardRelease,
   int? hostVmServicePort,
   int? deviceVmServicePort,
   int? attachDdsPort,
@@ -131,7 +148,7 @@ Future<bool> tryWriteAttachSpawnFailureDiagnostic({
     final payload = buildAttachSpawnFailureDiagnosticPayload(
       primaryError: primaryError,
       flutterAttachArgv: flutterAttachArgv,
-      forwardReleased: forwardReleased,
+      forwardRelease: forwardRelease,
       hostVmServicePort: hostVmServicePort,
       deviceVmServicePort: deviceVmServicePort,
       attachDdsPort: attachDdsPort,

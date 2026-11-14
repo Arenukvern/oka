@@ -13,12 +13,17 @@ void main() {
 
   tearDown(() => root.deleteSync(recursive: true));
 
-  test('spawn failure diagnostic records forwardReleased', () async {
+  test('spawn failure diagnostic records forward release attempt and exit code',
+      () async {
     await tryWriteAttachSpawnFailureDiagnostic(
       projectPath: root.path,
       primaryError: 'spawn failed',
       flutterAttachArgv: const ['attach', '--machine'],
-      forwardReleased: true,
+      forwardRelease: const DevLaunchForwardReleaseResult(
+        attempted: true,
+        removed: false,
+        adbExitCode: 1,
+      ),
       hostVmServicePort: 36605,
     );
     final payload = jsonDecode(
@@ -26,6 +31,9 @@ void main() {
         '${root.path}/.flutter_mcp/$attachHandshakeDiagnosticFileName',
       ).readAsStringSync(),
     ) as Map<String, Object?>;
+    expect(payload['forwardReleaseAttempted'], isTrue);
+    expect(payload['forwardReleaseRemoved'], isFalse);
+    expect(payload['forwardReleaseAdbExitCode'], 1);
     expect(payload['forwardReleased'], isTrue);
     expect(payload['kind'], 'attach_spawn_failure');
   });
