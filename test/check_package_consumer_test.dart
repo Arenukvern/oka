@@ -72,8 +72,8 @@ void main() {
       },
     );
     expect(result.exitCode, 1, reason: _out(result));
-    expect(fake.attempts, greaterThanOrEqualTo(1), reason: 'pub get must run');
-    expect(fake.analyzeRuns, greaterThanOrEqualTo(1), reason: 'analyze must run');
+    expect(fake.attempts, 1, reason: 'must not retry after analyze failure');
+    expect(fake.analyzeRuns, 1, reason: 'must not retry after analyze failure');
   });
 }
 
