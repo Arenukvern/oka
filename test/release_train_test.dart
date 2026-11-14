@@ -285,6 +285,40 @@ void main() {
     expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, attempted);
   });
 
+  test(
+    'publish fails fast when oka_process publish fails (403-class abort)',
+    () {
+      expect(run(fixture, 'sync_version.sh').exitCode, 0);
+      final listResult = Process.runSync(
+        Process.runSync('sh', ['-c', 'command -v dart']).stdout.toString().trim(),
+        ['tool/release/train.dart', 'list', '--publish'],
+        workingDirectory: fixture.path,
+        environment: {'OKA_ROOT': fixture.path},
+      );
+      expect(listResult.exitCode, 0, reason: output(listResult));
+      final publishOrder = listResult.stdout
+          .toString()
+          .trim()
+          .split('\n')
+          .where((line) => line.isNotEmpty)
+          .toList();
+      expect(publishOrder.first, 'oka_process');
+
+      final fake = fakeTools(fixture);
+      final result = runPublish(
+        fixture,
+        fake,
+        '--publish',
+        extra: {'OKA_FAKE_DART_FAIL': 'oka_process'},
+      );
+      expect(result.exitCode, isNot(0), reason: output(result));
+      expect(dartPackages(fake.log), ['oka_process']);
+      expect(dartPublishInvocations(fake.log), hasLength(1));
+      expect(dartPublishInvocations(fake.log).single, 'oka_process|pub publish --force');
+      expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, ['oka_process']);
+    },
+  );
+
   test('publish --publish requires OIDC env and never invokes dart publish', () {
     expect(run(fixture, 'sync_version.sh').exitCode, 0);
     final fake = fakeTools(fixture);
