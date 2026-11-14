@@ -151,9 +151,11 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 …package-specific release notes for the shipped version…
 ```
 
-After merging a Release PR that bumps `VERSION`, maintainers restructure follower
-changelogs once so the just-released version becomes the frozen `## X.Y.Z` section
-(with no marker) and the marker moves to the next train version:
+On **release-please** `release_created` (push to `main` only), `.github/workflows/release-please.yml`
+runs `tool/release/freeze_follower_release_pr.sh` to apply the freeze and open (or
+reuse) a follow-up PR — do not push frozen changelogs straight to `main`.
+
+Manual override (offline or recovery):
 
 ```bash
 bash tool/release/freeze_follower_changelogs.sh --apply --released 0.10.0 --next 0.11.0
@@ -161,7 +163,10 @@ bash tool/release/freeze_follower_changelogs.sh --check
 ```
 
 `--check` (default) runs the same validation as `check_package_changelogs.sh`.
-`--apply` is idempotent when changelogs already match the frozen layout.
+`check_package_changelogs.sh` accepts a **release PR** layout where the marked heading
+equals `VERSION` (semver ≥ `VERSION`), or an **in-flight** layout where the marker
+sits on a heading above frozen `VERSION`. `--apply` is idempotent when changelogs
+already match the frozen layout.
 
 ## Pull requests
 

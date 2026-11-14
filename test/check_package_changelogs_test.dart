@@ -67,17 +67,53 @@ void main() {
     }
   });
 
-  test('rejects when released VERSION heading still carries the marker', () {
+  test('accepts release PR layout when marked heading equals VERSION', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
+    try {
+      _writeTrainFixture(fixture, version: '0.11.0', allHaveVersion: true);
+      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
+        '## 0.11.0 <!-- x-release-please-version -->\n\n'
+        'See `packages/oka/CHANGELOG.md` for train-wide release notes.\n\n'
+        '## 0.10.0\n\n'
+        '- Dependency lockfile hygiene (`fix: locks`).\n',
+      );
+      final result = _runCheck(fixture);
+      expect(result.exitCode, 0, reason: _output(result));
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
+  test('rejects when marked heading is below VERSION', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
+    try {
+      _writeTrainFixture(fixture, version: '0.11.0', allHaveVersion: true);
+      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
+        '## 0.10.0 <!-- x-release-please-version -->\n\n'
+        'See `packages/oka/CHANGELOG.md`.\n\n'
+        '## 0.11.0\n\n- late\n',
+      );
+      final result = _runCheck(fixture);
+      expect(result.exitCode, isNot(0));
+      expect(_output(result), contains('below VERSION'));
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
+  test('rejects when two markers appear in a follower changelog', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
     try {
       _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
       File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0.9.1 <!-- x-release-please-version -->\n\n'
-        'See `packages/oka/CHANGELOG.md`.\n',
+        '## 0.9.2 <!-- x-release-please-version -->\n\n'
+        'See `packages/oka/CHANGELOG.md`.\n\n'
+        '## 0.9.1\n\n- ok\n\n'
+        '## 0.9.0 <!-- x-release-please-version -->\n',
       );
       final result = _runCheck(fixture);
       expect(result.exitCode, isNot(0));
-      expect(_output(result), contains('oka_core'));
+      expect(_output(result), contains('exactly one'));
     } finally {
       fixture.deleteSync(recursive: true);
     }
@@ -135,7 +171,11 @@ void _writeTrainFixture(
   final root = fixture.path;
   final repositoryRoot = findOkaRepoRoot();
   File('$root/VERSION').writeAsStringSync('$version\n');
-  for (final script in ['check_package_changelogs.sh', 'train.dart']) {
+  for (final script in [
+    'check_package_changelogs.sh',
+    'train.dart',
+    'semver_tool.dart',
+  ]) {
     final source = File('$repositoryRoot/tool/release/$script');
     File('$root/tool/release/$script')
       ..createSync(recursive: true)

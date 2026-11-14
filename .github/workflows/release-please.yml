@@ -14,6 +14,15 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
       - name: Release Please
         id: release
         uses: googleapis/release-please-action@v5
@@ -21,6 +30,14 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Freeze follower changelogs after release
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash tool/release/freeze_follower_release_pr.sh "${{ steps.release.outputs.version }}"
 
       - name: Dispatch pub.dev publish (oka train)
         if: ${{ steps.release.outputs.release_created == 'true' }}
