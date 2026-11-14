@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.10.0 <!-- x-release-please-version -->
+## 0.11.0 <!-- x-release-please-version -->
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.0
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
@@ -67,3 +71,4 @@ targets use — publish only after the train lands, never against hosted
   pilot (a store package ships exactly this const shape alongside its
   runtime adapter), with SDK-script global reconciled against the
   runtime adapter's `expectedSdkGlobal`.
+

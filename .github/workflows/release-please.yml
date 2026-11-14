@@ -14,6 +14,15 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
       - name: Release Please
         id: release
         uses: googleapis/release-please-action@v5
@@ -31,3 +40,21 @@ jobs:
         run: |
           echo "Dispatching pub_publish.yml for tag ${TAG}"
           gh workflow run pub_publish.yml --repo "${GH_REPO}" --ref "${TAG}"
+
+      - name: Freeze follower changelogs after release
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        continue-on-error: true
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set +e
+          out="$(bash tool/release/freeze_follower_release_pr.sh 2>&1)"
+          code=$?
+          printf '%s\n' "$out"
+          if [[ "$code" -ne 0 ]]; then
+            echo "::warning::Follower changelog freeze failed for release v${RELEASED_VERSION} (exit ${code}). Pub.dev train dispatch already ran — freeze manually with tool/release/freeze_follower_release_pr.sh. Output: ${out}"
+            exit "$code"
+          fi
