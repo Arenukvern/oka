@@ -325,7 +325,12 @@ void main() {
       expect(dartPackages(fake.log), ['oka_process']);
       expect(dartPublishInvocations(fake.log), hasLength(1));
       expect(dartPublishInvocations(fake.log).single, 'oka_process|pub publish --force');
-      expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, ['oka_process']);
+      expectFullDartLog(
+        fake.log,
+        ['oka_process'],
+        publishVerb: 'pub publish --force',
+      );
+      expectOidcCurlContracts(fake.logCurl);
     },
   );
 
