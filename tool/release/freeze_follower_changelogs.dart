@@ -37,6 +37,28 @@ List<String> _followerChangelogPaths(Directory root) {
 String _normalizeNewlines(String source) =>
     source.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 
+List<String> _linesFromFile(String source) {
+  final lines = List<String>.from(_normalizeNewlines(source).split('\n'));
+  if (lines.isNotEmpty && lines.last.isEmpty) {
+    lines.removeLast();
+  }
+  while (lines.isNotEmpty && lines.last.trim().isEmpty) {
+    lines.removeLast();
+  }
+  return lines;
+}
+
+String _formatChangelog(List<String> lines) {
+  final body = List<String>.from(lines);
+  while (body.isNotEmpty && body.last.trim().isEmpty) {
+    body.removeLast();
+  }
+  if (body.isEmpty) {
+    return '\n';
+  }
+  return '${body.join('\n')}\n';
+}
+
 bool _isVersionHeading(String line) => _versionHeading.hasMatch(line);
 
 bool _applyFreeze({
@@ -46,9 +68,9 @@ bool _applyFreeze({
   required bool dryRun,
 }) {
   final raw = _normalizeNewlines(file.readAsStringSync());
-  if (raw.isEmpty) throw FormatException('${file.path}: empty changelog');
+  if (raw.trim().isEmpty) throw FormatException('${file.path}: empty changelog');
 
-  final lines = raw.split('\n');
+  final lines = _linesFromFile(raw);
   final markedIndex = lines.indexWhere(_markedHeading.hasMatch);
   if (markedIndex < 0) {
     final frozen = lines.indexWhere((l) => l == '## $released');
@@ -112,8 +134,9 @@ bool _applyFreeze({
     if (tail.isNotEmpty) ...['', ...tail],
   ];
 
-  final text = '${out.join('\n')}\n';
-  if (text == raw) return false;
+  final text = _formatChangelog(out);
+  final canonicalRaw = _formatChangelog(lines);
+  if (text == canonicalRaw) return false;
   if (!dryRun) file.writeAsStringSync(text);
   return true;
 }
