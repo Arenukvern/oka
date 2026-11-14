@@ -4,6 +4,23 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.10.1](https://github.com/Arenukvern/oka/compare/v0.10.0...v0.10.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **android:** clarify forward release result and hermetic spawn test ([55a358b](https://github.com/Arenukvern/oka/commit/55a358b9a56b289aad7c250807663b7838a584ec))
+* **core:** keep workspace root helper out of published oka_core ([d02b2ee](https://github.com/Arenukvern/oka/commit/d02b2eeb142b7414f643a6bde1c0888a480f8cc2))
+* **init:** regression test for defaultSteps run_session manifest ([859b812](https://github.com/Arenukvern/oka/commit/859b8126d3f1c98c0912d065b3d5036f79c2fae9))
+* **release:** compute pub.dev publish order from pubspec dependencies ([9f1a520](https://github.com/Arenukvern/oka/commit/9f1a520e71bdad6f8e2e12766948e336c42d3d41))
+* **release:** compute pub.dev publish order from pubspec deps ([9fc1bf6](https://github.com/Arenukvern/oka/commit/9fc1bf6f9972089244b58a697e35426778506cd8))
+* **test:** stage full train pubspecs for hosted consumer fixture ([5d4efff](https://github.com/Arenukvern/oka/commit/5d4efffdcdb1ca5805f15f0c3d989deb82cf4be7))
+
+
+### Documentation
+
+* align oka_process publish docs with OIDC train ([64e1c47](https://github.com/Arenukvern/oka/commit/64e1c47dd9211448f42d828d94d8e5406fa8ac46))
+
 ## [0.10.0](https://github.com/Arenukvern/oka/compare/v0.9.1...v0.10.0) (2026-11-14)
 
 
