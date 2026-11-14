@@ -9,6 +9,23 @@ import 'support/repo_root.dart';
 void main() {
   final realRoot = Directory(findOkaRepoRoot());
 
+  test('scan inventory matches dart tool/release/train.dart list', () {
+    final repo = findOkaRepoRoot();
+    final result = Process.runSync(
+      Platform.executable,
+      [p.join(repo, 'tool/release/train.dart'), 'list'],
+      workingDirectory: repo,
+    );
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final listed = result.stdout
+        .toString()
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+    expect(trainPackagesForWorkspaceLeakScan, listed);
+    expect(listed, contains('oka_process'));
+  });
+
   test('real train packages have no workspace-leak imports in lib/', () {
     expect(
       scanTrainPackageLibsForWorkspaceLeaks(realRoot),
