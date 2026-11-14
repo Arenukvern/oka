@@ -17,8 +17,9 @@ wrong; when a script and this file disagree, fix this file or the script.
   Never publish out of order: a package whose hosted dependency closure does
   not exist at the new version cannot resolve for consumers after upload.
 - `oka_dart_kernel`, `oka_update`, and the root `oka_workspace` are
-  `publish_to: none`; they ride along but never upload. See also
-  `packages/oka_process/PUBLISHING.md` for POSIX-only publish notes.
+  `publish_to: none`; they ride along but never upload. For `oka_process`
+  one-time pub.dev automated-publishing setup (required before the next
+  release), see `packages/oka_process/PUBLISHING.md`.
 
 ## One-time setup (Anton checklist)
 

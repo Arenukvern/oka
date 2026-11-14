@@ -15,8 +15,8 @@ Version and changelog follow the shared release train (`VERSION`, release-please
    - Repository: `Arenukvern/oka`
    - Tag pattern: `v{{version}}`
    - Publishing from GitHub Actions and workflow_dispatch: enabled
-2. Without that OIDC grant, the publish job fails with **403** when it reaches
-   `oka_process` (even if other train packages already uploaded).
+2. Without that OIDC grant, the publish job fails with **403** on `oka_process`
+   and **stops the train** before any later package uploads.
 
 The last release published to pub.dev by hand was **0.8.1**. Train versions
 0.9.x–0.10.x were version-synced in-repo only until this package joined the CI
