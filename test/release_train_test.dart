@@ -23,10 +23,7 @@ const trainPackages = [
 ];
 
 /// Packages published by CI (`train.dart` `packagesForPubDev()`).
-const pubDevManualOnly = {'oka_process'};
-
-List<String> pubDevPackages() =>
-    trainPackages.where((name) => !pubDevManualOnly.contains(name)).toList();
+List<String> pubDevPackages() => List<String>.from(trainPackages);
 
 void main() {
   final repo = findOkaRepoRoot();
@@ -243,7 +240,12 @@ void main() {
     final fake = fakeTools(fixture);
     final result = runPublish(fixture, fake, '--dry-run');
     expect(result.exitCode, 0, reason: output(result));
-    expect(dartPackages(fake.log), pubDevPackages());
+    expectFullDartLog(
+      fake.log,
+      pubDevPackages(),
+      publishVerb: 'pub publish --dry-run',
+      expectOidc: false,
+    );
   });
 
   test('publish resumes past an exact version already on pub.dev', () {
@@ -257,10 +259,9 @@ void main() {
     );
     expect(result.exitCode, 0, reason: output(result));
     final published = pubDevPackages().where((name) => name != 'oka_core').toList();
-    expect(dartPackages(fake.log), published);
+    expectFullDartLog(fake.log, published, publishVerb: 'pub publish --force');
     expect(output(result), contains('oka_core 0.2.0 already exists'));
-    expect(oidcRefreshCount(fake.log), published.length);
-    expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, published);
+    expectOidcCurlContracts(fake.logCurl);
     expect(
       curlLog(fake.logCurl).split('\n').where((line) => line.contains('id-token')).length,
       published.length,
@@ -278,6 +279,7 @@ void main() {
     );
     expect(result.exitCode, isNot(0));
     final attempted = [
+      'oka_process',
       'resource_composition',
       'oka_artifacts',
       'oka_core',
@@ -285,9 +287,52 @@ void main() {
       'oka_conformance',
       'oka_android',
     ];
-    expect(dartPackages(fake.log), attempted);
-    expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, attempted);
+    expectFullDartLog(
+      fake.log,
+      attempted,
+      publishVerb: 'pub publish --force',
+    );
+    expectOidcCurlContracts(fake.logCurl);
   });
+
+  test(
+    'publish fails fast when oka_process publish fails (403-class abort)',
+    () {
+      expect(run(fixture, 'sync_version.sh').exitCode, 0);
+      final listResult = Process.runSync(
+        Process.runSync('sh', ['-c', 'command -v dart']).stdout.toString().trim(),
+        ['tool/release/train.dart', 'list', '--publish'],
+        workingDirectory: fixture.path,
+        environment: {'OKA_ROOT': fixture.path},
+      );
+      expect(listResult.exitCode, 0, reason: output(listResult));
+      final publishOrder = listResult.stdout
+          .toString()
+          .trim()
+          .split('\n')
+          .where((line) => line.isNotEmpty)
+          .toList();
+      expect(publishOrder.first, 'oka_process');
+
+      final fake = fakeTools(fixture);
+      final result = runPublish(
+        fixture,
+        fake,
+        '--publish',
+        extra: {'OKA_FAKE_DART_FAIL': 'oka_process'},
+      );
+      expect(result.exitCode, isNot(0), reason: output(result));
+      expect(dartPackages(fake.log), ['oka_process']);
+      expect(dartPublishInvocations(fake.log), hasLength(1));
+      expect(dartPublishInvocations(fake.log).single, 'oka_process|pub publish --force');
+      expectFullDartLog(
+        fake.log,
+        ['oka_process'],
+        publishVerb: 'pub publish --force',
+      );
+      expectOidcCurlContracts(fake.logCurl);
+    },
+  );
 
   test('publish --publish requires OIDC env and never invokes dart publish', () {
     expect(run(fixture, 'sync_version.sh').exitCode, 0);
@@ -353,6 +398,20 @@ set -eu
 printf '%s\n' "$*" >> "$OKA_FAKE_CURL_LOG"
 for arg in "$@"; do
   if [[ "$arg" == *"id-token"* ]] || [[ "$arg" == *"fake.actions"* ]]; then
+  found_audience=0
+  found_bearer=0
+  for a in "$@"; do
+    [[ "$a" == *audience=https://pub.dev* ]] && found_audience=1
+    [[ "$a" == Authorization:*[Bb]earer* ]] && found_bearer=1
+  done
+  [[ "$found_audience" == 1 ]] || {
+    echo "fake-curl: OIDC id-token request missing audience=https://pub.dev" >&2
+    exit 3
+  }
+  [[ "$found_bearer" == 1 ]] || {
+    echo "fake-curl: OIDC id-token request missing Authorization: Bearer header" >&2
+    exit 3
+  }
     echo '{"value":"fake-oidc-token"}'
     exit 0
   fi
@@ -426,28 +485,40 @@ int oidcRefreshCount(String log) =>
 String curlLog(String logCurl) =>
     File(logCurl).existsSync() ? File(logCurl).readAsStringSync() : '';
 
-void expectOidcRefreshImmediatelyBeforeEachPublish(
+void expectFullDartLog(
   String log,
-  List<String> packages,
-) {
-  final lines = dartLogLines(log);
-  var cursor = 0;
+  List<String> packages, {
+  required String publishVerb,
+  bool expectOidc = true,
+}) {
+  final expected = <String>[];
   for (final package in packages) {
-    while (cursor < lines.length && !lines[cursor].startsWith('oidc|')) {
-      cursor++;
+    if (expectOidc) {
+      expected.add('oidc|pub token add https://pub.dev --env-var PUB_TOKEN');
+    }
+    expected.add('$package|$publishVerb');
+  }
+  expect(
+    dartLogLines(log),
+    expected,
+    reason: 'dart invocation log must match the full publish/token sequence',
+  );
+}
+
+void expectOidcCurlContracts(String logCurl) {
+  for (final line in curlLog(logCurl).split('\n').where((line) => line.isNotEmpty)) {
+    if (!line.contains('id-token') && !line.contains('fake.actions')) {
+      continue;
     }
     expect(
-      cursor < lines.length,
-      isTrue,
-      reason: 'missing oidc refresh before $package publish',
+      line,
+      contains('audience=https://pub.dev'),
+      reason: 'OIDC curl must request audience https://pub.dev',
     );
     expect(
-      lines[cursor],
-      'oidc|pub token add https://pub.dev --env-var PUB_TOKEN',
+      line,
+      matches(RegExp('Authorization: [Bb]earer')),
+      reason: 'OIDC curl must send Authorization: Bearer',
     );
-    cursor++;
-    expect(cursor < lines.length, isTrue, reason: 'missing publish for $package');
-    expect(lines[cursor], '$package|pub publish --force');
-    cursor++;
   }
 }

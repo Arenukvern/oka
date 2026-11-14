@@ -31,6 +31,37 @@ void main() {
     }
   });
 
+  test('does not accept lookalike headings when dots are not literal', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
+    try {
+      _writeTrainFixture(fixture, version: '0.10.0', allHaveVersion: true);
+      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
+        '## 0a10a0 <!-- x-release-please-version -->\n\n- decoy\n',
+      );
+      final result = _runCheck(fixture);
+      expect(result.exitCode, isNot(0));
+      expect(_output(result), contains('oka_core'));
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
+  test('rejects a frozen follower section that still carries the RP marker', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
+    try {
+      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
+      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
+        '## 0.9.1 <!-- x-release-please-version -->\n\n'
+        '## 0.9.0 <!-- x-release-please-version -->\n\n- stale\n',
+      );
+      final result = _runCheck(fixture);
+      expect(result.exitCode, isNot(0));
+      expect(_output(result), contains('oka_core'));
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
   test('accepts release-please heading with inline version annotation', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
     try {

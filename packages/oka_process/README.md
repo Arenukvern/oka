@@ -59,4 +59,7 @@ final receipt = await backend.stop(handle);
 
 ## Publishing
 
-**Manual only** from the maintainer's Mac — not CI. See [`PUBLISHING.md`](PUBLISHING.md).
+Published on the automated pub.dev OIDC train with the rest of oka (GitHub
+Actions via `tool/release/publish_packages.sh`; **first** in upload order). See
+[`PUBLISHING.md`](PUBLISHING.md) for one-time pub.dev automated-publishing setup
+(required before the next tagged release).
