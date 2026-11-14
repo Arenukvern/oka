@@ -2,41 +2,33 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-/// Packages synced on the release train ([tool/release/train.dart]).
-const trainPackagesForWorkspaceLeakScan = <String>[
-  'oka_process',
-  'resource_composition',
-  'oka_artifacts',
-  'oka_core',
-  'oka_supervisor',
-  'oka_conformance',
-  'oka_android',
-  'oka_huawei',
-  'oka_play',
-  'oka_rustore',
-  'oka_web',
-  'oka_harness',
-  'oka',
-];
+import '../release/train_inventory.dart';
 
 final _importExportLine = RegExp(
   r'''^\s*(?:import|export)\s+['"]([^'"]+)['"]''',
 );
 
+/// Package names scanned by [scanTrainPackageLibsForWorkspaceLeaks] — the
+/// release-train inventory from [packages] / `dart tool/release/train.dart list`.
+Iterable<String> trainPackagesForWorkspaceLeakScan() => packages;
+
 /// Human-readable violations (paths relative to [root]).
 List<String> scanTrainPackageLibsForWorkspaceLeaks(
   Directory root, {
-  Iterable<String> packages = trainPackagesForWorkspaceLeakScan,
+  Iterable<String>? inventoryOverride,
 }) {
+  final inventory = inventoryOverride ?? trainPackagesForWorkspaceLeakScan();
   final violations = <String>[];
-  for (final pkg in packages) {
+  for (final pkg in inventory) {
     final libDir = Directory(p.join(root.path, 'packages', pkg, 'lib'));
     if (!libDir.existsSync()) continue;
     for (final file in libDir
         .listSync(recursive: true, followLinks: false)
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))) {
-      if (file.path.contains('${p.separator}.dart_tool${p.separator}')) continue;
+      if (file.path.contains('${p.separator}.dart_tool${p.separator}')) {
+        continue;
+      }
       final rel = p.relative(file.path, from: root.path).replaceAll(r'\', '/');
       final lines = file.readAsLinesSync();
       for (var i = 0; i < lines.length; i++) {

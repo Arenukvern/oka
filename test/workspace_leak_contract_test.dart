@@ -4,10 +4,29 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../tool/contracts/workspace_leak_scan.dart';
+import '../tool/release/train_inventory.dart' as train_inventory;
 import 'support/repo_root.dart';
 
 void main() {
   final realRoot = Directory(findOkaRepoRoot());
+
+  test('scanner inventory matches dart tool/release/train.dart list', () {
+    final repo = findOkaRepoRoot();
+    final result = Process.runSync(
+      Platform.executable,
+      [p.join(repo, 'tool/release/train.dart'), 'list'],
+      workingDirectory: repo,
+    );
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final listed = result.stdout
+        .toString()
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+    final scanned = trainPackagesForWorkspaceLeakScan().toList();
+    expect(scanned, listed);
+    expect(scanned, train_inventory.packages);
+  });
 
   test('real train packages have no workspace-leak imports in lib/', () {
     expect(
@@ -29,7 +48,7 @@ void main() {
         .writeAsStringSync("export 'src/leak.dart';\n");
     final hits = scanTrainPackageLibsForWorkspaceLeaks(
       root,
-      packages: const ['fake_pkg'],
+      inventoryOverride: const ['fake_pkg'],
     );
     expect(hits, isNotEmpty);
     expect(hits.join('\n'), contains('test/support'));
@@ -47,7 +66,7 @@ void noop() {}
 ''');
     final hits = scanTrainPackageLibsForWorkspaceLeaks(
       root,
-      packages: const ['fake_pkg'],
+      inventoryOverride: const ['fake_pkg'],
     );
     expect(hits, isNotEmpty);
     expect(hits.single, contains('consumer.dart'));
@@ -64,7 +83,7 @@ void noop() {}
     );
     final hits = scanTrainPackageLibsForWorkspaceLeaks(
       root,
-      packages: const ['oka_core'],
+      inventoryOverride: const ['oka_core'],
     );
     expect(
       hits,
