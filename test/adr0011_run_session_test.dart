@@ -22,6 +22,8 @@ import 'package:oka_android/oka_android.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+
 RunSession _fixtureSession() => const RunSession(
       flutterSdkPath: '/sdks/flutter',
       engineRevision: 'f88005a259ba379c2c1156178aa1870936be7b7f',
@@ -446,6 +448,7 @@ void main() {
       () async {
     final text = await File(
       p.join(
+        findOkaRepoRoot(),
         'packages',
         'oka_android',
         'lib',

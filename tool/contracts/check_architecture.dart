@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../test/support/repo_root.dart';
+
 /// Dependency rules are gates; physical line counts are advisory diagnostics.
 Map<String, Object?> inspectArchitecture(Directory root) {
   final violations = <Map<String, Object?>>[];
@@ -119,7 +121,9 @@ void main(List<String> args) {
     return;
   }
   final report = inspectArchitecture(
-    Directory(Platform.environment['OKA_ROOT'] ?? Directory.current.path),
+    Directory(
+      Platform.environment['OKA_ROOT'] ?? findOkaRepoRoot(),
+    ),
   );
   stdout.writeln(const JsonEncoder.withIndent('  ').convert(report));
   if (report['ok'] != true) exitCode = 1;

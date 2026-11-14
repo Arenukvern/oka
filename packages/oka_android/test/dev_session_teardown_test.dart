@@ -74,8 +74,22 @@ void main() {
           return ProcessResult(0, 0, '', '');
         },
       );
-      expect(released, isTrue);
+      expect(released.attempted, isTrue);
+      expect(released.removed, isTrue);
+      expect(released.adbExitCode, 0);
       expect(calls.single, _remove34381);
+    });
+
+    test('propagates nonzero adb exit code (not treated as removed)', () async {
+      final released = await releaseDevLaunchOwnedForward(
+        adbPath: '/fake/adb',
+        deviceId: 'emulator-5554',
+        hostLocalPort: 34381,
+        runAdb: (adb, args) async => ProcessResult(0, 127, '', 'offline'),
+      );
+      expect(released.attempted, isTrue);
+      expect(released.removed, isFalse);
+      expect(released.adbExitCode, 127);
     });
   });
 
