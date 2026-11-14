@@ -13,7 +13,9 @@ wrong; when a script and this file disagree, fix this file or the script.
   changelog must match it. `just check-contracts` gates the full sync
   (version, release-please manifest, changelogs, licenses, docs drift).
 - `dart tool/release/train.dart list --publish` is the pub.dev upload order
-  (13 packages; `oka_process` is first — no in-train hosted dependents).
+  (13 packages; topological sort of in-train `dependencies` and
+  `dev_dependencies`, static train inventory as tiebreak; `oka_process` is first
+  when it has no in-train deps).
   Never publish out of order: a package whose hosted dependency closure does
   not exist at the new version cannot resolve for consumers after upload.
 - `oka_dart_kernel`, `oka_update`, and the root `oka_workspace` are

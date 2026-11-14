@@ -174,6 +174,7 @@ void _writeTrainFixture(
   for (final script in [
     'check_package_changelogs.sh',
     'train.dart',
+    'publish_order.dart',
     'semver_tool.dart',
   ]) {
     final source = File('$repositoryRoot/tool/release/$script');
