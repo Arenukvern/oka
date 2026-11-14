@@ -1,4 +1,8 @@
-## 0.10.0 <!-- x-release-please-version -->
+## 0.11.0 <!-- x-release-please-version -->
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.0
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
@@ -61,3 +65,4 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 ## 0.1.5
 
 - Package split from the oka CLI (ADR-0006).
+
