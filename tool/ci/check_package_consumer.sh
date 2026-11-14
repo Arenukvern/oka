@@ -77,8 +77,23 @@ printf '%s\n' \
   '  if (details.isEmpty) throw StateError("Target.explainDetails returned no details");' \
   '}' > "$consumer_dir/lib/main.dart"
 
+pub_get_resolution_failed() {
+  local output="$1"
+  grep -qiE '(^|[[:space:]])version solving failed|could not find package|package not found|version .* not found|because .+ depends on .+ which doesn'\''t match|doesn'\''t exist on https://pub\.dev' <<<"$output"
+}
+
 run_consumer_project() {
-  (cd "$consumer_dir" && dart pub get --no-example && dart analyze && dart run lib/main.dart)
+  local pub_get_out pub_get_status
+  pub_get_out="$(cd "$consumer_dir" && dart pub get --no-example 2>&1)" || pub_get_status=$?
+  if [[ "${pub_get_status:-0}" -ne 0 ]]; then
+    if pub_get_resolution_failed "$pub_get_out"; then
+      echo "$pub_get_out" >&2
+      return 2
+    fi
+    echo "$pub_get_out" >&2
+    return 1
+  fi
+  (cd "$consumer_dir" && dart analyze && dart run lib/main.dart)
 }
 
 echo "Checking $mode consumer for oka $version"
@@ -93,14 +108,17 @@ if [[ "$mode" == "hosted" ]]; then
   attempt=1
   backoff="$retry_seconds"
   while true; do
-    if run_consumer_project; then
-      exit 0
-    fi
+    set +e
+    run_consumer_project
+    status=$?
+    set -e
+    [[ "$status" -eq 0 ]] && exit 0
+    [[ "$status" -ne 2 ]] && exit "$status"
     (( elapsed >= retry_timeout )) && {
       echo "check_package_consumer: hosted consumer failed after ${elapsed}s (pub.dev indexing lag?)" >&2
       exit 1
     }
-    echo "check_package_consumer: attempt $attempt failed; retrying in ${backoff}s (elapsed ${elapsed}s)" >&2
+    echo "check_package_consumer: attempt $attempt failed (pub get resolution); retrying in ${backoff}s (elapsed ${elapsed}s)" >&2
     sleep "$backoff"
     elapsed=$((elapsed + backoff))
     attempt=$((attempt + 1))
@@ -108,5 +126,9 @@ if [[ "$mode" == "hosted" ]]; then
     (( backoff > 60 )) && backoff=60
   done
 else
+  set +e
   run_consumer_project
+  status=$?
+  set -e
+  exit "$status"
 fi
