@@ -13,34 +13,72 @@ void main() {
     try {
       _copyFollowerChangelogs(fixture, repo);
       final changelog = File('${fixture.path}/packages/oka_core/CHANGELOG.md');
-      changelog.writeAsStringSync(
-        '## 0.10.1 <!-- x-release-please-version -->\n\n'
-        'See `packages/oka/CHANGELOG.md` for train-wide release notes.\n\n'
-        '- note\n',
-      );
+      changelog.writeAsStringSync(_changelogWithFrozenTail(
+        marked: '0.10.1',
+        upcomingBullet: '- upcoming note',
+        frozenVersion: '0.10.0',
+        frozenBullet: '- prior release bullet',
+        trailingNewline: true,
+      ));
       _copyFreezeTooling(fixture, repo);
-      for (var i = 0; i < 2; i++) {
-        _runApply(fixture, released: '0.10.1', next: '0.11.0');
-      }
-      final text = changelog.readAsStringSync();
-      expect(text.endsWith('\n'), isTrue);
-      expect(text.endsWith('\n\n'), isFalse);
-      expect(RegExp(r'\n\n$').hasMatch(text), isFalse);
+      final first = _runApply(fixture, released: '0.10.1', next: '0.11.0');
+      expect(first.exitCode, 0, reason: _out(first));
+      final afterFirst = changelog.readAsBytesSync();
+      final firstText = utf8.decode(afterFirst);
+      expect(firstText.endsWith('\n'), isTrue);
+      expect(firstText.endsWith('\n\n'), isFalse);
+
+      final second = _runApply(fixture, released: '0.10.1', next: '0.11.0');
+      expect(second.exitCode, 0, reason: _out(second));
+      final afterSecond = changelog.readAsBytesSync();
+      expect(afterSecond, afterFirst);
+      expect(RegExp(r'\n\n$').hasMatch(utf8.decode(afterSecond)), isFalse);
     } finally {
       fixture.deleteSync(recursive: true);
     }
   });
+
+  test(
+    'freeze --apply adds exactly one EOF newline when input omits trailing newline',
+    () {
+      final fixture = Directory.systemTemp.createTempSync('oka_freeze_eof_input_');
+      try {
+        _copyFollowerChangelogs(fixture, repo);
+        final changelog = File('${fixture.path}/packages/oka_core/CHANGELOG.md');
+        changelog.writeAsStringSync(_changelogWithFrozenTail(
+          marked: '0.10.1',
+          upcomingBullet: '- upcoming note',
+          frozenVersion: '0.10.0',
+          frozenBullet: '- prior release bullet',
+          trailingNewline: false,
+        ));
+        final inputBytes = changelog.readAsBytesSync();
+        expect(inputBytes.isEmpty || inputBytes.last != 0x0a, isTrue);
+        _copyFreezeTooling(fixture, repo);
+        final run = _runApply(fixture, released: '0.10.1', next: '0.11.0');
+        expect(run.exitCode, 0, reason: _out(run));
+        final text = changelog.readAsStringSync();
+        expect(text.endsWith('\n'), isTrue);
+        expect(text.endsWith('\n\n'), isFalse);
+        expect(RegExp(r'\n\n$').hasMatch(text), isFalse);
+      } finally {
+        fixture.deleteSync(recursive: true);
+      }
+    },
+  );
 
   test('freeze --apply is safe to rerun after the layout is already frozen', () {
     final fixture = Directory.systemTemp.createTempSync('oka_freeze_changelog_');
     try {
       _copyFollowerChangelogs(fixture, repo);
       final changelog = File('${fixture.path}/packages/oka_core/CHANGELOG.md');
-      changelog.writeAsStringSync(
-        '## 0.11.0 <!-- x-release-please-version -->\n\n'
-        'See `packages/oka/CHANGELOG.md` for train-wide release notes.\n\n'
-        '- in-flight note\n',
-      );
+      changelog.writeAsStringSync(_changelogWithFrozenTail(
+        marked: '0.11.0',
+        upcomingBullet: '- in-flight note',
+        frozenVersion: '0.10.0',
+        frozenBullet: '- shipped earlier',
+        trailingNewline: true,
+      ));
       _copyFreezeTooling(fixture, repo);
       final first = _runApply(fixture, released: '0.11.0', next: '0.12.0');
       expect(first.exitCode, 0, reason: _out(first));
@@ -130,3 +168,28 @@ ProcessResult _runApply(
 );
 
 String _out(ProcessResult r) => '${r.stdout}\n${r.stderr}';
+
+String _changelogWithFrozenTail({
+  required String marked,
+  required String upcomingBullet,
+  required String frozenVersion,
+  required String frozenBullet,
+  required bool trailingNewline,
+}) {
+  const see =
+      'See `packages/oka/CHANGELOG.md` for train-wide release notes.';
+  final body = StringBuffer()
+    ..writeln('## $marked <!-- x-release-please-version -->')
+    ..writeln()
+    ..writeln(see)
+    ..writeln()
+    ..writeln(upcomingBullet)
+    ..writeln()
+    ..writeln('## $frozenVersion')
+    ..writeln()
+    ..write(frozenBullet);
+  if (trailingNewline) {
+    body.writeln();
+  }
+  return body.toString();
+}
