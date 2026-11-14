@@ -3,10 +3,11 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../tool/contracts/check_architecture.dart';
+import 'support/repo_root.dart';
 
 void main() {
   test('current package boundaries hold recursively', () {
-    final report = inspectArchitecture(Directory.current);
+    final report = inspectArchitecture(Directory(findOkaRepoRoot()));
     expect(report['violations'], isEmpty);
   });
 

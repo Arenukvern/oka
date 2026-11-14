@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+
 void main() {
   test('passes when every train package lists VERSION in CHANGELOG', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
@@ -131,7 +133,7 @@ void _writeTrainFixture(
   required bool allHaveVersion,
 }) {
   final root = fixture.path;
-  final repositoryRoot = Directory.current.path;
+  final repositoryRoot = findOkaRepoRoot();
   File('$root/VERSION').writeAsStringSync('$version\n');
   for (final script in ['check_package_changelogs.sh', 'train.dart']) {
     final source = File('$repositoryRoot/tool/release/$script');

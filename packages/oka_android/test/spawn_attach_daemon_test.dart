@@ -11,23 +11,22 @@ void main() {
       deviceVmServicePort: 43239,
       hostVmServicePort: 36605,
     );
-    try {
-      await spawnAttachDaemon(
-        flutterBinary: Platform.script.toFilePath(),
-        flutterAttachArgv: argv,
-        processStartForTest: (exe, args, {environment}) async {
-          seenArgv = args;
-          final p = await Process.start(exe, ['--version']);
-          await p.exitCode;
-          return p;
-        },
-      );
-    } on ProcessException {
-      // argv is captured inside processStartForTest before spawn may fail.
-    }
-    expect(seenArgv, isNotNull);
+    final transport = await spawnAttachDaemon(
+      flutterBinary: '/nonexistent/flutter',
+      flutterAttachArgv: argv,
+      processStartForTest: (exe, args, {environment}) {
+        seenArgv = args;
+        return Process.start(
+          Platform.executable,
+          ['-e', ''],
+          workingDirectory: Directory.systemTemp.path,
+        );
+      },
+    );
+  expect(transport, isA<ProcessDaemonTransport>());
     final hostIdx = seenArgv!.indexOf('--host-vmservice-port');
     expect(hostIdx, greaterThanOrEqualTo(0));
     expect(seenArgv![hostIdx + 1], '36605');
+    transport.kill();
   });
 }

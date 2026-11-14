@@ -18,6 +18,8 @@ import 'dart:io';
 import 'package:oka_android/oka_android.dart';
 import 'package:test/test.dart';
 
+import '../../../test/support/repo_root.dart';
+
 void main() {
   late Directory temp;
   late List<int> ownedChildren;
@@ -292,18 +294,14 @@ Future<ProcessResult> _runScript(File script) async {
 /// The nearest package config at or above the current directory (pub
 /// workspaces keep it at the repository root).
 File _packageConfig() {
-  var dir = Directory.current.absolute;
-  while (true) {
-    final candidate = File('${dir.path}/.dart_tool/package_config.json');
-    if (candidate.existsSync()) return candidate;
-    final parent = dir.parent;
-    if (parent.path == dir.path) {
-      throw StateError(
-        'no package_config.json found at or above ${Directory.current.path}',
-      );
-    }
-    dir = parent;
+  final root = findOkaRepoRoot();
+  final candidate = File('$root/.dart_tool/package_config.json');
+  if (!candidate.existsSync()) {
+    throw StateError(
+      'no package_config.json at workspace root $root',
+    );
   }
+  return candidate;
 }
 
 /// A liveness seam whose identity token is obtainable exactly once (at spawn

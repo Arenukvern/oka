@@ -6,6 +6,8 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../../../test/support/repo_root.dart';
+
 const _stubSource = '''
 import 'dart:convert';
 import 'dart:io';
@@ -24,18 +26,7 @@ Future<void> main(List<String> args) async {
 }
 ''';
 
-String _okaRepoRoot() {
-  var dir = Directory.current;
-  while (true) {
-    final marker = File(p.join(dir.path, 'packages', 'oka', 'pubspec.yaml'));
-    if (marker.existsSync()) return p.normalize(dir.path);
-    final parent = dir.parent;
-    if (parent.path == dir.path) {
-      return p.normalize(Directory.current.path);
-    }
-    dir = parent;
-  }
-}
+String _okaRepoRoot() => findOkaRepoRoot();
 
 void main() {
   test(

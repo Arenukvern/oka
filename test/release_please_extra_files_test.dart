@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+
 /// Parses `const packages = <String>[...]` from [tool/release/train.dart].
 /// Fails the test when not run from the repo root (no subprocess / no CLI).
 Set<String> trainPackagesFromTool(String root) {
@@ -24,7 +26,7 @@ Set<String> trainPackagesFromTool(String root) {
 }
 
 void main() {
-  final root = Directory.current.path;
+  final root = findOkaRepoRoot();
   late Set<String> trainPackageNames;
 
   setUpAll(() {

@@ -4,11 +4,12 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../tool/contracts/check_example_path_overrides.dart' as overrides;
+import 'support/repo_root.dart';
 
 void main() {
   group('example path-override closure', () {
     test('real example covers reachable workspace packages', () {
-      final root = Directory.current;
+      final root = Directory(findOkaRepoRoot());
       expect(overrides.missingExamplePathOverrides(root), isEmpty);
     });
 
