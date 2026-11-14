@@ -16,6 +16,7 @@ dart tool/contracts/check_no_directory_current_assignment.dart
 dart tool/contracts/check_oka_core_barrel_workspace_leak.dart
 bash tool/release/check_no_personal_paths.sh
 bash tool/release/check_changelog_markdown.sh
+bash tool/contracts/run_actionlint.sh
 bash tool/contracts/test_publish_packages_oidc.sh
 
 echo ""
