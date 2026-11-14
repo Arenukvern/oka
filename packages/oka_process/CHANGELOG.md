@@ -4,6 +4,13 @@
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
+### Changed
+
+- Joins the automated pub.dev OIDC publish train
+  (`tool/release/train.dart list --publish`, first in dependency order). The
+  last release on pub.dev was **0.8.1** (hand-published); 0.9.x train bumps were
+  in-repo only until CI wiring landed.
+
 ### Added
 
 - Vendored p1 contract, Perl leader, conformance suite, and probes from

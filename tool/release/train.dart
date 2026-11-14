@@ -20,16 +20,11 @@ const packages = <String>[
   'oka',
 ];
 
-/// Published to pub.dev by CI (`publish_packages.sh`). `oka_process` is
-/// manual-only from the maintainer's Mac — see packages/oka_process/PUBLISHING.md.
-const pubDevManualOnly = {'oka_process'};
-
-List<String> _pubDevInventory() =>
-    packages.where((p) => !pubDevManualOnly.contains(p)).toList();
-
-/// Dependency-respecting pub.dev upload order ([packages] index is tiebreak).
+/// Published to pub.dev by CI (`publish_packages.sh`). Upload order is a
+/// topological sort of in-train `dependencies` and `dev_dependencies`
+/// ([packages] is tiebreak).
 List<String> publishOrderForPubDev(Directory root) =>
-    _topologicalPublishOrder(root, _pubDevInventory(), packages);
+    _topologicalPublishOrder(root, packages, packages);
 
 const marker = 'x-release-please-version';
 
@@ -91,6 +86,8 @@ Set<String> _inTrainDependencies(
   File pubspec,
   Set<String> trainPackageNames,
 ) {
+  // `dart pub publish` dry-run resolves the package as root; that graph includes
+  // dev_dependencies, so in-train dev deps are publish-order constraints too.
   final deps = <String>{};
   final lines = _read(pubspec).split('\n');
   String? section;

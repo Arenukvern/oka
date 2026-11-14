@@ -71,6 +71,8 @@ void main() {
       );
       expect(diag.existsSync(), isTrue);
       final payload = jsonDecode(diag.readAsStringSync()) as Map<String, Object?>;
+      expect(payload['forwardReleaseAttempted'], isTrue);
+      expect(payload['forwardReleaseRemoved'], isTrue);
       expect(payload['forwardReleased'], isTrue);
       expect(payload['kind'], 'attach_spawn_failure');
     },

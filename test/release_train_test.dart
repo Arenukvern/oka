@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+
 /// Mirrors [packages] in `tool/release/train.dart` (release-train inventory).
 const trainPackages = [
   'oka_process',
@@ -20,14 +22,8 @@ const trainPackages = [
   'oka',
 ];
 
-/// Packages published by CI (`train.dart` `packagesForPubDev()`).
-const pubDevManualOnly = {'oka_process'};
-
-List<String> pubDevPackages() =>
-    trainPackages.where((name) => !pubDevManualOnly.contains(name)).toList();
-
 void main() {
-  final repo = Directory.current.path;
+  final repo = findOkaRepoRoot();
   late Directory fixture;
 
   setUp(() {
@@ -242,7 +238,12 @@ void main() {
     final fake = fakeTools(fixture);
     final result = runPublish(fixture, fake, '--dry-run');
     expect(result.exitCode, 0, reason: output(result));
-    expect(dartPackages(fake.log), order);
+    expectFullDartLog(
+      fake.log,
+      order,
+      publishVerb: 'pub publish --dry-run',
+      expectOidc: false,
+    );
   });
 
   test('publish resumes past an exact version already on pub.dev', () {
@@ -257,10 +258,9 @@ void main() {
     expect(result.exitCode, 0, reason: output(result));
     final published =
         publishList(fixture).where((name) => name != 'oka_core').toList();
-    expect(dartPackages(fake.log), published);
+    expectFullDartLog(fake.log, published, publishVerb: 'pub publish --force');
     expect(output(result), contains('oka_core 0.2.0 already exists'));
-    expect(oidcRefreshCount(fake.log), published.length);
-    expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, published);
+    expectOidcCurlContracts(fake.logCurl);
     expect(
       curlLog(fake.logCurl).split('\n').where((line) => line.contains('id-token')).length,
       published.length,
@@ -281,39 +281,104 @@ void main() {
     final failAt = order.indexOf('oka_android');
     expect(failAt, greaterThanOrEqualTo(0));
     final attempted = order.sublist(0, failAt + 1);
-    expect(dartPackages(fake.log), attempted);
-    expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, attempted);
+    expectFullDartLog(
+      fake.log,
+      attempted,
+      publishVerb: 'pub publish --force',
+    );
+    expectOidcCurlContracts(fake.logCurl);
   });
+
+  test(
+    'publish fails fast when oka_process publish fails (403-class abort)',
+    () {
+      expect(run(fixture, 'sync_version.sh').exitCode, 0);
+      final publishOrder = publishList(fixture);
+      expect(publishOrder.first, 'oka_process');
+
+      final fake = fakeTools(fixture);
+      final result = runPublish(
+        fixture,
+        fake,
+        '--publish',
+        extra: {'OKA_FAKE_DART_FAIL': 'oka_process'},
+      );
+      expect(result.exitCode, isNot(0), reason: output(result));
+      expect(dartPackages(fake.log), ['oka_process']);
+      expect(dartPublishInvocations(fake.log), hasLength(1));
+      expect(
+        dartPublishInvocations(fake.log).single,
+        'oka_process|pub publish --force',
+      );
+      expectFullDartLog(
+        fake.log,
+        ['oka_process'],
+        publishVerb: 'pub publish --force',
+      );
+    },
+  );
 
   test('list --publish on repo respects in-train dependencies', () {
     final order = publishList(Directory(repo));
     expect(order, isNotEmpty);
+    expect(order.first, 'oka_process');
     final index = {for (var i = 0; i < order.length; i++) order[i]: i};
     final trainNames = order.toSet();
+    final depLine = RegExp('^  ([a-z][a-z0-9_]*):');
+    final sectionHeader = RegExp('^([a-z_]+):');
     for (final name in order) {
       final pubspec = File('$repo/packages/$name/pubspec.yaml');
       final contents = pubspec.readAsStringSync();
       String? section;
       for (final line in contents.split('\n')) {
-        if (RegExp(r'^[a-z_]+:').hasMatch(line)) {
+        if (sectionHeader.hasMatch(line)) {
           section = line.split(':').first;
         }
         if (section != 'dependencies' && section != 'dev_dependencies') {
           continue;
         }
-        final dep = RegExp(r'^  ([a-z][a-z0-9_]*):').firstMatch(line)?.group(1);
-        if (dep == null || !trainNames.contains(dep)) continue;
+        final dep = depLine.firstMatch(line)?.group(1);
+        if (dep == null || !trainNames.contains(dep)) {
+          continue;
+        }
+        final depIndex = index[dep];
+        final selfIndex = index[name];
+        if (depIndex == null || selfIndex == null) {
+          fail('missing $dep or $name in publish order');
+        }
         expect(
-          index[dep]!,
-          lessThan(index[name]!),
+          depIndex,
+          lessThan(selfIndex),
           reason: '$name must publish after $dep',
         );
       }
     }
+    final coreIndex = index['oka_core'];
+    final artifactsIndex = index['oka_artifacts'];
+    if (coreIndex == null || artifactsIndex == null) {
+      fail('oka_core or oka_artifacts missing from publish order');
+    }
     expect(
-      index['oka_core']!,
-      lessThan(index['oka_artifacts']!),
+      coreIndex,
+      lessThan(artifactsIndex),
       reason: 'oka_artifacts depends on hosted oka_core',
+    );
+  });
+
+  test('list --publish rejects an in-train dependency cycle', () {
+    write(
+      fixture,
+      'packages/resource_composition/pubspec.yaml',
+      'name: resource_composition\n'
+      'version: 0.1.6 # x-release-please-version\n'
+      'dependencies:\n'
+      '  oka_core: ^0.1.6\n',
+    );
+    final result = publishListResult(fixture);
+    expect(result.exitCode, isNot(0));
+    expect(
+      output(result),
+      contains('publish order cycle among train packages'),
     );
   });
 
@@ -333,6 +398,19 @@ void main() {
     );
     expect(dartPublishInvocations(fake.log), isEmpty);
   });
+}
+
+ProcessResult publishListResult(Directory root) {
+  final dart = Process.runSync('sh', [
+    '-c',
+    'command -v dart',
+  ]).stdout.toString().trim();
+  return Process.runSync(
+    dart,
+    ['tool/release/train.dart', 'list', '--publish'],
+    workingDirectory: root.path,
+    environment: {'OKA_ROOT': root.path},
+  );
 }
 
 List<String> publishList(Directory root) {
@@ -401,6 +479,20 @@ set -eu
 printf '%s\n' "$*" >> "$OKA_FAKE_CURL_LOG"
 for arg in "$@"; do
   if [[ "$arg" == *"id-token"* ]] || [[ "$arg" == *"fake.actions"* ]]; then
+  found_audience=0
+  found_bearer=0
+  for a in "$@"; do
+    [[ "$a" == *audience=https://pub.dev* ]] && found_audience=1
+    [[ "$a" == Authorization:*[Bb]earer* ]] && found_bearer=1
+  done
+  [[ "$found_audience" == 1 ]] || {
+    echo "fake-curl: OIDC id-token request missing audience=https://pub.dev" >&2
+    exit 3
+  }
+  [[ "$found_bearer" == 1 ]] || {
+    echo "fake-curl: OIDC id-token request missing Authorization: Bearer header" >&2
+    exit 3
+  }
     echo '{"value":"fake-oidc-token"}'
     exit 0
   fi
@@ -474,28 +566,40 @@ int oidcRefreshCount(String log) =>
 String curlLog(String logCurl) =>
     File(logCurl).existsSync() ? File(logCurl).readAsStringSync() : '';
 
-void expectOidcRefreshImmediatelyBeforeEachPublish(
+void expectFullDartLog(
   String log,
-  List<String> packages,
-) {
-  final lines = dartLogLines(log);
-  var cursor = 0;
+  List<String> packages, {
+  required String publishVerb,
+  bool expectOidc = true,
+}) {
+  final expected = <String>[];
   for (final package in packages) {
-    while (cursor < lines.length && !lines[cursor].startsWith('oidc|')) {
-      cursor++;
+    if (expectOidc) {
+      expected.add('oidc|pub token add https://pub.dev --env-var PUB_TOKEN');
+    }
+    expected.add('$package|$publishVerb');
+  }
+  expect(
+    dartLogLines(log),
+    expected,
+    reason: 'dart invocation log must match the full publish/token sequence',
+  );
+}
+
+void expectOidcCurlContracts(String logCurl) {
+  for (final line in curlLog(logCurl).split('\n').where((line) => line.isNotEmpty)) {
+    if (!line.contains('id-token') && !line.contains('fake.actions')) {
+      continue;
     }
     expect(
-      cursor < lines.length,
-      isTrue,
-      reason: 'missing oidc refresh before $package publish',
+      line,
+      contains('audience=https://pub.dev'),
+      reason: 'OIDC curl must request audience https://pub.dev',
     );
     expect(
-      lines[cursor],
-      'oidc|pub token add https://pub.dev --env-var PUB_TOKEN',
+      line,
+      matches(RegExp('Authorization: [Bb]earer')),
+      reason: 'OIDC curl must send Authorization: Bearer',
     );
-    cursor++;
-    expect(cursor < lines.length, isTrue, reason: 'missing publish for $package');
-    expect(lines[cursor], '$package|pub publish --force');
-    cursor++;
   }
 }

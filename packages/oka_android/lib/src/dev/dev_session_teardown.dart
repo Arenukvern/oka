@@ -354,24 +354,64 @@ Future<ProcessResult> runAdbBounded(
 
 AdbArgvRunner get defaultAdbArgvRunner => runAdbBounded;
 
+/// Outcome of [releaseDevLaunchOwnedForward] (prepare-phase `adb forward --remove`).
+final class DevLaunchForwardReleaseResult {
+  const DevLaunchForwardReleaseResult({
+    required this.attempted,
+    required this.removed,
+    this.adbExitCode,
+    this.message,
+  });
+
+  /// `adb forward --remove` was started (not skipped for invalid args).
+  final bool attempted;
+
+  /// Remove command completed with exit code 0.
+  final bool removed;
+
+  final int? adbExitCode;
+  final String? message;
+
+  /// @deprecated Misleading name from the old `Future<bool>` API — use [attempted].
+  @Deprecated('Use attempted — the old bool was “invoked”, not “removed”.')
+  bool get forwardReleased => attempted;
+}
+
 /// Drops a session-owned `adb forward` mapping (best effort).
-/// Returns whether `adb forward --remove` was invoked (not whether it succeeded).
-Future<bool> releaseDevLaunchOwnedForward({
+Future<DevLaunchForwardReleaseResult> releaseDevLaunchOwnedForward({
   required String adbPath,
   required int hostLocalPort,
   String? deviceId,
   AdbArgvRunner? runAdb,
 }) async {
-  if (hostLocalPort <= 0 || adbPath.isEmpty) return false;
+  if (hostLocalPort <= 0 || adbPath.isEmpty) {
+    return const DevLaunchForwardReleaseResult(
+      attempted: false,
+      removed: false,
+      message: 'invalid forward or adb path',
+    );
+  }
   final runner = runAdb ?? defaultAdbArgvRunner;
   try {
-    await runner(
+    final r = await runner(
       adbPath,
       adbForwardRemoveArgs(hostPort: hostLocalPort, serial: deviceId),
     );
-    return true;
-  } on Object {
-    return false;
+    final combined = '${r.stdout}${r.stderr}'.trim();
+    return DevLaunchForwardReleaseResult(
+      attempted: true,
+      removed: r.exitCode == 0,
+      adbExitCode: r.exitCode,
+      message: r.exitCode == 0
+          ? null
+          : (combined.isEmpty ? 'adb forward --remove failed' : combined),
+    );
+  } on Object catch (e) {
+    return DevLaunchForwardReleaseResult(
+      attempted: true,
+      removed: false,
+      message: e.toString(),
+    );
   }
 }
 

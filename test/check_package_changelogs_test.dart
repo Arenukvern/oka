@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+
 void main() {
   test('passes when every train package lists VERSION in CHANGELOG', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
@@ -19,6 +21,37 @@ void main() {
     try {
       _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
       File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
+        '## 0.9.0 <!-- x-release-please-version -->\n\n- stale\n',
+      );
+      final result = _runCheck(fixture);
+      expect(result.exitCode, isNot(0));
+      expect(_output(result), contains('oka_core'));
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
+  test('does not accept lookalike headings when dots are not literal', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
+    try {
+      _writeTrainFixture(fixture, version: '0.10.0', allHaveVersion: true);
+      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
+        '## 0a10a0 <!-- x-release-please-version -->\n\n- decoy\n',
+      );
+      final result = _runCheck(fixture);
+      expect(result.exitCode, isNot(0));
+      expect(_output(result), contains('oka_core'));
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
+  test('rejects a frozen follower section that still carries the RP marker', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
+    try {
+      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
+      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
+        '## 0.9.1 <!-- x-release-please-version -->\n\n'
         '## 0.9.0 <!-- x-release-please-version -->\n\n- stale\n',
       );
       final result = _runCheck(fixture);
@@ -56,7 +89,7 @@ void _writeTrainFixture(
   required bool allHaveVersion,
 }) {
   final root = fixture.path;
-  final repositoryRoot = Directory.current.path;
+  final repositoryRoot = findOkaRepoRoot();
   File('$root/VERSION').writeAsStringSync('$version\n');
   for (final script in ['check_package_changelogs.sh', 'train.dart']) {
     final source = File('$repositoryRoot/tool/release/$script');
