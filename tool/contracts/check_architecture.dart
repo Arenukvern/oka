@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:oka_core/oka_core.dart';
+import '../../test/support/repo_root.dart';
 
 /// Dependency rules are gates; physical line counts are advisory diagnostics.
 Map<String, Object?> inspectArchitecture(Directory root) {
@@ -122,7 +122,7 @@ void main(List<String> args) {
   }
   final report = inspectArchitecture(
     Directory(
-      Platform.environment['OKA_ROOT'] ?? findOkaWorkspaceRoot(),
+      Platform.environment['OKA_ROOT'] ?? findOkaRepoRoot(),
     ),
   );
   stdout.writeln(const JsonEncoder.withIndent('  ').convert(report));

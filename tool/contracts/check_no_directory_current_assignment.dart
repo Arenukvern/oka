@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:oka_core/oka_core.dart';
+import '../../test/support/repo_root.dart';
 
 Never _fail(String message) {
   stderr.writeln('check_no_directory_current_assignment: $message');
@@ -10,7 +10,7 @@ Never _fail(String message) {
 final _assignmentPattern = RegExp(r'Directory\.current\s*=');
 
 void main() {
-  final root = findOkaWorkspaceRoot();
+  final root = findOkaRepoRoot();
   final offenders = <String>[];
 
   for (final dir in [

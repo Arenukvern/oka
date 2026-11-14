@@ -6,6 +6,8 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../../../test/support/repo_root.dart';
+
 const _stubSource = '''
 import 'dart:convert';
 import 'dart:io';
@@ -24,7 +26,7 @@ Future<void> main(List<String> args) async {
 }
 ''';
 
-String _okaRepoRoot() => findOkaWorkspaceRoot();
+String _okaRepoRoot() => findOkaRepoRoot();
 
 void main() {
   test(

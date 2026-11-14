@@ -1,3 +1,10 @@
+// Monorepo-only — not published. Hosted `oka_core` consumers must not depend on
+// this helper (there is no `tool/release/train.dart` in the pub cache).
+//
+// Root tests: `import 'support/repo_root.dart';`
+// Package tests: `import '../../../test/support/repo_root.dart';`
+// Tool scripts: `import '../../test/support/repo_root.dart';`
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,49 +13,38 @@ import 'package:path/path.dart' as p;
 /// Anchor file checked in at the oka monorepo root.
 const okaWorkspaceRootAnchor = 'tool/release/train.dart';
 
-/// Resolves the oka monorepo root by walking parents toward `/`.
+/// Resolves the oka monorepo root by walking parents from the workspace
+/// `oka_core` package root (via [Platform.packageConfig]), not
+/// [Directory.current].
 ///
-/// When [start] is omitted, walks from the `oka_core` package root in
-/// `.dart_tool/package_config.json` (via [Isolate] package resolution layout),
-/// not from [Directory.current]. Falls back to the loading isolate's
-/// [Platform.script] directory when the package config is unavailable.
+/// Pass [start] to walk from an explicit directory (temp fixtures).
 ///
-/// Pass [start] to walk from an explicit directory (fixtures, temp trees).
+/// Throws when this isolate has no package config or `oka_core` is not in the
+/// graph (e.g. a hosted-only pub cache checkout).
 String findOkaWorkspaceRoot({String? start}) {
   if (start != null) return _walkUpFrom(start);
-  final fromPackage = _workspaceRootFromOkaCorePackage();
-  if (fromPackage != null) return fromPackage;
-  return _walkUpFrom(File.fromUri(Platform.script).absolute.parent.path);
-}
-
-String? _workspaceRootFromOkaCorePackage() {
+  final fromEnv = Platform.environment['OKA_ROOT'];
+  if (fromEnv != null && fromEnv.isNotEmpty) {
+    return _walkUpFrom(fromEnv);
+  }
   final coreRoot = _findOkaCorePackageRoot();
-  if (coreRoot == null) return null;
+  if (coreRoot == null) {
+    throw StateError(
+      'findOkaWorkspaceRoot is monorepo-only: no package config with '
+      'oka_core (run from the workspace after `dart pub get`).',
+    );
+  }
   return _walkUpFrom(coreRoot);
 }
 
 String? _findOkaCorePackageRoot() {
   final fromIsolateConfig = Platform.packageConfig;
-  if (fromIsolateConfig != null) {
-    final configFile = fromIsolateConfig.startsWith('file:')
-        ? File.fromUri(Uri.parse(fromIsolateConfig))
-        : File(fromIsolateConfig);
-    if (configFile.existsSync()) {
-      final root = _okaCoreRootFromPackageConfig(configFile);
-      if (root != null) return root;
-    }
-  }
-  var dir = File.fromUri(Platform.script).absolute.parent;
-  while (true) {
-    final config = File(p.join(dir.path, '.dart_tool', 'package_config.json'));
-    if (config.existsSync()) {
-      final root = _okaCoreRootFromPackageConfig(config);
-      if (root != null) return root;
-    }
-    final parent = dir.parent;
-    if (parent.path == dir.path) return null;
-    dir = parent;
-  }
+  if (fromIsolateConfig == null) return null;
+  final configFile = fromIsolateConfig.startsWith('file:')
+      ? File.fromUri(Uri.parse(fromIsolateConfig))
+      : File(fromIsolateConfig);
+  if (!configFile.existsSync()) return null;
+  return _okaCoreRootFromPackageConfig(configFile);
 }
 
 String? _okaCoreRootFromPackageConfig(File config) {

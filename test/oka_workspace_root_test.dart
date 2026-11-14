@@ -1,12 +1,14 @@
 import 'dart:io';
 
-import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'support/oka_workspace_root.dart';
+import 'support/repo_root.dart';
+
 void main() {
   test('findOkaWorkspaceRoot resolves anchor without Directory.current', () {
-    final root = findOkaWorkspaceRoot();
+    final root = findOkaRepoRoot();
     expect(
       File(p.join(root, okaWorkspaceRootAnchor)).existsSync(),
       isTrue,

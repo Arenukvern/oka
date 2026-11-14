@@ -1,13 +1,14 @@
 import 'dart:io';
 
-import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+
+import 'oka_workspace_root.dart';
 
 /// Workspace root anchor checked in at the repo root.
 const _anchorRelative = okaWorkspaceRootAnchor;
 
-/// Resolves the oka repository root (cwd-independent — see [findOkaWorkspaceRoot]).
+/// Resolves the oka repository root (cwd-independent).
 String findOkaRepoRoot([String? start]) =>
     findOkaWorkspaceRoot(start: start);
 
