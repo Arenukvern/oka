@@ -478,7 +478,7 @@ void expectOidcCurlContracts(String logCurl) {
     );
     expect(
       line,
-      matches(RegExp(r'Authorization: [Bb]earer')),
+      matches(RegExp('Authorization: [Bb]earer')),
       reason: 'OIDC curl must send Authorization: Bearer',
     );
   }

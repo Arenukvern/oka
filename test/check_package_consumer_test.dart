@@ -81,6 +81,7 @@ class _FakeDart {
 _FakeDart _installFakeDart(Directory fixture) {
   final bin = '${fixture.path}/fake-bin';
   Directory(bin).createSync();
+  // ignore: leading_newlines_in_multiline_strings
   File('$bin/dart').writeAsStringSync(r'''#!/usr/bin/env bash
 set -eu
 if [[ "${1:-}" == *train.dart ]]; then
