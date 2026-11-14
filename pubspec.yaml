@@ -15,6 +15,7 @@ environment:
   sdk: ^3.13.0
 
 dev_dependencies:
+  analyzer: ^14.0.0
   # Test fixtures exercise AAR/zip processing exported from oka_android;
   # the ADR conformance suites import oka_android/oka_core directly.
   archive: ^4.6.0
