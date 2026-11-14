@@ -315,6 +315,7 @@ void main() {
         ['oka_process'],
         publishVerb: 'pub publish --force',
       );
+      expectOidcCurlContracts(fake.logCurl);
     },
   );
 
