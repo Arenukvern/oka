@@ -8,6 +8,7 @@ import 'package:oka_android/src/build/zip_artifact_time.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
 import 'zip_raw_headers.dart';
 
 /// Decodes central-directory [lastModTime] values from a zip artifact.
@@ -22,7 +23,7 @@ Map<String, dynamic> _runTzEmit(String tz) {
   final result = Process.runSync(
     Platform.executable,
     ['run', 'test/zip_artifact_tz_emit.dart'],
-    workingDirectory: Directory.current.path,
+    workingDirectory: findOkaRepoRoot(),
     environment: {...Platform.environment, 'TZ': tz},
   );
   expect(
@@ -34,7 +35,7 @@ Map<String, dynamic> _runTzEmit(String tz) {
 }
 
 void main() {
-  final root = Directory.current.path;
+  final root = findOkaRepoRoot();
 
   test('archive constraint and resolved version are at least 4.6.0', () {
     final androidPub =

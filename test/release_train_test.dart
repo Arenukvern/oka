@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+
 /// Mirrors [packages] in `tool/release/train.dart` (release-train inventory).
 const trainPackages = [
   'oka_process',
@@ -27,7 +29,7 @@ List<String> pubDevPackages() =>
     trainPackages.where((name) => !pubDevManualOnly.contains(name)).toList();
 
 void main() {
-  final repo = Directory.current.path;
+  final repo = findOkaRepoRoot();
   late Directory fixture;
 
   setUp(() {

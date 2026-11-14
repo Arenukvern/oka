@@ -446,6 +446,7 @@ void main() {
       () async {
     final text = await File(
       p.join(
+        findOkaWorkspaceRoot(),
         'packages',
         'oka_android',
         'lib',

@@ -1,30 +1,15 @@
 import 'dart:io';
 
+import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 /// Workspace root anchor checked in at the repo root.
-const _anchorRelative = 'tool/release/train.dart';
+const _anchorRelative = okaWorkspaceRootAnchor;
 
-/// Resolves the oka repository root by walking parents from [start].
-///
-/// [start] defaults to [Directory.current] so callers can still find the repo
-/// after another suite (incorrectly) mutates the process-global cwd.
-String findOkaRepoRoot([String? start]) {
-  var dir = Directory(start ?? Directory.current.path).absolute;
-  while (true) {
-    final anchor = File(p.join(dir.path, _anchorRelative));
-    if (anchor.existsSync()) return dir.path;
-    final parent = dir.parent;
-    if (parent.path == dir.path) {
-      fail(
-        'Could not locate oka repo root (missing $_anchorRelative) '
-        'starting from ${start ?? Directory.current.path}',
-      );
-    }
-    dir = parent;
-  }
-}
+/// Resolves the oka repository root (cwd-independent — see [findOkaWorkspaceRoot]).
+String findOkaRepoRoot([String? start]) =>
+    findOkaWorkspaceRoot(start: start);
 
 /// Repo-rooted file for source-contract tests (immune to [Directory.current] races).
 File repoFile(List<String> relativeSegments) => File(

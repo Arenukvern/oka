@@ -19,17 +19,7 @@ Future<void> main(List<String> args) async {
 }
 ''';
 
-String _okaRepoRoot() {
-  var dir = Directory.current;
-  while (true) {
-    if (File(p.join(dir.path, 'packages', 'oka', 'pubspec.yaml')).existsSync()) {
-      return p.normalize(dir.path);
-    }
-    final parent = dir.parent;
-    if (parent.path == dir.path) return Directory.current.path;
-    dir = parent;
-  }
-}
+String _okaRepoRoot() => findOkaWorkspaceRoot();
 
 void main() {
   test(

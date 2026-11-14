@@ -89,6 +89,7 @@ export 'src/directory_process_lock.dart';
 export 'src/inode_lock.dart';
 export 'src/leased_process_provider.dart';
 export 'src/oka_run.dart';
+export 'src/oka_workspace_root.dart';
 export 'src/pipeline/pipeline.dart';
 export 'src/pipeline_events.dart';
 export 'src/process_bounded_run.dart';

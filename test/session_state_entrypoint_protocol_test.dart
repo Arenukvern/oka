@@ -6,7 +6,9 @@ import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-final _repoRoot = Directory.current.path;
+import 'support/repo_root.dart';
+
+final _repoRoot = findOkaRepoRoot();
 const _protocolFramePrefix = '\x1eOKA_SESSION_STATE_V1:';
 
 Map<String, Object?> _protocolResponse(String stdout) {

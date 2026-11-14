@@ -7,6 +7,8 @@ import 'package:oka_core/src/config/build_context.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'support/repo_root.dart';
+
 void main() {
   group('phase0: no Gradle / no flutter build apk fallback', () {
     test('assemble args never request flutter build apk', () {
@@ -25,7 +27,7 @@ void main() {
 
     test('FlutterApkBuilder never shells out to Gradle (source contract)',
         () async {
-      final root = Directory.current.path;
+      final root = findOkaRepoRoot();
 
       final builderSrc = File(
         p.join(root, 'packages', 'oka_android', 'lib', 'src', 'build', 'flutter_apk_builder.dart'),
@@ -41,7 +43,7 @@ void main() {
     test('BuildCommand default path uses FlutterApkBuilder', () async {
       final src = await File(
         p.join(
-          Directory.current.path,
+          findOkaRepoRoot(),
           'packages',
           'oka',
           'lib',
