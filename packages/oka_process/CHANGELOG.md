@@ -8,7 +8,6 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
-
 ### Added
 
 - Vendored p1 contract, Perl leader, conformance suite, and probes from

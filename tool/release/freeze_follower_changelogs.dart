@@ -92,6 +92,9 @@ bool _applyFreeze({
     frozenBody.add(line);
   }
 
+  while (frozenBody.isNotEmpty && frozenBody.first.trim().isEmpty) {
+    frozenBody.removeAt(0);
+  }
   while (frozenBody.isNotEmpty && frozenBody.last.trim().isEmpty) {
     frozenBody.removeLast();
   }

@@ -33,6 +33,7 @@ void main() {
         frozen.indexOf('## 0.11.0'),
         lessThan(frozen.indexOf(see, frozen.indexOf('## 0.11.0'))),
       );
+      expect(frozen, isNot(contains('$see\n\n\n')));
 
       final second = _runApply(fixture, released: '0.11.0', next: '0.12.0');
       expect(second.exitCode, 0, reason: _out(second));
