@@ -20,12 +20,8 @@ const packages = <String>[
   'oka',
 ];
 
-/// Published to pub.dev by CI (`publish_packages.sh`). `oka_process` is
-/// manual-only from the maintainer's Mac — see packages/oka_process/PUBLISHING.md.
-const pubDevManualOnly = {'oka_process'};
-
-Iterable<String> packagesForPubDev() =>
-    packages.where((p) => !pubDevManualOnly.contains(p));
+/// Published to pub.dev by CI (`publish_packages.sh`) in [packages] order.
+Iterable<String> packagesForPubDev() => packages;
 
 const marker = 'x-release-please-version';
 

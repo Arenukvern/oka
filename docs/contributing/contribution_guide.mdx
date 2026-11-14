@@ -93,7 +93,7 @@ Release sequence:
 5. [`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
    is dispatched on the release tag: asserts tag == `VERSION`, dry-run
    preflight, then publishes the full train in dependency order via
-   `tool/release/publish_packages.sh` (excluding manual-only `oka_process`).
+   `tool/release/publish_packages.sh` (full train, `oka_process` first).
    Package inventory and ordering: `dart tool/release/train.dart list --publish`.
    Each dependency must be on pub.dev before dependents upload. All train
    packages share `VERSION`. The workflow verifies an independent hosted
