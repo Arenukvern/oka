@@ -12,9 +12,11 @@ wrong; when a script and this file disagree, fix this file or the script.
 - One workspace `VERSION`; every publishable package's `pubspec.yaml` and
   changelog must match it. `just check-contracts` gates the full sync
   (version, release-please manifest, changelogs, licenses, docs drift).
-- `dart tool/release/train.dart list --publish` is the pub.dev upload order.
-  Never publish out of order: a package whose hosted dependency closure does
-  not exist at the new version cannot resolve for consumers after upload.
+- `dart tool/release/train.dart list --publish` is the pub.dev upload order
+  (topological sort of in-train `dependencies` / `dev_dependencies`, with the
+  static train inventory as tiebreak). Never publish out of order: a package
+  whose hosted dependency closure does not exist at the new version cannot
+  resolve for consumers after upload.
 - `oka_process` is **manual-only** (`pubDevManualOnly` in `train.dart`); see
   `packages/oka_process/PUBLISHING.md`. `oka_dart_kernel`, `oka_update`, and
   the root `oka_workspace` are `publish_to: none`; they ride along but never

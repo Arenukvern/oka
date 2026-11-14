@@ -46,7 +46,7 @@ void main() {
     final dependencies = <String, List<String>>{
       'oka_process': [],
       'resource_composition': [],
-      'oka_artifacts': [],
+      'oka_artifacts': ['oka_core'],
       'oka_core': ['resource_composition'],
       'oka_conformance': ['oka_core'],
       'oka_supervisor': ['resource_composition'],
@@ -238,10 +238,11 @@ void main() {
 
   test('publish dry-run executes every package in dependency order', () {
     expect(run(fixture, 'sync_version.sh').exitCode, 0);
+    final order = publishList(fixture);
     final fake = fakeTools(fixture);
     final result = runPublish(fixture, fake, '--dry-run');
     expect(result.exitCode, 0, reason: output(result));
-    expect(dartPackages(fake.log), pubDevPackages());
+    expect(dartPackages(fake.log), order);
   });
 
   test('publish resumes past an exact version already on pub.dev', () {
@@ -254,7 +255,8 @@ void main() {
       extra: {'OKA_FAKE_PUBLISHED': ':oka_core:'},
     );
     expect(result.exitCode, 0, reason: output(result));
-    final published = pubDevPackages().where((name) => name != 'oka_core').toList();
+    final published =
+        publishList(fixture).where((name) => name != 'oka_core').toList();
     expect(dartPackages(fake.log), published);
     expect(output(result), contains('oka_core 0.2.0 already exists'));
     expect(oidcRefreshCount(fake.log), published.length);
@@ -275,16 +277,44 @@ void main() {
       extra: {'OKA_FAKE_DART_FAIL': 'oka_android'},
     );
     expect(result.exitCode, isNot(0));
-    final attempted = [
-      'resource_composition',
-      'oka_artifacts',
-      'oka_core',
-      'oka_supervisor',
-      'oka_conformance',
-      'oka_android',
-    ];
+    final order = publishList(fixture);
+    final failAt = order.indexOf('oka_android');
+    expect(failAt, greaterThanOrEqualTo(0));
+    final attempted = order.sublist(0, failAt + 1);
     expect(dartPackages(fake.log), attempted);
     expectOidcRefreshImmediatelyBeforeEachPublish(fake.log, attempted);
+  });
+
+  test('list --publish on repo respects in-train dependencies', () {
+    final order = publishList(Directory(repo));
+    expect(order, isNotEmpty);
+    final index = {for (var i = 0; i < order.length; i++) order[i]: i};
+    final trainNames = order.toSet();
+    for (final name in order) {
+      final pubspec = File('$repo/packages/$name/pubspec.yaml');
+      final contents = pubspec.readAsStringSync();
+      String? section;
+      for (final line in contents.split('\n')) {
+        if (RegExp(r'^[a-z_]+:').hasMatch(line)) {
+          section = line.split(':').first;
+        }
+        if (section != 'dependencies' && section != 'dev_dependencies') {
+          continue;
+        }
+        final dep = RegExp(r'^  ([a-z][a-z0-9_]*):').firstMatch(line)?.group(1);
+        if (dep == null || !trainNames.contains(dep)) continue;
+        expect(
+          index[dep]!,
+          lessThan(index[name]!),
+          reason: '$name must publish after $dep',
+        );
+      }
+    }
+    expect(
+      index['oka_core']!,
+      lessThan(index['oka_artifacts']!),
+      reason: 'oka_artifacts depends on hosted oka_core',
+    );
   });
 
   test('publish --publish requires OIDC env and never invokes dart publish', () {
@@ -303,6 +333,26 @@ void main() {
     );
     expect(dartPublishInvocations(fake.log), isEmpty);
   });
+}
+
+List<String> publishList(Directory root) {
+  final dart = Process.runSync('sh', [
+    '-c',
+    'command -v dart',
+  ]).stdout.toString().trim();
+  final result = Process.runSync(
+    dart,
+    ['tool/release/train.dart', 'list', '--publish'],
+    workingDirectory: root.path,
+    environment: {'OKA_ROOT': root.path},
+  );
+  expect(result.exitCode, 0, reason: output(result));
+  return result.stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .where((line) => line.isNotEmpty)
+      .toList();
 }
 
 void write(Directory fixture, String path, String contents) {
