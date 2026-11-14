@@ -17,7 +17,7 @@ fi
 
 version="$(tr -d '[:space:]' < "$root_dir/VERSION")"
 if [[ "$mode" == "hosted" ]]; then
-  # pub.dev train only (excludes manual-only oka_process).
+  # pub.dev train (same inventory as publish_packages.sh).
   package_list="$(dart "$root_dir/tool/release/train.dart" list --publish)"
 else
   package_list="$(dart "$root_dir/tool/release/train.dart" list)"

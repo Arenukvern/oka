@@ -135,10 +135,11 @@ Oka’s existing **Windows** CI job (`windows-session-observation` in
 yet.
 
 Release train: `oka_process` is **first** in `tool/release/train.dart` for
-version/changelog sync; release-please `extra-files` includes
-`packages/oka_process/pubspec.yaml`. **pub.dev:** published **manually** by
-the maintainer (not `publish_packages.sh` / GitHub Actions) — see
-`packages/oka_process/PUBLISHING.md`.
+version/changelog sync and in `list --publish` (no in-train hosted
+dependents); release-please `extra-files` includes
+`packages/oka_process/pubspec.yaml`. **pub.dev:** uploaded with the OIDC train
+via `publish_packages.sh` — see `packages/oka_process/PUBLISHING.md` for
+one-time automated-publishing setup (last hand-published release was 0.8.1).
 
 ## Conformance
 
