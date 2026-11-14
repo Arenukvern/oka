@@ -4,9 +4,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-released="${1:-}"
+released="${RELEASED_VERSION:-${1:-}}"
 if [[ -z "$released" ]]; then
-  echo "freeze_follower_release_pr: usage: RELEASED_VERSION" >&2
+  echo "freeze_follower_release_pr: set RELEASED_VERSION or pass RELEASED_VERSION as argv" >&2
   exit 2
 fi
 

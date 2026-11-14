@@ -4,6 +4,8 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
 ## 0.10.0
 
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
 
 - Dependency lockfile hygiene (`fix: locks`).
 

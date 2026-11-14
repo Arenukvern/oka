@@ -103,6 +103,8 @@ bool _applyFreeze({
     seeLine,
     '',
     '## $released',
+    '',
+    seeLine,
     if (frozenBody.isNotEmpty) ...['', ...frozenBody],
     if (tail.isNotEmpty) ...['', ...tail],
   ];

@@ -22,9 +22,17 @@ void main() {
       final first = _runApply(fixture, released: '0.11.0', next: '0.12.0');
       expect(first.exitCode, 0, reason: _out(first));
       final frozen = changelog.readAsStringSync();
+      const see =
+          'See `packages/oka/CHANGELOG.md` for train-wide release notes.';
       expect(frozen, contains('## 0.12.0 <!-- x-release-please-version -->'));
       expect(frozen, contains('## 0.11.0'));
       expect(frozen, isNot(contains('## 0.11.0 <!--')));
+      final seeCount = see.allMatches(frozen).length;
+      expect(seeCount, greaterThanOrEqualTo(2));
+      expect(
+        frozen.indexOf('## 0.11.0'),
+        lessThan(frozen.indexOf(see, frozen.indexOf('## 0.11.0'))),
+      );
 
       final second = _runApply(fixture, released: '0.11.0', next: '0.12.0');
       expect(second.exitCode, 0, reason: _out(second));

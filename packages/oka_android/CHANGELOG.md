@@ -4,6 +4,8 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
 ## 0.10.0
 
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
 
 - Style: adjacent-string lints in `resource_ids_live_test`.
 
