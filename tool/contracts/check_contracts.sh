@@ -13,6 +13,7 @@ bash tool/contracts/check_docs_drift.sh
 dart tool/contracts/check_example_path_overrides.dart
 bash tool/release/check_no_personal_paths.sh
 bash tool/release/check_changelog_markdown.sh
+bash tool/contracts/run_actionlint.sh
 bash tool/contracts/test_publish_packages_oidc.sh
 
 echo ""
