@@ -8,6 +8,29 @@ import 'support/repo_root.dart';
 void main() {
   final repo = findOkaRepoRoot();
 
+  test('freeze --apply does not grow a trailing blank line on each run', () {
+    final fixture = Directory.systemTemp.createTempSync('oka_freeze_eof_');
+    try {
+      _copyFollowerChangelogs(fixture, repo);
+      final changelog = File('${fixture.path}/packages/oka_core/CHANGELOG.md');
+      changelog.writeAsStringSync(
+        '## 0.10.1 <!-- x-release-please-version -->\n\n'
+        'See `packages/oka/CHANGELOG.md` for train-wide release notes.\n\n'
+        '- note\n',
+      );
+      _copyFreezeTooling(fixture, repo);
+      for (var i = 0; i < 2; i++) {
+        _runApply(fixture, released: '0.10.1', next: '0.11.0');
+      }
+      final text = changelog.readAsStringSync();
+      expect(text.endsWith('\n'), isTrue);
+      expect(text.endsWith('\n\n'), isFalse);
+      expect(RegExp(r'\n\n$').hasMatch(text), isFalse);
+    } finally {
+      fixture.deleteSync(recursive: true);
+    }
+  });
+
   test('freeze --apply is safe to rerun after the layout is already frozen', () {
     final fixture = Directory.systemTemp.createTempSync('oka_freeze_changelog_');
     try {
@@ -34,6 +57,9 @@ void main() {
         lessThan(frozen.indexOf(see, frozen.indexOf('## 0.11.0'))),
       );
       expect(frozen, isNot(contains('$see\n\n\n')));
+      expect(frozen.endsWith('\n'), isTrue);
+      expect(frozen.endsWith('\n\n'), isFalse);
+      expect(RegExp(r'\n\n$').hasMatch(frozen), isFalse);
 
       final second = _runApply(fixture, released: '0.11.0', next: '0.12.0');
       expect(second.exitCode, 0, reason: _out(second));
