@@ -71,6 +71,24 @@ $_threeTrain
   };
 }
 ''',
+      'map literal keys': '''
+void main() {
+  const v = <String, String>{
+    'oka_process': '1',
+    'oka_core': '1',
+    'oka_artifacts': '1',
+  };
+}
+''',
+      'spread list elements': '''
+void main() {
+  const all = <String>[
+    ...['oka_process'],
+    ...['oka_core'],
+    ...['oka_artifacts'],
+  ];
+}
+''',
     };
 
     for (final entry in escapeCases.entries) {
@@ -163,10 +181,142 @@ void main() {
       expect(hits, isEmpty);
     });
 
-    test('allowlist documents non-inventory exceptions only', () {
+    test('flags map literal with train package keys', () {
+      final hits = scanDuplicateTrainPackageListsInSource(
+        'fixture/map_keys.dart',
+        escapeCases['map literal keys']!,
+      );
+      expect(hits, isNotEmpty);
+    });
+
+    test('flags spread-unwrapped train names', () {
+      final hits = scanDuplicateTrainPackageListsInSource(
+        'fixture/spread.dart',
+        escapeCases['spread list elements']!,
+      );
+      expect(hits, isNotEmpty);
+    });
+
+    test('rejects allow comment without reason', () {
+      final hits = scanDuplicateTrainPackageListsInSource(
+        'fixture/bad_allow.dart',
+        '''
+void main() {
+  // train-inventory-scan: allow
+  const v = {
+    'oka_process': '1',
+    'oka_core': '1',
+    'oka_artifacts': '1',
+  };
+}
+''',
+      );
+      expect(hits, isNotEmpty);
+    });
+
+    test('literal allow exempts annotated architecture forbidden sets', () {
+      final repo = findOkaRepoRoot();
+      final source = File(
+        p.join(repo, 'tool/contracts/check_architecture.dart'),
+      ).readAsStringSync();
       expect(
-        duplicateTrainInventoryAllowlist.map((e) => e.path).toList(),
-        ['tool/contracts/check_architecture.dart'],
+        scanDuplicateTrainPackageListsInSource(
+          'tool/contracts/check_architecture.dart',
+          source,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('pasted train inventory at end of architecture file is flagged', () {
+      final repo = findOkaRepoRoot();
+      final base = File(
+        p.join(repo, 'tool/contracts/check_architecture.dart'),
+      ).readAsStringSync();
+      final injected = '''
+$base
+const packages = <String>[
+  'oka_process',
+  'oka_core',
+  'oka_artifacts',
+  'oka',
+];
+''';
+      final hits = scanDuplicateTrainPackageListsInSource(
+        'tool/contracts/check_architecture.dart',
+        injected,
+      );
+      expect(hits, isNotEmpty);
+      expect(hits.join('\n'), contains('list literal'));
+    });
+
+    test('annotated literal stays exempt beside unannotated duplicate', () {
+      final hits = scanDuplicateTrainPackageListsInSource(
+        'fixture/arch_mixed.dart',
+        '''
+void f() {
+  // train-inventory-scan: allow architecture forbidden-import set
+  const allowed = {'oka', 'oka_web', 'oka_play', 'oka_huawei'};
+  const packages = <String>['oka_process', 'oka_core', 'oka_artifacts', 'oka'];
+}
+''',
+      );
+      expect(hits, hasLength(1));
+      expect(hits.single, contains('list literal'));
+    });
+
+    final newFixtures = <String, String>{
+      'map literal keys': escapeCases['map literal keys']!,
+      'spread list elements': escapeCases['spread list elements']!,
+      'allow without reason': '''
+void main() {
+  // train-inventory-scan: allow
+  const v = {'oka_process': '1', 'oka_core': '1', 'oka_artifacts': '1'};
+}
+''',
+    };
+
+    for (final entry in newFixtures.entries) {
+      test(
+        '0d819ce1 scanner misses ${entry.key}; current scanner flags (mutation)',
+        () {
+          final rel = 'fixture/mutation_${entry.key.hashCode}.dart';
+          final legacy = scanDuplicateTrainPackageListsAt0d819ce1(
+            rel,
+            entry.value,
+          );
+          final current = scanDuplicateTrainPackageListsInSource(
+            rel,
+            entry.value,
+          );
+          expect(legacy, isEmpty, reason: '0d819ce1 baseline for ${entry.key}');
+          expect(current, isNotEmpty, reason: 'current scanner for ${entry.key}');
+        },
+      );
+    }
+
+    test('0d819ce1 file allowlist hid architecture paste on same path', () {
+      final repo = findOkaRepoRoot();
+      final base = File(
+        p.join(repo, 'tool/contracts/check_architecture.dart'),
+      ).readAsStringSync();
+      final injected = '''
+$base
+const packages = <String>['oka_process', 'oka_core', 'oka_artifacts', 'oka'];
+''';
+      expect(
+        scanDuplicateTrainPackageListsAt0d819ce1(
+          'tool/contracts/check_architecture.dart',
+          injected,
+        ),
+        isEmpty,
+      );
+      expect(
+        scanDuplicateTrainPackageListsInSource(
+          'tool/contracts/check_architecture.dart',
+          injected,
+        ),
+        isNotEmpty,
       );
     });
 

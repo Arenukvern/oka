@@ -54,6 +54,7 @@ Map<String, Object?> inspectArchitecture(Directory root) {
           ? resolved.substring(packagePath.length).split('/').first
           : null;
       final forbidden = switch (package) {
+        // train-inventory-scan: allow architecture forbidden-import set
         'oka_core' || 'oka_conformance' => const {
           'oka',
           'oka_android',
@@ -62,6 +63,7 @@ Map<String, Object?> inspectArchitecture(Directory root) {
           'oka_huawei',
           'oka_rustore',
         },
+        // train-inventory-scan: allow architecture forbidden-import set
         'oka_android' => const {
           'oka',
           'oka_web',
@@ -69,6 +71,7 @@ Map<String, Object?> inspectArchitecture(Directory root) {
           'oka_huawei',
           'oka_rustore',
         },
+        // train-inventory-scan: allow architecture forbidden-import set
         'oka_web' => const {
           'oka',
           'oka_android',
@@ -76,8 +79,11 @@ Map<String, Object?> inspectArchitecture(Directory root) {
           'oka_huawei',
           'oka_rustore',
         },
+        // train-inventory-scan: allow architecture forbidden-import set
         'oka_play' => const {'oka', 'oka_web', 'oka_huawei', 'oka_rustore'},
+        // train-inventory-scan: allow architecture forbidden-import set
         'oka_huawei' => const {'oka', 'oka_web', 'oka_play', 'oka_rustore'},
+        // train-inventory-scan: allow architecture forbidden-import set
         'oka_rustore' => const {'oka', 'oka_web', 'oka_play', 'oka_huawei'},
         _ => const <String>{},
       };

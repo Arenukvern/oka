@@ -24,6 +24,7 @@ void main() {
       'example/pubspec.yaml',
       'name: example\ndependencies:\n  oka: ^0.1.6\n  oka_play: ^0.1.6\n',
     );
+    // train-inventory-scan: allow fixture pubspec dependency graph (not inventory)
     final dependencies = <String, List<String>>{
       'oka_process': [],
       'resource_composition': [],

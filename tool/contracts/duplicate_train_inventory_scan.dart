@@ -9,35 +9,38 @@ import 'package:path/path.dart' as p;
 
 import '../release/train_inventory.dart';
 
-/// Canonical inventory — the only file that may embed a full train package list.
-const canonicalTrainInventoryPath = 'tool/release/train_inventory.dart';
-
-/// Paths exempt from duplicate-inventory detection (relative to repo root).
+/// Content-based duplicate train-inventory detector.
 ///
-/// Add entries only when a test must spell package order explicitly; keep empty
-/// unless genuinely needed.
-const duplicateTrainInventoryAllowlist = <({String path, String reason})>[
-  (
-    path: 'tool/contracts/check_architecture.dart',
-    reason:
-        'Per-package forbidden import sets (architecture gates), not train inventory',
-  ),
-];
+/// Flags list, set, or map literals (map **keys** count) outside
+/// [canonicalTrainInventoryPath] that embed ≥3 train package name string
+/// literals. [SpreadElement] operands that are list/set literals are unwrapped.
+///
+/// **Known limits** (intentionally not flagged):
+/// - Lists built from named constants, e.g. `[a, b, c]` when `a`/`b`/`c` are
+///   identifiers defined elsewhere.
+/// - Dynamic construction such as `'a,b,c'.split(',')`.
+///
+/// **Per-literal exemption:** place `// train-inventory-scan: allow <reason>`
+/// on the line directly above the literal, or on the same line before the
+/// opening `[`/`{`. `<reason>` is mandatory and must be non-empty. There is no
+/// file-level allowlist.
+const canonicalTrainInventoryPath = 'tool/release/train_inventory.dart';
 
 const _minTrainNamesInLiteral = 3;
 
-final Set<String> _trainPackageNames = packages.toSet();
+/// `// train-inventory-scan: allow <non-empty reason>`
+final RegExp _allowCommentPattern = RegExp(
+  r'//\s*train-inventory-scan:\s*allow\s+(.+)\s*$',
+);
 
-bool _isAllowlisted(String relPath) {
-  for (final entry in duplicateTrainInventoryAllowlist) {
-    if (entry.path == relPath) return true;
-  }
-  return false;
-}
+final RegExp _allowCommentWithoutReasonPattern = RegExp(
+  r'//\s*train-inventory-scan:\s*allow\s*$',
+);
+
+final Set<String> _trainPackageNames = packages.toSet();
 
 bool _shouldSkipFile(String rel) {
   if (rel == canonicalTrainInventoryPath) return true;
-  if (_isAllowlisted(rel)) return true;
   if (rel.contains('/.dart_tool/') ||
       rel.startsWith('build/') ||
       rel.contains('/build/')) {
@@ -46,8 +49,8 @@ bool _shouldSkipFile(String rel) {
   return false;
 }
 
-/// Dart files under [root] (excluding [canonicalTrainInventoryPath] and
-/// [duplicateTrainInventoryAllowlist]) that embed a second train-like list/set.
+/// Dart files under [root] (excluding [canonicalTrainInventoryPath]) that
+/// embed a second train-like list/set/map literal.
 List<String> findDuplicateTrainPackageLists(Directory root) {
   final offenders = <String>[];
   final trainRoot = p.normalize(root.path);
@@ -69,8 +72,7 @@ List<String> scanDuplicateTrainPackageListsInSource(
   String relPath,
   String source,
 ) {
-  if (relPath == canonicalTrainInventoryPath ||
-      _isAllowlisted(relPath)) {
+  if (relPath == canonicalTrainInventoryPath) {
     return [];
   }
   return _scanFileSource(relPath, source)..sort();
@@ -89,19 +91,64 @@ List<String> _scanFileSource(String relPath, String source) {
   final lineInfo = parseResult.lineInfo;
   final visitor = _TrainLiteralScanner(
     relPath: relPath,
+    source: source,
     lineInfo: lineInfo,
   );
   parseResult.unit.accept(visitor);
   return visitor.violations;
 }
 
+String? _allowReasonOnOrAboveLiteral(
+  String source,
+  LineInfo lineInfo,
+  AstNode node,
+) {
+  final start = lineInfo.getLocation(node.offset);
+  final end = lineInfo.getLocation(node.end);
+  final lines = source.split('\n');
+  final firstLine0 = start.lineNumber - 1;
+  if (firstLine0 < 0 || firstLine0 >= lines.length) return null;
+
+  for (var line0 = firstLine0; line0 >= 0 && line0 >= firstLine0 - 4; line0--) {
+    final line = lines[line0];
+    if (_allowCommentWithoutReasonPattern.hasMatch(line)) {
+      return null;
+    }
+    final match = _allowCommentPattern.firstMatch(line);
+    if (match != null) {
+      final reason = match.group(1)!.trim();
+      if (reason.isNotEmpty) {
+        // Same-line allow must appear before the literal's closing token.
+        if (line0 == firstLine0 && line0 == end.lineNumber - 1) {
+          final allowIndex = line.indexOf('//');
+          final openIndex = line.indexOf(RegExp(r'[\[{]'));
+          if (openIndex >= 0 && allowIndex > openIndex) {
+            continue;
+          }
+        }
+        return reason;
+      }
+      return null;
+    }
+    if (line0 < firstLine0) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      if (trimmed.startsWith('//')) continue;
+      break;
+    }
+  }
+  return null;
+}
+
 final class _TrainLiteralScanner extends RecursiveAstVisitor<void> {
   _TrainLiteralScanner({
     required this.relPath,
+    required this.source,
     required this.lineInfo,
   });
 
   final String relPath;
+  final String source;
   final LineInfo lineInfo;
   final List<String> violations = [];
 
@@ -114,13 +161,18 @@ final class _TrainLiteralScanner extends RecursiveAstVisitor<void> {
   @override
   void visitSetOrMapLiteral(SetOrMapLiteral node) {
     final isMap = node.elements.any((e) => e is MapLiteralEntry);
-    if (!isMap) {
-      _checkLiteral(node, 'set', node.elements);
-    }
+    _checkLiteral(node, isMap ? 'map' : 'set', node.elements);
     super.visitSetOrMapLiteral(node);
   }
 
-  void _checkLiteral(AstNode node, String kind, NodeList<CollectionElement> elements) {
+  void _checkLiteral(
+    AstNode node,
+    String kind,
+    NodeList<CollectionElement> elements,
+  ) {
+    if (_allowReasonOnOrAboveLiteral(source, lineInfo, node) != null) {
+      return;
+    }
     final names = _trainNamesInCollection(elements);
     if (names.length >= _minTrainNamesInLiteral) {
       final location = lineInfo.getLocation(node.offset);
@@ -136,6 +188,18 @@ final class _TrainLiteralScanner extends RecursiveAstVisitor<void> {
 List<String> _trainNamesInCollection(NodeList<CollectionElement> elements) {
   final found = <String>{};
   for (final element in elements) {
+    if (element is MapLiteralEntry) {
+      final key = element.key;
+      if (key is SimpleStringLiteral &&
+          _trainPackageNames.contains(key.value)) {
+        found.add(key.value);
+      }
+      continue;
+    }
+    if (element is SpreadElement) {
+      _collectTrainNamesFromExpression(element.expression, found);
+      continue;
+    }
     if (element is Expression) {
       _collectTrainNamesFromExpression(element, found);
     }
@@ -163,10 +227,7 @@ void _collectTrainNamesFromExpression(Expression expression, Set<String> found) 
     _trainNamesInCollection(expression.elements).forEach(found.add);
   }
   if (expression is SetOrMapLiteral) {
-    final isMap = expression.elements.any((e) => e is MapLiteralEntry);
-    if (!isMap) {
-      _trainNamesInCollection(expression.elements).forEach(found.add);
-    }
+    _trainNamesInCollection(expression.elements).forEach(found.add);
   }
 }
 
@@ -200,4 +261,89 @@ List<String> findDuplicateTrainPackageListsLineBased(Directory root) {
   }
   offenders.sort();
   return offenders;
+}
+
+/// Snapshot of the 0d819ce1 scanner (file allowlist, maps skipped, no spreads).
+///
+/// For mutation tests only.
+List<String> scanDuplicateTrainPackageListsAt0d819ce1(
+  String relPath,
+  String source,
+) {
+  if (relPath == canonicalTrainInventoryPath) return [];
+  if (relPath == 'tool/contracts/check_architecture.dart') return [];
+
+  final parseResult = parseString(
+    content: source,
+    featureSet: FeatureSet.latestLanguageVersion(),
+    path: relPath,
+  );
+  if (parseResult.errors.isNotEmpty) return [];
+  final visitor = _TrainLiteralScanner0d819ce1(
+    relPath: relPath,
+    lineInfo: parseResult.lineInfo,
+  );
+  parseResult.unit.accept(visitor);
+  return visitor.violations..sort();
+}
+
+final class _TrainLiteralScanner0d819ce1 extends RecursiveAstVisitor<void> {
+  _TrainLiteralScanner0d819ce1({
+    required this.relPath,
+    required this.lineInfo,
+  });
+
+  final String relPath;
+  final LineInfo lineInfo;
+  final List<String> violations = [];
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    _check(node, 'list', node.elements);
+    super.visitListLiteral(node);
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    final isMap = node.elements.any((e) => e is MapLiteralEntry);
+    if (!isMap) {
+      _check(node, 'set', node.elements);
+    }
+    super.visitSetOrMapLiteral(node);
+  }
+
+  void _check(AstNode node, String kind, NodeList<CollectionElement> elements) {
+    final found = <String>{};
+    for (final element in elements) {
+      if (element is Expression) {
+        _expr(element, found);
+      }
+    }
+    final names = found.toList()..sort();
+    if (names.length >= _minTrainNamesInLiteral) {
+      final location = lineInfo.getLocation(node.offset);
+      violations.add(
+        '$relPath:${location.lineNumber}:${location.columnNumber}: '
+        '$kind literal contains ${names.length} train package names',
+      );
+    }
+  }
+
+  void _expr(Expression expression, Set<String> found) {
+    if (expression is SimpleStringLiteral &&
+        _trainPackageNames.contains(expression.value)) {
+      found.add(expression.value);
+    } else if (expression is ListLiteral) {
+      for (final element in expression.elements) {
+        if (element is Expression) _expr(element, found);
+      }
+    } else if (expression is SetOrMapLiteral) {
+      final isMap = expression.elements.any((e) => e is MapLiteralEntry);
+      if (!isMap) {
+        for (final element in expression.elements) {
+          if (element is Expression) _expr(element, found);
+        }
+      }
+    }
+  }
 }
