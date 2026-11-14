@@ -3,7 +3,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'publish_order.dart';
 import 'train_inventory.dart';
+
+/// Published to pub.dev by CI (`publish_packages.sh`). Upload order is a
+/// topological sort of in-train `dependencies` and `dev_dependencies`
+/// ([packages] is tiebreak).
+List<String> publishOrderForPubDev(Directory root) =>
+    topologicalPublishOrder(root, packages, packages);
 
 const marker = 'x-release-please-version';
 
@@ -239,16 +246,16 @@ Never _usage(String? error) {
 void main(List<String> arguments) {
   try {
     final parsed = _parseArguments(arguments);
-    if (parsed.command == 'list') {
-      final names = parsed.forPub ? packagesForPubDev() : packages;
-      stdout.writeln(names.join('\n'));
-      return;
-    }
-
     final configuredRoot = Platform.environment['OKA_ROOT'];
     final root = configuredRoot == null
         ? File.fromUri(Platform.script).parent.parent.parent
         : Directory(configuredRoot);
+    if (parsed.command == 'list') {
+      final names =
+          parsed.forPub ? publishOrderForPubDev(root) : packages;
+      stdout.writeln(names.join('\n'));
+      return;
+    }
     final versionFile = File(_join(root.path, 'VERSION'));
     final originalVersion = _read(versionFile);
     final version = parsed.version ?? originalVersion.trim();

@@ -3,14 +3,15 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../tool/contracts/duplicate_train_inventory_scan.dart';
 import '../tool/contracts/workspace_leak_scan.dart';
-import '../tool/release/train_inventory.dart' as train_inventory;
+import '../tool/release/train_inventory.dart';
 import 'support/repo_root.dart';
 
 void main() {
   final realRoot = Directory(findOkaRepoRoot());
 
-  test('scanner inventory matches dart tool/release/train.dart list', () {
+  test('scan inventory matches dart tool/release/train.dart list', () {
     final repo = findOkaRepoRoot();
     final result = Process.runSync(
       Platform.executable,
@@ -25,7 +26,12 @@ void main() {
         .toList();
     final scanned = trainPackagesForWorkspaceLeakScan().toList();
     expect(scanned, listed);
-    expect(scanned, train_inventory.packages);
+    expect(scanned, packages);
+    expect(listed, contains('oka_process'));
+  });
+
+  test('no second hard-coded train package list in repo .dart sources', () {
+    expect(findDuplicateTrainPackageLists(realRoot), isEmpty);
   });
 
   test('real train packages have no workspace-leak imports in lib/', () {

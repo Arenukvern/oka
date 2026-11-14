@@ -1,8 +1,19 @@
 # Changelog
 
-## 0.10.0 <!-- x-release-please-version -->
+## 0.10.1 <!-- x-release-please-version -->
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.0
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+### Changed
+
+- Joins the automated pub.dev OIDC publish train
+  (`tool/release/train.dart list --publish`, first in dependency order). The
+  last release on pub.dev was **0.8.1** (hand-published); 0.9.x train bumps were
+  in-repo only until CI wiring landed.
 
 ### Added
 
@@ -28,3 +39,4 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   and stop-receipt types, graceful cleanup hook, observation budget.
 - Placeholder p1 contract doc and conformance harness directory for the dfp
   suite migration.
+

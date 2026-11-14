@@ -1,4 +1,5 @@
-// Release-train package inventory (single source for `train.dart list`).
+// Single source of truth for the release-train package inventory.
+// Consumers: train.dart, publish_order.dart, workspace leak scan, test fixtures.
 
 /// Packages synced on the release train (versions, changelogs, licenses).
 const packages = <String>[
@@ -16,10 +17,3 @@ const packages = <String>[
   'oka_harness',
   'oka',
 ];
-
-/// Published to pub.dev by CI (`publish_packages.sh`). `oka_process` is
-/// manual-only from the maintainer's Mac — see packages/oka_process/PUBLISHING.md.
-const pubDevManualOnly = {'oka_process'};
-
-Iterable<String> packagesForPubDev() =>
-    packages.where((p) => !pubDevManualOnly.contains(p));

@@ -14,8 +14,10 @@ bash tool/contracts/check_docs_drift.sh
 dart tool/contracts/check_example_path_overrides.dart
 dart tool/contracts/check_no_directory_current_assignment.dart
 dart tool/contracts/check_train_package_lib_workspace_leak.dart
+dart tool/contracts/check_duplicate_train_inventory.dart
 bash tool/release/check_no_personal_paths.sh
 bash tool/release/check_changelog_markdown.sh
+bash tool/contracts/run_actionlint.sh
 bash tool/contracts/test_publish_packages_oidc.sh
 
 echo ""

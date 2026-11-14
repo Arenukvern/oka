@@ -19,7 +19,7 @@ fi
 cd "$ROOT_DIR"
 bash tool/release/check_version_sync.sh
 
-# Pub.dev train (excludes manual-only packages such as oka_process).
+# Pub.dev train (dependency order from train.dart list --publish).
 package_list="$(dart tool/release/train.dart list --publish)"
 packages=()
 while IFS= read -r package; do packages+=("$package"); done <<< "$package_list"
