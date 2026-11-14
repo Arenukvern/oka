@@ -75,5 +75,3 @@ targets use — publish only after the train lands, never against hosted
   pilot (a store package ships exactly this const shape alongside its
   runtime adapter), with SDK-script global reconciled against the
   runtime adapter's `expectedSdkGlobal`.
-
-

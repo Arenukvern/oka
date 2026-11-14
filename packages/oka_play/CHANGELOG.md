@@ -42,5 +42,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   (`PlayPublisherClient`: create edit → upload AAB → assign track →
   commit), and JWT → OAuth token exchange through googleapis_auth over an
   injectable transport (tests run fully offline).
-
-

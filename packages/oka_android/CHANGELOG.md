@@ -69,5 +69,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 ## 0.1.5
 
 - Package split from the oka CLI (ADR-0006).
-
-

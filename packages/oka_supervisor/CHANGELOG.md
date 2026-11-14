@@ -35,5 +35,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   (service/job shapes, watch/interval triggers as properties), advisory
   `MachineRegistry` with cession-based kill policy, crash-only
   `Supervisor.converge` driver, and `supervisorFinding` evidence events.
-
-

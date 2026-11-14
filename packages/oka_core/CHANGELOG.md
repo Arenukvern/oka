@@ -109,5 +109,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
 - Declarative composition root (`Oka`, `PlatformPipeline`), typed artifact
   pipeline, `okaRun` entrypoint (ADR-0006).
-
-

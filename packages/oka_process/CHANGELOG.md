@@ -43,5 +43,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   and stop-receipt types, graceful cleanup hook, observation budget.
 - Placeholder p1 contract doc and conformance harness directory for the dfp
   suite migration.
-
-

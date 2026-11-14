@@ -38,5 +38,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 ## 0.4.0
 
 - Version alignment with the 0.4.0 oka release train; no functional changes in this package.
-
-

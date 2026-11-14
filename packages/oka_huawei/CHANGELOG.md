@@ -46,5 +46,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   `HuaweiBuildVariant` — the GMS-excluding AndroidBuild variant whose
   composition is validated by the standard artifact checker before any tool
   runs.
-
-

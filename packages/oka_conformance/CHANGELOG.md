@@ -39,5 +39,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   assertions (`expectNoSecretMaterial`, `expectStateRedacted`), plan-shape
   assertions (`expectPlanShape`, `expectPlanDescribes`), and the scripted
   offline `FakeHttpTransport`.
-
-

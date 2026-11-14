@@ -45,5 +45,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   `LogTap`, the `ResourceProvider` interface with declared capabilities,
   `CompositionRunner` with reverse-order teardown that never masks the
   original failure, evidence sinks, and a scripted `FakeProvider`.
-
-
