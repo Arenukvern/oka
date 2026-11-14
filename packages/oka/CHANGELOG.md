@@ -4,6 +4,87 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.10.0](https://github.com/Arenukvern/oka/compare/v0.9.1...v0.10.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **oka_update:** oka_update exposes universal_automation_interface types in its public API — SurfaceActionDescriptor on LiveVerb.descriptor and liveVerbDescriptors (packages/oka_update/lib/src/live/agent.dart, re-exported from packages/oka_update/lib/oka_update.dart). Downstream apps must allow interface ^0.4.0. oka_harness lib does not export interface types (packages/oka_harness/lib/).
+
+### Features
+
+* **android:** clarify runner-session pid vs spawn handle ownership ([f339a35](https://github.com/Arenukvern/oka/commit/f339a359dc202896ab1591be7d80469e1a3145a7))
+* **android:** record forwardReleased on attach spawn failure ([f7cbd8f](https://github.com/Arenukvern/oka/commit/f7cbd8f33afed606896a2cce9fae754725840f40))
+* **artifacts:** bounded retention — snapshots truncate the chain; sweep GC ([fc88224](https://github.com/Arenukvern/oka/commit/fc8822470dfe1ab094947a1526f13e759e781b4d))
+* **harness:** cooperative oka dev android stop with truthful receipt ([7515324](https://github.com/Arenukvern/oka/commit/75153244c0357b04f730707c95bae98b8b29b7fd))
+* **linux L0:** desktop dev doctor + Flutter linux JIT gates ([2679790](https://github.com/Arenukvern/oka/commit/26797901714ff7c3cd794c139273837191d51472))
+* **linux L0:** doctor diagnostics + Flutter desktop dev gates ([2b43ffd](https://github.com/Arenukvern/oka/commit/2b43ffd5f719109966112589c811e1297e1ca469))
+* **oka_devices:** add R2 declarative device/run spec types ([56dcfc3](https://github.com/Arenukvern/oka/commit/56dcfc35b563bae3ef22dd65bef1b98973ce1415))
+* **oka_devices:** R2 declarative device/run spec types ([3477fb8](https://github.com/Arenukvern/oka/commit/3477fb8ad96bd96750a7cdbe2959f818e55d6029))
+* **update:** S2 slot registry and in-process slot swap (ADR-0035) ([a454cdc](https://github.com/Arenukvern/oka/commit/a454cdc7d1fb972477e20ef71dc36b3161b31675))
+
+
+### Bug Fixes
+
+* **android-dev:** attach fail-fast and bounded handshake diagnostics ([2b2cf12](https://github.com/Arenukvern/oka/commit/2b2cf125fc7ca4d1e800023a470bce834fe07ec8))
+* **android-dev:** attach via port flags not debug-url (b946 evidence) ([a92e818](https://github.com/Arenukvern/oka/commit/a92e818061de37e9188eada5c41a3d855596e5bc))
+* **android-dev:** bounded teardown receipt and attach debug-url ([a7d7180](https://github.com/Arenukvern/oka/commit/a7d71801affce8ac39c73b8a1abea1dcf8ac482a))
+* **android-dev:** pidof exit 1 absence after shell sentinel ([ba61812](https://github.com/Arenukvern/oka/commit/ba618121133d0bb43809ac3194fd9a154e6ac288))
+* **android-dev:** SDK teardown with owned-forward and honest quit ([cb672b7](https://github.com/Arenukvern/oka/commit/cb672b7bca8198c57a05b548443980efabf5d679))
+* **android-dev:** sidecar identity via discovery snapshot at stop ([1b7f18f](https://github.com/Arenukvern/oka/commit/1b7f18fa48f2c87096e023ce59478d30737e69f8))
+* **android-dev:** teardown budget timing and attach device debug URL ([ac745d9](https://github.com/Arenukvern/oka/commit/ac745d9f44f5aa5f0d0bcea31ea0be16615d078c))
+* **android:** attach handshake race precheck and bounded diagnostic ring ([a71e340](https://github.com/Arenukvern/oka/commit/a71e340016b4bd2cbd28c6481a4e05cb38e1156d))
+* **android:** CI fatal-infos, safe handshake diagnostics, test support ([e021187](https://github.com/Arenukvern/oka/commit/e02118704844fb53f65ef6313fdbf89b4eb62812))
+* **android:** fail-closed control quit when spawn binding is unknown ([1ab510f](https://github.com/Arenukvern/oka/commit/1ab510f887f83c15c79281c4679d59aa0245e301))
+* **android:** honest stop receipt, stale-port guard, CI harness lint ([469b0d5](https://github.com/Arenukvern/oka/commit/469b0d55298035c9e896a49474df89a06680380b))
+* **android:** pidof wait uses teardown budget Stopwatch ([dd6bf55](https://github.com/Arenukvern/oka/commit/dd6bf557dbe9240496e57f397c3ac59a9c6fc7ef))
+* **android:** redact only loopback VM auth tokens in diagnostics ([825a68b](https://github.com/Arenukvern/oka/commit/825a68b75fdd1ab20f03db30e3e7add9b7c527bf))
+* **android:** separate DDS port from oka-owned adb forward on attach ([ce67694](https://github.com/Arenukvern/oka/commit/ce6769483b7a4f1877ede7bab11c9e690df90236))
+* bounded branding, release train workspace deps, dev linux slice ([7a2d5ed](https://github.com/Arenukvern/oka/commit/7a2d5ed3a4adef278f9266d9a04553a187e5c7ff))
+* branding, release train workspace deps, dev linux slice ([#14](https://github.com/Arenukvern/oka/issues/14)) ([0ffa098](https://github.com/Arenukvern/oka/commit/0ffa098e7479ef18b01b24828e9857cf952cc9d9))
+* **ci:** address OIDC workflow env and add publish contracts ([ddbf256](https://github.com/Arenukvern/oka/commit/ddbf2569d3570e0ef16b3593d11ce4923645684e))
+* **ci:** reap yes fixtures deterministically; strengthen harness teardown ([32a1b69](https://github.com/Arenukvern/oka/commit/32a1b69f9f9980d3e67d7c772cf2c7f0a99d485c))
+* **ci:** refresh pub.dev OIDC token per package publish ([6edd33d](https://github.com/Arenukvern/oka/commit/6edd33d0e4cadc9de79a2e1ae567bd63718b01c9))
+* **ci:** refresh pub.dev OIDC token per package publish ([3e56cbd](https://github.com/Arenukvern/oka/commit/3e56cbd3bb87030db41df7e71298280db061e853))
+* **ci:** stop init tests from racing on Directory.current ([0823813](https://github.com/Arenukvern/oka/commit/0823813efdbbf0a1c2bb27b1f446200d8736f44b))
+* **ci:** stop init tests from racing on Directory.current ([6e0d6bf](https://github.com/Arenukvern/oka/commit/6e0d6bf5303c3f6ddc90dd207e15982f0890f7ab))
+* **core:** age out stale .oka_cache/build mode dirs (7d) in hygiene pass ([98eea0a](https://github.com/Arenukvern/oka/commit/98eea0a2527e2b90f7dbf9cb600147058c8a2d7b))
+* **core:** reap oka_* produce temp dirs at fetch; run store GC at start ([6606739](https://github.com/Arenukvern/oka/commit/66067392407ee1fd97fb90fd5a82253ed5e9621c))
+* **example:** commit pubspec_overrides.yaml and broaden override guard ([9b6dfc0](https://github.com/Arenukvern/oka/commit/9b6dfc0b8bd1229b7f4fbaadfba324c91acf8be2))
+* **example:** keep path overrides in pubspec.yaml for CI ([1069699](https://github.com/Arenukvern/oka/commit/10696996a087bfe026847f64292b2365402539cb))
+* **example:** path-override every reachable train package so release PRs resolve pre-publish ([a675e84](https://github.com/Arenukvern/oka/commit/a675e848f4b3f52687612a320cf2c8fbc494c061))
+* **example:** path-override reachable train packages for release resolution ([b88dc27](https://github.com/Arenukvern/oka/commit/b88dc27d99aaa9d67c8fa7aa71368a6f3ac89caa))
+* **harness:** Android dev session argv and defaultSteps run_session parity ([8b353f9](https://github.com/Arenukvern/oka/commit/8b353f90d5c60f276932a9e0edb8b6444040c54f))
+* **harness:** compat stopCooperatively without nullable spawn pid ([f41b0d6](https://github.com/Arenukvern/oka/commit/f41b0d64ffb02e4d2e51adf3608e43746809f470))
+* **harness:** route Android dev through oka dev android ([7416849](https://github.com/Arenukvern/oka/commit/7416849a14cf817217e6fd84c305d5f1529b7c41))
+* **linux L0:** assert VM probe expects; owned teardown and signals ([1175bd9](https://github.com/Arenukvern/oka/commit/1175bd992b55def149b259282cb91d69d1821eae))
+* **linux L0:** CI gate wiring, analyze clean, VM restart state proof ([44a52a3](https://github.com/Arenukvern/oka/commit/44a52a305c112c5f90672b75040fadcdb50e04e9))
+* **linux L0:** invoke oka_run_dev.dart directly on CI checkout layout ([bb6c4ce](https://github.com/Arenukvern/oka/commit/bb6c4ce442bfb2b3e0d36d564d5c7618253081a9))
+* **linux L0:** per-session subreaper, ownership ledger, startup abort ([22b2520](https://github.com/Arenukvern/oka/commit/22b2520d8dfa0cb3316a336ccd03fc9c6a8e95ea))
+* **linux L0:** public run dev path and owned-tree teardown ([1e3a73b](https://github.com/Arenukvern/oka/commit/1e3a73b9961fb6cbbcc27444fbebb47144c267ce))
+* **linux L0:** subreaper drain setsid adoptees before supervisor exit ([fc8cdb6](https://github.com/Arenukvern/oka/commit/fc8cdb6a48a0dfb7a4422b8667b834b44ca0d8ba))
+* **linux L0:** UA review — doctor probes, Dart gates, CI session race ([88805dd](https://github.com/Arenukvern/oka/commit/88805dd05373e95119060ce30019c9c81e0e2664))
+* **linux:** adversarial drain test uses synthetic proc; shard CI ([7c2028e](https://github.com/Arenukvern/oka/commit/7c2028ed9b936168f616ddb074103f48c345106e))
+* **linux:** fail-closed /proc scan, budget, and drain verification ([173cb01](https://github.com/Arenukvern/oka/commit/173cb017db2449232dee661099758e0917d179cc))
+* **linux:** harden subreaper drain with /proc fallback and diagnostics ([2a9519f](https://github.com/Arenukvern/oka/commit/2a9519fa10bb8d7414977bab652058341e596c20))
+* **linux:** stop ps churn under child subreaper during drain ([6a406bc](https://github.com/Arenukvern/oka/commit/6a406bc9ac80e45d5c2b7f3de7f4a7c76a4cddb3))
+* **linux:** UA fourth-review supervisor drain ack and safe fixtures ([bf21980](https://github.com/Arenukvern/oka/commit/bf219800ea2af87c28c2c8306c126ff37fa1db32))
+* **oka_devices:** enforce DDS port 0 when oka owns host forward ([41efe1a](https://github.com/Arenukvern/oka/commit/41efe1a8ddb5fe9c413899b877a4433fed031e96))
+* **oka_update:** require universal_automation_interface ^0.4.0 ([30d0a88](https://github.com/Arenukvern/oka/commit/30d0a88bdbb642de42afb835a69584b2f7b8db1b))
+* **review:** archive ^4.6.0 zip stamp + metadata/TZ regression tests ([84b5427](https://github.com/Arenukvern/oka/commit/84b5427ab69a58acfc9137625c01cd907dd3a811))
+* **review:** platform-scoped flutter_assets discovery ([#16](https://github.com/Arenukvern/oka/issues/16)) ([ce55950](https://github.com/Arenukvern/oka/commit/ce55950e4c87edd773ec8338ce0b91c8f6d38e13))
+* **review:** release-please non-train version guard + zip determinism ([6243e44](https://github.com/Arenukvern/oka/commit/6243e44aff2ddf2a0a64a6d19d286981401d5953))
+* **review:** Unix-0 zip stamp for TZ-stable DOS fields ([c33e31c](https://github.com/Arenukvern/oka/commit/c33e31c9bd5d6f3f5e441ccbf82e1fc7ac70029d))
+
+
+### Documentation
+
+* **android:** cite Flutter 3.47.5 for --dds-port default ([78505df](https://github.com/Arenukvern/oka/commit/78505df3f379bf5966d45608ccc4e31b928abeba))
+* **evidence:** note 1175bd9 supersedes false-green bc718886 ([641daad](https://github.com/Arenukvern/oka/commit/641daad071cbf870ef783b51f2a1ba503384aeef))
+* **evidence:** pin green CI 42526360936 on 641daad ([de3207e](https://github.com/Arenukvern/oka/commit/de3207e127d106a225f58a1a589ee77b1e15ea44))
+* **evidence:** pin green Linux L0 CI run 42524543199 ([bc71888](https://github.com/Arenukvern/oka/commit/bc7188867409c90833949fc2e94fad43383cac4e))
+* **oka_devices:** add README for pub.dev dry-run gate ([622eb7a](https://github.com/Arenukvern/oka/commit/622eb7ac9ea2b94e9baf4c8c8188c894c33a888e))
+
 ## [0.9.1](https://github.com/Arenukvern/oka/compare/v0.9.0...v0.9.1) (2026-10-27)
 
 

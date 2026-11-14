@@ -23,6 +23,6 @@ dependencies:
 
 dev_dependencies:
   lints: ^6.1.0
-  oka_android: ^0.9.1 # x-release-please-version
+  oka_android: ^0.10.0 # x-release-please-version
   test: ^1.25.0
   xsoulspace_lints: ^0.1.2

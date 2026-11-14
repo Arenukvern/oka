@@ -16,12 +16,12 @@ dependencies:
   ffi: ^2.1.4
   flutter_mcp_harness: ^7.1.1
   meta: ^1.19.0
-  oka_core: ^0.9.1 # x-release-please-version
+  oka_core: ^0.10.0 # x-release-please-version
   oka_update: ^0.0.1
   path: ^1.9.0
 
 dev_dependencies:
   lints: ^6.1.0
-  oka_web: ^0.9.1 # x-release-please-version
+  oka_web: ^0.10.0 # x-release-please-version
   test: ^1.25.0
   yaml: ^3.1.2
