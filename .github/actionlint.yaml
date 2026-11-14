@@ -1,5 +1,0 @@
-# Self-hosted labels allowed in workflow matrices.
-self-hosted-runner:
-  labels:
-    - ubuntu-latest
-    - windows-latest
