@@ -4,9 +4,11 @@ All notable changes to this package are documented here. The release train
 is repo-wide: versions move with the root `VERSION` (see
 `tool/release/check_version_sync.sh`).
 
-## 0.10.0 <!-- x-release-please-version -->
+## 0.11.0 <!-- x-release-please-version -->
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.0
 
 ## 0.8.1
 
@@ -38,3 +40,4 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   `HuaweiBuildVariant` — the GMS-excluding AndroidBuild variant whose
   composition is validated by the standard artifact checker before any tool
   runs.
+

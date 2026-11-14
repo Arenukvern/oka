@@ -5,9 +5,11 @@ All notable changes to this package are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.10.0 <!-- x-release-please-version -->
+## 0.11.0 <!-- x-release-please-version -->
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.0
 
 ## 0.8.1
 
@@ -37,3 +39,4 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   `LogTap`, the `ResourceProvider` interface with declared capabilities,
   `CompositionRunner` with reverse-order teardown that never masks the
   original failure, evidence sinks, and a scripted `FakeProvider`.
+

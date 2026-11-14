@@ -1,6 +1,8 @@
-## 0.10.0 <!-- x-release-please-version -->
+## 0.11.0 <!-- x-release-please-version -->
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.0
 
 ## 0.8.1
 
@@ -31,3 +33,4 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   assertions (`expectNoSecretMaterial`, `expectStateRedacted`), plan-shape
   assertions (`expectPlanShape`, `expectPlanDescribes`), and the scripted
   offline `FakeHttpTransport`.
+

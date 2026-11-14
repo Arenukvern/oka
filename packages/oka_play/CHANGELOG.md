@@ -1,6 +1,8 @@
-## 0.10.0 <!-- x-release-please-version -->
+## 0.11.0 <!-- x-release-please-version -->
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.0
 
 ## 0.8.1
 
@@ -34,3 +36,4 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   (`PlayPublisherClient`: create edit → upload AAB → assign track →
   commit), and JWT → OAuth token exchange through googleapis_auth over an
   injectable transport (tests run fully offline).
+
