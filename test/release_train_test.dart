@@ -21,10 +21,7 @@ const trainPackages = [
 ];
 
 /// Packages published by CI (`train.dart` `packagesForPubDev()`).
-const pubDevManualOnly = {'oka_process'};
-
-List<String> pubDevPackages() =>
-    trainPackages.where((name) => !pubDevManualOnly.contains(name)).toList();
+List<String> pubDevPackages() => List<String>.from(trainPackages);
 
 void main() {
   final repo = Directory.current.path;
@@ -276,6 +273,7 @@ void main() {
     );
     expect(result.exitCode, isNot(0));
     final attempted = [
+      'oka_process',
       'resource_composition',
       'oka_artifacts',
       'oka_core',

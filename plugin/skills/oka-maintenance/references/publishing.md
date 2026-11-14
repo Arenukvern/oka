@@ -12,18 +12,18 @@ wrong; when a script and this file disagree, fix this file or the script.
 - One workspace `VERSION`; every publishable package's `pubspec.yaml` and
   changelog must match it. `just check-contracts` gates the full sync
   (version, release-please manifest, changelogs, licenses, docs drift).
-- `dart tool/release/train.dart list --publish` is the pub.dev upload order.
+- `dart tool/release/train.dart list --publish` is the pub.dev upload order
+  (13 packages; `oka_process` is first — no in-train hosted dependents).
   Never publish out of order: a package whose hosted dependency closure does
   not exist at the new version cannot resolve for consumers after upload.
-- `oka_process` is **manual-only** (`pubDevManualOnly` in `train.dart`); see
-  `packages/oka_process/PUBLISHING.md`. `oka_dart_kernel`, `oka_update`, and
-  the root `oka_workspace` are `publish_to: none`; they ride along but never
-  upload.
+- `oka_dart_kernel`, `oka_update`, and the root `oka_workspace` are
+  `publish_to: none`; they ride along but never upload. See also
+  `packages/oka_process/PUBLISHING.md` for POSIX-only publish notes.
 
 ## One-time setup (Anton checklist)
 
 Complete once per train package (and again when adding a new publishable
-package). `oka_process` is excluded — it is not on the CI train.
+package).
 
 ### pub.dev — Automated publishing
 
@@ -32,6 +32,7 @@ For each package below, open `https://pub.dev/packages/<name>/admin` →
 
 | Package |
 | --- |
+| `oka_process` |
 | `resource_composition` |
 | `oka_artifacts` |
 | `oka_core` |
@@ -93,10 +94,10 @@ not depend on tag-push triggers.
 - PR validation: CI `validate` job runs per-package `dart pub publish --dry-run`
   on pull requests; merging does not publish.
 - The final "Verify published packages from a fresh hosted consumer" step
-  resolves only `dart tool/release/train.dart list --publish` (not
-  `oka_process`). No train package declares a hosted dependency on
-  `oka_process`, so CI publish does not require `oka_process:$VERSION` on
-  pub.dev.
+  resolves every name from `dart tool/release/train.dart list --publish`
+  (including `oka_process`). No other train package declares a hosted
+  dependency on `oka_process`, but the consumer gate still requires
+  `oka_process:$VERSION` on pub.dev after upload.
 - That step races pub.dev's index propagation (uploads claim "up to 10
   minutes"). If it fails with `doesn't match any versions` right after a green
   publish step, the uploads succeeded: wait for propagation, then
