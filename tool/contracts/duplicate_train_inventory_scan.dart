@@ -13,7 +13,9 @@ import '../release/train_inventory.dart';
 ///
 /// Flags list, set, or map literals (map **keys** count) outside
 /// [canonicalTrainInventoryPath] that embed ≥3 train package name string
-/// literals. [SpreadElement] operands that are list/set literals are unwrapped.
+/// literals. [SpreadElement] operands that are list/set literals are unwrapped;
+/// [IfElement] and [ForElement] bodies are walked recursively (including nested
+/// spreads and collection-if).
 ///
 /// **Known limits** (intentionally not flagged):
 /// - Lists built from named constants, e.g. `[a, b, c]` when `a`/`b`/`c` are
@@ -188,24 +190,43 @@ final class _TrainLiteralScanner extends RecursiveAstVisitor<void> {
 List<String> _trainNamesInCollection(NodeList<CollectionElement> elements) {
   final found = <String>{};
   for (final element in elements) {
-    if (element is MapLiteralEntry) {
-      final key = element.key;
-      if (key is SimpleStringLiteral &&
-          _trainPackageNames.contains(key.value)) {
-        found.add(key.value);
-      }
-      continue;
-    }
-    if (element is SpreadElement) {
-      _collectTrainNamesFromExpression(element.expression, found);
-      continue;
-    }
-    if (element is Expression) {
-      _collectTrainNamesFromExpression(element, found);
-    }
+    _collectTrainNamesFromCollectionElement(element, found);
   }
   final sorted = found.toList()..sort();
   return sorted;
+}
+
+void _collectTrainNamesFromCollectionElement(
+  CollectionElement element,
+  Set<String> found,
+) {
+  if (element is MapLiteralEntry) {
+    final key = element.key;
+    if (key is SimpleStringLiteral &&
+        _trainPackageNames.contains(key.value)) {
+      found.add(key.value);
+    }
+    return;
+  }
+  if (element is IfElement) {
+    _collectTrainNamesFromCollectionElement(element.thenElement, found);
+    final elseElement = element.elseElement;
+    if (elseElement != null) {
+      _collectTrainNamesFromCollectionElement(elseElement, found);
+    }
+    return;
+  }
+  if (element is ForElement) {
+    _collectTrainNamesFromCollectionElement(element.body, found);
+    return;
+  }
+  if (element is SpreadElement) {
+    _collectTrainNamesFromExpression(element.expression, found);
+    return;
+  }
+  if (element is Expression) {
+    _collectTrainNamesFromExpression(element, found);
+  }
 }
 
 void _collectTrainNamesFromExpression(Expression expression, Set<String> found) {
@@ -261,6 +282,119 @@ List<String> findDuplicateTrainPackageListsLineBased(Directory root) {
   }
   offenders.sort();
   return offenders;
+}
+
+/// Snapshot before IfElement / ForElement collection walks (spreads only).
+///
+/// For mutation tests only.
+List<String> scanDuplicateTrainPackageListsPreIfForUnwrap(
+  String relPath,
+  String source,
+) {
+  if (relPath == canonicalTrainInventoryPath) return [];
+
+  final parseResult = parseString(
+    content: source,
+    featureSet: FeatureSet.latestLanguageVersion(),
+    path: relPath,
+  );
+  if (parseResult.errors.isNotEmpty) return [];
+  final visitor = _TrainLiteralScannerPreIfForUnwrap(
+    relPath: relPath,
+    lineInfo: parseResult.lineInfo,
+  );
+  parseResult.unit.accept(visitor);
+  return visitor.violations..sort();
+}
+
+final class _TrainLiteralScannerPreIfForUnwrap extends RecursiveAstVisitor<void> {
+  _TrainLiteralScannerPreIfForUnwrap({
+    required this.relPath,
+    required this.lineInfo,
+  });
+
+  final String relPath;
+  final LineInfo lineInfo;
+  final List<String> violations = [];
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    _checkLiteral(node, 'list', node.elements);
+    super.visitListLiteral(node);
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    final isMap = node.elements.any((e) => e is MapLiteralEntry);
+    _checkLiteral(node, isMap ? 'map' : 'set', node.elements);
+    super.visitSetOrMapLiteral(node);
+  }
+
+  void _checkLiteral(
+    AstNode node,
+    String kind,
+    NodeList<CollectionElement> elements,
+  ) {
+    final names = _trainNamesInCollectionPreIfForUnwrap(elements);
+    if (names.length >= _minTrainNamesInLiteral) {
+      final location = lineInfo.getLocation(node.offset);
+      violations.add(
+        '$relPath:${location.lineNumber}:${location.columnNumber}: '
+        '$kind literal contains ${names.length} train package names',
+      );
+    }
+  }
+}
+
+List<String> _trainNamesInCollectionPreIfForUnwrap(
+  NodeList<CollectionElement> elements,
+) {
+  final found = <String>{};
+  for (final element in elements) {
+    if (element is MapLiteralEntry) {
+      final key = element.key;
+      if (key is SimpleStringLiteral &&
+          _trainPackageNames.contains(key.value)) {
+        found.add(key.value);
+      }
+      continue;
+    }
+    if (element is SpreadElement) {
+      _collectTrainNamesFromExpressionPreIfForUnwrap(element.expression, found);
+      continue;
+    }
+    if (element is Expression) {
+      _collectTrainNamesFromExpressionPreIfForUnwrap(element, found);
+    }
+  }
+  final sorted = found.toList()..sort();
+  return sorted;
+}
+
+void _collectTrainNamesFromExpressionPreIfForUnwrap(
+  Expression expression,
+  Set<String> found,
+) {
+  if (expression is SimpleStringLiteral) {
+    final value = expression.value;
+    if (_trainPackageNames.contains(value)) {
+      found.add(value);
+    }
+    return;
+  }
+  if (expression is StringInterpolation) {
+    return;
+  }
+  if (expression is ParenthesizedExpression) {
+    _collectTrainNamesFromExpressionPreIfForUnwrap(expression.expression, found);
+    return;
+  }
+  if (expression is ListLiteral) {
+    _trainNamesInCollectionPreIfForUnwrap(expression.elements).forEach(found.add);
+  }
+  if (expression is SetOrMapLiteral) {
+    _trainNamesInCollectionPreIfForUnwrap(expression.elements).forEach(found.add);
+  }
 }
 
 /// Snapshot of the 0d819ce1 scanner (file allowlist, maps skipped, no spreads).

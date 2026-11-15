@@ -323,5 +323,92 @@ const packages = <String>['oka_process', 'oka_core', 'oka_artifacts', 'oka'];
     test('train inventory packages count >= 3 for fixture validity', () {
       expect(packages.length, greaterThanOrEqualTo(3));
     });
+
+    final ifForEscapeCases = <String, String>{
+      'if-then only': '''
+void main() {
+  const v = <String>[
+    if (true) 'oka_process',
+    if (true) 'oka_core',
+    if (true) 'oka_artifacts',
+  ];
+}
+''',
+      'if-else split': '''
+void main() {
+  const v = <String>[
+    if (true) 'oka_process' else 'oka_core',
+    'oka_artifacts',
+  ];
+}
+''',
+      'nested if-in-spread': '''
+void main() {
+  const v = <String>[
+    ...[
+      if (true) 'oka_process',
+      if (true) 'oka_core',
+    ],
+    'oka_artifacts',
+  ];
+}
+''',
+      'for-element body': '''
+void main() {
+  const v = <String>[
+    for (final _ in <int>[1]) 'oka_process',
+    for (final _ in <int>[2]) 'oka_core',
+    for (final _ in <int>[3]) 'oka_artifacts',
+  ];
+}
+''',
+      'map-entry inside if': '''
+void main() {
+  const v = <String, String>{
+    if (true) 'oka_process': '1',
+    'oka_core': '1',
+    'oka_artifacts': '1',
+  };
+}
+''',
+    };
+
+    for (final entry in ifForEscapeCases.entries) {
+      test('flags if/for escape: ${entry.key}', () {
+        final rel = 'fixture/if_for_${entry.key.hashCode}.dart';
+        final hits = scanDuplicateTrainPackageListsInSource(rel, entry.value);
+        expect(hits, isNotEmpty, reason: 'expected violation for ${entry.key}');
+      });
+
+      test('if/for escape allow exempts: ${entry.key}', () {
+        final rel = 'fixture/if_for_allow_${entry.key.hashCode}.dart';
+        final withAllow = entry.value.replaceFirst(
+          '  const v =',
+          '  // train-inventory-scan: allow test fixture\n'
+          '  const v =',
+        );
+        expect(
+          scanDuplicateTrainPackageListsInSource(rel, withAllow),
+          isEmpty,
+        );
+      });
+
+      test(
+        'mutation pre-if-for misses ${entry.key}; current flags',
+        () {
+          final rel = 'fixture/mutation_if_for_${entry.key.hashCode}.dart';
+          expect(
+            scanDuplicateTrainPackageListsPreIfForUnwrap(rel, entry.value),
+            isEmpty,
+            reason: 'pre-if/for baseline should miss ${entry.key}',
+          );
+          expect(
+            scanDuplicateTrainPackageListsInSource(rel, entry.value),
+            isNotEmpty,
+            reason: 'current scanner should flag ${entry.key}',
+          );
+        },
+      );
+    }
   });
 }

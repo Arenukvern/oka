@@ -81,6 +81,16 @@ One-time pub.dev and GitHub Actions setup for the train is documented in
 Release sequence:
 
 1. Merge PRs to `main` with conventional commit titles.
+
+   **Merge commit body vs release-please:** release-please also parses
+   conventional-commit subjects found in a merge commit's **body**, not only
+   its title. GitHub's default merge commit body is the PR title, so when the PR
+   already contains commits whose subjects match that title (e.g.
+   `fix(contracts): …`), the generated changelog can list the same fix twice — as
+   in 0.10.2 (`98611f2` and `079100e`, PR [#36](https://github.com/Arenukvern/oka/pull/36)).
+   When merging with `merge_method=merge`, prefer a non-conventional merge body
+   (e.g. `Merged after pinned second-steward review.`) or omit the PR title from
+   the body unless the PR title is the only conventional message in the merge.
 2. release-please opens or updates a **Release PR** (e.g.
    `chore: release 0.2.0`) with `packages/oka/CHANGELOG.md` and `VERSION`.
    [`.github/workflows/release_pr_sync_versions.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/release_pr_sync_versions.yml)
