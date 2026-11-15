@@ -4,6 +4,18 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.10.3](https://github.com/Arenukvern/oka/compare/v0.10.2...v0.10.3) (2026-11-15)
+
+
+### Bug Fixes
+
+* **contracts:** recurse train-inventory scan through collection if/for ([cd7e2c5](https://github.com/Arenukvern/oka/commit/cd7e2c5978586e32458aa11774f0d0b3fe77d2de))
+
+
+### Documentation
+
+* **release:** note merge-commit body duplicate changelog entries ([787898d](https://github.com/Arenukvern/oka/commit/787898dee409411927eb073d070af40a4e3407f2))
+
 ## [0.10.2](https://github.com/Arenukvern/oka/compare/v0.10.1...v0.10.2) (2026-11-15)
 
 
