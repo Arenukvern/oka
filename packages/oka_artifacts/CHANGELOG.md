@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.10.1 <!-- x-release-please-version -->
+## 0.11.0 <!-- x-release-please-version -->
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.10.1
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
@@ -34,4 +38,3 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   `ZstdCliCodec` (`zstd --patch-from`), closed storage strategies
   (`SnapshotOnly`, `DeltaChain`), and `ArtifactPointer` provenance
   manifests for git (ADR-0043).
-
