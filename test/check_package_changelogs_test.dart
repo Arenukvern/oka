@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../tool/release/train_inventory.dart';
 import 'support/repo_root.dart';
 
 void main() {
@@ -174,6 +175,7 @@ void _writeTrainFixture(
   for (final script in [
     'check_package_changelogs.sh',
     'train.dart',
+    'train_inventory.dart',
     'publish_order.dart',
     'semver_tool.dart',
   ]) {
@@ -183,25 +185,9 @@ void _writeTrainFixture(
       ..writeAsStringSync(source.readAsStringSync());
   }
 
-  const trainPackages = [
-    'oka_process',
-    'resource_composition',
-    'oka_artifacts',
-    'oka_core',
-    'oka_supervisor',
-    'oka_conformance',
-    'oka_android',
-    'oka_huawei',
-    'oka_play',
-    'oka_rustore',
-    'oka_web',
-    'oka_harness',
-    'oka',
-  ];
-
   final next = _nextPatch(version);
 
-  for (final package in trainPackages) {
+  for (final package in packages) {
     final dir = Directory('$root/packages/$package');
     dir.createSync(recursive: true);
     final versionLine = allHaveVersion || package == 'oka';

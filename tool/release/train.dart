@@ -4,23 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'publish_order.dart';
-
-/// Packages synced on the release train (versions, changelogs, licenses).
-const packages = <String>[
-  'oka_process',
-  'resource_composition',
-  'oka_artifacts',
-  'oka_core',
-  'oka_supervisor',
-  'oka_conformance',
-  'oka_android',
-  'oka_huawei',
-  'oka_play',
-  'oka_rustore',
-  'oka_web',
-  'oka_harness',
-  'oka',
-];
+import 'train_inventory.dart';
 
 /// Published to pub.dev by CI (`publish_packages.sh`). Upload order is a
 /// topological sort of in-train `dependencies` and `dev_dependencies`

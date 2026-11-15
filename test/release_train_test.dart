@@ -4,24 +4,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../tool/release/publish_order.dart';
+import '../tool/release/train_inventory.dart';
 import 'support/repo_root.dart';
-
-/// Mirrors [packages] in `tool/release/train.dart` (release-train inventory).
-const trainPackages = [
-  'oka_process',
-  'resource_composition',
-  'oka_artifacts',
-  'oka_core',
-  'oka_supervisor',
-  'oka_conformance',
-  'oka_android',
-  'oka_huawei',
-  'oka_play',
-  'oka_rustore',
-  'oka_web',
-  'oka_harness',
-  'oka',
-];
 
 void main() {
   final repo = findOkaRepoRoot();
@@ -40,6 +24,7 @@ void main() {
       'example/pubspec.yaml',
       'name: example\ndependencies:\n  oka: ^0.1.6\n  oka_play: ^0.1.6\n',
     );
+    // train-inventory-scan: allow fixture pubspec dependency graph (not inventory)
     final dependencies = <String, List<String>>{
       'oka_process': [],
       'resource_composition': [],
@@ -55,7 +40,7 @@ void main() {
       'oka_harness': ['oka_android', 'resource_composition'],
       'oka': ['oka_android', 'oka_core'],
     };
-    for (final package in trainPackages) {
+    for (final package in packages) {
       final deps = dependencies[package]!
           .map((name) => '  $name: ^0.1.6')
           .join('\n');
@@ -92,6 +77,7 @@ void main() {
     );
     for (final script in [
       'train.dart',
+      'train_inventory.dart',
       'publish_order.dart',
       'sync_version.sh',
       'check_version_sync.sh',
@@ -116,7 +102,7 @@ void main() {
       for (final path in [
         'pubspec.yaml',
         'example/pubspec.yaml',
-        ...trainPackages.map((name) => 'packages/$name/pubspec.yaml'),
+        ...packages.map((name) => 'packages/$name/pubspec.yaml'),
       ]) {
         final contents = File('${fixture.path}/$path').readAsStringSync();
         expect(contents, isNot(contains('^0.1.6')), reason: path);
@@ -127,7 +113,7 @@ void main() {
           expect(match.group(2), '^0.3.0', reason: '$path: ${match.group(1)}');
         }
       }
-      for (final package in trainPackages) {
+      for (final package in packages) {
         expect(
           File(
             '${fixture.path}/packages/$package/pubspec.yaml',
@@ -378,7 +364,7 @@ void main() {
       '  oka_core: ^0.1.6\n',
     );
     expect(
-      () => topologicalPublishOrder(fixture, trainPackages, trainPackages),
+      () => topologicalPublishOrder(fixture, packages, packages),
       throwsA(
         isA<FormatException>().having(
           (e) => e.message,

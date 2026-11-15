@@ -3,36 +3,12 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../tool/release/train_inventory.dart';
 import 'support/repo_root.dart';
-
-/// Parses `const packages = <String>[...]` from [tool/release/train.dart].
-/// Fails the test when not run from the repo root (no subprocess / no CLI).
-Set<String> trainPackagesFromTool(String root) {
-  final trainDart = File('$root/tool/release/train.dart');
-  if (!trainDart.existsSync()) {
-    fail('expected repo root with tool/release/train.dart');
-  }
-  final src = trainDart.readAsStringSync();
-  final block = RegExp(
-    r'const packages = <String>\[(.*?)\];',
-    dotAll: true,
-  ).firstMatch(src);
-  if (block == null) {
-    fail('train.dart: packages inventory not found');
-  }
-  return {
-    for (final m in RegExp("'([^']+)'").allMatches(block.group(1)!)) m.group(1)!,
-  };
-}
 
 void main() {
   final root = findOkaRepoRoot();
-  late Set<String> trainPackageNames;
-
-  setUpAll(() {
-    trainPackageNames = trainPackagesFromTool(root);
-    expect(trainPackageNames, isNotEmpty);
-  });
+  final trainPackageNames = packages.toSet();
 
   final config = jsonDecode(
     File('$root/release-please-config.json').readAsStringSync(),

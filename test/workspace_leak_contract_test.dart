@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../tool/contracts/duplicate_train_inventory_scan.dart';
 import '../tool/contracts/workspace_leak_scan.dart';
+import '../tool/release/train_inventory.dart';
 import 'support/repo_root.dart';
 
 void main() {
@@ -22,8 +24,14 @@ void main() {
         .split('\n')
         .where((line) => line.trim().isNotEmpty)
         .toList();
-    expect(trainPackagesForWorkspaceLeakScan, listed);
+    final scanned = trainPackagesForWorkspaceLeakScan().toList();
+    expect(scanned, listed);
+    expect(scanned, packages);
     expect(listed, contains('oka_process'));
+  });
+
+  test('no second hard-coded train package list in repo .dart sources', () {
+    expect(findDuplicateTrainPackageLists(realRoot), isEmpty);
   });
 
   test('real train packages have no workspace-leak imports in lib/', () {
@@ -46,7 +54,7 @@ void main() {
         .writeAsStringSync("export 'src/leak.dart';\n");
     final hits = scanTrainPackageLibsForWorkspaceLeaks(
       root,
-      packages: const ['fake_pkg'],
+      inventoryOverride: const ['fake_pkg'],
     );
     expect(hits, isNotEmpty);
     expect(hits.join('\n'), contains('test/support'));
@@ -64,7 +72,7 @@ void noop() {}
 ''');
     final hits = scanTrainPackageLibsForWorkspaceLeaks(
       root,
-      packages: const ['fake_pkg'],
+      inventoryOverride: const ['fake_pkg'],
     );
     expect(hits, isNotEmpty);
     expect(hits.single, contains('consumer.dart'));
@@ -81,7 +89,7 @@ void noop() {}
     );
     final hits = scanTrainPackageLibsForWorkspaceLeaks(
       root,
-      packages: const ['oka_core'],
+      inventoryOverride: const ['oka_core'],
     );
     expect(
       hits,

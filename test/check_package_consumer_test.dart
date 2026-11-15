@@ -17,11 +17,13 @@ void main() {
       ..writeAsStringSync(
         File('$repo/tool/ci/check_package_consumer.sh').readAsStringSync(),
       );
-    File('${fixture.path}/tool/release/train.dart')
-      ..createSync(recursive: true)
-      ..writeAsStringSync(
-        File('$repo/tool/release/train.dart').readAsStringSync(),
-      );
+    for (final name in ['train.dart', 'train_inventory.dart']) {
+      File('${fixture.path}/tool/release/$name')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          File('$repo/tool/release/$name').readAsStringSync(),
+        );
+    }
     File('${fixture.path}/tool/release/publish_order.dart')
       ..createSync(recursive: true)
       ..writeAsStringSync(
