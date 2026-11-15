@@ -4,6 +4,16 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.10.2](https://github.com/Arenukvern/oka/compare/v0.10.1...v0.10.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* **contracts:** content-based duplicate train inventory scan ([0d819ce](https://github.com/Arenukvern/oka/commit/0d819ce129c89f039a51ff69f722950e94c3c2a3))
+* **contracts:** literal-level train inventory scan exemptions ([0f146d4](https://github.com/Arenukvern/oka/commit/0f146d447e3814f4dca063172f0b9628088a07a8))
+* **release:** freeze follower changelogs without growing EOF blanks ([98611f2](https://github.com/Arenukvern/oka/commit/98611f238e9feaaccb7b8fcdf7bd45fcc2c7da37))
+* **release:** freeze follower changelogs without growing EOF blanks ([079100e](https://github.com/Arenukvern/oka/commit/079100e2f9d52f64639025f7dada4f4a6e72ed7f))
+
 ## [0.10.1](https://github.com/Arenukvern/oka/compare/v0.10.0...v0.10.1) (2026-11-14)
 
 
