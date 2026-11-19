@@ -19,7 +19,21 @@ class ProcessesCommand {
         help: 'Agent stream: one structured event per lease + a summary '
             '(the pipeline-events envelope, scope "processes")',
       )
-      ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help');
+      ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help')
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'reap: report candidates without signaling (ADR-0053 audit)',
+      )
+      ..addOption(
+        'min-age-minutes',
+        defaultsTo: '15',
+        help: 'reap: age floor — younger matches are reported, not signaled',
+      )
+      ..addMultiOption(
+        'allow',
+        help: 'reap: extra protected command-line substrings (repeatable)',
+      );
 
     late final ArgResults results;
     try {
@@ -29,16 +43,21 @@ class ProcessesCommand {
       exit(1);
     }
     if (results['help'] as bool) {
-      print('oka processes list — show recorded process leases\n\n'
+      print('oka processes [list|reap] — lease inventory / foreign orphan '
+          'reaping (ADR-0053)\n\n'
           '${parser.usage}');
       exit(0);
     }
     // `oka processes` and `oka processes list` are the same verb.
     final positional = results.rest.where((a) => !a.startsWith('-'));
+    if (positional.isNotEmpty && positional.first == 'reap') {
+      await _reap(results);
+      return;
+    }
     if (positional.isNotEmpty && positional.first != 'list') {
       stderr.writeln(
         '❌ Unknown subcommand "${positional.first}" — '
-        'usage: oka processes [list] [--json]',
+        'usage: oka processes [list|reap] [--json]',
       );
       exit(1);
     }
@@ -79,5 +98,40 @@ class ProcessesCommand {
         '(never signals a recycled pid).',
       );
     }
+  }
+
+  /// `oka processes reap [--dry-run] [--min-age-minutes N] [--allow s]…`
+  /// — the foreign orphan reaping pass (ADR-0053): SIGKILL the
+  /// orphan-prone dart/flutter toolchain family whose parent died,
+  /// identity-gated and receipted. Parse-and-delegate (ADR-0015); the
+  /// laws live in `oka_core::reapForeignOrphans`.
+  Future<void> _reap(ArgResults results) async {
+    final projectPath = Directory.current.path;
+    final dryRun = results['dry-run'] as bool;
+    final minutes =
+        int.tryParse(results['min-age-minutes'] as String? ?? '') ?? 15;
+    final allows = results['allow'] as List<String>;
+    final summary = await reapForeignOrphans(
+      projectPath,
+      protectedNames: [...defaultForeignOrphanProtected, ...allows],
+      minAge: Duration(minutes: minutes),
+      dryRun: dryRun,
+    );
+    if (results['json'] as bool) {
+      stdout.writeln(
+        jsonEncode({
+          'scope': 'processes',
+          'event': 'processes.reap',
+          'params': {
+            'dry_run': dryRun,
+            'receipts': [for (final r in summary.receipts) r.toJson()],
+          },
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      return;
+    }
+    // ignore: avoid_print
+    summary.describeLines().forEach(print);
   }
 }

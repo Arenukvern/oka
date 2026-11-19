@@ -1,0 +1,114 @@
+# 0053 — Foreign orphan reaping
+
+- **Status:** accepted; **implementation:** `oka_core`
+  (`lib/src/foreign_orphan_reap.dart`) + `oka processes reap` shipped this
+  round; POSIX only (macOS/Linux), Windows scan returns empty
+- **Date:** 2026-11-19
+- **Amends:** [ADR-0045](0045-codemap-index-worker-supervision.mdx)
+  ("foreign records remain observe-only") — signal authority over foreign
+  processes is granted narrowly, for this family and these guards only
+- **Related:** [ADR-0018](0018-process-lifecycle-leases.mdx) (identity over
+  pid, report-never-guess), [ADR-0052](0052-owned-process-sessions.mdx)
+  (owned sessions — the prevention layer), ADR-0046 (receipts shape)
+
+## Context
+
+Long-lived dart/flutter toolchain processes accumulate as **anonymous
+orphans**: their driving session dies, macOS/Linux reparents them to
+launchd/init (`ppid == 1`), and nothing ever reaps them. Observed live on a
+16 GB dev machine (2026-11-19):
+
+- a `flutter run` tree (flutter_tools → frontend_server → DDS) orphaned for
+  **20 hours** at ~920 MB footprint;
+- an orphaned `flutter attach --machine` from an MCP server's discovery
+  window (server died mid-discovery, so its own q→TERM→KILL ladder never
+  ran) that **survived SIGTERM** — machine-mode flutter tools trap TERM and
+  hang;
+- an agent wave (bounded-session shells + flutter_tester listeners + a run)
+  reparented together when one session died;
+- ~14 idle `flutter-mcp-toolkit-server` stdio processes held open for days
+  by resumable client conversations.
+
+Per-spawner parent-death fixes (ADR-0052 owned sessions, client-side EOF)
+are the correct prevention, but they cannot cover what already escaped: the
+spawners are heterogeneous (agents, MCP clients, terminals), some die
+mid-spawn, and foreign ecosystems change without notice. A machine-level
+remediation pass is the safety net under the prevention layer.
+
+## Decision
+
+1. **One verb:** `oka processes reap` — an adopt-and-reap pass over the
+   host process table, runnable dry (`--dry-run`) or real; core logic in
+   `oka_core::reapForeignOrphans` with injectable seams (table reader, kill,
+   live-lease set, liveness) for scripted-fake tests, same posture as the
+   L2 reconcile sweep (ADR-0018 §5).
+2. **Family-limited targets** — only rows whose command line contains one
+   of the named orphan-prone toolchain substrings
+   (`defaultForeignOrphanTargets`: frontend_server_aot, flutter_tools,
+   development-service, flutter_tester, dartdev_aot,
+   flutter-mcp-toolkit-server). The reaper never touches anything outside
+   this list; editors, browsers, build daemons are structurally out of
+   reach.
+3. **Orphans only** — candidates must be launchd/init-reparented
+   (`ppid == 1`). A live parent is somebody's session, never an escape.
+4. **Age floor** (default 15 min, `--min-age-minutes`) — young matches are
+   reported `tooYoung`, never signaled: compile waves pass through the
+   family's memory profile transiently.
+5. **Exclusions** — pids recorded *live* in the running project's lease
+   registry, rows matching `defaultForeignOrphanProtected`
+   (`ecsai_daemon.exe` — the deliberate warm resident, `language-server` —
+   editor-owned, `owned_session_p1_leader` — oka's own self-settling
+   leaders), plus `--allow` extensions.
+6. **Identity before signal** (ADR-0018 §1, unchanged) — the start-time
+   token captured at scan time is re-verified through
+   [verifyKillIdentity] immediately before signaling: `recycled` →
+   skipped (never signal), `unknown` → skipped (report-never-guess).
+7. **SIGKILL only — named divergence.** [ProcessLiveness.kill]'s
+   graceful-first ladder is deliberately skipped for anonymous processes:
+   the observed failure mode is machine-mode flutter tools trapping SIGTERM
+   and hanging, which converts the graceful rung into the leak. SIGKILL is
+   the honest single step here; owned sessions (ADR-0052) keep the
+   graceful ladder for processes oka launched.
+8. **Receipts** — every candidate resolves to a
+   [ForeignReapDisposition] receipt (`killed`, `wouldKill`, or a named
+   skip/kill-failure reason); nothing is signaled without a record. Death
+   is verified after signaling; a survivor is `killFailed`, never claimed
+   success.
+
+### Alternatives rejected
+
+- **Per-spawner parent-death fixes only** — correct direction (ADR-0052
+  prevention), but zero coverage for already-escaped or foreign spawners;
+  requires migrating every ecosystem before anything converges.
+- **SIGTERM-first for foreign processes** — observed to hang on
+  machine-mode flutter tools; the ladder's graceful rung is exactly the
+  leak for this family.
+- **Broadcast/wildcard kill by name** — violates identity-over-pid;
+  name-only matching without ppid/age/identity gates would kill active
+  builds.
+
+## Non-goals
+
+- Memory-threshold **recycling of live dev sessions** (the
+  frontend_server growth problem) — separate restart-policy decision
+  (ADR-0054 direction); this ADR only reaps parentless processes.
+- Cross-project lease exclusion — v1 excludes the running project's
+  registry; a machine-wide recorded-pid view belongs to the ADR-0040
+  `MachineRegistry`.
+- The p1-leader husk case (leaders outliving a dead host with empty
+  groups) — p1 leaders are excluded from targets pending a conformance
+  test of the host-eof contract; if it proves a real gap, it is an
+  oka_process fix, not a foreign reap.
+
+## Consequences
+
+- Orphans converge to zero within one reap pass of their creation instead
+  of accumulating for days; the 920 MB/20 h class becomes a ~15-minute
+  bound.
+- The reaper's authority is deliberately narrow and auditable: family
+  list + ppid gate + age floor + identity gate + receipts. Widening any
+  gate (new family entries, lower age, new authority) is an ADR-level
+  change to this decision.
+- Running `oka processes reap` kills matching processes for real; the
+  default posture is documented and `--dry-run` exists for audit-first
+  usage.

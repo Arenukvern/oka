@@ -86,6 +86,7 @@ export 'src/credentials/repo_hygiene.dart';
 export 'src/credentials/secret_audit.dart';
 export 'src/delivery_verification.dart';
 export 'src/directory_process_lock.dart';
+export 'src/foreign_orphan_reap.dart';
 export 'src/inode_lock.dart';
 export 'src/leased_process_provider.dart';
 export 'src/oka_run.dart';
