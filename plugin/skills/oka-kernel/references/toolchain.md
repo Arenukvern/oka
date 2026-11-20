@@ -137,7 +137,7 @@ snapshots).
   The patched platform dill lacks the stock VM target's extra required
   libraries (`dart:cli`, `dart:_compact_hash`) — use `OKA_TARGET=flutter`.
   `-Dsdk_hash` must match the flutter dart version's release hash
-  (clone `dart-sdks/sdk-<version>`, `git rev-parse --short=10`).
+  (clone `~/.oka/dart-sdks/sdk-<version>`, `git rev-parse --short=10`).
   `languageVersion` entries in the pipeline package_config must be
   major.minor, not full versions. Cross manifests: the engine's
   android-arm64 `gen_snapshot` runs on the mac host

@@ -1,6 +1,8 @@
 // Foreign orphan reaping (ADR-0053): family-limited, identity-gated
-// SIGKILL of launchd/init-reparented toolchain processes. POSIX-only
-// fixtures (`sleep`); Windows behavior is covered by the fake-seam tests.
+// SIGKILL of supervisor-reparented toolchain processes (pid-1 or
+// launchd/systemd --user parents). POSIX-only fixtures (`sleep`);
+// Windows behavior is covered by the fake-seam tests.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:oka_core/oka_core.dart';
@@ -94,12 +96,14 @@ void main() {
           () async => [
             // Off family: never a candidate.
             _row(1, command: '/Applications/Zed.app/Contents/MacOS/zed'),
-            // Parent alive: somebody's session.
+            // Parent alive in the table and not a supervisor: somebody's
+            // session, never an escape.
             _row(
               2,
               ppid: 3272,
               command: 'dart flutter_tools.snapshot run',
             ),
+            _row(3272, command: '/Applications/Zed.app/Contents/MacOS/zed'),
             // Family match but young.
             _row(
               3,
@@ -108,7 +112,9 @@ void main() {
             ),
             // Family match, recorded live in the lease registry.
             _row(11, command: 'dart .../flutter_tools.snapshot test'),
-            // Family match but protected (protected wins over family).
+            // Family match but protected — via explicitly supplied names,
+            // the path workspace config (`oka.yaml processes.reap.protected`)
+            // takes. Machine-local names are never library defaults.
             _row(
               12,
               command:
@@ -120,6 +126,7 @@ void main() {
         return true;
       },
       liveLeasePids: () async => {11},
+      protectedNames: const ['ecsai_daemon.exe'],
     );
 
     expect(killed, isEmpty);
@@ -129,6 +136,64 @@ void main() {
     // Off-family and parented rows never become receipts: they are not
     // candidates at all.
     expect(summary.receipts, hasLength(3));
+  });
+
+  test('reaps rows reparented to a non-pid-1 supervisor (systemd --user)',
+      () async {
+    final killed = <int>[];
+    final liveness = _FakeLiveness(tokens: {21: 't'}, alive: {21});
+    final summary = await reapForeignOrphans(
+      '/nonexistent-project',
+      liveness: liveness,
+      processTable:
+          () async => [
+            // Linux: the user manager adopts orphaned session processes
+            // (child subreaper), so the escape parent is NOT pid 1.
+            _row(900, command: '/usr/lib/systemd/systemd --user'),
+            _row(
+              21,
+              ppid: 900,
+              command: 'dart .../frontend_server_aot.dart.snapshot',
+            ),
+          ],
+      killProcess: (pid) async {
+        killed.add(pid);
+        liveness.killForTest(pid);
+        return true;
+      },
+      liveLeasePids: () async => {},
+    );
+
+    expect(killed, [21]);
+    expect(summary.count(ForeignReapDisposition.killed), 1);
+    expect(summary.clean, isTrue);
+  });
+
+  test('a parent absent from the table is never treated as an escape',
+      () async {
+    final killed = <int>[];
+    final summary = await reapForeignOrphans(
+      '/nonexistent-project',
+      liveness: _FakeLiveness(tokens: {22: 't'}, alive: {22}),
+      processTable:
+          () async => [
+            _row(
+              22,
+              ppid: 999999,
+              command: 'dart .../frontend_server_aot.dart.snapshot',
+            ),
+          ],
+      killProcess: (pid) async {
+        killed.add(pid);
+        return true;
+      },
+      liveLeasePids: () async => {},
+    );
+
+    // Unresolvable parentage is unverifiable, not orphaned: report
+    // nothing, signal nothing.
+    expect(killed, isEmpty);
+    expect(summary.receipts, isEmpty);
   });
 
   test('never signals a recycled pid (identity changed since scan)', () async {
@@ -238,20 +303,29 @@ void main() {
   });
 
   if (!Platform.isWindows) {
-    test('reaps a real detached child (launchd/init-reparented)', () async {
-      final process = await Process.start(
-        'sleep',
-        ['120'],
-        mode: ProcessStartMode.detached,
+    test('reaps a real orphan (supervisor-reparented after spawner exit)',
+        () async {
+      // A detached child is NOT an orphan: its spawner stays a live,
+      // table-visible parent (observed: ppid = the dart VM), so the
+      // orphan gate correctly skips it. A real orphan needs the parent
+      // to exit — a shell that starts sleep and returns immediately —
+      // so the kernel reparents it to launchd/init/systemd --user.
+      final spawner = await Process.start('sh', [
+        // The background sleep must not inherit the shell's stdout pipe,
+        // or the stream below never sees EOF.
+        '-c',
+        'sleep 120 >/dev/null 2>&1 & echo \$!',
+      ]);
+      final pid = int.parse(
+        await spawner.stdout.transform(utf8.decoder).join(),
       );
-      // Give the OS a beat to reparent the detached child.
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await spawner.exitCode; // shell gone → sleep is reparented
       try {
         final summary = await reapForeignOrphans(
           Directory.systemTemp.path,
           processTable:
               () async => (await readHostProcessTable())
-                  .where((r) => r.pid == process.pid)
+                  .where((r) => r.pid == pid)
                   .toList(),
           killProcess:
               (pid) async => Process.killPid(pid, ProcessSignal.sigkill),
@@ -263,10 +337,10 @@ void main() {
         expect(summary.count(ForeignReapDisposition.killed), 1);
         // Give launchd/init a beat to reap the killed child.
         await Future<void>.delayed(const Duration(milliseconds: 400));
-        expect(await const HostProcessLiveness().isAlive(process.pid), isFalse);
+        expect(await const HostProcessLiveness().isAlive(pid), isFalse);
       } finally {
         // Idempotent when the reaper already killed it.
-        Process.killPid(process.pid, ProcessSignal.sigkill);
+        Process.killPid(pid, ProcessSignal.sigkill);
       }
     });
   }

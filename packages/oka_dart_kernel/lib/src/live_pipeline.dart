@@ -77,19 +77,32 @@ final class PipelineToolchain {
       };
 }
 
-/// Default checkout location this machine provisions:
-/// `~/xs/dart-sdks/sdk-<major.minor.patch>` (see skills/oka-kernel
-/// references/toolchain.md). OKA_SDK_CHECKOUT overrides.
-String defaultSdkCheckout(String dartVersion) {
-  final env = Platform.environment['OKA_SDK_CHECKOUT'];
-  if (env != null && env.isNotEmpty) return env;
-  final home = Platform.environment['HOME'] ?? '.';
-  return _join(home, 'xs/dart-sdks', 'sdk-$dartVersion');
+/// Default checkout location: `~/.oka/dart-sdks/sdk-<major.minor.patch>`
+/// — oka's own home, not a personal source tree (see skills/oka-kernel
+/// references/toolchain.md). OKA_SDK_CHECKOUT overrides. A legacy
+/// `~/xs/dart-sdks/sdk-<ver>` checkout is honored read-only for machines
+/// provisioned before the `~/.oka` home; new provisioners clone into
+/// `~/.oka`.
+String defaultSdkCheckout(
+  String dartVersion, {
+  Map<String, String>? environment,
+  String? home,
+}) {
+  final env = environment ?? Platform.environment;
+  final checkout = env['OKA_SDK_CHECKOUT'];
+  if (checkout != null && checkout.isNotEmpty) return checkout;
+  final base = home ?? env['HOME'] ?? '.';
+  final okaHome = _join(base, '.oka/dart-sdks', 'sdk-$dartVersion');
+  if (Directory(okaHome).existsSync()) return okaHome;
+  final legacy = _join(base, 'xs/dart-sdks', 'sdk-$dartVersion');
+  if (Directory(legacy).existsSync()) return legacy;
+  return okaHome; // fresh machines provision here
 }
 
 /// Resolves the toolchain with convention-first defaults:
 /// - dart binary: [dartBin] ?? the running executable
-/// - checkout: [checkout] ?? OKA_SDK_CHECKOUT ?? `~/xs/dart-sdks/sdk-<ver>`
+/// - checkout: [checkout] ?? OKA_SDK_CHECKOUT ?? `~/.oka/dart-sdks/sdk-<ver>`
+///   (legacy `~/xs/dart-sdks` checkouts are honored read-only)
 /// - packages config: built (and cached under ~/.oka/cache) via
 ///   `tool/pipeline_packages_config.sh`
 /// - AOT exe: built once into the same cache when [buildExe]; JIT fallback

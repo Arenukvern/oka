@@ -64,11 +64,18 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 cd "$PKG_DIR"
 
+sdk_for() { # $1 = dart version -> 3-way checkout: OKA_SDK_CHECKOUT >
+  # ~/.oka/dart-sdks (new home) > ~/xs/dart-sdks (legacy, read-only)
+  local v=$1 c=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$1}
+  [ -d "$c" ] || c=$HOME/xs/dart-sdks/sdk-$v
+  printf '%s\n' "$c"
+}
+
 echo "=== [platforms 1/6] dills (host dart $HOST_VERSION; flutter dart $FLUTTER_VERSION)"
-build_dill "$HOME/xs/dart-sdks/sdk-$HOST_VERSION" "$OUT/host_units.dill"
-HOST_HASH=$(git -C "$HOME/xs/dart-sdks/sdk-$HOST_VERSION" rev-parse --short=10 HEAD)
+build_dill "$(sdk_for "$HOST_VERSION")" "$OUT/host_units.dill"
+HOST_HASH=$(git -C "$(sdk_for "$HOST_VERSION")" rev-parse --short=10 HEAD)
 if [ "$HOST_VERSION" != "$FLUTTER_VERSION" ]; then
-  build_dill "$HOME/xs/dart-sdks/sdk-$FLUTTER_VERSION" "$OUT/xplat_units.dill"
+  build_dill "$(sdk_for "$FLUTTER_VERSION")" "$OUT/xplat_units.dill"
   XPLAT_DILL=$OUT/xplat_units.dill
 else
   XPLAT_DILL=$OUT/host_units.dill

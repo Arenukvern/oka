@@ -9,7 +9,7 @@
 # oka's build harness — not here. Env:
 #   APP_ROOT   (default ~/xs/storage_problem/last_answer)
 #   FLUTTER    (default ${HOST_HOME}/fvm/default)
-#   OKA_SDK_CHECKOUT (default ~/xs/dart-sdks/sdk-<flutter dart version>)
+#   OKA_SDK_CHECKOUT (default ~/.oka/dart-sdks/sdk-<version>; legacy ~/xs honored)
 set -euo pipefail
 HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 
@@ -19,7 +19,10 @@ FLUTTER=${FLUTTER:-${HOST_HOME}/fvm/default}
 FDART="$FLUTTER/bin/cache/dart-sdk/bin/dart"
 FDART_VERSION=$("$FDART" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 LANG_VERSION=$(echo "$FDART_VERSION" | cut -d. -f1-2)
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$FDART_VERSION}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$FDART_VERSION}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-$FDART_VERSION" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-$FDART_VERSION # legacy read-only location
+fi
 PATCHED_SDK="$FLUTTER/bin/cache/artifacts/engine/common/flutter_patched_sdk"
 GEN_SNAPSHOT="$FLUTTER/bin/cache/artifacts/engine/android-arm64-release/darwin-x64/gen_snapshot"
 OUT="$PKG_DIR/.gate_real_flutter"

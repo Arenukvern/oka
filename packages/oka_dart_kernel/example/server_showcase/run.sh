@@ -15,6 +15,10 @@ WS=$(cd "$PKG/../.." && pwd)                        # workspace root
 APP="$HERE/app"
 PORT=8251
 VMS=8252
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-3.13.2}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-3.13.2" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-3.13.2 # legacy read-only location
+fi
 
 restore() { sed -i '' "s/ => 'hello-v2-live';/ => 'hello-v1';/" "$APP/lib/units/greeter.dart"; }
 trap restore EXIT
@@ -33,7 +37,7 @@ cat > "$HERE/.build/app_package_config.json" <<JSON
 }
 JSON
 ( cd "$PKG" && bash tool/pipeline_packages_config.sh \
-    "${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-3.13.2}" 3.13 \
+    "$CHECKOUT" 3.13 \
     "$HERE/.build/toolchain" > /dev/null )
 
 echo '== [2/4] start the server (pid printed) + open /stream'

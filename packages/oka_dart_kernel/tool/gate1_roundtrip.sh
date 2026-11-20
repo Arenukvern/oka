@@ -7,14 +7,17 @@
 # The pkg/kernel sources come from a pinned dart-lang/sdk checkout (machine-
 # local toolchain input; never committed, never a fork).
 #
-# Env: OKA_SDK_CHECKOUT (default ~/xs/dart-sdks/sdk-<dart version>)
+# Env: OKA_SDK_CHECKOUT (default ~/.oka/dart-sdks/sdk-<version>; legacy ~/xs honored)
 set -euo pipefail
 
 PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
 APP_DIR="$PKG_DIR/example/kernel_app"
 SDK=${DART_SDK_ROOT:-$(dirname "$(dirname "$(readlink -f "$(which dart)")")")}
 DART_VERSION=$(dart --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$DART_VERSION}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$DART_VERSION}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-$DART_VERSION" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-$DART_VERSION # legacy read-only location
+fi
 OUT="$PKG_DIR/.gate1"
 mkdir -p "$OUT"
 case "$(uname -s)" in

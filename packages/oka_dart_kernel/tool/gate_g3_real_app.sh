@@ -21,7 +21,10 @@ sed -i '' "s/doc_replicas_live/doc_replicas/" \
 APP_DART="$(dirname "$(readlink -f "$(which dart)")")/dart"
 APP_DART_VERSION=$("$APP_DART" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 LANG_VERSION=$(echo "$APP_DART_VERSION" | cut -d. -f1-2)
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$APP_DART_VERSION}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$APP_DART_VERSION}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-$APP_DART_VERSION" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-$APP_DART_VERSION # legacy read-only location
+fi
 SDK_HASH=$(git -C "$CHECKOUT" rev-parse --short=10 HEAD)
 GATE_DIR="$PKG_DIR/.gate_real_app"
 VM_PLATFORM="$(dirname "$APP_DART")/../lib/_internal/vm_platform_strong.dill"

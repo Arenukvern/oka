@@ -108,8 +108,7 @@ String _toolText(Map<String, dynamic> result) {
 Future<void> main() async {
   final dartBin = Platform.resolvedExecutable;
   final ver = await _dartVersion(dartBin);
-  final checkout = Platform.environment['OKA_SDK_CHECKOUT'] ??
-      '$home/xs/dart-sdks/sdk-$ver';
+  final checkout = defaultSdkCheckout(ver);
   final toolchain = await resolvePipelineToolchain(
     checkout: checkout,
     okaDartKernelRoot: File.fromUri(Platform.script).parent.parent.path,

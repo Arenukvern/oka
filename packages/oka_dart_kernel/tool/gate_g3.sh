@@ -9,7 +9,10 @@ cd "$(dirname "$0")/.."
 HOST_DART="$(dirname "$(readlink -f "$(which dart)")")/dart"
 HOST_DART_VERSION=$("$HOST_DART" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 LANG_VERSION=$(echo "$HOST_DART_VERSION" | cut -d. -f1-2)
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$HOST_DART_VERSION}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$HOST_DART_VERSION}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-$HOST_DART_VERSION" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-$HOST_DART_VERSION # legacy read-only location
+fi
 SDK_HASH=$(git -C "$CHECKOUT" rev-parse --short=10 HEAD)
 GATE_DIR=".gate_g3"
 VM_PLATFORM="$(dirname "$HOST_DART")/../lib/_internal/vm_platform_strong.dill"

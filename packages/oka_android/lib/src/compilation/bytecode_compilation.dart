@@ -699,8 +699,20 @@ Future<Map<String, String>> kotlinJavaEnvironment({
   bool verbose = false,
 }) async {
   final environment = Map<String, String>.from(Platform.environment);
+  // Linux distro JDKs (Debian's java-N-openjdk-amd64, Fedora's
+  // java-N-openjdk, arch's jdkNN-openjdk all live here). Newest-looking
+  // name first, so a machine with several gets the higher version.
+  final linuxJvmRoot = Directory('/usr/lib/jvm');
+  final linuxJvmHomes = <String>[
+    if (await linuxJvmRoot.exists())
+      ...((await linuxJvmRoot.list().toList()).whereType<Directory>().map((
+        d,
+      ) => d.path).toList()
+        ..sort((a, b) => b.compareTo(a))),
+  ];
   final candidates = <String>[
     if (environment['JAVA_HOME'] != null) environment['JAVA_HOME']!,
+    ...linuxJvmHomes,
     '/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home',
     '/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',
     '/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home',

@@ -8,7 +8,10 @@ set -euo pipefail
 SDK=${DART_SDK_ROOT:-$(dirname "$(dirname "$(readlink -f "$(which dart)")")")}
 export DART_SDK_ROOT="$SDK"
 DART_VERSION=$(dart --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$DART_VERSION}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$DART_VERSION}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-$DART_VERSION" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-$DART_VERSION # legacy read-only location
+fi
 
 case "$(uname -s)" in
   Darwin) HOST_TARGET_OS=macos ;;

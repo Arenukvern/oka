@@ -41,7 +41,8 @@ Probes use the local `dart` SDK. Gate 1 additionally needs a pinned
 dart-lang/sdk checkout for `pkg/kernel` (pub's `package:kernel` is abandoned;
 SDK-internal sources are the only current form). `tool/gate1_roundtrip.sh`
 respects `OKA_SDK_CHECKOUT` and otherwise shallow-clones the matching tag
-into `~/xs/dart-sdks/sdk-<version>`. The checkout is a machine-local,
+into `~/.oka/dart-sdks/sdk-<version>` (legacy `~/xs/dart-sdks` checkouts
+are honored read-only). The checkout is a machine-local,
 declared toolchain input (ADR-0013 posture) — never committed, never a fork.
 
 ## Status

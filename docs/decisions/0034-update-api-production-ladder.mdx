@@ -49,7 +49,8 @@ exceptions-that-print. Acceptance: every gate's core step reproducible by a
 `dart test` that never spawns a shell.
 
 **G2 — Toolchain provisioning is machine-local lore.** Gates require
-`~/xs/dart-sdks/sdk-<version>` checkouts, a baked `-Dsdk_hash=60a57cd42d`,
+`~/.oka/dart-sdks/sdk-<version>` checkouts (formerly a personal
+`~/xs/dart-sdks` tree), a baked `-Dsdk_hash=60a57cd42d`,
 hand-merged package configs, and a discovered flutter SDK. Production:
 a real provisioner (promote `tool/sdk_checkout.sh`) that pins, verifies
 (content-hash the checkout), and declares the toolchain as a value; no

@@ -45,20 +45,32 @@ remediation pass is the safety net under the prevention layer.
 2. **Family-limited targets** — only rows whose command line contains one
    of the named orphan-prone toolchain substrings
    (`defaultForeignOrphanTargets`: frontend_server_aot, flutter_tools,
-   development-service, flutter_tester, dartdev_aot,
-   flutter-mcp-toolkit-server). The reaper never touches anything outside
-   this list; editors, browsers, build daemons are structurally out of
-   reach.
-3. **Orphans only** — candidates must be launchd/init-reparented
-   (`ppid == 1`). A live parent is somebody's session, never an escape.
+   development-service, flutter_tester, dartdev_aot — SDK-shipped
+   artifacts only). The reaper never touches anything outside this list;
+   editors, browsers, build daemons are structurally out of reach.
+   Machine-local ecosystem names (an MCP stdio server, a resident daemon)
+   are workspace facts, not library laws: they join the family through
+   `oka.yaml processes.reap.targets` or `oka processes reap --target`,
+   never through hardcoded defaults — this package ships on pub.dev and
+   must run on any computer.
+3. **Orphans only (portable gate)** — candidates must be
+   supervisor-reparented: `ppid == 1`, or a parent whose command line
+   matches `defaultForeignOrphanSupervisors` (`launchd`,
+   `systemd --user`). `ppid == 1` alone is macOS-shaped: Linux's
+   `systemd --user` registers as a child subreaper, so orphaned
+   user-session processes reparent to the user manager, not init — a
+   pid-1-only gate silently no-ops there. A parent that cannot be
+   resolved from the same table snapshot is somebody's session, never an
+   escape (unverifiable → skip).
 4. **Age floor** (default 15 min, `--min-age-minutes`) — young matches are
    reported `tooYoung`, never signaled: compile waves pass through the
    family's memory profile transiently.
 5. **Exclusions** — pids recorded *live* in the running project's lease
    registry, rows matching `defaultForeignOrphanProtected`
-   (`ecsai_daemon.exe` — the deliberate warm resident, `language-server` —
-   editor-owned, `owned_session_p1_leader` — oka's own self-settling
-   leaders), plus `--allow` extensions.
+   (`language-server` — editor-owned analysis servers,
+   `owned_session_p1_leader` — oka's own self-settling leaders), plus
+   workspace config (`oka.yaml processes.reap.protected`) and `--allow`
+   extensions for machine-local residents.
 6. **Identity before signal** (ADR-0018 §1, unchanged) — the start-time
    token captured at scan time is re-verified through
    [verifyKillIdentity] immediately before signaling: `recycled` →
@@ -106,9 +118,11 @@ remediation pass is the safety net under the prevention layer.
   of accumulating for days; the 920 MB/20 h class becomes a ~15-minute
   bound.
 - The reaper's authority is deliberately narrow and auditable: family
-  list + ppid gate + age floor + identity gate + receipts. Widening any
-  gate (new family entries, lower age, new authority) is an ADR-level
-  change to this decision.
+  list + supervisor-reparented gate + age floor + identity gate +
+  receipts. Widening any gate (new family entries, lower age, new
+  authority) is an ADR-level change to this decision; per-workspace
+  family extensions (`oka.yaml processes.reap.*`) are configuration of
+  this decision, not authority changes — the gates themselves are fixed.
 - Running `oka processes reap` kills matching processes for real; the
   default posture is documented and `--dry-run` exists for audit-first
   usage.

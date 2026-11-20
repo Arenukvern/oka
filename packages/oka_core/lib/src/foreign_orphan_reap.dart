@@ -7,8 +7,11 @@
 /// * **Family-limited** — only rows whose command line contains one of
 ///   [defaultForeignOrphanTargets] are candidates; the reaper never touches
 ///   anything else.
-/// * **Orphans only** — the parent must be launchd/init (`ppid == 1`); a
-///   live parent is somebody's session, not an escape.
+/// * **Orphans only** — the parent must be a supervisor, not a session:
+///   `ppid == 1` (launchd/init) or a parent whose command line matches
+///   [defaultForeignOrphanSupervisors] (Linux reparents user-session
+///   orphans to the `systemd --user` subreaper, not pid 1). A parent
+///   that cannot be resolved is somebody's session, not an escape.
 /// * **Age floor** — matches younger than [minAge] are reported
 ///   [ForeignReapDisposition.skippedTooYoung], never signaled: compile
 ///   waves pass through the family's memory profile transiently.
@@ -40,27 +43,38 @@ import 'process_surface.dart';
 
 /// Command-line substrings identifying the orphan-prone flutter/dart
 /// toolchain family (ADR-0053 §2). A process row is a candidate when its
-/// full command line contains any of these.
+/// full command line contains any of these. Only SDK-shipped artifacts
+/// are defaults — machine-local ecosystem names (MCP servers, agents')
+/// belong to workspace config (`oka.yaml processes.reap.targets`) or
+/// `oka processes reap --target`, never to this list.
 const defaultForeignOrphanTargets = <String>[
   'frontend_server_aot.dart.snapshot',
   'flutter_tools.snapshot',
   'development-service',
   'flutter_tester',
   'dartdev_aot.dart.snapshot',
-  'flutter-mcp-toolkit-server',
 ];
 
 /// Command-line substrings never reaped even when they match
-/// [defaultForeignOrphanTargets]: registered residents, editor-owned
-/// tooling, and oka's own self-settling p1 leaders (ADR-0053 §5).
+/// [defaultForeignOrphanTargets]: editor-owned tooling and oka's own
+/// self-settling p1 leaders (ADR-0053 §5). Machine-local residents
+/// belong to workspace config (`oka.yaml processes.reap.protected`) or
+/// `oka processes reap --allow`.
 const defaultForeignOrphanProtected = <String>[
-  // The harness warm daemon — deliberately parentless (launchd-resident).
-  'ecsai_daemon.exe',
   // Editor analysis servers are session-scoped tooling, not escapes.
   'language-server',
   // Oka's own leaders settle via the p1 host-eof contract (ADR-0052);
   // killing them here would mask a real contract gap.
   'owned_session_p1_leader',
+];
+
+/// Parent command-line signatures that mark a reparented orphan beyond
+/// `ppid == 1`. On macOS launchd is pid 1; on Linux, `systemd --user`
+/// registers as a child subreaper, so orphaned user-session processes
+/// reparent to the user manager instead of init (ADR-0053 §3).
+const defaultForeignOrphanSupervisors = <String>[
+  'launchd',
+  'systemd --user',
 ];
 
 /// One host process-table row the reaper considered.
@@ -288,6 +302,7 @@ Future<ForeignReapSummary> reapForeignOrphans(
   LiveLeasePidsReader? liveLeasePids,
   List<String> targetNames = defaultForeignOrphanTargets,
   List<String> protectedNames = defaultForeignOrphanProtected,
+  List<String> supervisorNames = defaultForeignOrphanSupervisors,
   Duration minAge = const Duration(minutes: 15),
   bool dryRun = false,
   Duration deathCheckDelay = const Duration(milliseconds: 250),
@@ -296,10 +311,22 @@ Future<ForeignReapSummary> reapForeignOrphans(
   final rows = await (processTable ?? readHostProcessTable)();
   final leased =
       await (liveLeasePids ?? () => _defaultLiveLeasePids(projectPath))();
+  final rowByPid = {for (final r in rows) r.pid: r};
+
+  /// Portable orphan gate (ADR-0053 §3): pid-1 reparenting, or a parent
+  /// that is itself a supervisor (launchd is pid 1 on macOS, but on
+  /// Linux the `systemd --user` subreaper adopts session orphans). An
+  /// unresolvable parent is never treated as an escape.
+  bool isOrphaned(ForeignProcessRow row) {
+    if (row.ppid == 1) return true;
+    final parent = rowByPid[row.ppid];
+    if (parent == null) return false;
+    return supervisorNames.any(parent.command.contains);
+  }
 
   final receipts = <ForeignReapReceipt>[];
   for (final row in rows) {
-    if (row.ppid != 1) continue;
+    if (!isOrphaned(row)) continue;
     if (!targetNames.any(row.command.contains)) continue;
 
     ForeignReapReceipt skip(String? detail, ForeignReapDisposition d) =>

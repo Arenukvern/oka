@@ -11,11 +11,15 @@ HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 
 PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
 HOST_REPO=$(cd "$PKG_DIR/../.." && pwd)
-SDK_HASH=$(git -C ~/xs/dart-sdks/sdk-3.13.2 rev-parse --short=10 HEAD 2>/dev/null || echo 60a57cd42d)
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-3.13.2}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-3.13.2" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-3.13.2 # legacy read-only location
+fi
+SDK_HASH=$(git -C "$CHECKOUT" rev-parse --short=10 HEAD 2>/dev/null || echo 60a57cd42d)
 
 docker run --rm -i \
   -v "$HOST_REPO:${HOST_HOME}/xs/oka" \
-  -v "$HOME/xs/dart-sdks:${HOST_HOME}/xs/dart-sdks" \
+  -v "$CHECKOUT:$CHECKOUT" \
   -v "$HOME/.pub-cache:${HOST_HOME}/.pub-cache" \
   -w ${HOST_HOME}/xs/oka/packages/oka_dart_kernel \
   dart:3.13.2 bash -s <<'SCRIPT'

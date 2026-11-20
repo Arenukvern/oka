@@ -34,8 +34,7 @@ Future<String> _dartVersion(String dartBin) async {
 Future<void> main() async {
   final dartBin = File(Platform.resolvedExecutable).absolute.path;
   final ver = await _dartVersion(dartBin);
-  final checkout = Platform.environment['OKA_SDK_CHECKOUT'] ??
-      '$home/xs/dart-sdks/sdk-$ver';
+  final checkout = defaultSdkCheckout(ver);
   final toolchain = await resolvePipelineToolchain(
     checkout: checkout,
     okaDartKernelRoot:

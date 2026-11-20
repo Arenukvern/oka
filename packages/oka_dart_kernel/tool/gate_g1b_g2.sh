@@ -6,7 +6,7 @@
 #        no source changes) -> gen_snapshot splits loading units -> runs.
 #
 # Package config maps kernel/vm/front_end (+ deps) to the pinned SDK checkout.
-# Env: OKA_SDK_CHECKOUT (default ~/xs/dart-sdks/sdk-<dart version>).
+# Env: OKA_SDK_CHECKOUT (default ~/.oka/dart-sdks/sdk-<version>; legacy ~/xs honored).
 set -euo pipefail
 
 PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -14,7 +14,10 @@ APP_DIR="$PKG_DIR/example/kernel_app"
 SDK=${DART_SDK_ROOT:-$(dirname "$(dirname "$(readlink -f "$(which dart)")")")}
 export DART_SDK_ROOT="$SDK"
 DART_VERSION=$(dart --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$DART_VERSION}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$DART_VERSION}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-$DART_VERSION" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-$DART_VERSION # legacy read-only location
+fi
 OUT="$PKG_DIR/.gate_g1b"
 # The release tag's short commit hash; kernel's expectedSdkHash is a
 # compile-time -Dsdk_hash constant and the C++ backends gate on it.

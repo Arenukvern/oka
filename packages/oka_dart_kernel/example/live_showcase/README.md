@@ -31,7 +31,7 @@ returns the patched value.
 ```
 
 Requires a pinned dart SDK checkout of the running dart's version
-(auto-discovered at `~/xs/dart-sdks/sdk-<version>`; override with
+(auto-discovered at `~/.oka/dart-sdks/sdk-<version>`; override with
 `OKA_SDK_CHECKOUT`). See `skills/oka-kernel/references/toolchain.md` for
 how to provision one.
 

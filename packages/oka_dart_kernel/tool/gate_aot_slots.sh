@@ -12,7 +12,10 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 OUT="$HERE/.gate_aot_slots"
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-3.13.2}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-3.13.2}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-3.13.2" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-3.13.2 # legacy read-only location
+fi
 # gen_snapshot + dartaotruntime come from the HOST dart (same version as
 # the checkout that builds the dill) — the gate_aot_platforms recipe.
 HOST_SDK=$(dirname "$(dirname "$(readlink -f "$(command -v dart)")")")

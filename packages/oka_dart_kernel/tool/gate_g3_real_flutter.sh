@@ -26,7 +26,10 @@ sed -i '' "s/acbdefghijklmnopqrstuvwxyz/abcdefghijklmnopqrstuvwxyz/" \
 FDART="$FLUTTER/bin/cache/dart-sdk/bin/dart"
 FDART_VERSION=$("$FDART" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 LANG_VERSION=$(echo "$FDART_VERSION" | cut -d. -f1-2)
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$FDART_VERSION}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$FDART_VERSION}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-$FDART_VERSION" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-$FDART_VERSION # legacy read-only location
+fi
 SDK_HASH=$(git -C "$CHECKOUT" rev-parse --short=10 HEAD)
 GATE_DIR="$PKG_DIR/.gate_real_flutter"
 

@@ -101,7 +101,10 @@ leg_linux_docker() {
   app_dart=$(dirname "$(readlink -f "$(command -v dart)")")/dart
   ver=$("$app_dart" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
   lang=$(echo "$ver" | cut -d. -f1-2)
-  checkout=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-$ver}
+  checkout=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-$ver}
+  if [ ! -d "$checkout" ] && [ -d "$HOME/xs/dart-sdks/sdk-$ver" ]; then
+    checkout=$HOME/xs/dart-sdks/sdk-$ver # legacy read-only location
+  fi
   hash=$(git -C "$checkout" rev-parse --short=10 HEAD)
   pkgs=$(build_pkgs "$checkout" "$lang" "$OUT") || return 1
   build_pipeline_exe "$checkout" "$lang"
@@ -197,7 +200,10 @@ print(next(t['webSocketDebuggerUrl'] for t in tabs
   dart "$HERE/tool/live_e2e_spec.dart" web "$spec" --app="$APP_ROOT" \
     --ws="$ws" --pid-file="$OUT/flutter_web.pid" --cdp="$cdp_ws" || return 1
   local checkout hash pkgs
-  checkout=${OKA_SDK_CHECKOUT_FLUTTER:-$HOME/xs/dart-sdks/sdk-3.13.4}
+  checkout=${OKA_SDK_CHECKOUT_FLUTTER:-$HOME/.oka/dart-sdks/sdk-3.13.4}
+  if [ ! -d "$checkout" ] && [ -d "$HOME/xs/dart-sdks/sdk-3.13.4" ]; then
+    checkout=$HOME/xs/dart-sdks/sdk-3.13.4 # legacy read-only location
+  fi
   hash=$(git -C "$checkout" rev-parse --short=10 HEAD)
   pkgs="$OUT/pipeline_package_config_3134.json"
   [ -f "$pkgs" ] || pkgs=$(build_pkgs "$checkout" 3.13 "$OUT")

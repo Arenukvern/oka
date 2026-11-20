@@ -24,7 +24,10 @@ trap restore EXIT
 
 echo '== [1/4] package config for the checkout kernel stack'
 DART_BIN=${OKA_BENCH_DART:-$(command -v dart)}
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-3.13.2}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-3.13.2}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-3.13.2" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-3.13.2 # legacy read-only location
+fi
 LANG_VERSION=3.13
 PACKAGES=$( ( cd "$PKG" && bash tool/pipeline_packages_config.sh \
   "$CHECKOUT" "$LANG_VERSION" "$HERE/.build" ) | tail -1 )

@@ -20,6 +20,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:oka_dart_kernel/oka_dart_kernel.dart';
 import 'package:oka_update/oka_update.dart';
 
 const _sdkHash = '60a57cd42d'; // dart 3.13.2 checkout pin (see gates)
@@ -115,9 +116,7 @@ UnitDeltaCompiler _compiler({
 
 Future<void> main(List<String> args) async {
   final env = Platform.environment;
-  final checkout =
-      env['OKA_SDK_CHECKOUT'] ??
-      '${Platform.environment['HOME']}/xs/dart-sdks/sdk-3.13.2';
+  final checkout = defaultSdkCheckout('3.13.2');
   if (!File('$checkout/pkg/kernel/pubspec.yaml').existsSync()) {
     stderr.writeln(
       'bench: SDK checkout not usable at "$checkout" '
@@ -158,7 +157,7 @@ Future<void> main(List<String> args) async {
       'with this VM; provision a matching checkout:\n'
       '  git clone --depth 1 -b $runningDartVersion '
       'https://github.com/dart-lang/sdk.git '
-      '"\${HOME}/xs/dart-sdks/sdk-$runningDartVersion"\n'
+      '"\${HOME}/.oka/dart-sdks/sdk-$runningDartVersion"\n'
       'and point OKA_SDK_CHECKOUT at it (or OKA_BENCH_DART at a VM of '
       'version $checkoutVersion).',
     );

@@ -12,7 +12,7 @@
 # gen_snapshot emits the loading-unit manifest, and the AOT app runs.
 #
 # Env: APP_ROOT (default ~/xs/storage_problem/last_answer),
-#      OKA_SDK_CHECKOUT (default ~/xs/dart-sdks/sdk-3.13.2).
+#      OKA_SDK_CHECKOUT (default ~/.oka/dart-sdks/sdk-3.13.2; legacy ~/xs honored).
 set -euo pipefail
 HOST_HOME=${HOST_HOME:-$HOME} # the layout the baked package configs reference
 
@@ -20,16 +20,20 @@ PKG_DIR=$(cd "$(dirname "$0")/.." && pwd)
 HOST_REPO=$(cd "$PKG_DIR/../.." && pwd)
 APP_ROOT=${APP_ROOT:-$HOME/xs/storage_problem/last_answer}
 PROBLEM_ROOT=$(dirname "$APP_ROOT")
-CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/xs/dart-sdks/sdk-3.13.2}
+CHECKOUT=${OKA_SDK_CHECKOUT:-$HOME/.oka/dart-sdks/sdk-3.13.2}
+if [ ! -d "$CHECKOUT" ] && [ -d "$HOME/xs/dart-sdks/sdk-3.13.2" ]; then
+  CHECKOUT=$HOME/xs/dart-sdks/sdk-3.13.2 # legacy read-only location
+fi
 [ -d "$APP_ROOT" ] || { echo "APP_ROOT missing: $APP_ROOT"; exit 1; }
 [ -f "$APP_ROOT/.dart_tool/package_config.json" ] || {
   echo 'app has no .dart_tool/package_config.json (run pub get first)'; exit 1; }
 
 docker run --rm -i \
   -e HOME=${HOST_HOME} \
+  -e CHECKOUT="$CHECKOUT" \
   -v "$HOST_REPO:${HOST_HOME}/xs/oka" \
   -v "$PROBLEM_ROOT:${HOST_HOME}/xs/storage_problem" \
-  -v "$CHECKOUT:${HOST_HOME}/xs/dart-sdks/sdk-3.13.2" \
+  -v "$CHECKOUT:$CHECKOUT" \
   -v "$HOME/.pub-cache:${HOST_HOME}/.pub-cache" \
   -w ${HOST_HOME}/xs/oka/packages/oka_dart_kernel \
   dart:3.13.2 bash -s <<'SCRIPT'
@@ -48,14 +52,14 @@ mkdir -p "$OUT"
 echo '=== [g25-real 1/5] pipeline package_config (kernel stack from checkout)'
 deps=$(for p in kernel vm front_end; do
   awk '/^dependencies:/{f=1;next} /^[a-z_]+:/{f=0} f && /^  [a-z_]+:/{print $1}' \
-    "${HOST_HOME}/xs/dart-sdks/sdk-3.13.2/pkg/$p/pubspec.yaml" | tr -d ':'
+    "$CHECKOUT/pkg/$p/pubspec.yaml" | tr -d ':'
 done | sort -u)
 pub_deps=""
 checkout_entries=""
 for d in $deps; do
   case "$d" in kernel|vm|front_end) continue ;; esac
-  if [ -d "${HOST_HOME}/xs/dart-sdks/sdk-3.13.2/pkg/$d/lib" ]; then
-    checkout_entries+=$'\n  {"name": "'"$d"'", "rootUri": "file://${HOST_HOME}/xs/dart-sdks/sdk-3.13.2/pkg/'"$d"'", "packageUri": "lib/", "languageVersion": "3.13"},'
+  if [ -d "$CHECKOUT/pkg/$d/lib" ]; then
+    checkout_entries+=$'\n  {"name": "'"$d"'", "rootUri": "file://$CHECKOUT/pkg/'"$d"'", "packageUri": "lib/", "languageVersion": "3.13"},'
   else
     pub_deps+="$d "
   fi
@@ -72,9 +76,9 @@ mkdir -p "$OUT/depshim"
 (cd "$OUT/depshim" && dart pub get >/dev/null 2>&1) || { echo 'shim pub get failed'; exit 1; }
 cat > "$OUT/extra_entries.json" <<JSONEOF
 [
-  {"name": "kernel", "rootUri": "file://${HOST_HOME}/xs/dart-sdks/sdk-3.13.2/pkg/kernel", "packageUri": "lib/", "languageVersion": "3.13"},
-  {"name": "vm", "rootUri": "file://${HOST_HOME}/xs/dart-sdks/sdk-3.13.2/pkg/vm", "packageUri": "lib/", "languageVersion": "3.13"},
-  {"name": "front_end", "rootUri": "file://${HOST_HOME}/xs/dart-sdks/sdk-3.13.2/pkg/front_end", "packageUri": "lib/", "languageVersion": "3.13"},$checkout_entries
+  {"name": "kernel", "rootUri": "file://$CHECKOUT/pkg/kernel", "packageUri": "lib/", "languageVersion": "3.13"},
+  {"name": "vm", "rootUri": "file://$CHECKOUT/pkg/vm", "packageUri": "lib/", "languageVersion": "3.13"},
+  {"name": "front_end", "rootUri": "file://$CHECKOUT/pkg/front_end", "packageUri": "lib/", "languageVersion": "3.13"},$checkout_entries
   {"name": "oka_dart_kernel", "rootUri": "file://${HOST_HOME}/xs/oka/packages/oka_dart_kernel", "packageUri": "lib/", "languageVersion": "3.13"}
 ]
 JSONEOF
