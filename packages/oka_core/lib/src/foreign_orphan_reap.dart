@@ -44,9 +44,9 @@ import 'process_surface.dart';
 /// Command-line substrings identifying the orphan-prone flutter/dart
 /// toolchain family (ADR-0053 §2). A process row is a candidate when its
 /// full command line contains any of these. Only SDK-shipped artifacts
-/// are defaults — machine-local ecosystem names (MCP servers, agents')
-/// belong to workspace config (`oka.yaml processes.reap.targets`) or
-/// `oka processes reap --target`, never to this list.
+/// are defaults — machine-local ecosystem names (MCP servers, resident
+/// daemons) compose in Dart at the call site ([reapForeignOrphans]'
+/// `targetNames`), never in this list and never in a config file.
 const defaultForeignOrphanTargets = <String>[
   'frontend_server_aot.dart.snapshot',
   'flutter_tools.snapshot',
@@ -58,8 +58,8 @@ const defaultForeignOrphanTargets = <String>[
 /// Command-line substrings never reaped even when they match
 /// [defaultForeignOrphanTargets]: editor-owned tooling and oka's own
 /// self-settling p1 leaders (ADR-0053 §5). Machine-local residents
-/// belong to workspace config (`oka.yaml processes.reap.protected`) or
-/// `oka processes reap --allow`.
+/// compose in Dart at the call site ([reapForeignOrphans]'
+/// `protectedNames`).
 const defaultForeignOrphanProtected = <String>[
   // Editor analysis servers are session-scoped tooling, not escapes.
   'language-server',
@@ -293,6 +293,21 @@ typedef LiveLeasePidsReader = Future<Set<int>> Function();
 /// ```dart
 /// final summary = await reapForeignOrphans(Directory.current.path);
 /// for (final line in summary.describeLines()) print(line);
+/// ```
+///
+/// Machine-local family/protected policy is a Dart composition root
+/// (ADR-0036 posture: thin shell, Dart drivers) — a driver file composes
+/// this API with its own names; there is no yaml config surface:
+///
+/// ```dart
+/// final summary = await reapForeignOrphans(
+///   Directory.current.path,
+///   targetNames: [
+///     ...defaultForeignOrphanTargets,
+///     'flutter-mcp-toolkit-server',
+///   ],
+///   protectedNames: [...defaultForeignOrphanProtected, 'my_warm_daemon'],
+/// );
 /// ```
 Future<ForeignReapSummary> reapForeignOrphans(
   String projectPath, {

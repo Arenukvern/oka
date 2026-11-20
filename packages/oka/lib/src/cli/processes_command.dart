@@ -12,10 +12,12 @@ import 'package:oka_core/oka_core.dart';
 /// stale-pid-recycled / identity-unknown). Inspection only — nothing is
 /// stopped or deleted here; `oka stop` and the L2 reconcile sweep mutate.
 ///
-/// `reap` extends its family/protected names from workspace config —
-/// `oka.yaml processes.reap.{targets,protected}` — and `--target` /
-/// `--allow` flags, so machine-local names never live in library
-/// defaults.
+/// `reap` is the thin-shell form of `oka_core::reapForeignOrphans`
+/// (ADR-0036 posture: the shell parses, the Dart API composes).
+/// Persistent machine-local family/protected policy is a Dart
+/// composition root — a driver calling `reapForeignOrphans` with its own
+/// `targetNames`/`protectedNames` — never yaml config, never library
+/// defaults; `--target`/`--allow` cover ad-hoc use.
 class ProcessesCommand {
   Future<void> run(List<String> args) async {
     final parser = ArgParser()
@@ -38,13 +40,11 @@ class ProcessesCommand {
       )
       ..addMultiOption(
         'allow',
-        help: 'reap: extra protected command-line substrings (repeatable; '
-            'extends oka.yaml processes.reap.protected)',
+        help: 'reap: extra protected command-line substrings (repeatable)',
       )
       ..addMultiOption(
         'target',
-        help: 'reap: extra target command-line substrings (repeatable; '
-            'extends oka.yaml processes.reap.targets)',
+        help: 'reap: extra target command-line substrings (repeatable)',
       );
 
     late final ArgResults results;
@@ -115,9 +115,9 @@ class ProcessesCommand {
   /// `oka processes reap [--dry-run] [--min-age-minutes N] [--allow s]…
   /// [--target s]…` — the foreign orphan reaping pass (ADR-0053):
   /// SIGKILL the orphan-prone dart/flutter toolchain family whose parent
-  /// died, identity-gated and receipted. Family/protected names merge
-  /// library defaults ∪ `oka.yaml processes.reap.*` ∪ flags (parse-and-
-  /// delegate, ADR-0015); the laws live in `oka_core::reapForeignOrphans`.
+  /// died, identity-gated and receipted. Parse-and-delegate (ADR-0015);
+  /// the laws live in `oka_core::reapForeignOrphans`, and machine-local
+  /// policy composes there in Dart — not here.
   Future<void> _reap(ArgResults results) async {
     final projectPath = Directory.current.path;
     final dryRun = results['dry-run'] as bool;
@@ -125,21 +125,10 @@ class ProcessesCommand {
         int.tryParse(results['min-age-minutes'] as String? ?? '') ?? 15;
     final allows = results['allow'] as List<String>;
     final targets = results['target'] as List<String>;
-    final reapConfig = ProcessesReapConfig.fromJson(
-      (await loadOkaYaml(projectPath)).value['processes'],
-    );
     final summary = await reapForeignOrphans(
       projectPath,
-      protectedNames: [
-        ...defaultForeignOrphanProtected,
-        ...reapConfig.protectedNames,
-        ...allows,
-      ],
-      targetNames: [
-        ...defaultForeignOrphanTargets,
-        ...reapConfig.targets,
-        ...targets,
-      ],
+      protectedNames: [...defaultForeignOrphanProtected, ...allows],
+      targetNames: [...defaultForeignOrphanTargets, ...targets],
       minAge: Duration(minutes: minutes),
       dryRun: dryRun,
     );

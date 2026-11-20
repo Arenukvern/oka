@@ -79,7 +79,6 @@ export 'src/config/flutter_config.dart';
 export 'src/config/maven_coordinate.dart';
 export 'src/config/oka_config.dart';
 export 'src/config/plugin_metadata.dart';
-export 'src/config/processes_config.dart';
 export 'src/config/release_verification_options.dart';
 export 'src/credentials/credential_policy.dart';
 export 'src/credentials/credential_ref.dart';

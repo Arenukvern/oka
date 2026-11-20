@@ -113,8 +113,8 @@ void main() {
             // Family match, recorded live in the lease registry.
             _row(11, command: 'dart .../flutter_tools.snapshot test'),
             // Family match but protected — via explicitly supplied names,
-            // the path workspace config (`oka.yaml processes.reap.protected`)
-            // takes. Machine-local names are never library defaults.
+            // the path a Dart composition root takes. Machine-local names
+            // are never library defaults.
             _row(
               12,
               command:
@@ -314,7 +314,7 @@ void main() {
         // The background sleep must not inherit the shell's stdout pipe,
         // or the stream below never sees EOF.
         '-c',
-        'sleep 120 >/dev/null 2>&1 & echo \$!',
+        r'sleep 120 >/dev/null 2>&1 & echo $!',
       ]);
       final pid = int.parse(
         await spawner.stdout.transform(utf8.decoder).join(),
