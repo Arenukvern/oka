@@ -4,6 +4,13 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.12.0](https://github.com/Arenukvern/oka/compare/v0.11.0...v0.12.0) (2026-11-20)
+
+
+### Features
+
+* **release:** publish oka_update on the train; resolve hosted json/empty-check packages ([92267b3](https://github.com/Arenukvern/oka/commit/92267b3b1d5a9405d0aadfb7a6c04e4b8ee26e70))
+
 ## [0.11.0](https://github.com/Arenukvern/oka/compare/v0.10.3...v0.11.0) (2026-11-20)
 
 

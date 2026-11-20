@@ -34,11 +34,11 @@ dependencies:
     sdk: flutter
 
   mcp_toolkit: ">=5.0.4 <8.0.0" # no code import; bootstrap-side dep (7.2.3 widens fj2j/idoen)
-  oka: ^0.11.0 # x-release-please-version
-  oka_android: ^0.11.0 # x-release-please-version
-  oka_huawei: ^0.11.0 # x-release-please-version
-  oka_play: ^0.11.0 # x-release-please-version
-  oka_update: ^0.11.0 # x-release-please-version
+  oka: ^0.12.0 # x-release-please-version
+  oka_android: ^0.12.0 # x-release-please-version
+  oka_huawei: ^0.12.0 # x-release-please-version
+  oka_play: ^0.12.0 # x-release-please-version
+  oka_update: ^0.12.0 # x-release-please-version
 
 dependency_overrides:
   # Local dogfood deps (mcp_toolkit, intentcall) — maintainers: point these at
