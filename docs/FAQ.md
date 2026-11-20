@@ -147,7 +147,9 @@ Before merging, run `just check-contracts` (or the CI-equivalent gates).
 
 Release history for the CLI package lives in
 [`packages/oka/CHANGELOG.md`](../packages/oka/CHANGELOG.md). Versions are
-managed on `main` via release-please (see contribution guide).
+managed via [dart_changesets](https://github.com/Arenukvern/dart_changesets):
+write an intent file in `.changesets/`, merge the version PR it produces
+(ADR 0054).
 
 ## More questions?
 

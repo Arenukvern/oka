@@ -1,0 +1,71 @@
+# 0054 — dart_changesets replaces the release-please one-version pub train
+
+## Status
+
+accepted (supersedes ADR 0005 for the **pub.dev package train**; ADR 0005's
+plugin-distribution half is untouched)
+
+## Context
+
+ADR 0005 adopted release-please with a **one-version train**: one root
+`VERSION`, one release PR syncing every package pubspec + changelog (+ the
+plugin `plugin.json` files), one root `vX.Y.Z` tag, one consolidated
+`pub_publish.yml` run. Costs that accumulated:
+
+- Every release rewrites ~17 pubspecs + changelogs even when one package
+  changed; review noise scales with the repo, not the change.
+- The consolidated publish run can only ever publish the one package its ref
+  names (pub.dev automated publishing is ref-gated per package tag — measured
+  2026-11-08 in intentcall), so the single-tag design needs skip-existing
+  self-healing for the rest.
+- The whole toolchain (freeze_follower scripts, sync_version.sh,
+  check_version_sync.sh) exists to hold the one-version contract together.
+
+The engine that replaces this already exists as an OSS product:
+[Arenukvern/dart_changesets](https://github.com/Arenukvern/dart_changesets)
+(changesets-style intent files → one version PR with graph-aware dependent
+cascades via `package:pub_semver` → one `<package>-v<version>` tag per
+release → per-tag OIDC publish train). It was built and extracted for the
+`dart_flutter_packages` monorepo (ADR 0073 there) and is the same model
+pub.dev's ref-gating mandates.
+
+## Decision
+
+1. The pub package train runs on **dart_changesets**:
+   - `.changesets/` intent files declare bumps (`'oka_core': patch`);
+     dependents cascade automatically when caret constraints no longer admit
+     the new versions.
+   - `.github/workflows/dart_changesets.yml` assembles the version PR on
+     `main` pushes.
+   - `.github/workflows/dart_changesets_publish.yml` publishes per tag via
+     the reusable workflow (`Arenukvern/dart_changesets/.github/workflows/
+     publish.yml@v1`); `id-token: write`, no stored secrets.
+2. Package discovery uses the root pubspec `workspace:` declaration.
+3. Removed: `.github/workflows/release-please.yml`,
+   `release_pr_sync_versions.yml`, `pub_publish.yml`,
+   `release-please-config.json`, `.release-please-manifest.json`.
+
+## Consequences
+
+- **Versions move per package.** `packages/*/pubspec.yaml` versions diverge
+  over time; dependent constraints are rewritten by the engine, not by a sync
+  script. `check_version_sync.sh`, `sync_version.sh`, and the
+  freeze-follower scripts lose their caller and become dormant.
+- **`VERSION` and `plugin/.{cursor,codex,claude}-plugin/plugin.json` +
+  `.claude-plugin/marketplace.json` are no longer auto-synced** to the pub
+  train. They track the CLI/plugin product surface; if that surface needs a
+  synced version again, that is a separate decision (candidates: an intent
+  file convention + a tiny version-file job, or manual bump at release).
+- pub.dev automated publishing tag patterns change from the root pattern
+  (`vX.Y.Z`) to per-package `<package>-v{{version}}` — enable per package on
+  pub.dev Admin before its first automated publish (packages already published
+  need only the toggle; never-published packages need the manual first
+  publish first).
+- Conventional commit discipline is no longer load-bearing for versions;
+  release intent lives in reviewed `.changesets/` files.
+
+## Non-claims
+
+No package is published by this change; the first live train has not run on
+GitHub runners. `okas` plugin/CLI product versioning (VERSION + plugin.json)
+is intentionally left unmaintained-by-automation until a separate decision.
