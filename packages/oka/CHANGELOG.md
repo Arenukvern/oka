@@ -4,6 +4,20 @@
 
 All notable changes to the Oka project will be documented in this file.
 
+## [0.11.0](https://github.com/Arenukvern/oka/compare/v0.10.3...v0.11.0) (2026-11-20)
+
+
+### Features
+
+* **reap:** portable supervisor detection and workspace-configurable targets ([1fcbabb](https://github.com/Arenukvern/oka/commit/1fcbabb4db572d95ed6310cf17fe3e9a1dd9ed0d))
+
+
+### Bug Fixes
+
+* **deps:** allow flutter_mcp_harness 8.x ([092d923](https://github.com/Arenukvern/oka/commit/092d9232c88c8b714511a001d66a2a3f270614c7))
+* **deps:** allow flutter_mcp_harness 8.x ([721de44](https://github.com/Arenukvern/oka/commit/721de441126b65fd039325cdf7265966298d2d2e))
+* **lints:** align oka_rustore and oka_update analysis options with train packages ([7c01f3f](https://github.com/Arenukvern/oka/commit/7c01f3f56b925b733399554c0420096fb55408b5))
+
 ## [0.10.3](https://github.com/Arenukvern/oka/compare/v0.10.2...v0.10.3) (2026-11-15)
 
 
