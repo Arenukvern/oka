@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.11.0 <!-- x-release-please-version -->
+## 0.12.0 <!-- x-release-please-version -->
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
+## 0.11.0
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
 
