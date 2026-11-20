@@ -15,5 +15,6 @@ const packages = <String>[
   'oka_rustore',
   'oka_web',
   'oka_harness',
+  'oka_update',
   'oka',
 ];

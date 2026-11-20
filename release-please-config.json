@@ -75,6 +75,10 @@
         },
         {
           "type": "generic",
+          "path": "packages/oka_update/pubspec.yaml"
+        },
+        {
+          "type": "generic",
           "path": "packages/oka_dart_kernel/pubspec.yaml"
         },
         {

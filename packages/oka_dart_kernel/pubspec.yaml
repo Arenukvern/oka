@@ -18,7 +18,7 @@ dependencies:
   is_dart_empty_or_not: ^0.6.0
   meta: ^1.19.0
   oka_core: ^0.11.0 # x-release-please-version
-  oka_update: ^0.0.1
+  oka_update: ^0.11.0 # x-release-please-version
   path: ^1.9.0
 
 dev_dependencies:

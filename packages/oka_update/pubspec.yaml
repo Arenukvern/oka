@@ -2,10 +2,8 @@ name: oka_update
 description: >-
   Authoring and planner surface for declarative patch units (ADR-0031):
   unit specs, revision manifests, and computed patch eligibility. The
-  kernel-graph machinery lives in oka_dart_kernel (ADR-0032). Experimental;
-  not published.
-version: 0.0.1
-publish_to: none
+  kernel-graph machinery lives in oka_dart_kernel (ADR-0032). Experimental.
+version: 0.11.0 # x-release-please-version
 
 resolution: workspace
 
@@ -15,7 +13,7 @@ environment:
 dependencies:
   crypto: ^3.0.0
   cryptography: ^2.9.0
-  from_json_to_json: ^0.5.2
+  from_json_to_json: ^0.6.0
   universal_automation_interface: ^0.4.0
 
 dev_dependencies:

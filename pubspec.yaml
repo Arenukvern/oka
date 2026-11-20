@@ -29,17 +29,3 @@ dev_dependencies:
   test: ^1.25.0
   xsoulspace_lints: ^0.1.2
   yaml: ^3.1.2
-
-# Local co-development with the sibling checkouts while is_dart_empty_or_not
-# 0.6.0 / from_json_to_json 0.6.0 are unpublished; drop once both are on
-# pub.dev.
-dependency_overrides:
-  from_json_to_json:
-    path: ../from_json_to_json
-  # intentcall_schema 1.x on pub still carries its deprecated jsonDecode*
-  # stopgaps, which collide with from_json_to_json 0.6.0's real API; the
-  # sibling checkout is the post-migration state (stopgaps removed).
-  intentcall_schema:
-    path: ../../mcp/cline/intentcall/packages/intentcall_schema
-  is_dart_empty_or_not:
-    path: ../is_dart_empty_or_not
