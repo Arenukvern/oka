@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -364,13 +365,13 @@ Future<List<StorageLocation>> discoverStorageLocations({
     }
   }
   for (final key in ['OKA_ANDROID_SDK', 'ANDROID_HOME', 'ANDROID_SDK_ROOT']) {
-    if (env[key]?.isNotEmpty ?? false) await sdk(expand(env[key]!), 'external');
+    if (env[key].isNotNullNorEmpty) await sdk(expand(env[key]!), 'external');
   }
   final avdRoots = <String>{
     if (home != null) p.join(home, '.android', 'avd'),
-    if (env['ANDROID_AVD_HOME']?.isNotEmpty ?? false)
+    if (env['ANDROID_AVD_HOME'].isNotNullNorEmpty)
       expand(env['ANDROID_AVD_HOME']!),
-    if (env['ANDROID_USER_HOME']?.isNotEmpty ?? false)
+    if (env['ANDROID_USER_HOME'].isNotNullNorEmpty)
       p.join(expand(env['ANDROID_USER_HOME']!), 'avd'),
   };
   for (final root in avdRoots) {
@@ -444,7 +445,7 @@ Future<List<StorageLocation>> discoverStorageLocations({
       note: 'Manage with dart pub cache clean; shared with other projects.',
     );
   }
-  if (env['FLUTTER_ROOT']?.isNotEmpty ?? false) {
+  if (env['FLUTTER_ROOT'].isNotNullNorEmpty) {
     await add(
       p.join(expand(env['FLUTTER_ROOT']!), 'bin', 'cache'),
       'flutter-sdk-cache',

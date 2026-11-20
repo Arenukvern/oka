@@ -22,6 +22,8 @@ environment:
 dependencies:
   archive: ^4.6.0
   crypto: ^3.0.0
+  from_json_to_json: ^0.6.0
+  is_dart_empty_or_not: ^0.6.0
   meta: ^1.14.0
   # This package publishes on the train together with oka_core 0.2.0
   # (which introduces Target.explainDetails) — never against hosted

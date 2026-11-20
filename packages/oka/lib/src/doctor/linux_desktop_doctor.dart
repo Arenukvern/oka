@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
+
 import 'flutter_linux_device.dart';
 import 'tool_probe.dart';
 
@@ -91,7 +93,7 @@ Future<LinuxDesktopDoctorReport> linuxDesktopDoctorChecks({
     capabilities['native_arch'] = true;
     final arch = uname.stdout.trim();
     lines.add(
-      '  ℹ️  Native arch: ${arch.isEmpty ? 'unknown' : arch} (Flutter linux '
+      '  ℹ️  Native arch: ${arch.whenEmptyUse('unknown')} (Flutter linux '
       'desktop builds match host; arm64 hosts need arm64 CI — not implied by '
       'ubuntu-amd64 gates)',
     );
@@ -187,7 +189,7 @@ Future<LinuxDesktopDoctorReport> linuxDesktopDoctorChecks({
       ok = false;
     } else {
       final headline = r.stdout.split('\n').first.trim();
-      lines.add('  ✅ ${tool.$1}: ${headline.isEmpty ? 'ok' : headline}');
+      lines.add('  ✅ ${tool.$1}: ${headline.whenEmptyUse('ok')}');
     }
   }
 
@@ -250,8 +252,8 @@ Future<LinuxDesktopDoctorReport> linuxDesktopDoctorChecks({
   }
 
   final env = Platform.environment;
-  final hasDisplay = (env['DISPLAY']?.isNotEmpty ?? false) ||
-      (env['WAYLAND_DISPLAY']?.isNotEmpty ?? false);
+  final hasDisplay =
+      env['DISPLAY'].isNotNullNorEmpty || env['WAYLAND_DISPLAY'].isNotNullNorEmpty;
   capabilities['display_session'] = hasDisplay;
   capabilities['display_runnable_now'] = hasDisplay;
   if (hasDisplay) {

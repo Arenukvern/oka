@@ -155,12 +155,8 @@ class BuildContext {
   /// Pipeline event sink (null → events dropped; CLI pipes to stdout).
   final void Function(PipelineEvent event)? onEvent;
 
-  static Map<String, String> _decodeDefines(Object? raw) {
-    if (raw is Map) {
-      return raw.map((k, v) => MapEntry(k.toString(), v.toString()));
-    }
-    return const {};
-  }
+  static Map<String, String> _decodeDefines(Object? raw) =>
+      jsonDecodeMap(raw).map((key, value) => MapEntry(key, '$value'));
 
   /// Process runner resolved against the injected instance (if any).
   ProcessRunner get runner => processRunner ?? const SystemProcessRunner();

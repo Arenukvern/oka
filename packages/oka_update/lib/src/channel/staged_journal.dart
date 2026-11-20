@@ -9,6 +9,8 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:from_json_to_json/from_json_to_json.dart';
+
 import 'update_client.dart' show UpdateReceipt;
 
 /// Where the journal keeps its state: `<root>/journal.json`, plus
@@ -34,9 +36,9 @@ class StagedUpdateJournal {
       final json = (jsonDecode(_journalFile.readAsStringSync()) as Map)
           .cast<String, dynamic>();
       return JournalState(
-        current: json['current'] as String?,
-        staged: json['staged'] as String?,
-        revision: json['revision'] as String?,
+        current: jsonDecodeNullableString(json['current']),
+        staged: jsonDecodeNullableString(json['staged']),
+        revision: jsonDecodeNullableString(json['revision']),
         dirty: json['dirty'] == true,
       );
     } on FormatException {

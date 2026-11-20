@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:from_json_to_json/from_json_to_json.dart';
 import 'package:oka_core/oka_core.dart';
 
 enum MavenHost { google, central, vendor, unknown }
@@ -194,14 +195,14 @@ class MavenMetadataParser {
     final output = <MavenCoordinate>[];
     for (final value in root['variants'] as List) {
       if (value is! Map<String, dynamic>) continue;
-      final name = (value['name'] as String? ?? '').toLowerCase();
+      final name = jsonDecodeString(value['name']).toLowerCase();
       if (!name.contains('runtime') || excluded.any(name.contains)) continue;
       final dependencies = value['dependencies'];
       if (dependencies is! List) continue;
       for (final dependency in dependencies) {
         if (dependency is! Map<String, dynamic>) continue;
-        final group = dependency['group'] as String? ?? '';
-        final artifact = dependency['module'] as String? ?? '';
+        final group = jsonDecodeString(dependency['group']);
+        final artifact = jsonDecodeString(dependency['module']);
         final versionValue = dependency['version'];
         final version = versionValue is Map
             ? (versionValue['requires'] ??

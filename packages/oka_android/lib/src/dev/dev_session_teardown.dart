@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
+
 import 'adb_tool.dart';
 import 'daemon_adapter.dart';
 import 'dev_session_teardown_budget.dart';
@@ -404,7 +406,7 @@ Future<DevLaunchForwardReleaseResult> releaseDevLaunchOwnedForward({
       adbExitCode: r.exitCode,
       message: r.exitCode == 0
           ? null
-          : (combined.isEmpty ? 'adb forward --remove failed' : combined),
+          : combined.whenEmptyUse('adb forward --remove failed'),
     );
   } on Object catch (e) {
     return DevLaunchForwardReleaseResult(
@@ -541,7 +543,7 @@ Future<ForwardReleaseAction> releaseSessionCreatedForward(
       attempted: true,
       removed: false,
       adbExitCode: r.exitCode,
-      message: combined.isEmpty ? 'adb forward --remove failed' : combined,
+      message: combined.whenEmptyUse('adb forward --remove failed'),
     );
   } on TimeoutException {
     return const ForwardReleaseAction(
@@ -706,7 +708,7 @@ Future<PidofWaitAction> waitDevicePackageAbsent({
         proven: false,
         adbFailed: true,
         deviceShellVerified: true,
-        message: msg.isEmpty ? 'pidof transport failure' : msg,
+        message: msg.whenEmptyUse('pidof transport failure'),
       );
     }
     if (signal == PidofAbsentSignal.inconclusive) {

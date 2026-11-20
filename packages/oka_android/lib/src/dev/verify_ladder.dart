@@ -25,6 +25,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:oka_core/oka_core.dart';
 
 import '../android_artifacts.dart';
@@ -307,7 +308,7 @@ class SnapshotPairingRungStep extends RungStep {
         verdict.passed
             ? RungStatus.passed
             : RungStatus.failed,
-        detail: verdict.detail.isEmpty ? verdict.checkName : verdict.detail,
+        detail: verdict.detail.whenEmptyUse(verdict.checkName),
       ),
     );
     return StepResult.success();

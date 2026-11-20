@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:from_json_to_json/from_json_to_json.dart';
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
@@ -305,7 +307,9 @@ class LocalArtifactStore implements ArtifactStore {
     Map<String, dynamic> json,
     String indexDirPath,
   ) {
-    final fileName = (json['file'] ?? json['path']) as String?;
+    final fileName =
+        jsonDecodeNullableString(json['file']) ??
+        jsonDecodeNullableString(json['path']);
     if (fileName == null) {
       throw const FormatException('index lacks artifact file name');
     }
@@ -316,16 +320,16 @@ class LocalArtifactStore implements ArtifactStore {
         name: json['name'] as String,
         version: json['version'] as String,
         contentHash: json['hash'] as String,
-        platform: json['platform'] as String? ?? 'any',
+        platform: jsonDecodeString(json['platform']).whenEmptyUse('any'),
         fileName: fileName,
       ),
       path: artifact.path,
-      sizeBytes: json['size_bytes'] as int? ?? artifact.lengthSync(),
+      sizeBytes: jsonDecodeNullableInt(json['size_bytes']) ?? artifact.lengthSync(),
       createdAt:
-          DateTime.tryParse(json['created'] as String? ?? '') ??
+          dateTimeFromIso8601String(jsonDecodeNullableString(json['created'])) ??
           artifact.statSync().modified.toUtc(),
-      source: json['source'] as String?,
-      sweepDir: json['sweepDir'] as String? ?? indexDirPath,
+      source: jsonDecodeNullableString(json['source']),
+      sweepDir: jsonDecodeNullableString(json['sweepDir']) ?? indexDirPath,
     );
   }
 

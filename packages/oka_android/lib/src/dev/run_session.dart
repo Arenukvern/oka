@@ -41,6 +41,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:from_json_to_json/from_json_to_json.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -113,7 +114,7 @@ class RunSession {
   /// Parses a manifest, tolerating unknown fields (forward-compatible
   /// readers; writers are the same package that reads).
   factory RunSession.fromJson(Map<String, dynamic> json) {
-    final schema = (json['schema'] as num?)?.toInt() ?? runSessionSchemaVersion;
+    final schema = jsonDecodeNullableInt(json['schema']) ?? runSessionSchemaVersion;
     if (schema != runSessionSchemaVersion) {
       throw RunSessionException(
         'run_session.json has schema $schema but this oka understands '
@@ -129,20 +130,20 @@ class RunSession {
     final abisRaw = json['abis'];
     return RunSession(
       schema: schema,
-      okaVersion: json['oka_version'] as String? ?? '',
-      recordedAt: json['recorded_at'] as String? ?? '',
-      flutterSdkPath: json['flutter_sdk_path'] as String? ?? '',
-      engineRevision: json['engine_revision'] as String? ?? '',
-      targetFile: json['target_file'] as String? ?? '',
-      buildMode: json['build_mode'] as String? ?? '',
+      okaVersion: jsonDecodeString(json['oka_version']),
+      recordedAt: jsonDecodeString(json['recorded_at']),
+      flutterSdkPath: jsonDecodeString(json['flutter_sdk_path']),
+      engineRevision: jsonDecodeString(json['engine_revision']),
+      targetFile: jsonDecodeString(json['target_file']),
+      buildMode: jsonDecodeString(json['build_mode']),
       dartDefines: normalizeDartDefines(defines),
-      applicationId: json['application_id'] as String? ?? '',
+      applicationId: jsonDecodeString(json['application_id']),
       abis: [
         if (abisRaw is List) for (final a in abisRaw) a.toString(),
       ],
-      apkPath: json['apk_path'] as String? ?? '',
-      flavor: json['flavor'] as String? ?? '',
-      trackWidgetCreation: json['track_widget_creation'] as bool? ?? false,
+      apkPath: jsonDecodeString(json['apk_path']),
+      flavor: jsonDecodeString(json['flavor']),
+      trackWidgetCreation: jsonDecodeBool(json['track_widget_creation']),
     );
   }
 

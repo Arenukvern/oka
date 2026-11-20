@@ -22,6 +22,8 @@ environment:
 
 dependencies:
   args: ^2.5.0
+  from_json_to_json: ^0.6.0
+  is_dart_empty_or_not: ^0.6.0
   oka_android: ^0.11.0 # x-release-please-version
   oka_artifacts: ^0.11.0 # x-release-please-version
   oka_core: ^0.11.0 # x-release-please-version

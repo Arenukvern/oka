@@ -26,6 +26,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:from_json_to_json/from_json_to_json.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -211,10 +212,8 @@ class AndroidDeviceProvisioner {
     final entry = await _store.find(key);
     if (entry != null && await File(entry.path).exists()) {
       try {
-        final pointer =
-            jsonDecode(await File(entry.path).readAsString())
-                as Map<String, dynamic>;
-        final packageDir = pointer['package_dir'] as String?;
+        final pointer = jsonDecodeMap(await File(entry.path).readAsString());
+        final packageDir = jsonDecodeNullableString(pointer['package_dir']);
         if (packageDir != null && await Directory(packageDir).exists()) {
           return packageDir;
         }

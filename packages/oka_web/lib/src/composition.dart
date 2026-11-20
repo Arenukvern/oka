@@ -8,6 +8,7 @@
 /// contributions over the spec.
 library;
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:meta/meta.dart';
 
 import 'contribution.dart';
@@ -76,21 +77,16 @@ class WebShell {
       m = m.apply(override);
       if (override.icons != null) icons = override.icons!;
     }
-    final name = m.name.isNotEmpty ? m.name : spec.title;
+    final name = m.name.whenEmptyUse(spec.title);
     return PwaManifestSpec(
       name: name,
-      shortName: m.shortName.isNotEmpty ? m.shortName : name,
-      startUrl: m.startUrl.isNotEmpty ? m.startUrl : spec.startUrl,
-      display: m.display.isNotEmpty ? m.display : spec.display,
-      orientation: m.orientation.isNotEmpty
-          ? m.orientation
-          : spec.orientation,
-      themeColor: m.themeColor.isNotEmpty ? m.themeColor : spec.themeColor,
-      backgroundColor: m.backgroundColor.isNotEmpty
-          ? m.backgroundColor
-          : spec.backgroundColor,
-      description:
-          m.description.isNotEmpty ? m.description : spec.description,
+      shortName: m.shortName.whenEmptyUse(name),
+      startUrl: m.startUrl.whenEmptyUse(spec.startUrl),
+      display: m.display.whenEmptyUse(spec.display),
+      orientation: m.orientation.whenEmptyUse(spec.orientation),
+      themeColor: m.themeColor.whenEmptyUse(spec.themeColor),
+      backgroundColor: m.backgroundColor.whenEmptyUse(spec.backgroundColor),
+      description: m.description.whenEmptyUse(spec.description),
       icons: icons,
       preferRelatedApplications: m.preferRelatedApplications,
     );

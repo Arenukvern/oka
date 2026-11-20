@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -103,8 +104,7 @@ class SigningConfig {
   }
 
   /// Effective key password.
-  String get effectiveKeyPassword =>
-      keyPassword.isEmpty ? storePassword : keyPassword;
+  String get effectiveKeyPassword => keyPassword.whenEmptyUse(storePassword);
 
   /// Resolution chain: explicit Dart config → oka.yaml `android.signing` →
   /// `android/key.properties` → null (debug keystore fallback).

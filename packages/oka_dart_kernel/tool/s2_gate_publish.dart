@@ -11,6 +11,7 @@
 library;
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:oka_update/oka_update.dart';
 
 Future<void> main(List<String> args) async {
@@ -53,12 +54,12 @@ Future<void> main(List<String> args) async {
       }
       final envelope = await writeSlotUpdateEnvelope(
         directory: dir,
-        channel: option('channel').isEmpty ? 'stable' : option('channel'),
-        family: option('family').isEmpty ? 'feature' : option('family'),
-        revision: option('revision').isEmpty ? 'r2' : option('revision'),
+        channel: option('channel').whenEmptyUse('stable'),
+        family: option('family').whenEmptyUse('feature'),
+        revision: option('revision').whenEmptyUse('r2'),
         signer: await signer,
         artifact: artifact,
-        fileName: option('filename').isEmpty ? null : option('filename'),
+        fileName: option('filename').whenEmptyOrNull,
       );
       stdout.writeln('envelope: ${envelope.path}');
     default:

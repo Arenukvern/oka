@@ -100,6 +100,19 @@ void main() {
         final tmp = await Directory.systemTemp.createTemp('oka_adr0010_');
         addTearDown(() => tmp.deleteSync(recursive: true));
         final repoRoot = Directory.current.path;
+        // The json/empty-check packages are siblings until their 0.6.0 line
+        // publishes; once hosted releases exist (and the workspace overrides
+        // go), the bootstrap block below drops them automatically.
+        final jsonSiblingOverrides =
+            Directory('$repoRoot/../from_json_to_json').existsSync() &&
+                Directory('$repoRoot/../is_dart_empty_or_not').existsSync()
+            ? '''
+  from_json_to_json:
+    path: $repoRoot/../from_json_to_json
+  is_dart_empty_or_not:
+    path: $repoRoot/../is_dart_empty_or_not
+'''
+            : '';
         await File('${tmp.path}/pubspec.yaml').writeAsString('''
 name: dart_cfg
 version: 1.0.0+1
@@ -113,7 +126,7 @@ dependencies:
 # Bootstrap overrides: oka_android's hosted oka_core constraint cannot
 # resolve until the split packages are first published to pub.dev.
 dependency_overrides:
-  oka_android:
+$jsonSiblingOverrides  oka_android:
     path: $repoRoot/packages/oka_android
   oka_core:
     path: $repoRoot/packages/oka_core

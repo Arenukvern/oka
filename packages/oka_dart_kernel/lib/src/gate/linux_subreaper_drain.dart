@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:oka_core/oka_core.dart';
 
 import 'linux_proc_process_tree_probe.dart';
@@ -45,7 +46,7 @@ Future<SubreaperDrainResult> drainSubreaperAdoptees({
 
   Duration remaining() {
     final left = deadline.difference(DateTime.now());
-    return left.isNegative ? Duration.zero : left;
+    return left.whenNegativeUse(Duration.zero);
   }
 
   Future<void> receipt(

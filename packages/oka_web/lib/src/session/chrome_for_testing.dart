@@ -9,11 +9,11 @@
 /// system Chrome → provision.
 library;
 
-import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:from_json_to_json/from_json_to_json.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -167,11 +167,10 @@ class ChromeForTestingProvisioner {
   /// Resolves the Stable channel version from the last-known-good manifest.
   Future<String> resolveStableVersion() async {
     final decoded =
-        jsonDecode(await fetchText(Uri.parse(kChromeForTestingVersionsUrl)))
-            as Map<String, dynamic>;
-    final channels = decoded['channels'] as Map<String, dynamic>?;
-    final stable = channels?['Stable'] as Map<String, dynamic>?;
-    final version = stable?['version'] as String?;
+        jsonDecodeMap(await fetchText(Uri.parse(kChromeForTestingVersionsUrl)));
+    final channels = jsonDecodeNullableMap(decoded['channels']);
+    final stable = jsonDecodeNullableMap(channels?['Stable']);
+    final version = jsonDecodeNullableString(stable?['version']);
     if (version == null || version.isEmpty) {
       throw Exception(
         'chrome-for-testing manifest has no Stable version: '

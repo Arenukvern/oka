@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:from_json_to_json/from_json_to_json.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -72,8 +73,8 @@ class InitCommand {
     final pubspecFile = _projectFile('pubspec.yaml');
     final pubspecContent = await pubspecFile.readAsString();
     final pubspec = loadYaml(pubspecContent) as Map<dynamic, dynamic>;
-    final projectName = (pubspec['name'] as String?) ?? 'app';
-    final projectVersion = (pubspec['version'] as String?) ?? '1.0.0';
+    final projectName = jsonDecodeNullableString(pubspec['name']) ?? 'app';
+    final projectVersion = jsonDecodeNullableString(pubspec['version']) ?? '1.0.0';
 
     print('📦 Project: $projectName v$projectVersion');
 
@@ -141,8 +142,8 @@ class InitCommand {
     final pubspec =
         loadYaml(await _projectFile('pubspec.yaml').readAsString())
             as Map<dynamic, dynamic>;
-    final name = (pubspec['name'] as String?) ?? 'app';
-    final version = (pubspec['version'] as String?) ?? '1.0.0';
+    final name = jsonDecodeNullableString(pubspec['name']) ?? 'app';
+    final version = jsonDecodeNullableString(pubspec['version']) ?? '1.0.0';
     final versionCode = RegExp(r'\+(\d+)$').firstMatch(version)?.group(1);
     final code = entrypointFromYaml({
       'name': name,

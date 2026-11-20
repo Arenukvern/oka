@@ -7,6 +7,7 @@ library;
 
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -163,7 +164,7 @@ int? detectRequiredJavaLevel(Iterable<String> gradleFiles) {
       if (level > maxLevel) maxLevel = level;
     }
   }
-  return maxLevel == 0 ? null : maxLevel;
+  return maxLevel.whenZeroOrNull;
 }
 
 /// Effective javac source/target: config version raised to the detected

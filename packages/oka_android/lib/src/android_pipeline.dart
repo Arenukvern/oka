@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:is_dart_empty_or_not/is_dart_empty_or_not.dart';
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -168,20 +169,16 @@ class AndroidPipeline implements PlatformPipeline {
         yaml.signing ??
         await SigningConfig.fromKeyProperties(ctx.projectPath);
     final merged = yaml.copyWith(
-      extraDeps: overrides.extraDeps.isEmpty ? null : overrides.extraDeps,
-      extraAssets: overrides.extraAssets.isEmpty ? null : overrides.extraAssets,
-      deeplinks: overrides.deeplinks.isEmpty ? null : overrides.deeplinks,
-      resourceConfigs: overrides.resourceConfigs.isEmpty
-          ? null
-          : overrides.resourceConfigs,
+      extraDeps: overrides.extraDeps.whenEmptyOrNull,
+      extraAssets: overrides.extraAssets.whenEmptyOrNull,
+      deeplinks: overrides.deeplinks.whenEmptyOrNull,
+      resourceConfigs: overrides.resourceConfigs.whenEmptyOrNull,
       manifest: overrides.manifest,
       signing: signing,
       icon: overrides.icon == const IconConfig() ? null : overrides.icon,
-      localAars: overrides.localAars.isEmpty ? null : overrides.localAars,
-      resDirs: overrides.resDirs.isEmpty ? null : overrides.resDirs,
-      excludePlugins: overrides.excludePlugins.isEmpty
-          ? null
-          : overrides.excludePlugins,
+      localAars: overrides.localAars.whenEmptyOrNull,
+      resDirs: overrides.resDirs.whenEmptyOrNull,
+      excludePlugins: overrides.excludePlugins.whenEmptyOrNull,
       maxSizeMb: overrides.maxSizeMb,
     );
 
