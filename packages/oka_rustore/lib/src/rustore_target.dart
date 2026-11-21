@@ -49,6 +49,10 @@ class RuStorePublishTarget extends PublishTarget {
   String get track => 'production';
   @override
   String get artifactId => StageAabStep.aab.id;
+
+  /// ADR-0055 capability: RuStore accepts Android builds.
+  @override
+  Set<String> get acceptedPlatforms => const {'android'};
   @override
   Map<String, String> get metadata => {
     'packageName': packageName,
@@ -104,11 +108,10 @@ class _RuStoreUploadStep extends BuildStep {
   Set<Artifact<Object>> get requires => {StageAabStep.aab};
 
   @override
-  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
-      Future.value(
-        StepResult.failure(
-          'RuStore upload requires a project-provided credential adapter; '
-          'use dryRun for a readiness plan',
-        ),
-      );
+  Future<StepResult> run(BuildContext ctx, PipelineState state) => Future.value(
+    StepResult.failure(
+      'RuStore upload requires a project-provided credential adapter; '
+      'use dryRun for a readiness plan',
+    ),
+  );
 }

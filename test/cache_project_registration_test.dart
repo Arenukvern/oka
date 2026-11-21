@@ -66,7 +66,7 @@ void main() {
   test('target execution also registers the project', () async {
     await okaRun(
       ['--oka-run-target', 'fixture'],
-      oka: const Oka(pipelines: [], targets: [_EmptyTarget()]),
+      oka: const Oka(targets: [_EmptyTarget()]),
       projectPath: project.path,
       registerCacheProject: registry.register,
     );

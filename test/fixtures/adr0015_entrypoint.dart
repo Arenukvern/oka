@@ -43,5 +43,5 @@ class EchoStep extends BuildStep {
 
 Future<void> main(List<String> args) => okaRun(
       args,
-      oka: const Oka(pipelines: [], targets: [EchoTarget()]),
+      oka: const Oka(targets: [EchoTarget()]),
     );

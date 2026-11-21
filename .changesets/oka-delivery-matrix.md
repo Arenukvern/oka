@@ -1,0 +1,46 @@
+---
+'oka_core': minor
+'oka_android': minor
+'oka_web': minor
+'oka_desktop': minor
+'oka_service': minor
+'oka_store': minor
+'oka': patch
+'oka_huawei': patch
+'oka_play': patch
+'oka_rustore': patch
+'oka_conformance': patch
+'oka_artifacts': patch
+'oka_dart_kernel': patch
+'oka_supervisor': patch
+'oka_verify': patch
+---
+
+**oka_core**: ADR-0055 — the delivery matrix. New `Delivery`/`DeliveryTarget`
+(pipeline by const reference + variant + channel), `Variant` (entrypoint,
+defines, overlays, open `StoreKey`), `Overlay` (defines + native-dep edits),
+`RunPipelineStep`; `Target.dartDefines` (ADR-0014 amendment — CLI wins) and
+`Target.transformContext`; `Oka.pipelines` optional (delivery-only projects);
+`BuildContext.overlays`; `PublishTarget` capability hooks
+(`acceptedPlatforms`, `acceptedArtifactFormats`, `requiredOverlays`,
+`prohibitedOverlays`) with `validateDelivery` composition checks.
+
+**oka_store**: new leaf package — the open store-key identity (`StoreKey`
+extension type + validation, `StoreBinding` + `NoopStoreBinding`, well-known
+keys as convenience constants, no enum).
+
+**oka_android**: overlay native-dependency folding
+(`foldOverlayDependencies` — the generic form of the GMS exclusion).
+
+**oka_web**: new `WebPipeline` (validate → emit shell → flutter build web);
+`WebBuildTarget.transformContext` wires contribution dartDefines into the
+build (previously dead); gh-pages/itch declare platform/format capabilities.
+
+**oka_desktop**: new — `MacosPipeline`/`LinuxPipeline`/`WindowsPipeline`
+(honest `flutter build <desktop>` delegation, delivery-ready).
+
+**oka_service**: new — `CommandPipeline` (jaspr/dart/docker/any argv) +
+`GitHubReleasePublishTarget` (gh CLI, ambient auth) + `StageFileStep`.
+
+Store channels declare capabilities (Play: android/aab; RuStore: android;
+AppGallery: android/aab, `gms` overlay prohibited). ADR 0055.

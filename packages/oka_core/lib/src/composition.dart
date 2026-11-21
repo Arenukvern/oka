@@ -34,13 +34,18 @@ import 'targets/target.dart';
 /// * `AndroidPipeline` (oka_android), the default Android [PlatformPipeline].
 class Oka {
   const Oka({
-    required this.pipelines,
+    this.pipelines = const [],
     this.targets = const [],
     this.sessionStateWorkflows = const [],
   });
 
   /// Platform pipelines to compose. One is selected per build target by
   /// matching [PlatformPipeline.platform] against `--platform`.
+  ///
+  /// ADR-0055: optional — a delivery-only project (services, landing
+  /// pages, CLI units composed purely of [Target] deliveries) declares
+  /// no platform pipelines at all; bare `oka build --platform …` then
+  /// fails with an actionable message naming the deliveries instead.
   final List<PlatformPipeline> pipelines;
 
   /// Project-declared targets (ADR-0015), dispatched via `oka run <target>`

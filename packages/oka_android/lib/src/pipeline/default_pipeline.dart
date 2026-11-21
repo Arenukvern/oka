@@ -21,6 +21,7 @@ import 'steps/flutter_steps.dart';
 import 'steps/host_steps.dart';
 import 'steps/tool_steps.dart';
 
+export '../overlay_folding.dart';
 export '../pipeline_overrides.dart';
 
 /// Resolves user-declared extra Maven coordinates — including their POM

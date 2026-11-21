@@ -39,5 +39,5 @@ class BrokenStep extends BuildStep {
 
 Future<void> main(List<String> args) => okaRun(
       args,
-      oka: const Oka(pipelines: [], targets: [BrokenTarget()]),
+      oka: const Oka(targets: [BrokenTarget()]),
     );

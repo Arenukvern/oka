@@ -62,20 +62,18 @@ class WebShellTarget extends Target {
   /// visibility. Never reads the filesystem or environment.
   @override
   Map<String, dynamic> get configOverrides => {
-        'web': {
-          'base_href': compose().baseHref,
-          'emitter': emitter.name,
-          'dir': webDir,
-        },
-      };
+    'web': {
+      'base_href': compose().baseHref,
+      'emitter': emitter.name,
+      'dir': webDir,
+    },
+  };
 
   /// Compile to the validate → emit step chain (no Flutter invocation).
   @override
   List<BuildStep> compile(BuildContext ctx) {
     final shell = compose();
-    final dir = p.isAbsolute(webDir)
-        ? webDir
-        : p.join(ctx.projectPath, webDir);
+    final dir = p.isAbsolute(webDir) ? webDir : p.join(ctx.projectPath, webDir);
     return [
       ValidateWebShellStep(shell: shell, webDir: dir),
       EmitWebShellStep(emitter: emitter, webDir: dir),
@@ -87,7 +85,8 @@ class WebShellTarget extends Target {
   @override
   List<String> explainDetails(BuildContext ctx) {
     final shell = compose();
-    final header = 'composed web shell (emitter "${emitter.name}" owns: '
+    final header =
+        'composed web shell (emitter "${emitter.name}" owns: '
         '${emitter.ownedPaths.join(', ')}; post-emit drift gate: re-render '
         'must be a no-op):';
     return [header, ...shell.describeLines()];
@@ -149,16 +148,28 @@ class WebBuildTarget extends Target {
   /// Pure: the keys this target owns.
   @override
   Map<String, dynamic> get configOverrides => {
-        'web': {
-          'base_href': effectiveBaseHref,
-          'delegation': 'flutter build web',
-        },
-      };
+    'web': {'base_href': effectiveBaseHref, 'delegation': 'flutter build web'},
+  };
 
   /// Compile to the [FlutterWebBuildStep] delegation.
   @override
-  List<BuildStep> compile(BuildContext ctx) =>
-      [FlutterWebBuildStep(baseHref: effectiveBaseHref, extraArgs: extraArgs)];
+  List<BuildStep> compile(BuildContext ctx) => [
+    FlutterWebBuildStep(baseHref: effectiveBaseHref, extraArgs: extraArgs),
+  ];
+
+  /// ADR-0055: the contributions' dart-define overrides apply to the
+  /// build — merged UNDER the context defines (CLI wins), last
+  /// contribution wins. Pure.
+  @override
+  BuildContext transformContext(BuildContext ctx) {
+    final contributionDefines = {
+      for (final c in contributions) ...c.dartDefines,
+    };
+    if (contributionDefines.isEmpty) return ctx;
+    return ctx.copyWith(
+      dartDefines: {...contributionDefines, ...ctx.dartDefines},
+    );
+  }
 
   /// Debug string: effective base href plus the delegation marker.
   @override

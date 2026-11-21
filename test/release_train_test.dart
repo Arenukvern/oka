@@ -30,6 +30,7 @@ void main() {
       'resource_composition': [],
       'oka_artifacts': ['oka_core'],
       'oka_core': ['resource_composition'],
+      'oka_store': [],
       'oka_conformance': ['oka_core'],
       'oka_supervisor': ['resource_composition'],
       'oka_android': ['oka_core'],

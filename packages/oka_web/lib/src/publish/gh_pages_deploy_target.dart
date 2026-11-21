@@ -97,6 +97,14 @@ class GhPagesDeployTarget extends PublishTarget {
   @override
   bool get artifactIsDirectory => true;
 
+  /// ADR-0055 capability: gh-pages serves web builds only.
+  @override
+  Set<String> get acceptedPlatforms => const {'web'};
+
+  /// ADR-0055 capability: the directory-artifact convention.
+  @override
+  Set<String> get acceptedArtifactFormats => const {'web-dir'};
+
   /// Target name: `publish-gh-pages`.
   @override
   String get name => 'publish-gh-pages';
@@ -123,21 +131,21 @@ class GhPagesDeployTarget extends PublishTarget {
   /// Publish metadata: branch, remote, and optional subdirectory.
   @override
   Map<String, String> get metadata => {
-        'branch': branch,
-        'remote': remote,
-        if (subdirectory != null && subdirectory!.isNotEmpty)
-          'subdirectory': subdirectory!,
-      };
+    'branch': branch,
+    'remote': remote,
+    if (subdirectory != null && subdirectory!.isNotEmpty)
+      'subdirectory': subdirectory!,
+  };
 
   /// Stages the consumed directory artifact from typed config or the
   /// default `build/web` location.
   @override
   List<BuildStep> publishSteps(BuildContext ctx) => [
-        StageWebDirectoryStep(
-          artifactId: directoryArtifactId,
-          sourceDir: sourceDir,
-        ),
-      ];
+    StageWebDirectoryStep(
+      artifactId: directoryArtifactId,
+      sourceDir: sourceDir,
+    ),
+  ];
 
   /// The upload tail: [GhPagesUploadStep].
   @override
@@ -189,20 +197,27 @@ class GhPagesDeployTarget extends PublishTarget {
 
   /// Debug string: remote/branch plus dry-run marker.
   @override
-  String toString() => 'GhPagesDeployTarget($remote/$branch'
+  String toString() =>
+      'GhPagesDeployTarget($remote/$branch'
       '${dryRun ? ' [dry-run]' : ''})';
 
   /// ADR-0016 W1: pure deploy-posture lines for `oka explain --targets` —
   /// no I/O, no plan resolution (the artifact path resolves at run time).
   @override
   List<String> explainDetails(BuildContext ctx) {
-    final artifactLine = 'artifact: $artifactId '
+    final artifactLine =
+        'artifact: $artifactId '
         '(directory — ADR-0016 directory-artifact convention)';
     final dryRunLine = dryRun
         ? 'dry run: yes — nothing is pushed; flip dryRun: false to deploy '
-            'for real'
+              'for real'
         : 'dry run: NO — a real git push to $remote/$branch runs';
-    return ['deploy plan: $endpoint', artifactLine, 'track: $track', dryRunLine];
+    return [
+      'deploy plan: $endpoint',
+      artifactLine,
+      'track: $track',
+      dryRunLine,
+    ];
   }
 }
 
@@ -221,21 +236,35 @@ final RegExp _gitRemotePattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
 /// actionable errors.
 extension GhPagesGitCommands on GhPagesDeployTarget {
   /// Does the remote-tracking ref exist locally?
-  List<String> verifyRemoteBranchArgs() =>
-      ['rev-parse', '--verify', '--quiet', '$remote/$branch'];
+  List<String> verifyRemoteBranchArgs() => [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    '$remote/$branch',
+  ];
 
   /// Refresh the remote-tracking ref for [branch].
   List<String> fetchBranchArgs() => ['fetch', remote, branch];
 
   /// Existing branch: check out the remote branch detached in a temp
   /// worktree (`<worktreeDir>`).
-  List<String> worktreeAddRemoteBranchArgs(String worktreeDir) =>
-      ['worktree', 'add', '--detach', worktreeDir, '$remote/$branch'];
+  List<String> worktreeAddRemoteBranchArgs(String worktreeDir) => [
+    'worktree',
+    'add',
+    '--detach',
+    worktreeDir,
+    '$remote/$branch',
+  ];
 
   /// First deploy (no remote branch yet): detach on the current HEAD; the
   /// step then creates an orphan branch inside the worktree.
-  List<String> worktreeAddHeadArgs(String worktreeDir) =>
-      ['worktree', 'add', '--detach', worktreeDir, 'HEAD'];
+  List<String> worktreeAddHeadArgs(String worktreeDir) => [
+    'worktree',
+    'add',
+    '--detach',
+    worktreeDir,
+    'HEAD',
+  ];
 
   /// First deploy: orphan branch (no history carried over).
   List<String> checkoutOrphanArgs() => ['checkout', '--orphan', branch];
@@ -254,8 +283,12 @@ extension GhPagesGitCommands on GhPagesDeployTarget {
   List<String> pushArgs() => ['push', remote, 'HEAD:refs/heads/$branch'];
 
   /// Worktree removal arguments (cleanup, run with `--force`).
-  List<String> worktreeRemoveArgs(String worktreeDir) =>
-      ['worktree', 'remove', '--force', worktreeDir];
+  List<String> worktreeRemoveArgs(String worktreeDir) => [
+    'worktree',
+    'remove',
+    '--force',
+    worktreeDir,
+  ];
 
   /// Worktree prune arguments (cleanup of stale worktree metadata).
   List<String> worktreePruneArgs() => ['worktree', 'prune'];
@@ -294,16 +327,17 @@ class GhPagesUploadStep extends BuildStep {
 
   /// Requires the staged web build directory artifact.
   @override
-  Set<Artifact<Object>> get requires =>
-      {Artifact<String>(target.directoryArtifactId)};
+  Set<Artifact<Object>> get requires => {
+    Artifact<String>(target.directoryArtifactId),
+  };
 
   /// Git environment for the child processes: ambient host environment
   /// plus `GIT_TERMINAL_PROMPT=0` — git must never hang waiting for
   /// interactive input; ambient credentials only.
   static Map<String, String> gitEnvironment() => {
-        ...Platform.environment,
-        'GIT_TERMINAL_PROMPT': '0',
-      };
+    ...Platform.environment,
+    'GIT_TERMINAL_PROMPT': '0',
+  };
 
   /// Executes the deploy sequence documented on this class: validate →
   /// resolve artifact/source → worktree setup → content sync → commit →
@@ -339,26 +373,19 @@ class GhPagesUploadStep extends BuildStep {
       );
     }
 
-    final worktreeDir =
-        p.join(ctx.buildDir, 'gh-pages', 'worktree');
+    final worktreeDir = p.join(ctx.buildDir, 'gh-pages', 'worktree');
     final worktree = Directory(worktreeDir);
     if (worktree.existsSync()) worktree.deleteSync(recursive: true);
     await Directory(p.dirname(worktreeDir)).create(recursive: true);
 
     final env = gitEnvironment();
-    Future<ProcOutcome> git(
-      List<String> args, {
-      required String cwd,
-    }) =>
+    Future<ProcOutcome> git(List<String> args, {required String cwd}) =>
         ctx.runner.run('git', args, workingDirectory: cwd, environment: env);
 
     final projectPath = ctx.projectPath;
 
     // 1–3: obtain a worktree on the right base commit.
-    final known = await git(
-      target.verifyRemoteBranchArgs(),
-      cwd: projectPath,
-    );
+    final known = await git(target.verifyRemoteBranchArgs(), cwd: projectPath);
     var orphan = false;
     if (known.ok) {
       final added = await git(
@@ -372,16 +399,10 @@ class GhPagesUploadStep extends BuildStep {
         );
       }
     } else {
-      final fetched = await git(
-        target.fetchBranchArgs(),
-        cwd: projectPath,
-      );
-      final knownAfterFetch = fetched.ok &&
-          (await git(
-            target.verifyRemoteBranchArgs(),
-            cwd: projectPath,
-          ))
-              .ok;
+      final fetched = await git(target.fetchBranchArgs(), cwd: projectPath);
+      final knownAfterFetch =
+          fetched.ok &&
+          (await git(target.verifyRemoteBranchArgs(), cwd: projectPath)).ok;
       if (knownAfterFetch) {
         final added = await git(
           target.worktreeAddRemoteBranchArgs(worktreeDir),
@@ -437,8 +458,7 @@ class GhPagesUploadStep extends BuildStep {
           '${add.stderr}${add.stdout}',
         );
       }
-      final status =
-          await git(target.statusPorcelainArgs(), cwd: worktreeDir);
+      final status = await git(target.statusPorcelainArgs(), cwd: worktreeDir);
       if (!status.ok) {
         return StepResult.failure(
           'git status failed (exit ${status.exitCode}):\n'
@@ -455,20 +475,14 @@ class GhPagesUploadStep extends BuildStep {
       }
 
       // 6: commit + push (ambient auth — never any token input).
-      final commit = await git(
-        target.commitArgs(),
-        cwd: worktreeDir,
-      );
+      final commit = await git(target.commitArgs(), cwd: worktreeDir);
       if (!commit.ok) {
         return StepResult.failure(
           'git commit failed (exit ${commit.exitCode}):\n'
           '${commit.stderr}${commit.stdout}',
         );
       }
-      final push = await git(
-        target.pushArgs(),
-        cwd: worktreeDir,
-      );
+      final push = await git(target.pushArgs(), cwd: worktreeDir);
       if (!push.ok) {
         return StepResult.failure(
           'git push to ${target.remote}/${target.branch} failed '
@@ -479,10 +493,7 @@ class GhPagesUploadStep extends BuildStep {
       }
     } finally {
       // 7: cleanup (best effort) — the worktree must not outlive the run.
-      await git(
-        target.worktreeRemoveArgs(worktreeDir),
-        cwd: projectPath,
-      );
+      await git(target.worktreeRemoveArgs(worktreeDir), cwd: projectPath);
       await git(target.worktreePruneArgs(), cwd: projectPath);
     }
 
@@ -496,10 +507,7 @@ class GhPagesUploadStep extends BuildStep {
 
   /// Deterministic content sync: remove every worktree entry except the
   /// `.git` marker, then copy [source] recursively (skipping `.git`).
-  static void _syncDirectory({
-    required String source,
-    required String into,
-  }) {
+  static void _syncDirectory({required String source, required String into}) {
     final root = Directory(into);
     for (final entity in root.listSync()) {
       if (p.basename(entity.path) == '.git') continue;

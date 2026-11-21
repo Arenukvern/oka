@@ -121,7 +121,7 @@ void main() {
 
   group('validateTargets (composition-time)', () {
     test('rejects duplicate target names', () {
-      const oka = Oka(pipelines: [], targets: [_EchoTarget(), _EchoTarget()]);      expect(
+      const oka = Oka(targets: [_EchoTarget(), _EchoTarget()]);      expect(
         () => validateTargets(oka),
         throwsA(
           isA<TargetResolutionException>().having(
@@ -136,7 +136,7 @@ void main() {
     test('rejects a target shadowing a core verb', () {
       expect(
         () => validateTargets(
-              const Oka(pipelines: [], targets: [_VerbShadower()]),
+              const Oka(targets: [_VerbShadower()]),
             ),
         throwsA(isA<TargetResolutionException>()),
       );
@@ -145,7 +145,7 @@ void main() {
     test('rejects a target named session-state', () {
       expect(
         () => validateTargets(
-          const Oka(pipelines: [], targets: [_SessionStateShadower()]),
+          const Oka(targets: [_SessionStateShadower()]),
         ),
         throwsA(
           isA<TargetResolutionException>().having(
@@ -160,12 +160,12 @@ void main() {
 
   group('findTarget (ADR-0015 resolution)', () {
     test('resolves a declared target by name', () {
-      const oka = Oka(pipelines: [], targets: [_EchoTarget()]);
+      const oka = Oka(targets: [_EchoTarget()]);
       expect(findTarget(oka, 'echo').name, 'echo');
     });
 
     test('unknown name fails naming the available targets', () {
-      const oka = Oka(pipelines: [], targets: [_EchoTarget()]);
+      const oka = Oka(targets: [_EchoTarget()]);
       expect(
         () => findTarget(oka, 'nope'),
         throwsA(
@@ -179,7 +179,7 @@ void main() {
     });
 
     test('no declared targets says so and points at the composition root', () {
-      const oka = Oka(pipelines: []);
+      const oka = Oka();
       expect(
         () => findTarget(oka, 'nope'),
         throwsA(

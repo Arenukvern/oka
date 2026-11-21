@@ -256,6 +256,10 @@ Future<void> okaRun(
   }
 
   final defines = <String, String>{
+    // ADR-0055 (amending ADR-0014): target-declared defines sit at the
+    // bottom of the merge — CLI defines win, invocation always overrides
+    // composition.
+    ...target?.dartDefines ?? const <String, String>{},
     ...parseDartDefineFile(results['dart-define-from-file'] as String?),
     for (final d in results['dart-define'] as List<String>)
       ..._parseSingleDefine(d),
@@ -280,12 +284,20 @@ Future<void> okaRun(
     dartDefines: defines,
     targetOverride: (results['target'] as String?) ?? '',
   );
+  // ADR-0055: the target's pure context transform runs ONCE, here — a
+  // delivery's variant (entrypoint, defines, overlays, artifact format)
+  // lands in the context every step (pipeline steps and channel steps
+  // alike) receives.
+  final effectiveCtx = target?.transformContext(ctx) ?? ctx;
 
   final StepResult result;
   if (target != null) {
     // ADR-0015: target pipelines go through the same composition-time
     // artifact validation as platform builds — before any tool runs.
-    final targetPipeline = Pipeline(target.compile(ctx), verbose: verbose);
+    final targetPipeline = Pipeline(
+      target.compile(effectiveCtx),
+      verbose: verbose,
+    );
     final validationError = targetPipeline.validate();
     if (validationError != null) {
       stderr.writeln(
@@ -297,10 +309,10 @@ Future<void> okaRun(
     // ADR-0014 dry-run plan into it (PublishPlanStep.plan), read below.
     final targetState = PipelineState();
     await registerCacheProjectBestEffort(root, register: registerCacheProject);
-    final teardownSteps = target.compileTeardown(ctx);
+    final teardownSteps = target.compileTeardown(effectiveCtx);
     final execution = TargetExecutionScope(
       teardownSteps: teardownSteps,
-      ctx: ctx,
+      ctx: effectiveCtx,
       state: targetState,
       write: verbose ? stdout.writeln : null,
     );
@@ -311,7 +323,7 @@ Future<void> okaRun(
       'oka run ${target.name}',
       () => execution.run(
         () => targetPipeline.run(
-          ctx,
+          effectiveCtx,
           initialState: targetState,
           shouldCancel: () => execution.cancellationRequested,
         ),
@@ -383,10 +395,7 @@ Future<void> registerCacheProjectBestEffort(
 /// Describes one target for `oka explain --targets` (ADR-0015), reporting a
 /// compile failure as a per-target `error` entry instead of aborting the
 /// listing. Never executes anything — [describeTarget] is pure.
-Map<String, dynamic> _describeTargetSafely(
-  Target t,
-  BuildContext ctx,
-) {
+Map<String, dynamic> _describeTargetSafely(Target t, BuildContext ctx) {
   try {
     return describeTarget(t, ctx).toJson();
   } catch (e) {
@@ -453,6 +462,14 @@ Future<String?> findPipelineEntrypoint(String projectPath) async {
 PlatformPipeline _selectPipeline(Oka oka, String platform) {
   for (final p in oka.pipelines) {
     if (p.platform == platform) return p;
+  }
+  if (oka.pipelines.isEmpty && oka.targets.isNotEmpty) {
+    throw ArgumentError(
+      'No pipeline for platform "$platform": the composition root declares '
+      'no platform pipelines (delivery-only project, ADR-0055). Available '
+      'deliveries: ${oka.targets.map((t) => t.name).join(', ')} — run one '
+      'with `oka run <delivery>`.',
+    );
   }
   throw ArgumentError(
     'No pipeline for platform "$platform". Declared: '
@@ -533,9 +550,7 @@ Future<dynamic> _loadYamlAny(File file) async =>
 
 dynamic _yamlToJson(Object? value) {
   if (value is YamlMap) {
-    return value.map(
-      (k, v) => MapEntry(k.toString(), _yamlToJson(v)),
-    );
+    return value.map((k, v) => MapEntry(k.toString(), _yamlToJson(v)));
   } else if (value is YamlList) {
     return value.map(_yamlToJson).toList();
   }
@@ -553,9 +568,7 @@ Map<String, String> parseDartDefineFile(String? path) {
   if (decoded is! Map) {
     throw FormatException('dart-define-from-file must be a JSON object', path);
   }
-  return decoded.map(
-    (k, v) => MapEntry(k.toString(), v.toString()),
-  );
+  return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
 }
 
 /// Parses a single `key=value` define; a bare key maps to `'true'`
@@ -581,10 +594,7 @@ const _sessionStateProtocolVersion = 1;
 const _sessionStateProtocolSchema = 'oka.session-state.protocol.v1';
 const _sessionStateProtocolFramePrefix = '\x1eOKA_SESSION_STATE_V1:';
 
-Future<void> _runSessionStateProtocol(
-  String encodedRequest,
-  Oka oka,
-) async {
+Future<void> _runSessionStateProtocol(String encodedRequest, Oka oka) async {
   Map<String, Object?> response() => {
     'schema_version': _sessionStateProtocolSchema,
     'protocol_version': _sessionStateProtocolVersion,
@@ -662,9 +672,8 @@ Future<void> _runSessionStateProtocol(
           '${lease.workflowId}@${lease.workflowVersion}; resume is unavailable.',
         );
       }
-      final resumed = await SessionStateManager(
-        registry: registry,
-      ).resume(matching.single, leaseId);
+      final resumed = await SessionStateManager(registry: registry)
+          .resume(matching.single, leaseId);
       result = {'lease': resumed.toJson(), 'status': 'ready'};
     } else {
       final reconciler = SessionStateReconciler(

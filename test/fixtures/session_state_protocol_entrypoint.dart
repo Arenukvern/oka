@@ -83,7 +83,7 @@ Future<void> main(List<String> args) async {
   await okaRun([
     args[0],
     jsonEncode(request),
-  ], oka: const Oka(pipelines: [], sessionStateWorkflows: [_workflow]));
+  ], oka: const Oka(sessionStateWorkflows: [_workflow]));
   if (fixtureMode == 'duplicate-frame') {
     final duplicateResponse = <String, Object?>{
       'schema_version': 'oka.session-state.protocol.v1',

@@ -87,11 +87,11 @@ class ItchDeployTarget extends PublishTarget {
   /// The redacting API-key reference (path/value-location only, never a
   /// value).
   CredentialRef get apiKeyRef => CredentialRef(
-        target: 'itch',
-        kind: 'butler-api-key',
-        explicitPath: apiKeyPath,
-        envVar: apiKeyEnvVar ?? 'BUTLER_API_KEY',
-      );
+    target: 'itch',
+    kind: 'butler-api-key',
+    explicitPath: apiKeyPath,
+    envVar: apiKeyEnvVar ?? 'BUTLER_API_KEY',
+  );
 
   /// The butler push channel address: `<user>/<game>:<channel>`.
   String get channelAddress => '$user/$game:$channel';
@@ -99,6 +99,11 @@ class ItchDeployTarget extends PublishTarget {
   /// Publishes a directory artifact, not a single file.
   @override
   bool get artifactIsDirectory => true;
+
+  /// ADR-0055 capability: itch.io channels are web builds (butler pushes
+  /// the packaged web directory).
+  @override
+  Set<String> get acceptedPlatforms => const {'web'};
 
   /// Target name: `publish-itch`.
   @override
@@ -126,10 +131,10 @@ class ItchDeployTarget extends PublishTarget {
   /// Publish metadata: user, game, and channel.
   @override
   Map<String, String> get metadata => {
-        'user': user,
-        'game': game,
-        'channel': channel,
-      };
+    'user': user,
+    'game': game,
+    'channel': channel,
+  };
 
   /// Credentials consumed by the upload tail: the redacting butler API
   /// key reference.
@@ -140,11 +145,11 @@ class ItchDeployTarget extends PublishTarget {
   /// default `build/web` location.
   @override
   List<BuildStep> publishSteps(BuildContext ctx) => [
-        StageWebDirectoryStep(
-          artifactId: directoryArtifactId,
-          sourceDir: sourceDir,
-        ),
-      ];
+    StageWebDirectoryStep(
+      artifactId: directoryArtifactId,
+      sourceDir: sourceDir,
+    ),
+  ];
 
   /// The upload tail: [ButlerUploadStep].
   @override
@@ -160,8 +165,10 @@ class ItchDeployTarget extends PublishTarget {
     final issues = <String>[];
     void check(String what, String value) {
       if (value.isEmpty) {
-        issues.add('$what is empty — set it in the ItchDeployTarget typed '
-            'config (butler cannot address a channel without it)');
+        issues.add(
+          '$what is empty — set it in the ItchDeployTarget typed '
+          'config (butler cannot address a channel without it)',
+        );
       } else if (!_identifierPattern.hasMatch(value)) {
         issues.add(
           '$what "$value" is not a safe itch.io identifier — use letters, '
@@ -186,18 +193,20 @@ class ItchDeployTarget extends PublishTarget {
 
   /// Debug string: channel address plus dry-run marker.
   @override
-  String toString() => 'ItchDeployTarget($channelAddress'
+  String toString() =>
+      'ItchDeployTarget($channelAddress'
       '${dryRun ? ' [dry-run]' : ''})';
 
   /// ADR-0016 W1: pure deploy-posture lines for `oka explain --targets` —
   /// no I/O, no plan resolution (the artifact path resolves at run time).
   @override
   List<String> explainDetails(BuildContext ctx) {
-    final artifactLine = 'artifact: $artifactId '
+    final artifactLine =
+        'artifact: $artifactId '
         '(directory — ADR-0016 directory-artifact convention)';
     final dryRunLine = dryRun
         ? 'dry run: yes — nothing is pushed; flip dryRun: false to deploy '
-            'for real'
+              'for real'
         : 'dry run: NO — a real butler push runs';
     return [
       'deploy plan: $endpoint',
@@ -217,8 +226,11 @@ final RegExp _identifierPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
 extension ButlerCommands on ItchDeployTarget {
   /// ButlER push arguments (the executable is passed separately to the
   /// process runner): `push DIR USER/GAME:CHANNEL`.
-  List<String> pushArgs({required String directory}) =>
-      ['push', directory, channelAddress];
+  List<String> pushArgs({required String directory}) => [
+    'push',
+    directory,
+    channelAddress,
+  ];
 
   /// `--version` — availability probe before the real push.
   List<String> versionArgs() => ['--version'];
@@ -239,7 +251,7 @@ class ButlerUploadStep extends BuildStep {
   /// Wraps [target]; [environment] defaults to the host environment
   /// (injectable for tests).
   ButlerUploadStep(this.target, {Map<String, String>? environment})
-      : environment = environment ?? Platform.environment;
+    : environment = environment ?? Platform.environment;
 
   /// The deploy target whose config this step executes.
   final ItchDeployTarget target;
@@ -255,8 +267,9 @@ class ButlerUploadStep extends BuildStep {
 
   /// Requires the staged web build directory artifact.
   @override
-  Set<Artifact<Object>> get requires =>
-      {Artifact<String>(target.directoryArtifactId)};
+  Set<Artifact<Object>> get requires => {
+    Artifact<String>(target.directoryArtifactId),
+  };
 
   /// Validates config, resolves the directory artifact and API key, then
   /// runs `butler push` via [BuildContext.runner] (no shell, no
@@ -345,13 +358,15 @@ class ButlerUploadStep extends BuildStep {
     if (envValue != null && envValue.isNotEmpty) return envValue;
     final home = environment['HOME'];
     if (home != null && home.isNotEmpty) {
-      final wellKnown = File(p.join(
-        home,
-        '.oka',
-        'credentials',
-        'itch',
-        target.apiKeyRef.wellKnownFileNameOrDefault,
-      ));
+      final wellKnown = File(
+        p.join(
+          home,
+          '.oka',
+          'credentials',
+          'itch',
+          target.apiKeyRef.wellKnownFileNameOrDefault,
+        ),
+      );
       if (wellKnown.existsSync()) return wellKnown.readAsStringSync().trim();
     }
     return null;

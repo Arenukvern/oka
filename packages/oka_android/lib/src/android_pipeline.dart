@@ -21,6 +21,7 @@ import 'pipeline/steps/tool_steps.dart';
 import 'pipeline/toolchain.dart';
 import 'post_build_lint.dart';
 import 'signing_config.dart';
+
 /// Declarative Android platform pipeline (ADR-0006).
 ///
 /// Immutable configuration value: [overrides] (typed, [copyWith]-able) plus an
@@ -168,7 +169,7 @@ class AndroidPipeline implements PlatformPipeline {
         overrides.signing ??
         yaml.signing ??
         await SigningConfig.fromKeyProperties(ctx.projectPath);
-    final merged = yaml.copyWith(
+    final mergedBeforeOverlays = yaml.copyWith(
       extraDeps: overrides.extraDeps.whenEmptyOrNull,
       extraAssets: overrides.extraAssets.whenEmptyOrNull,
       deeplinks: overrides.deeplinks.whenEmptyOrNull,
@@ -181,6 +182,9 @@ class AndroidPipeline implements PlatformPipeline {
       excludePlugins: overrides.excludePlugins.whenEmptyOrNull,
       maxSizeMb: overrides.maxSizeMb,
     );
+    // ADR-0055: fold the delivery overlays' native-dependency edits — the
+    // generalization of the GMS exclusion (oka_huawei gmsFreeOverrides).
+    final merged = foldOverlayDependencies(ctx, mergedBeforeOverlays);
 
     // ADR-0013 T1: one shared toolchain for the whole build — the ordered,
     // printable resolution policy injected into PipelineState so steps

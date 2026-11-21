@@ -190,10 +190,7 @@ class PublishPlanStep extends BuildStep {
   /// Resolves the artifact path from state and produces [target]'s plan;
   /// fails actionably when the artifact is missing.
   @override
-  Future<StepResult> run(
-    BuildContext ctx,
-    PipelineState state,
-  ) async {
+  Future<StepResult> run(BuildContext ctx, PipelineState state) async {
     final artifact = state[target.artifactId];
     if (artifact is! String || artifact.isEmpty) {
       return StepResult.failure(
@@ -286,6 +283,72 @@ abstract class PublishTarget extends Target {
   /// may proceed. [compile] throws when non-empty and [dryRun] is false.
   List<String> validateRealMode() => const [];
 
+  /// Platform selectors this channel accepts, e.g. `{'android'}`
+  /// (ADR-0055 matrix law). Empty (default) = any platform — existing
+  /// targets keep their historical permissiveness until they declare.
+  Set<String> get acceptedPlatforms => const {};
+
+  /// Artifact-format ids this channel accepts — the open format set:
+  /// `'aab'`, `'apk'`, `'web-dir'`, `'app-bundle'`, … Empty (default) =
+  /// any format. A delivery validates its derived format against this
+  /// before any tool runs.
+  Set<String> get acceptedArtifactFormats => const {};
+
+  /// Overlay names this channel REQUIRES in the delivery variant
+  /// (ADR-0055 overlay legality — the Gradle `variantFilter` lesson as
+  /// composition-time checks). Empty = no requirement.
+  Set<String> get requiredOverlays => const {};
+
+  /// Overlay names this channel PROHIBITS in the delivery variant
+  /// (e.g. a GMS-free store rejects the `gms` overlay). Empty = no
+  /// prohibition.
+  Set<String> get prohibitedOverlays => const {};
+
+  /// Validates a delivery composition against this channel's capability
+  /// (ADR-0055). Pure data: actionable issues, empty = legal. Called by
+  /// [DeliveryTarget.compile] before any step exists.
+  List<String> validateDelivery({
+    required String platform,
+    required String artifactFormat,
+    Set<String> overlayNames = const {},
+  }) {
+    final issues = <String>[];
+    if (acceptedPlatforms.isNotEmpty && !acceptedPlatforms.contains(platform)) {
+      issues.add(
+        'channel "$name" accepts platforms '
+        '${acceptedPlatforms.join(', ')} — the delivery builds '
+        '"$platform"; compose a pipeline the channel accepts.',
+      );
+    }
+    if (acceptedArtifactFormats.isNotEmpty &&
+        !acceptedArtifactFormats.contains(artifactFormat)) {
+      issues.add(
+        'channel "$name" accepts artifact formats '
+        '${acceptedArtifactFormats.join(', ')} — the delivery produces '
+        '"$artifactFormat"; flip the delivery\'s buildAab/artifactFormat '
+        'to match.',
+      );
+    }
+    for (final required in requiredOverlays) {
+      if (!overlayNames.contains(required)) {
+        issues.add(
+          'channel "$name" requires the "$required" overlay — add it to '
+          'the delivery variant.',
+        );
+      }
+    }
+    for (final prohibited in prohibitedOverlays) {
+      if (overlayNames.contains(prohibited)) {
+        issues.add(
+          'channel "$name" prohibits the "$prohibited" overlay — remove '
+          'it from the delivery variant (the store will not accept this '
+          'composition).',
+        );
+      }
+    }
+    return issues;
+  }
+
   /// Steps that produce/transform the publish artifact. Run before the
   /// upload tail; the last one must provide [artifactId].
   List<BuildStep> publishSteps(BuildContext ctx) => const [];
@@ -296,20 +359,18 @@ abstract class PublishTarget extends Target {
 
   /// The publish plan for a real (or, with [dryRun], the described) run.
   /// Pure: a function of the target value + inputs only.
-  PublishPlan plan(
-    BuildContext ctx, {
-    required String artifactPath,
-  }) => PublishPlan(
-    target: name,
-    endpoint: endpoint,
-    track: track,
-    artifactId: artifactId,
-    artifactPath: artifactPath,
-    metadata: Map.unmodifiable(metadata),
-    credentials: List.unmodifiable(credentialRefs),
-    dryRun: dryRun,
-    artifactIsDirectory: artifactIsDirectory,
-  );
+  PublishPlan plan(BuildContext ctx, {required String artifactPath}) =>
+      PublishPlan(
+        target: name,
+        endpoint: endpoint,
+        track: track,
+        artifactId: artifactId,
+        artifactPath: artifactPath,
+        metadata: Map.unmodifiable(metadata),
+        credentials: List.unmodifiable(credentialRefs),
+        dryRun: dryRun,
+        artifactIsDirectory: artifactIsDirectory,
+      );
 
   /// Compile to the publish contract: staging steps, the delivery gate
   /// (real runs with a verifier, ADR-0023 §3), then the plan step (dry run)

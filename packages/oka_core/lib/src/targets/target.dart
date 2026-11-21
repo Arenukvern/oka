@@ -119,6 +119,24 @@ abstract class Target {
   /// must not read the filesystem or environment.
   Map<String, dynamic> get configOverrides => const {};
 
+  /// Dart defines this target compiles in — the target-declared surface of
+  /// the ADR-0014 app-config tier (non-secret, compiler-baked values).
+  ///
+  /// ADR-0055 amendment to ADR-0014: the dispatcher merges these **under**
+  /// the CLI defines (`--dart-define` wins), so an invocation-level value
+  /// always overrides a composition-declared one. Default: none.
+  Map<String, String> get dartDefines => const {};
+
+  /// Pure context transform applied by the dispatcher **once**, before
+  /// [compile] and execution (ADR-0055). This is how a delivery applies
+  /// its variant — entrypoint, defines, overlays, artifact format — to
+  /// the context every step (pipeline steps and channel steps alike)
+  /// receives. Default: identity.
+  ///
+  /// The transform must stay pure: no I/O, no tool invocation, no
+  /// mutation of the input context.
+  BuildContext transformContext(BuildContext ctx) => ctx;
+
   /// Compiles this target into an ordered step list.
   ///
   /// A pure function of the target value + [ctx] — no tool invocations, no

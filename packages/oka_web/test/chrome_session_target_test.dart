@@ -215,7 +215,6 @@ void main() {
       );
 
       final workflows = const Oka(
-        pipelines: [],
         targets: [target],
       ).effectiveSessionStateWorkflows;
       expect(workflows, hasLength(1));

@@ -6,7 +6,6 @@ import 'package:test/test.dart';
 void main() {
   test('EmulatorTarget contributes its Android AVD inventory workflow', () {
     final workflows = const Oka(
-      pipelines: [],
       targets: [EmulatorTarget()],
     ).effectiveSessionStateWorkflows;
 

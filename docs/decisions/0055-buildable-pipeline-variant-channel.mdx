@@ -1,0 +1,173 @@
+# 0055 — Buildable × pipeline × variant × channel: the untied distribution matrix
+
+- **Status:** accepted (implemented)
+- **Date:** 2026-11-21
+- **Decision-makers:** Anton, oka agent
+- **Depends on:** ADR-0013 (two-axis model), ADR-0014 (targets + secrets),
+  ADR-0015 (verb/target split), ADR-0016 (web shell station),
+  ADR-0023 (multi-store distribution)
+
+## Context
+
+The two-axis law (ADR-0013: "a store target = a build-variant composition
+plus a publish tail") held for one store family on one GUI platform. The
+real distribution matrix is wider, and the axis crossings are
+**many-to-many**:
+
+| reality | why the old model creaks |
+|---|---|
+| Android × {Play=aab+GMS, RuStore=apk+rustore-billing, AppGallery=aab+GMS-free, Samsung, Amazon} | one platform, many channels × artifact formats × **service overlays** |
+| Apple: iOS/macOS/watchOS/visionOS on App Store + Epic + direct/notarized + TestFlight | one channel, many platforms; channel selection happens post-build (Xcode archive → export method) |
+| Steam: all platforms, its own SDK overlay (Steamworks) | channel ≠ platform; the overlay is cross-platform |
+| Linux: snap / flatpak / AppImage / deb | the packaging format IS the channel identity (Electron Forge makers) |
+| Windows: msix (Partner Center) vs raw exe | ditto |
+| Web: PWA (gh-pages) vs game portals (Yandex/CrazyGames/Poki/itch — zip + mandatory SDK overlays) | channels with overlay requirements |
+| Non-GUI units: serverpod server (docker/Cloud Run), dart_frog bot, Jaspr landing, Dart CLI, MCP server (MCPB manifest contract) | "platform" was GUI-shaped; frameworks differ per buildable |
+
+Ecosystem survey (Godot presets, fastlane lanes, Tauri bundle targets,
+cargo-dist plan→build→host→publish phases, EAS build/submit profiles with
+`extends`, Gradle flavorDimensions + `variantFilter`, Xcode destinations
+and export methods, Electron Forge makers, Steam depots/branches, MCPB
+manifests, snap tracks) converges on one shape: **declarative axes
+composed as typed values, channel selection available post-build, and
+legality checked at composition time**. Flutter and React prove the
+composition idiom: parents compose typed children by reference; config is
+never restated.
+
+## Decision
+
+Six concepts, all open typed values — **zero enums, zero code-as-strings,
+zero generated code** (the law from the rejected models below: hand-typed
+binding files + per-variant entrypoints stay the runtime mechanism; the
+Dart compiler, not a generator, selects what ships in the AOT kernel):
+
+1. **Buildable** — what is built (Flutter app, Jaspr site, dart_frog /
+   serverpod service, Dart CLI, MCP server). Declared once with its
+   framework toolchain facts.
+2. **Pipeline** — HOW one toolchain compiles one platform to an artifact
+   (`AndroidBuild(aab)`, `MacosPipeline`, `LinuxPipeline`, `WebPipeline`,
+   `CommandPipeline` for non-GUI units). The existing
+   `PlatformPipeline` contract, generalized beyond GUI platforms. Role
+   unchanged: artifact factory, shared **by const reference**.
+3. **Overlay** (new, `oka_core`) — WHAT compiles in per service SDK:
+   `gms`, `hms-free`, `steamworks`, portal SDKs. Typed value contributing
+   defines (`ADR-0014` app-config tier) and generic platform-keyed
+   native-dependency edits (the generalization of oka_huawei's
+   `gmsFreeOverrides` — `foldOverlayDependencies` in oka_android).
+   Legality = composition: a channel validates its
+   required/prohibited overlays — the Gradle `variantFilter` lesson as
+   compile-time checks.
+4. **Variant** (new, `oka_core`) — entrypoint + defines + overlays +
+   open `StoreKey` (`oka_store`). Application is a **pure
+   [BuildContext] transform** (`transformContext`, run once by the
+   dispatcher): entrypoint → `targetOverride` (CLI `--target` wins),
+   defines merged **under** CLI defines, overlays → `BuildContext.overlays`
+   for platform interpretation.
+5. **Channel** — WHERE it goes (Electron-maker contract): identity +
+   accepted (platform × artifact-format) capability + overlay legality +
+   publish adapter + `CredentialRef`. **Today's `PublishTarget`s ARE
+   channels** — no new axis: `PlayPublishTarget`, `RuStorePublishTarget`,
+   `HuaweiPublishTarget`, `GhPagesDeployTarget`, `ItchDeployTarget` gain
+   capability declarations; new channels are new adapter values (project-
+   or package-declared, no oka PR).
+6. **Delivery** — the ONE named axis, a `Target`
+   (`oka_core` `DeliveryTarget`, aliased `Delivery`):
+   `Delivery(name, pipeline: <const ref>, variant, channel?, buildAab)`.
+   `compile` = `RunPipelineStep` (the referenced pipeline's run, result
+   data mirrored into the shared state) + **the channel's own
+   `PublishTarget.compile`** — one implementation of the publishing laws
+   (dry-run, delivery gate, plan-or-upload), never a copy. Composition
+   validation (variant self-check + channel capability) throws in
+   `compile` before any step exists.
+
+CLI unchanged in shape: `oka run app-rustore` (delivery), `oka build
+--platform android` (bare artifact, pipelines unchanged), channels stay
+independently runnable (`oka run publish-play` — the Steam/Xcode
+decoupling: build first, promote later).
+
+### Supporting changes
+
+* **ADR-0014 amendment** — `Target.dartDefines`: targets declare
+  compilation-time app config; the dispatcher merges them **under** CLI
+  defines. CLI wins, always.
+* **`Oka.pipelines` optional** — delivery-only projects (services,
+  landing, CLI) are legal; bare `oka build --platform …` then fails with
+  an actionable message naming the deliveries.
+* **`oka_store`** (new leaf package) — `StoreKey` extension type +
+  validation, `StoreBinding` + `NoopStoreBinding`, well-known key
+  constants (**convenience, not a registry**). No deps, so store-adjacent
+  ecosystems (monetization) can depend on the identity without dragging
+  build machinery.
+* **`oka_desktop`** (new) — `MacosPipeline` / `LinuxPipeline` /
+  `WindowsPipeline`; honest delegation to `flutter build <desktop>`
+  (ADR-0016's web law carried to desktop: delegation named as
+  delegation). Snap / msix / notarization channels: roadmap rows.
+* **`oka_web`** — `WebPipeline` (validate → emit shell → `flutter build
+  web`, one `PlatformPipeline` deliveries can reference); the
+  contributions' `dartDefines` now reach the build via
+  `WebBuildTarget.transformContext` (previously dead); capability
+  declarations on gh-pages/itch channels.
+* **`oka_service`** (new, tiny) — `CommandPipeline` (open platform
+  selector, argv sequences, optional artifact id/path) +
+  `GitHubReleasePublishTarget` (gh CLI, ambient auth) + `StageFileStep`.
+  Covers server/bot/landing/CLI without bespoke packages. MCPB packager +
+  Steam/itch/Epic desktop adapters: roadmap rows, contracts already
+  express them.
+
+### Dependency direction
+
+`oka_store` (leaf) ← `oka_core` ← platform packages ← projects.
+Domain packages that need store identity (e.g. monetization) depend on
+`oka_store`, **never** the reverse: store identity is not about
+monetization. The binding extension lives in the domain package
+(`MonetizationStoreBinding implements StoreBinding` with a
+`purchaseProviderFactory`) — an app entrypoint imports exactly one
+binding, so only that backend compiles into the kernel.
+
+## Rejected models (the record)
+
+1. **Store enum** (`enum StoreType` / `InstallationTargetStore` as the
+   oka-side identity) — locks the store list into oka; every developer
+   targeting a store oka never heard of must send a PR. Open
+   `StoreKey` instead: nothing switches on names.
+2. **Code-as-strings binding spec** (generated Dart entrypoints from a
+   config) — ruins oka's purpose (typed composition, ADR-0010);
+   generated code has no types to check at composition time. Hand-typed
+   binding files + per-store entrypoints stay the mechanism.
+3. **Key + store dual strings** — one identity per store (the key);
+   leaked monetization vocabulary (`InstallationTargetStore`) out of
+   the store concept.
+4. **`Oka.stores` axis** — duplicates targets, which already define
+   stores (ADR-0013); a second axis forces every store to appear twice.
+   Stores ARE delivered through `Target`s; the delivery is the only new
+   named axis.
+5. **Delegate-nesting deliveries** (a Delivery wrapping a Target that
+   wraps a Pipeline by re-dispatch) — re-runs config merging per layer
+   and hides the artifact chain. One flatten: `compile` composes the
+   pipeline run and the channel steps into ONE validated chain.
+
+## Consequences
+
+* The full matrix (platform × channel × overlay × format × store) is
+  expressible as composition of existing + six new typed values; a new
+  store, format, or channel needs a new value, never an oka PR.
+* Deliveries are explainable before any tool runs (`oka explain
+  --targets` renders pipeline ref + variant + channel + format), and
+  illegal compositions (GMS into AppGallery, apk into Play, web-dir into
+  Play) fail at composition time with actionable messages.
+* Single-version-source and per-channel version stamping remain roadmap
+  rows (LA currently duplicates its version 4×: pubspec / snapcraft /
+  oka_pipeline / msix).
+* Word-by-word-game and LA adoption proceed per-project; the first
+  adoption (LA: five app deliveries + landing delivery) doubles as the
+  integration test.
+
+## Verification
+
+* `oka_core`: `test/delivery_test.dart` — composition legality, variant
+  transform (CLI wins), ctx round-trip, explain rendering.
+* `oka_android`: `test/overlay_folding_test.dart` — GMS-free exclusion
+  folds through the generic overlay fields.
+* `oka_store`, `oka_desktop`, `oka_service`: package test suites.
+* Full workspace suite parity with the pre-change baseline (release-train
+  fixtures are environment-blocked at HEAD; delta zero).

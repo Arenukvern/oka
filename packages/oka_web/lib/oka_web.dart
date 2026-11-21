@@ -47,6 +47,7 @@ export 'src/emitter.dart';
 export 'src/emitters/generate_emitter.dart';
 export 'src/emitters/inject_emitter.dart';
 export 'src/emitters/render.dart';
+export 'src/pipeline/web_pipeline.dart';
 export 'src/publish/gh_pages_deploy_target.dart';
 export 'src/publish/itch_deploy_target.dart';
 export 'src/publish/stage_web_dir_step.dart';

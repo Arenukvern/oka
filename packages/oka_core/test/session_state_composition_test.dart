@@ -74,7 +74,6 @@ void main() {
       final explicit = _workflow(id: 'explicit');
       final contributed = _workflow(id: 'contributed');
       final oka = Oka(
-        pipelines: const [],
         sessionStateWorkflows: [explicit],
         targets: [
           _ContributingTarget([contributed]),
@@ -91,7 +90,6 @@ void main() {
         final shared = _workflow();
         final distinctConflict = _workflow();
         final oka = Oka(
-          pipelines: const [],
           sessionStateWorkflows: [shared],
           targets: [
             _ContributingTarget([shared, distinctConflict]),

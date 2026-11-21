@@ -22,7 +22,7 @@ environment:
 
 dependencies:
   flutter_mcp_harness: ">=7.1.1 <9.0.0"
-  oka_android: ^0.12.0 # x-release-please-version
+  oka_android: ^0.13.0 # x-release-please-version
   path: ^1.9.0
   resource_composition: ^0.12.0 # x-release-please-version
   universal_automation_interface: ^0.4.0

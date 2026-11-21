@@ -2,6 +2,7 @@ import 'package:from_json_to_json/from_json_to_json.dart';
 
 import '../pipeline_events.dart';
 import '../process_runner.dart';
+import '../variants/overlay.dart';
 import 'oka_config.dart';
 
 /// Build mode enumeration.
@@ -45,7 +46,6 @@ enum BuildMode {
 /// by mutating a map mid-build. JSON is parsed only at this boundary
 /// (CLI args / oka.yaml) — steps see typed getters.
 class BuildContext {
-
   const BuildContext({
     required this.projectPath,
     required this.buildDir,
@@ -62,6 +62,7 @@ class BuildContext {
     this.verifyAab = false,
     this.dartDefines = const {},
     this.targetOverride = '',
+    this.overlays = const [],
     this.buildTimestamp,
     this.processRunner,
     this.onEvent,
@@ -92,11 +93,16 @@ class BuildContext {
       verifyAab: jsonDecodeBool(map['verify_aab']),
       dartDefines: _decodeDefines(map['dart_defines']),
       targetOverride: jsonDecodeString(map['target_override']),
+      overlays: [
+        for (final o in (map['overlays'] as List? ?? const []))
+          Overlay.fromJson(o),
+      ],
       buildTimestamp: dateTimeFromMillisecondsSinceEpoch(
         jsonDecodeInt(map['build_timestamp']),
       ),
     );
   }
+
   /// Project root path.
   final String projectPath;
 
@@ -145,6 +151,14 @@ class BuildContext {
   /// [OkaConfig.flutter] entrypoint.
   final String targetOverride;
 
+  /// Service overlays this build compiles in (ADR-0055). Set by a
+  /// delivery's variant transform; platform pipelines interpret the
+  /// generic native-dependency fields they understand (Android folds the
+  /// `android` excludes/additions into its fast settings), and every
+  /// overlay's defines were already merged into [dartDefines] by the
+  /// same transform.
+  final List<Overlay> overlays;
+
   /// Build timestamp.
   final DateTime? buildTimestamp;
 
@@ -191,6 +205,7 @@ class BuildContext {
     'verify_aab': verifyAab,
     'dart_defines': dartDefines,
     'target_override': targetOverride,
+    'overlays': [for (final o in overlays) o.toJson()],
     'build_timestamp': buildTimestamp?.millisecondsSinceEpoch ?? 0,
   };
 
@@ -212,6 +227,7 @@ class BuildContext {
     bool? verifyAab,
     Map<String, String>? dartDefines,
     String? targetOverride,
+    List<Overlay>? overlays,
     DateTime? buildTimestamp,
   }) => BuildContext(
     projectPath: projectPath ?? this.projectPath,
@@ -229,6 +245,7 @@ class BuildContext {
     verifyAab: verifyAab ?? this.verifyAab,
     dartDefines: dartDefines ?? this.dartDefines,
     targetOverride: targetOverride ?? this.targetOverride,
+    overlays: overlays ?? this.overlays,
     buildTimestamp: buildTimestamp ?? this.buildTimestamp,
   );
 

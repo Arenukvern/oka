@@ -155,6 +155,13 @@ class PlayPublishTarget extends PublishTarget {
   @override
   String get artifactId => 'aab-path';
 
+  /// ADR-0055 capability: Play accepts Android AAB uploads.
+  @override
+  Set<String> get acceptedPlatforms => const {'android'};
+
+  @override
+  Set<String> get acceptedArtifactFormats => const {'aab'};
+
   @override
   Map<String, String> get metadata => {
     if (packageName.isNotEmpty) 'packageName': packageName,

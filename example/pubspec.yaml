@@ -58,6 +58,8 @@ dependency_overrides:
     path: ../packages/oka_huawei
   oka_play:
     path: ../packages/oka_play
+  oka_store:
+    path: ../packages/oka_store
   oka_update:
     path: ../packages/oka_update
   resource_composition:

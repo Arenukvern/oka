@@ -126,6 +126,18 @@ class HuaweiPublishTarget extends PublishTarget {
   @override
   String get artifactId => HuaweiStageAabStep.aabPath.id;
 
+  /// ADR-0055 capability + law: AppGallery accepts Android AABs built
+  /// WITHOUT GMS — the composition-time face of the ADR-0013 GMS
+  /// exclusion (the `gms` overlay is prohibited by the channel).
+  @override
+  Set<String> get acceptedPlatforms => const {'android'};
+
+  @override
+  Set<String> get acceptedArtifactFormats => const {'aab'};
+
+  @override
+  Set<String> get prohibitedOverlays => const {'gms'};
+
   /// Publish metadata from the release config (non-secret).
   @override
   Map<String, String> get metadata => release.planMetadata;

@@ -9,6 +9,7 @@ const packages = <String>[
   'oka_core',
   'oka_supervisor',
   'oka_conformance',
+  'oka_store',
   'oka_android',
   'oka_huawei',
   'oka_play',
