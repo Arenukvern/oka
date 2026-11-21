@@ -3,7 +3,7 @@ description: >-
   The open store-key identity for oka deliveries (ADR-0055): typed,
   const-constructible store keys with no store enumeration — a new store is
   a new key value, never a package PR. Leaf package: depends on nothing.
-version: 0.12.0 # x-release-please-version
+version: 0.13.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_store
 issue_tracker: https://github.com/Arenukvern/oka/issues
