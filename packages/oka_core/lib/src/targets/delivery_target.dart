@@ -84,6 +84,19 @@ class RunPipelineStep extends BuildStep {
 /// works — the Steam/Xcode decoupling: build first, promote later), and
 /// bare platform builds are unchanged (`oka build --platform android`).
 ///
+/// Two composition-owned laws:
+///
+/// * **Defines have one writer.** [dartDefines] contributes nothing for
+///   a delivery — [Variant.applyTo] (via [transformContext]) is the only
+///   mechanism merging variant/overlay defines (plus the baked
+///   [okaStoreDefine] identity) into the context, under the CLI defines.
+///   The target-level define getter remains the general ADR-0014 surface
+///   for plain targets.
+/// * **The artifact format is composition-owned.** [buildAab]/
+///   [artifactFormat] are delivery decisions; the CLI `--aab` flag
+///   applies to bare platform builds and is ignored (with a loud
+///   warning) when a delivery is dispatched.
+///
 /// Composition-time validation runs in [compile] — before any tool: the
 /// variant's self-check, the channel's capability check (platform /
 /// artifact format / overlay legality — the Gradle `variantFilter`
@@ -188,14 +201,16 @@ class DeliveryTarget extends Target {
         : variantCtx.copyWith(buildAab: buildAab);
   }
 
-  /// Dart defines from the variant and overlays, surfaced at the target
-  /// level so `oka explain` and dry plans show the full define set (the
-  /// context transform merges them under CLI defines).
+  /// No target-level defines — the variant is the single writer
+  /// (ADR-0055). [Variant.applyTo] merges the variant/overlay defines
+  /// (plus the baked [okaStoreDefine]) into the context **under** the
+  /// CLI defines, so exactly one mechanism contributes a delivery's
+  /// defines; `explainDetails` surfaces the same set for `oka explain`.
+  ///
+  /// The target-level define getter remains the general ADR-0014 surface
+  /// for plain targets.
   @override
-  Map<String, String> get dartDefines => {
-    ...?variant?.defines,
-    ...?variant?.overlayDefines,
-  };
+  Map<String, String> get dartDefines => const {};
 
   /// Composition validation (pure, empty = valid): variant self-check +
   /// channel capability check. The Gradle `variantFilter` lesson as

@@ -217,8 +217,7 @@ Future<void> okaRun(
       : results['profile'] as bool
       ? BuildMode.profile
       : BuildMode.debug;
-  final buildAab = results['aab'] as bool;
-  final buildDirMode = buildAab ? '${mode.name}-aab' : mode.name;
+  final buildAabFlag = results['aab'] as bool;
 
   final config = await loadOkaYaml(root);
 
@@ -240,6 +239,15 @@ Future<void> okaRun(
         ? resolved
         : resolved.applyInvocationArgs(invocationArgs);
     pipeline = null;
+    // ADR-0055: the artifact format is composition-owned for a delivery —
+    // the CLI flag applies to bare platform builds. Loud, never silent:
+    if (buildAabFlag) {
+      stderr.writeln(
+        '⚠️ --aab ignored: target "${target.name}" owns its artifact '
+        'format (deliveries compose buildAab; the flag applies to bare '
+        'platform builds).',
+      );
+    }
   } else {
     target = null;
     pipeline = _selectPipeline(oka, platform);
@@ -265,30 +273,36 @@ Future<void> okaRun(
       ..._parseSingleDefine(d),
   };
 
-  final buildDir = '$root/.oka_cache/build/$buildDirMode';
-  await Directory(buildDir).create(recursive: true);
-  await _machineHygiene(verbose: verbose, projectRoot: root);
-
-  final ctx = BuildContext(
+  // ADR-0055: the target's pure context transform runs ONCE — and
+  // BEFORE the build directory resolves, so a delivery's artifact-format
+  // decision (buildAab) lands in the same `-aab` directory convention
+  // bare `--aab` builds use. The transform must not depend on the build
+  // directory (it is pure configuration composition).
+  final baseCtx = BuildContext(
     projectPath: root,
-    buildDir: buildDir,
+    buildDir: '',
     mode: mode,
     config: mergedConfig,
     cacheDir: '$root/.oka_cache',
-    tempDir: '$buildDir/temp',
     verbose: verbose,
     flavor: results['flavor'] as String,
     targetAbi: results['abi'] as String,
-    buildAab: buildAab,
+    buildAab: buildAabFlag,
     verifyAab: results['verify-aab'] as bool,
     dartDefines: defines,
     targetOverride: (results['target'] as String?) ?? '',
   );
-  // ADR-0055: the target's pure context transform runs ONCE, here — a
-  // delivery's variant (entrypoint, defines, overlays, artifact format)
-  // lands in the context every step (pipeline steps and channel steps
-  // alike) receives.
-  final effectiveCtx = target?.transformContext(ctx) ?? ctx;
+  final transformedCtx = target?.transformContext(baseCtx) ?? baseCtx;
+  final buildDirMode = transformedCtx.buildAab
+      ? '${mode.name}-aab'
+      : mode.name;
+  final buildDir = '$root/.oka_cache/build/$buildDirMode';
+  await Directory(buildDir).create(recursive: true);
+  await _machineHygiene(verbose: verbose, projectRoot: root);
+  final effectiveCtx = transformedCtx.copyWith(
+    buildDir: buildDir,
+    tempDir: '$buildDir/temp',
+  );
 
   final StepResult result;
   if (target != null) {
@@ -356,7 +370,7 @@ Future<void> okaRun(
     // ADR-0033 — same lease as the target path.
     result = await withBuildLease(
       'oka build $platform',
-      () => pipeline!.run(ctx),
+      () => pipeline!.run(effectiveCtx),
       projectDir: root,
     );
   }
@@ -367,6 +381,10 @@ Future<void> okaRun(
   final apkPath = result.data['apk_path'];
   if (apkPath is String && apkPath.isNotEmpty) {
     stdout.writeln('✅ Build complete: $apkPath');
+  } else if (target != null) {
+    // A delivery/channel run whose final step is not the artifact build
+    // (e.g. the publish plan or upload tail) — still report completion.
+    stdout.writeln('✅ oka run ${target.name} complete');
   }
 }
 

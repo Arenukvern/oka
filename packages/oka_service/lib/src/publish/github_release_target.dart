@@ -96,7 +96,11 @@ class GitHubReleasePublishTarget extends PublishTarget {
   final String? assetPath;
 
   /// Replace an existing asset of the same name (`--clobber`, default
-  /// true — re-publishing a fixed artifact is the normal loop).
+  /// true — re-publishing a fixed artifact is the normal loop). Note the
+  /// deliberate asymmetry with the dry-run law: upload conservativeness
+  /// is [dryRun] (default true), asset replaceability is [clobber]
+  /// (default true — the release-fix loop overwrites, never accumulates
+  /// stale duplicates). Set false for immutable release assets.
   final bool clobber;
 
   @override

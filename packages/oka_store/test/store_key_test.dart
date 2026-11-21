@@ -24,6 +24,25 @@ void main() {
       expect(mine == const StoreKey('my-market'), isTrue);
       expect(storeKeyGooglePlay.name, 'google-play');
     });
+
+    test('StoreKey.of validates at the dynamic boundary', () {
+      expect(StoreKey.of('my-market').name, 'my-market');
+      expect(() => StoreKey.of('Bad Key'), throwsArgumentError);
+      expect(
+        () => StoreKey.of(''),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            contains('store key is empty'),
+          ),
+        ),
+      );
+    });
+
+    test('okaStoreDefine is the baked identity key', () {
+      expect(okaStoreDefine, 'OKA_STORE');
+    });
   });
 
   group('StoreBinding', () {

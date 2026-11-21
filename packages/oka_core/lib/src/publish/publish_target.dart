@@ -307,10 +307,14 @@ abstract class PublishTarget extends Target {
   /// Validates a delivery composition against this channel's capability
   /// (ADR-0055). Pure data: actionable issues, empty = legal. Called by
   /// [DeliveryTarget.compile] before any step exists.
+  ///
+  /// Every parameter is required: a partial call must not silently skip
+  /// the required/prohibited overlay checks (a defaulted set would read
+  /// as "no overlays" and pass a channel that requires one).
   List<String> validateDelivery({
     required String platform,
     required String artifactFormat,
-    Set<String> overlayNames = const {},
+    required Set<String> overlayNames,
   }) {
     final issues = <String>[];
     if (acceptedPlatforms.isNotEmpty && !acceptedPlatforms.contains(platform)) {

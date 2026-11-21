@@ -142,7 +142,22 @@ void main() {
       expect(out.dartDefines['VARIANT_KEY'], 'v');
       expect(out.dartDefines['USE_GMS'], 'true');
       expect(out.dartDefines['CLI_KEY'], 'cli');
+      // The store identity reaches the binary (ADR-0055 — the boot can
+      // verify its binding against the composition).
+      expect(out.dartDefines[okaStoreDefine], 'rustore');
       expect(out.overlays.map((o) => o.name), ['gms']);
+    });
+
+    test('a key-only variant still bakes the identity define', () {
+      const ctx = BuildContext(
+        projectPath: '/p',
+        buildDir: '',
+        mode: BuildMode.debug,
+        config: OkaConfig.empty,
+      );
+      const variant = Variant(key: storeKeyGooglePlay);
+      final out = variant.applyTo(ctx);
+      expect(out.dartDefines, {okaStoreDefine: 'google-play'});
     });
 
     test('CLI --target wins over the variant entrypoint', () {
@@ -301,13 +316,19 @@ void main() {
       expect(lines.join('\n'), contains('channel: publish-stub'));
     });
 
-    test('target-level dartDefines surface variant + overlay defines', () {
+    test('target-level dartDefines contribute nothing — the variant is '
+        'the single writer (ADR-0055)', () {
       const delivery = DeliveryTarget(
         name: 'app-d',
         pipeline: _StubPipeline('android'),
         variant: Variant(defines: {'V': '1'}, overlays: [_gms]),
       );
-      expect(delivery.dartDefines, {'V': '1', 'USE_GMS': 'true'});
+      expect(delivery.dartDefines, isEmpty);
+      // The defines still land in the context — through applyTo only:
+      final out = delivery.transformContext(BuildContext.empty);
+      expect(out.dartDefines['V'], '1');
+      expect(out.dartDefines['USE_GMS'], 'true');
+      expect(out.dartDefines[okaStoreDefine], isNull);
     });
   });
 

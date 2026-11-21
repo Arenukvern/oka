@@ -22,6 +22,10 @@ import 'overlay.dart';
 ///   in the context) set one — invocation wins over composition;
 /// * [defines] and overlay defines → `dartDefines`, **under** the
 ///   existing context defines (CLI wins; later overlays win over earlier);
+/// * [key] → the [okaStoreDefine] dart define — the store identity
+///   reaches the compiled binary, so the app boot can verify its runtime
+///   binding matches the composition (one identity end to end, no
+///   two-masters drift);
 /// * [overlays] → `BuildContext.overlays` for platform interpretation
 ///   (Android folds native-dependency edits into its fast settings).
 ///
@@ -111,8 +115,13 @@ class Variant {
       targetOverride: ctx.targetOverride.isNotEmpty
           ? ctx.targetOverride
           : entrypoint,
-      dartDefines: hasDefines
-          ? {...defines, ...overlayDefines, ...ctx.dartDefines}
+      dartDefines: hasDefines || key != null
+          ? {
+              ...defines,
+              ...overlayDefines,
+              if (key != null) okaStoreDefine: key!.name,
+              ...ctx.dartDefines,
+            }
           : ctx.dartDefines,
       overlays: hasOverlays ? List.unmodifiable(overlays) : ctx.overlays,
     );
@@ -120,7 +129,7 @@ class Variant {
 
   /// Explain lines for `oka explain --targets` (pure).
   List<String> explainLines() => [
-    if (key != null) 'variant store: ${key!.name}',
+    if (key != null) 'variant store: ${key!.name} (baked as $okaStoreDefine)',
     if (entrypoint.isNotEmpty) 'variant entrypoint: $entrypoint',
     if (defines.isNotEmpty)
       'variant defines: ${defines.entries.map((e) => '${e.key}=${e.value}').join(', ')}',

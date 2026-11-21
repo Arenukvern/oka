@@ -3,9 +3,12 @@ import 'package:oka_core/oka_core.dart';
 
 import 'agc_api.dart';
 import 'agc_publish_step.dart';
-import 'gms_variant.dart';
 import 'huawei_distribution_policy.dart';
 import 'huawei_release_config.dart';
+
+// `gms_variant.dart` stays exported for legacy compositions; the target
+// itself no longer composes a build variant (ADR-0055 — channels publish,
+// deliveries build).
 
 export 'agc_api.dart';
 export 'agc_credentials.dart';
@@ -30,12 +33,13 @@ export 'huawei_release_config.dart';
 ///    the AGC token and API-client secret live in the upload step's local
 ///    scope.
 ///
-/// The target composes a [HuaweiBuildVariant] — the ADR-0013 two-axis law:
-/// the same Android app, built **without GMS dependencies** for
-/// AppGallery, plus this publish tail. Composition-time safety is the
-/// standard artifact checker: a step requiring a
-/// `gmsDependencyArtifact` in a pipeline composed from the variant fails
-/// validation before any tool runs (tested in this package).
+/// The target is a **channel only** (ADR-0055): it consumes the artifact
+/// a delivery's pipeline produced — the GMS-free posture is the
+/// DELIVERY's job (`hms-free` overlay excludes the Google SDK groups;
+/// this channel prohibits the `gms` overlay at composition time). The
+/// opt-in [verifyArtifact] filesystem gate derives its exclusion set
+/// from the delivery context's overlays, so one source of truth carries
+/// the GMS-free boundary from composition through verification.
 ///
 /// ```dart
 /// const target = HuaweiPublishTarget(
@@ -49,7 +53,6 @@ class HuaweiPublishTarget extends PublishTarget {
     this.dryRun = true,
     this.targetName = 'publish-huawei',
     this.release = const HuaweiReleaseConfig(),
-    this.variant = const HuaweiBuildVariant(),
     this.policy = const HuaweiDistributionPolicy(),
     this.verifyArtifact = false,
     this.credentialPath,
@@ -69,9 +72,6 @@ class HuaweiPublishTarget extends PublishTarget {
 
   /// Typed release metadata (track, release notes, phase).
   final HuaweiReleaseConfig release;
-
-  /// The GMS-excluding Android build variant this target composes.
-  final HuaweiBuildVariant variant;
 
   /// Store-owned artifact and dependency gates.
   final HuaweiDistributionPolicy policy;
@@ -106,11 +106,13 @@ class HuaweiPublishTarget extends PublishTarget {
   @override
   String get name => targetName;
 
-  /// Explain-text: the GMS-excluded variant posture and track.
+  /// Explain-text: the GMS-free channel posture and track.
   @override
   String get description =>
       'Upload the AAB to Huawei AppGallery Connect '
-      '(GMS-excluded variant, track ${release.track})';
+      "(GMS-free posture — the delivery's overlays carry the exclusion "
+      'set; this channel prohibits the gms overlay, '
+      'track ${release.track})';
 
   /// Remote endpoint summary for the deploy plan.
   @override
@@ -148,13 +150,20 @@ class HuaweiPublishTarget extends PublishTarget {
   List<CredentialRef> get credentialRefs => [_credentialRef(credentialPath)];
 
   /// Staging steps: the Huawei AAB stage with the typed path override.
+  /// The opt-in verification gate reads its exclusion set from the
+  /// delivery context's overlays (ADR-0055 — the delivery owns the
+  /// GMS-free posture; the channel verifies the produced artifact
+  /// against the same declaration).
   @override
   List<BuildStep> publishSteps(BuildContext ctx) => [
     HuaweiStageAabStep(artifactPath: artifactPath),
     if (!dryRun && verifyArtifact)
       HuaweiArtifactVerificationStep(
         policy: policy,
-        dependencies: variant.overrides.extraDeps,
+        dependencies: [
+          for (final overlay in ctx.overlays)
+            ...overlay.excludesFor('android'),
+        ],
       ),
   ];
 
@@ -168,12 +177,11 @@ class HuaweiPublishTarget extends PublishTarget {
     httpFactory: httpFactory,
   );
 
-  /// Debug string: app id, track, dry-run marker, and variant.
+  /// Debug string: app id, track, dry-run marker.
   @override
   String toString() =>
       'HuaweiPublishTarget(${release.appId}, '
-      'track ${release.track}${dryRun ? ' [dry-run]' : ''}, '
-      '$variant)';
+      'track ${release.track}${dryRun ? ' [dry-run]' : ''})';
 }
 
 /// The credential reference specialized with the target's explicit path

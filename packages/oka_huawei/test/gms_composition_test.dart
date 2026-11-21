@@ -163,13 +163,16 @@ void main() {
       expect(variant.android, const AndroidBuild());
     });
 
-    test('the target composes the variant (two-axis law)', () {
-      const variant = HuaweiBuildVariant(
-        android: AndroidBuild(packageName: 'dev.example.app'),
-      );
-      const target = HuaweiPublishTarget(variant: variant);
-      expect(target.variant, variant);
-      expect(target.toString(), contains('dev.example.app'));
+    test('the channel is variant-free — the delivery owns the posture '
+        '(ADR-0055)', () {
+      const target = HuaweiPublishTarget();
+      expect(target.prohibitedOverlays, {'gms'});
+      expect(target.acceptedPlatforms, {'android'});
+      expect(target.acceptedArtifactFormats, {'aab'});
+      // The build config no longer rides the channel — toString carries
+      // no AndroidBuild restatement.
+      expect(target.toString(), isNot(contains('AndroidBuild')));
+      expect(target.description, contains('prohibits the gms overlay'));
     });
   });
 

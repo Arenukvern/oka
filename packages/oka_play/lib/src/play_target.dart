@@ -162,6 +162,14 @@ class PlayPublishTarget extends PublishTarget {
   @override
   Set<String> get acceptedArtifactFormats => const {'aab'};
 
+  /// ADR-0055 overlay legality: Play distribution presumes Google Mobile
+  /// Services — a delivery to this channel must declare the `gms`
+  /// overlay. The overlay may be an empty marker: the declaration is the
+  /// contract (the artifact may rely on GMS); actual Google dependencies
+  /// arrive from the project's plugin set, not from the overlay.
+  @override
+  Set<String> get requiredOverlays => const {'gms'};
+
   @override
   Map<String, String> get metadata => {
     if (packageName.isNotEmpty) 'packageName': packageName,

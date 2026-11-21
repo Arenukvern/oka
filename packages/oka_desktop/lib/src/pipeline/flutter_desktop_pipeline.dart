@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:oka_core/oka_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -53,12 +55,15 @@ class FlutterDesktopPipeline implements PlatformPipeline {
   /// The resolved argument vector (pure — tested directly). Mirrors the
   /// delivery context the dispatcher transformed: the variant entrypoint
   /// arrives via `ctx.targetOverride` (the `--target` resolution order),
-  /// the variant/overlay defines via `ctx.dartDefines`.
+  /// the variant/overlay defines via `ctx.dartDefines`, the flavor via
+  /// `ctx.flavor` (forwarded, never silently dropped — a flavor the
+  /// project does not define fails the flutter tool loudly).
   List<String> buildArgs(BuildContext ctx) => [
     'build',
     buildSubcommand,
     if (ctx.mode == BuildMode.release) '--release',
     if (ctx.targetOverride.isNotEmpty) '--target=${ctx.targetOverride}',
+    if (ctx.flavor.isNotEmpty) '--flavor=${ctx.flavor}',
     for (final e in ctx.dartDefines.entries)
       '--dart-define=${e.key}=${e.value}',
   ];
@@ -80,6 +85,16 @@ class FlutterDesktopPipeline implements PlatformPipeline {
       );
     }
     final output = p.join(ctx.projectPath, defaultOutputDir);
+    // Honest delegation includes honest artifacts: a green flutter tool
+    // that left no product at the convention means the convention (or
+    // the invocation) drifted — fail here, not downstream at publish.
+    if (!Directory(output).existsSync()) {
+      return StepResult.failure(
+        'flutter build $buildSubcommand succeeded (exit 0) but the '
+        'expected artifact is missing: $output — the $platform output '
+        'convention drifted; inspect the flutter build output above.',
+      );
+    }
     ctx.log(
       'delegated to flutter build $buildSubcommand — '
       'NOT an oka-owned pipeline; artifact: $output',

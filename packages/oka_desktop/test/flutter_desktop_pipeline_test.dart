@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:oka_core/oka_core.dart';
 import 'package:oka_desktop/oka_desktop.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 class _CapturingRunner implements ProcessRunner {
@@ -25,9 +28,10 @@ void main() {
       () async {
         final runner = _CapturingRunner();
         const pipeline = MacosPipeline();
+        final project = await _projectWithArtifact(pipeline.defaultOutputDir);
         final ctx = BuildContext(
-          projectPath: '/p',
-          buildDir: '/p/.oka_cache/build/release',
+          projectPath: project.path,
+          buildDir: p.join(project.path, '.oka_cache', 'build', 'release'),
           mode: BuildMode.release,
           config: OkaConfig.empty,
           targetOverride: 'lib/entrypoints/main_store_apple_store.dart',
@@ -51,9 +55,10 @@ void main() {
     test('debug mode omits --release and provides the bundle id', () async {
       final runner = _CapturingRunner();
       const pipeline = LinuxPipeline();
+      final project = await _projectWithArtifact(pipeline.defaultOutputDir);
       final ctx = BuildContext(
-        projectPath: '/p',
-        buildDir: '/p/.oka_cache/build/debug',
+        projectPath: project.path,
+        buildDir: p.join(project.path, '.oka_cache', 'build', 'debug'),
         mode: BuildMode.debug,
         config: OkaConfig.empty,
         processRunner: runner,
@@ -80,7 +85,48 @@ void main() {
         '--dart-define=B=2',
       ]);
     });
+
+    test('a declared flavor is forwarded, never silently dropped', () {
+      const pipeline = WindowsPipeline();
+      const ctx = BuildContext(
+        projectPath: '/p',
+        buildDir: '',
+        mode: BuildMode.release,
+        config: OkaConfig.empty,
+        flavor: 'store',
+      );
+      expect(pipeline.buildArgs(ctx), contains('--flavor=store'));
+    });
+
+    test('a green flutter tool with no artifact at the convention fails '
+        'the step (honest delegation)', () async {
+      final runner = _CapturingRunner();
+      const pipeline = WindowsPipeline();
+      final project = await Directory.systemTemp.createTemp('oka_desktop');
+      addTearDown(() => project.delete(recursive: true));
+      final ctx = BuildContext(
+        projectPath: project.path,
+        buildDir: p.join(project.path, '.oka_cache', 'build', 'release'),
+        mode: BuildMode.release,
+        config: OkaConfig.empty,
+        processRunner: runner,
+      );
+      final result = await pipeline.run(ctx);
+      expect(result.ok, isFalse);
+      expect(result.error, contains('expected artifact is missing'));
+      expect(result.error, contains(pipeline.defaultOutputDir));
+    });
   });
+}
+
+/// A real temp project with the pipeline's output convention in place —
+/// the artifact existence check demands the flutter tool's product.
+Future<Directory> _projectWithArtifact(String relativeOutputDir) async {
+  final project = await Directory.systemTemp.createTemp('oka_desktop');
+  await Directory(p.join(project.path, relativeOutputDir)).create(
+    recursive: true,
+  );
+  return project;
 }
 
 Future<void> check(
