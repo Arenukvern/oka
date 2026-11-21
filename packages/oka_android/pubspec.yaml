@@ -3,7 +3,7 @@ description: >-
   Android platform pipelines for oka: no-Gradle Flutter APK/AAB build steps,
   plugin packaging, direct Android SDK toolchain (aapt2, d8, apksigner), and
   typed manifest/spec values.
-version: 0.13.0 # x-release-please-version
+version: 0.14.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_android
 issue_tracker: https://github.com/Arenukvern/oka/issues
