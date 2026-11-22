@@ -256,7 +256,13 @@ const packages = <String>[
         '''
 void f() {
   // train-inventory-scan: allow architecture forbidden-import set
-  const allowed = {'oka', 'oka_web', 'oka_play', 'oka_huawei'};
+  const allowed = {
+          'oka',
+          'oka_web',
+          'oka_google_play',
+          'oka_app_gallery',
+          'oka_huawei',
+        };
   const packages = <String>['oka_process', 'oka_core', 'oka_artifacts', 'oka'];
 }
 ''',

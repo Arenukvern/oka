@@ -64,15 +64,15 @@ printf '%s\n' \
   "import 'package:oka_android/oka_android.dart';" \
   "import 'package:oka_conformance/oka_conformance.dart' as conformance;" \
   "import 'package:oka_core/oka_core.dart' as core;" \
-  "import 'package:oka_huawei/oka_huawei.dart';" \
-  "import 'package:oka_play/oka_play.dart';" \
+  "import 'package:oka_app_gallery/oka_app_gallery.dart';" \
+  "import 'package:oka_google_play/oka_google_play.dart';" \
   "import 'package:oka_web/oka_web.dart';" \
   '' \
-  'void acceptTypes(Oka _, ResolvedToolchain _, conformance.PublishPlan? _, core.BuildContext? _, HuaweiPublishTarget _, PlayPublishTarget _, core.Target _) {}' \
+  'void acceptTypes(Oka _, ResolvedToolchain _, conformance.PublishPlan? _, core.BuildContext? _, AppGalleryPublishTarget _, PlayPublishTarget _, core.Target _) {}' \
   'void main() {' \
   '  final Target target = const WebShellTarget(spec: WebShellSpec());' \
   "  final context = BuildContext.fromJson({'project_path': '.', 'build_dir': 'build', 'mode': 'debug', 'config': {}});" \
-  '  acceptTypes(Oka(pipelines: const []), ResolvedToolchain(), null, context, HuaweiPublishTarget(), PlayPublishTarget(), target);' \
+  '  acceptTypes(Oka(pipelines: const []), ResolvedToolchain(), null, context, AppGalleryPublishTarget(), PlayPublishTarget(), target);' \
   '  final details = target.explainDetails(context);' \
   '  if (details.isEmpty) throw StateError("Target.explainDetails returned no details");' \
   '}' > "$consumer_dir/lib/main.dart"

@@ -1,15 +1,13 @@
 import 'package:meta/meta.dart';
 import 'package:oka_android/oka_android.dart';
 
-/// The GMS-excluding Android build variant behind the Huawei target
-/// (ADR-0013 two-axis law: a store target = a build-variant composition
-/// plus a publish tail — never a forked pipeline).
+/// The GMS-excluding Android build composition for Huawei devices
+/// (ADR-0056: the PLATFORM half — a Huawei device ships without Google
+/// Play Services; the store half lives in `oka_app_gallery`/`oka_rustore`).
 ///
-/// Huawei AppGallery builds ship **without Google Play Services**: a GMS
-/// coordinate in `extraDeps` would either fail at runtime on
+/// A GMS coordinate in `extraDeps` would either fail at runtime on
 /// GMS-free devices or drag the Play dependency graph into a
-/// non-Play artifact. This typed value is the composition-time half of the
-/// target:
+/// non-Play artifact. This typed value carries the platform posture:
 ///
 /// * [gmsFreeOverrides] filters `extraDeps` ([PipelineOverrides.extraDeps])
 ///   through `isGmsCoordinate` (oka_android seam) — GMS coordinates are
@@ -26,16 +24,9 @@ import 'package:oka_android/oka_android.dart';
 /// `overrides.extraDeps` (or, in compositions, [gmsFreeOverrides]).
 ///
 /// ```dart
-/// const target = HuaweiPublishTarget(
-///   variant: HuaweiBuildVariant(
-///     android: AndroidBuild(packageName: 'dev.example.app'),
-///     overrides: PipelineOverrides(
-///       extraDeps: [
-///         'androidx.core:core-ktx:1.13.1',            // kept
-///         'com.android.billingclient:billing-ktx:7.0.0', // excluded (GMS)
-///       ],
-///     ),
-///   ),
+/// final pipeline = AndroidPipeline(
+///   config: variant.android,
+///   overrides: variant.gmsFreeOverrides,
 /// );
 /// ```
 @immutable

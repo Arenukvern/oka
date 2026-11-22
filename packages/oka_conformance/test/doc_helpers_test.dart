@@ -11,7 +11,7 @@ void main() {
     test('the documented plan shape assertion passes and fails correctly',
         () {
       // A dry-run plan exactly as a conforming target produces it (the
-      // oka_play target's plan is the model for this fixture).
+      // oka_google_play target's plan is the model for this fixture).
       const plan = PublishPlan(
         target: 'publish-play',
         endpoint: 'Google Play Publisher API (androidpublisher/v3)',

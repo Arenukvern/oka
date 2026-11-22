@@ -44,7 +44,7 @@ class _ScriptedRunner implements ProcessRunner {
 }
 
 /// The synthetic key the tests use to prove it never leaks. It guards
-/// nothing — like oka_play's `synthetic_credentials.dart`.
+/// nothing — like oka_google_play's `synthetic_credentials.dart`.
 const syntheticKey = 'synthetic-butler-key-value';
 
 BuildContext _ctx(

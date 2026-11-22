@@ -30,7 +30,8 @@ import 'dart:io';
 
 import 'package:oka_android/oka_android.dart';
 import 'package:oka_huawei/oka_huawei.dart';
-import 'package:oka_play/oka_play.dart';
+import 'package:oka_google_play/oka_google_play.dart';
+import 'package:oka_app_gallery/oka_app_gallery.dart';
 
 /// Steps shared by APK and AAB builds (identical through dependency
 /// resolution; the packaging tail differs per artifact type).
@@ -158,7 +159,7 @@ Future<void> main(List<String> args) {
       //          below — not a secret)
       //        - Users and permissions → API client → download the JSON
       //          (client_id / client_secret), resolved by path:
-      //              HuaweiPublishTarget(credentialPath: …)
+      //              AppGalleryPublishTarget(credentialPath: …)
       //              → OKA_HUAWEI_AGCONNECT_CREDENTIALS env var (a path)
       //              → ~/.oka/credentials/huawei/agconnect-credentials
       //   5. Ship: set `dryRun: false` on the target you are releasing to.
@@ -183,7 +184,7 @@ Future<void> main(List<String> args) {
         //   releaseNotes: [
         //     AgcReleaseNote(language: 'en', file: 'whatsnew-en.txt'),
         //   ]
-        HuaweiPublishTarget(
+        AppGalleryPublishTarget(
           release: HuaweiReleaseConfig(appId: '110012345'),
         ),
       ],

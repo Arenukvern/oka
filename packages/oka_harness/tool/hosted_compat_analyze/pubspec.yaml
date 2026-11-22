@@ -12,9 +12,5 @@ dependency_overrides:
     path: ../../../oka_android
   oka_core:
     path: ../../../oka_core
-  oka_store:
-    # New train member (ADR-0055): resolve by path until it publishes;
-    # oka_core from path depends on it.
-    path: ../../../oka_store
   resource_composition:
     path: ../../../resource_composition

@@ -55,11 +55,15 @@ Map<String, Object?> inspectArchitecture(Directory root) {
           : null;
       final forbidden = switch (package) {
         // train-inventory-scan: allow architecture forbidden-import set
+        // ADR-0056: store packages (oka_google_play, oka_app_gallery,
+        // oka_rustore) must never depend on each other or on platform
+        // packages; platform packages (oka_huawei) must never name stores.
         'oka_core' || 'oka_conformance' => const {
           'oka',
           'oka_android',
           'oka_web',
-          'oka_play',
+          'oka_google_play',
+          'oka_app_gallery',
           'oka_huawei',
           'oka_rustore',
         },
@@ -67,7 +71,8 @@ Map<String, Object?> inspectArchitecture(Directory root) {
         'oka_android' => const {
           'oka',
           'oka_web',
-          'oka_play',
+          'oka_google_play',
+          'oka_app_gallery',
           'oka_huawei',
           'oka_rustore',
         },
@@ -75,16 +80,44 @@ Map<String, Object?> inspectArchitecture(Directory root) {
         'oka_web' => const {
           'oka',
           'oka_android',
-          'oka_play',
+          'oka_google_play',
+          'oka_app_gallery',
           'oka_huawei',
           'oka_rustore',
         },
         // train-inventory-scan: allow architecture forbidden-import set
-        'oka_play' => const {'oka', 'oka_web', 'oka_huawei', 'oka_rustore'},
+        'oka_google_play' => const {
+          'oka',
+          'oka_web',
+          'oka_app_gallery',
+          'oka_huawei',
+          'oka_rustore',
+        },
         // train-inventory-scan: allow architecture forbidden-import set
-        'oka_huawei' => const {'oka', 'oka_web', 'oka_play', 'oka_rustore'},
+        'oka_app_gallery' => const {
+          'oka',
+          'oka_web',
+          'oka_google_play',
+          'oka_huawei',
+          'oka_rustore',
+        },
         // train-inventory-scan: allow architecture forbidden-import set
-        'oka_rustore' => const {'oka', 'oka_web', 'oka_play', 'oka_huawei'},
+        'oka_huawei' => const {
+          'oka',
+          'oka_web',
+          'oka_google_play',
+          'oka_app_gallery',
+          'oka_rustore',
+        },
+        // train-inventory-scan: allow architecture forbidden-import set
+        'oka_rustore' => const {
+          'oka',
+          'oka_web',
+          'oka_android',
+          'oka_google_play',
+          'oka_app_gallery',
+          'oka_huawei',
+        },
         _ => const <String>{},
       };
       String? reason;

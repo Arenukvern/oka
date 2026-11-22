@@ -17,12 +17,12 @@ void main() {
     }
   });
 
-  test('fails when a follower omits VERSION heading', () {
+  test('fails when a follower omits the VERSION heading', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
     try {
       _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
       File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0.9.2 <!-- x-release-please-version -->\n\n'
+        '## 0.9.2\n\n'
         'See `packages/oka/CHANGELOG.md`.\n\n'
         '## 0.9.0\n\n- stale\n',
       );
@@ -38,10 +38,10 @@ void main() {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
     try {
       _writeTrainFixture(fixture, version: '0.10.0', allHaveVersion: true);
+      // Only the lookalike exists — the version regex must not match it.
       File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0a10a0 <!-- x-release-please-version -->\n\n'
-        'See `packages/oka/CHANGELOG.md`.\n\n'
-        '## 0.10.0\n\n- decoy\n',
+        '## 0a10a0\n\n'
+        'See `packages/oka/CHANGELOG.md`.\n',
       );
       final result = _runCheck(fixture);
       expect(result.exitCode, isNot(0));
@@ -51,24 +51,8 @@ void main() {
     }
   });
 
-  test('rejects a frozen follower section that still carries the RP marker', () {
-    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
-    try {
-      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
-      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0.9.2 <!-- x-release-please-version -->\n\n'
-        'See `packages/oka/CHANGELOG.md`.\n\n'
-        '## 0.9.0 <!-- x-release-please-version -->\n\n- stale\n',
-      );
-      final result = _runCheck(fixture);
-      expect(result.exitCode, isNot(0));
-      expect(_output(result), contains('oka_core'));
-    } finally {
-      fixture.deleteSync(recursive: true);
-    }
-  });
-
-  test('accepts release PR layout when marked heading equals VERSION', () {
+  test('accepts annotated headings when the version is present '
+      '(the marker law is retired — ADR-0054)', () {
     final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
     try {
       _writeTrainFixture(fixture, version: '0.11.0', allHaveVersion: true);
@@ -80,58 +64,6 @@ void main() {
       );
       final result = _runCheck(fixture);
       expect(result.exitCode, 0, reason: _output(result));
-    } finally {
-      fixture.deleteSync(recursive: true);
-    }
-  });
-
-  test('rejects when marked heading is below VERSION', () {
-    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
-    try {
-      _writeTrainFixture(fixture, version: '0.11.0', allHaveVersion: true);
-      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0.10.0 <!-- x-release-please-version -->\n\n'
-        'See `packages/oka/CHANGELOG.md`.\n\n'
-        '## 0.11.0\n\n- late\n',
-      );
-      final result = _runCheck(fixture);
-      expect(result.exitCode, isNot(0));
-      expect(_output(result), contains('below VERSION'));
-    } finally {
-      fixture.deleteSync(recursive: true);
-    }
-  });
-
-  test('rejects when two markers appear in a follower changelog', () {
-    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
-    try {
-      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
-      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0.9.2 <!-- x-release-please-version -->\n\n'
-        'See `packages/oka/CHANGELOG.md`.\n\n'
-        '## 0.9.1\n\n- ok\n\n'
-        '## 0.9.0 <!-- x-release-please-version -->\n',
-      );
-      final result = _runCheck(fixture);
-      expect(result.exitCode, isNot(0));
-      expect(_output(result), contains('exactly one'));
-    } finally {
-      fixture.deleteSync(recursive: true);
-    }
-  });
-
-  test('rejects when the first version heading lacks the marker', () {
-    final fixture = Directory.systemTemp.createTempSync('oka_pkg_changelog_');
-    try {
-      _writeTrainFixture(fixture, version: '0.9.1', allHaveVersion: true);
-      File('${fixture.path}/packages/oka_core/CHANGELOG.md').writeAsStringSync(
-        '## 0.9.2\n\n'
-        'See `packages/oka/CHANGELOG.md`.\n\n'
-        '## 0.9.1\n\n- ok\n',
-      );
-      final result = _runCheck(fixture);
-      expect(result.exitCode, isNot(0));
-      expect(_output(result), contains('oka_core'));
     } finally {
       fixture.deleteSync(recursive: true);
     }

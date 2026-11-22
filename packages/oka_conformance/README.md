@@ -4,7 +4,7 @@ Shared publish-target conformance suite for
 [oka](https://github.com/Arenukvern/oka) — the
 `universal_storage_conformance` pattern applied to oka publishing (ADR-0014).
 
-Any oka `PublishTarget` package (`oka_play`, `oka_huawei`, and yours) must
+Any oka `PublishTarget` package (`oka_google_play`, `oka_app_gallery`, and yours) must
 uphold the **three publishing laws**. This package turns them into a
 reusable, fully offline test harness:
 

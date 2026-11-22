@@ -130,8 +130,6 @@ $jsonSiblingOverrides  oka_android:
     path: $repoRoot/packages/oka_android
   oka_core:
     path: $repoRoot/packages/oka_core
-  oka_store:
-    path: $repoRoot/packages/oka_store
   resource_composition:
     path: $repoRoot/packages/resource_composition
 ''');

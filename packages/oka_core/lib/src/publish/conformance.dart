@@ -232,7 +232,7 @@ List<String> _auditNoStdin(List<String> sourcePaths) {
 ///   await expectPublishConformance(
 ///     const PlayPublishTarget(dryRun: true),
 ///     _ctx(),
-///     sourcePaths: ['packages/oka_play/lib/src'],
+///     sourcePaths: ['packages/oka_google_play/lib/src'],
 ///   );
 /// });
 /// ```

@@ -32,7 +32,7 @@ import 'package:oka_conformance/oka_conformance.dart';
 /// A minimal example target: stages a demo artifact and (in real mode)
 /// would upload it to a fictional endpoint. With [dryRun] true (the
 /// default), the compiled chain swaps the upload step for oka_core's
-/// plan step — exactly how `oka_play`/`oka_huawei` targets work.
+/// plan step — exactly how `oka_google_play`/`oka_app_gallery` targets work.
 class DemoPublishTarget extends PublishTarget {
   const DemoPublishTarget();
 

@@ -220,7 +220,7 @@ class PublishPlanStep extends BuildStep {
 ///    [CredentialRef]s (path references) and booleans. State can be dumped
 ///    by tooling; treat it as public.
 ///
-/// Target packages (`[P1]` `oka_play`, `[P2]` `oka_huawei`) extend this class
+/// Target packages (`[P1]` `oka_google_play`, `[P2]` `oka_app_gallery`) extend this class
 /// and assert the laws via `expectPublishConformance` — a shared suite any
 /// target must pass, mirroring the `universal_storage_conformance` pattern.
 abstract class PublishTarget extends Target {

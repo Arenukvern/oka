@@ -1,7 +1,7 @@
-// ADR-0013 two-axis law, demonstrated (ADR-0014 P2): the Huawei store
-// target composes a GMS-excluding AndroidBuild variant, and the **existing**
-// artifact validator rejects a GMS-dependent step in that composition
-// *before any tool runs*.
+// ADR-0056 platform law, demonstrated (ADR-0014 P2): the Huawei DEVICE
+// platform composition excludes GMS, and the **existing** artifact
+// validator rejects a GMS-dependent step in that composition *before any
+// tool runs*.
 //
 // The rejection uses the public checker only — Pipeline.validate /
 // describeTarget — no new validator, no new mechanism.
@@ -42,6 +42,18 @@ class PlayBillingStep extends BuildStep {
   }
 }
 
+/// A stand-in for the platform build's tail: a GMS-free step the variant
+/// composition can end with (the real artifact build lives in the
+/// delivery's pipeline).
+class _PlatformTailStep extends BuildStep {
+  @override
+  String get name => 'huawei-platform-tail';
+
+  @override
+  Future<StepResult> run(BuildContext ctx, PipelineState state) =>
+      Future<StepResult>.value(StepResult.success());
+}
+
 /// A composition root declaring the Huawei variant *with* a GMS-dependent
 /// step — the mis-wiring the validator must catch.
 class MiswiredHuaweiTarget extends Target {
@@ -78,10 +90,9 @@ class ValidHuaweiTarget extends Target {
   List<BuildStep> compile(BuildContext ctx) => compileVariantSteps(ctx);
 }
 
-/// The variant's composition steps: stage the AAB the way the real target
-/// does (a stand-in for the platform build's tail).
+/// The variant's composition steps: the GMS-free platform tail.
 List<BuildStep> compileVariantSteps(BuildContext ctx) => [
-  HuaweiStageAabStep(),
+  _PlatformTailStep(),
 ];
 
 void main() {
@@ -161,18 +172,6 @@ void main() {
       ]);
       // The base config is untouched.
       expect(variant.android, const AndroidBuild());
-    });
-
-    test('the channel is variant-free — the delivery owns the posture '
-        '(ADR-0055)', () {
-      const target = HuaweiPublishTarget();
-      expect(target.prohibitedOverlays, {'gms'});
-      expect(target.acceptedPlatforms, {'android'});
-      expect(target.acceptedArtifactFormats, {'aab'});
-      // The build config no longer rides the channel — toString carries
-      // no AndroidBuild restatement.
-      expect(target.toString(), isNot(contains('AndroidBuild')));
-      expect(target.description, contains('prohibits the gms overlay'));
     });
   });
 
@@ -257,7 +256,7 @@ void main() {
       final chain = describeTarget(const ValidHuaweiTarget(variant), makeCtx());
       expect(chain.isValid, isTrue, reason: chain.validationError);
       expect(chain.steps.map((s) => s.name).toList(), [
-        'huawei-stage-aab',
+        'huawei-platform-tail',
       ]);
     });
   });

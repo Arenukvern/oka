@@ -5,7 +5,7 @@
 // plans without executing uploads; (2) no stdin in any build path; (3) no
 // secret values in PipelineState — only credential refs and booleans.
 // Proven end-to-end over the FixturePublishTarget; target packages (P1
-// oka_play, P2 oka_huawei) assert the same laws via
+// oka_google_play, P2 oka_app_gallery) assert the same laws via
 // `expectPublishConformance`.
 import 'dart:io';
 

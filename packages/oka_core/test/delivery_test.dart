@@ -1,6 +1,11 @@
 import 'package:oka_core/oka_core.dart';
-import 'package:oka_store/oka_store.dart';
 import 'package:test/test.dart';
+
+// Project-composed keys (ADR-0056): the well-known constants live in the
+// store packages; a test composes its own values.
+const storeKeyGooglePlay = StoreKey('google-play');
+const storeKeyRuStore = StoreKey('rustore');
+const storeKeyAppGallery = StoreKey('appgallery');
 
 /// A minimal pipeline stub: platform identity + a no-op run — deliveries
 /// validate composition without executing anything.

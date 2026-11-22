@@ -36,8 +36,8 @@ dependencies:
   mcp_toolkit: ">=5.0.4 <8.0.0" # no code import; bootstrap-side dep (7.2.3 widens fj2j/idoen)
   oka: ^0.12.0 # x-release-please-version
   oka_android: ^0.12.0 # x-release-please-version
-  oka_huawei: ^0.12.0 # x-release-please-version
-  oka_play: ^0.12.0 # x-release-please-version
+  oka_app_gallery: ^0.12.0 # x-release-please-version
+  oka_google_play: ^0.12.0 # x-release-please-version
   oka_update: ^0.12.0 # x-release-please-version
 
 dependency_overrides:
@@ -54,12 +54,10 @@ dependency_overrides:
     path: ../packages/oka_artifacts
   oka_core:
     path: ../packages/oka_core
-  oka_huawei:
-    path: ../packages/oka_huawei
-  oka_play:
-    path: ../packages/oka_play
-  oka_store:
-    path: ../packages/oka_store
+  oka_app_gallery:
+    path: ../packages/oka_app_gallery
+  oka_google_play:
+    path: ../packages/oka_google_play
   oka_update:
     path: ../packages/oka_update
   resource_composition:

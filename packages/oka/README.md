@@ -29,5 +29,5 @@ documentation: **[docs.page/arenukvern/oka](https://docs.page/arenukvern/oka)**.
 
 This package is the CLI shell (parse-and-delegate only — ADR-0015): platform
 pipelines, toolchain provisioning, and publish targets live in the sibling
-packages (`oka_core`, `oka_android`, `oka_play`, `oka_huawei`, `oka_web`,
+packages (`oka_core`, `oka_android`, `oka_google_play`, `oka_app_gallery`, `oka_huawei`, `oka_web`,
 `oka_conformance`).

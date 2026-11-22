@@ -1,0 +1,37 @@
+name: oka_app_gallery
+description: >-
+  The Huawei AppGallery STORE package for oka (ADR-0055/0056): the
+  AppGallery store key plus the publish channel — AppGalleryPublishTarget
+  composes the AppGallery Connect REST upload tail (token fetch → upload
+  URL → artifact upload → submit) over an injectable HTTP transport, with
+  dry-run plans and credentials by path.
+version: 0.12.1 # x-release-please-version
+homepage: https://github.com/Arenukvern/oka
+repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_app_gallery
+issue_tracker: https://github.com/Arenukvern/oka/issues
+documentation: https://docs.page/arenukvern/oka
+topics:
+  - appgallery
+  - build-system
+  - cli
+  - flutter
+  - huawei
+
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  archive: ^4.6.0
+  http: ^1.2.1
+  meta: ^1.14.0
+  oka_android: ^0.13.0 # x-release-please-version
+  oka_core: ^0.13.0 # x-release-please-version
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  oka_conformance: ^0.12.0 # x-release-please-version
+  test: ^1.25.0
+  xsoulspace_lints: ^0.1.2

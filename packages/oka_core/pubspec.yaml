@@ -26,7 +26,6 @@ dependencies:
   from_json_to_json: ^0.6.0
   is_dart_empty_or_not: ^0.6.0
   meta: ^1.14.0
-  oka_store: ^0.12.0 # x-release-please-version
   path: ^1.9.0
   resource_composition: ^0.12.0 # x-release-please-version
   yaml: ^3.1.2

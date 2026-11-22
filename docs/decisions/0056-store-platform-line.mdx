@@ -1,0 +1,93 @@
+# 0056 — The store/platform line: one package per store, one package per platform
+
+- **Status:** accepted (implemented)
+- **Date:** 2026-11-22
+- **Decision-makers:** Anton, oka agent
+- **Depends on:** ADR-0055 (delivery matrix), ADR-0014 (targets + secrets),
+  ADR-0013 (two-axis model, superseded for the packaging question)
+
+## Context
+
+ADR-0055 untied the distribution matrix (buildable × pipeline × variant ×
+channel), but the PACKAGE layout still welded two different axes together:
+
+| package (before) | what it actually held | what's wrong with that |
+|---|---|---|
+| `oka_store` | the open store identity (`StoreKey`, `StoreBinding`, well-known keys for ALL stores) | a store-neutral registry that every store-adjacent ecosystem had to depend on — xsoulspace packages pulled oka's identity just to name a store |
+| `oka_play` | the Play publish channel only | identity and channel for the same store split across two packages |
+| `oka_huawei` | AppGallery Connect publish channel **and** the GMS-excluding build variant | a Huawei DEVICE is a platform; AppGallery is a STORE — and a Huawei device carries RuStore or sideloaded APKs just as happily |
+
+The distinction the layout kept blurring, stated plainly:
+
+- **A platform** is what the binary runs on and against — the device/runtime
+  capability surface (Android with GMS, Android/Huawei without GMS, iOS,
+  web, desktop). Pipelines build for platforms; overlays fold platform
+  native dependencies.
+- **A store** is where the binary is distributed and purchased — the
+  distribution/purchase channel (Google Play, AppGallery, RuStore, Snap,
+  App Store…). A store is store identity (key + binding) plus a publish
+  channel.
+
+**The line is thin but real, and it is one-directional**: a store may
+declare platform requirements (`requiredOverlays`/`prohibitedOverlays` —
+Play requires the `gms` overlay, AppGallery prohibits it), but a platform
+NEVER names a store. The motivating case: "store on a Huawei device" —
+RuStore installs on Huawei devices fine, so a `oka_huawei` package that
+contains AppGallery publishing welds one store to one vendor's hardware.
+
+## Decision
+
+1. **One package per STORE** — identity (the store's key constant) plus
+   its publish channel:
+   - `oka_google_play` (renamed from `oka_store`; absorbs the `oka_play`
+     channel — `PlayPublishTarget`, credentials, publisher client,
+     upload step)
+   - `oka_app_gallery` (carved from `oka_huawei` — `AppGalleryPublishTarget`,
+     the AGC REST upload tail, release config, distribution policy,
+     `storeKeyAppGallery`; the AGC credential policy moves with it:
+     `appgallery/agconnect-credentials`, `OKA_APPGALLERY_AGCONNECT_CREDENTIALS`)
+   - `oka_rustore` (unchanged channel, now with `storeKeyRuStore`)
+2. **One package per PLATFORM/vendor** — build pipelines + native-dep
+   overlays/variants: `oka_android`, `oka_huawei` (now ONLY the
+   GMS-excluding `HuaweiBuildVariant` — the Huawei device posture),
+   `oka_web`, `oka_desktop`, `oka_service`.
+3. **The identity TYPE lives in `oka_core`** — `StoreKey`, `StoreKey.of`,
+   `StoreBinding`, `NoopStoreBinding`, `storeKeyNoop`, `okaStoreDefine`
+   (the `OKA_STORE` dart-define contract). There is NO central registry of
+   well-known keys anymore: the former `known_stores.dart` dissolved, each
+   store package carries its own key constant, and any other key is a
+   plain `StoreKey('my-market')` composed by the project.
+4. **Dependency law (the ecosystem rule)**:
+   - Runtime kernels must not depend on channel packages just to name a
+     store — they compose their own keys (via `oka_core`) and name stores
+     by their STRING key, joined to oka by the `okaStoreDefine` define and
+     verified at boot (ADR-0037 amendment in Last Answer).
+   - Store-adjacent ecosystem packages (xsoulspace monetization,
+     installation-store) must NOT depend on oka store packages — only if
+     they genuinely depend on that store's services (e.g. Play Services
+     APIs). The former "ecosystems may depend on the oka_store leaf" law
+     is reversed: the string define is the contract, not the type.
+   - Build-side compositions (`tool/oka_pipeline.dart`) may import store
+     packages freely — that is their home turf.
+5. **Architecture gate encodes the line**: store packages must not depend
+   on each other or on platform packages; platform packages (and
+   pipelines/overlays) must never name stores
+   (`tool/contracts/check_architecture.dart`).
+
+## Consequences
+
+- `oka_store` and `oka_play` are retired (never published under the old
+  train — the superseded tags were removed before any publish).
+- `oka_app_gallery` is a NEW pub.dev identity (first-timer: needs the
+  one-time human `dart pub publish` bootstrap + automated-publishing
+  enable, like `oka_google_play`).
+- `HuaweiPublishTarget` → `AppGalleryPublishTarget`; its AGC step names
+  are store-named (`appgallery-stage-aab`, `appgallery-verify-artifact`).
+- `known_stores.dart` is gone; consumers compose keys per project (Last
+  Answer: `lib/store/store_keys.dart`).
+- The ADR-0013 "store target = variant + publish tail" framing is fully
+  superseded by ADR-0055: channels publish, deliveries build — now also in
+  package geography.
+- xsoulspace packages drop their `oka_store` dependency and own their
+  identity (a string key contract), unblocking their release trains
+  without waiting for any oka publish.

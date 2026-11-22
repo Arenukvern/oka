@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
-import 'package:oka_store/oka_store.dart';
 
 import '../config/build_context.dart';
+import '../store/store_key.dart';
 import 'overlay.dart';
 
 /// The WHAT-compiles-in bundle a delivery applies to its pipeline

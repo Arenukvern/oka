@@ -64,7 +64,7 @@ String? validateTargetName(
 /// Targets are the second CLI axis: static core verbs (`build`, `explain`,
 /// ...) belong to oka; targets (`device`, `publish-play`, custom flows)
 /// belong to the project composition root and to target packages
-/// (`oka_android` ships the device target, `oka_play`/`oka_huawei` the
+/// (`oka_android` ships the device target, the store packages (`oka_google_play`, `oka_app_gallery`, `oka_rustore`) the
 /// store targets). The core CLI never grows for a new platform or store.
 ///
 /// Design law (ADR-0015): targets are **typed values**, not arbitrary

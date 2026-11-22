@@ -113,7 +113,11 @@ export 'src/store/cache_diagnostics.dart';
 export 'src/store/cache_projects.dart';
 export 'src/store/core_cache_diagnostics.dart';
 export 'src/store/materialization.dart';
+// The open store identity (ADR-0055/0056): the TYPE lives in oka_core;
+// per-store key constants live in their store packages.
 export 'src/store/storage_inventory.dart';
+export 'src/store/store_binding.dart';
+export 'src/store/store_key.dart';
 export 'src/target_execution_scope.dart';
 export 'src/targets/delivery_target.dart';
 export 'src/targets/describe.dart';
