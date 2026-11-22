@@ -26,7 +26,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: Arenukvern/dart_changesets@v1
+      # @main until the engine's 0.3.0 train lands (merge-commit merge
+      # detection, root-constraint cascade, pre-bump drift guard,
+      # version-suffixed changelog headings — all exercised by THIS repo's
+      # trains). Flip back to the refreshed major tag after the cut.
+      - uses: Arenukvern/dart_changesets@main
         with:
           # This repo's per-tag publish workflow (the action's default
           # `publish.yml` does not exist here).
