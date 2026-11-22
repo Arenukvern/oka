@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.12.2
+<!-- markdownlint-disable MD052 -->
+
+
+## 0.12.1 
 
 ### Patch Changes
 
@@ -65,7 +68,6 @@
   
   Store channels declare capabilities (Play: android/aab; RuStore: android;
   AppGallery: android/aab, `gms` overlay prohibited). ADR 0055.
-<!-- markdownlint-disable MD052 -->
 
 All notable changes to the Oka project will be documented in this file.
 

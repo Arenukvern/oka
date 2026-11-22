@@ -1,4 +1,4 @@
-## 0.13.0
+## 0.12.1 <!-- x-release-please-version -->
 
 ### Minor Changes
 
@@ -65,7 +65,7 @@
   AppGallery: android/aab, `gms` overlay prohibited). ADR 0055.
 - Updated `oka_android` dependency constraint to `^0.14.0`.
 - Updated `oka_core` dependency constraint to `^0.14.0`.
-## 0.12.0 <!-- x-release-please-version -->
+## 0.12.0
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
 

@@ -1,4 +1,4 @@
-## 0.13.0
+## 0.12.0 <!-- x-release-please-version -->
 
 ### Minor Changes
 
@@ -63,6 +63,6 @@
   
   Store channels declare capabilities (Play: android/aab; RuStore: android;
   AppGallery: android/aab, `gms` overlay prohibited). ADR 0055.
-## 0.12.0 <!-- x-release-please-version -->
+## 0.12.0
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
