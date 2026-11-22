@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.2
+
+### Patch Changes
+
+- Updated `oka_core` dependency constraint to `^0.14.0`.
 <!-- markdownlint-disable MD052 -->
 
 
@@ -505,4 +510,5 @@ All notable changes to the Oka project will be documented in this file.
 - Complete Phase 5: Hot Reload
 - Create example app with monetization + crashlytics
 - Integration testing
+
 

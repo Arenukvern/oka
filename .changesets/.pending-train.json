@@ -1,98 +1,80 @@
 [
   {
-    "package": "oka_store",
-    "version": "0.12.0",
-    "tag": "oka_store-v0.12.0",
-    "directory": "/home/runner/work/oka/oka/packages/oka_store"
-  },
-  {
     "package": "oka_core",
-    "version": "0.13.0",
-    "tag": "oka_core-v0.13.0",
-    "directory": "/home/runner/work/oka/oka/packages/oka_core"
+    "version": "0.14.0",
+    "tag": "oka_core-v0.14.0",
+    "directory": "packages/oka_core"
   },
   {
     "package": "oka_android",
+    "version": "0.13.1",
+    "tag": "oka_android-v0.13.1",
+    "directory": "packages/oka_android"
+  },
+  {
+    "package": "oka_app_gallery",
     "version": "0.13.0",
-    "tag": "oka_android-v0.13.0",
-    "directory": "/home/runner/work/oka/oka/packages/oka_android"
+    "tag": "oka_app_gallery-v0.13.0",
+    "directory": "packages/oka_app_gallery"
   },
   {
-    "package": "oka_artifacts",
-    "version": "0.12.1",
-    "tag": "oka_artifacts-v0.12.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_artifacts"
-  },
-  {
-    "package": "oka_supervisor",
-    "version": "0.12.1",
-    "tag": "oka_supervisor-v0.12.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_supervisor"
-  },
-  {
-    "package": "oka_web",
+    "package": "oka_google_play",
     "version": "0.13.0",
-    "tag": "oka_web-v0.13.0",
-    "directory": "/home/runner/work/oka/oka/packages/oka_web"
-  },
-  {
-    "package": "oka",
-    "version": "0.12.1",
-    "tag": "oka-v0.12.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka"
-  },
-  {
-    "package": "oka_conformance",
-    "version": "0.12.1",
-    "tag": "oka_conformance-v0.12.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_conformance"
-  },
-  {
-    "package": "oka_dart_kernel",
-    "version": "0.0.1",
-    "tag": "oka_dart_kernel-v0.0.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_dart_kernel"
-  },
-  {
-    "package": "oka_desktop",
-    "version": "0.12.0",
-    "tag": "oka_desktop-v0.12.0",
-    "directory": "/home/runner/work/oka/oka/packages/oka_desktop"
+    "tag": "oka_google_play-v0.13.0",
+    "directory": "packages/oka_google_play"
   },
   {
     "package": "oka_huawei",
-    "version": "0.12.1",
-    "tag": "oka_huawei-v0.12.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_huawei"
-  },
-  {
-    "package": "oka_play",
-    "version": "0.12.1",
-    "tag": "oka_play-v0.12.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_play"
+    "version": "0.13.0",
+    "tag": "oka_huawei-v0.13.0",
+    "directory": "packages/oka_huawei"
   },
   {
     "package": "oka_rustore",
+    "version": "0.13.0",
+    "tag": "oka_rustore-v0.13.0",
+    "directory": "packages/oka_rustore"
+  },
+  {
+    "package": "oka_artifacts",
+    "version": "0.12.2",
+    "tag": "oka_artifacts-v0.12.2",
+    "directory": "packages/oka_artifacts"
+  },
+  {
+    "package": "oka_supervisor",
+    "version": "0.12.2",
+    "tag": "oka_supervisor-v0.12.2",
+    "directory": "packages/oka_supervisor"
+  },
+  {
+    "package": "oka_web",
+    "version": "0.13.1",
+    "tag": "oka_web-v0.13.1",
+    "directory": "packages/oka_web"
+  },
+  {
+    "package": "oka",
+    "version": "0.12.2",
+    "tag": "oka-v0.12.2",
+    "directory": "packages/oka"
+  },
+  {
+    "package": "oka_desktop",
     "version": "0.12.1",
-    "tag": "oka_rustore-v0.12.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_rustore"
+    "tag": "oka_desktop-v0.12.1",
+    "directory": "packages/oka_desktop"
+  },
+  {
+    "package": "oka_conformance",
+    "version": "0.12.2",
+    "tag": "oka_conformance-v0.12.2",
+    "directory": "packages/oka_conformance"
   },
   {
     "package": "oka_service",
-    "version": "0.12.0",
-    "tag": "oka_service-v0.12.0",
-    "directory": "/home/runner/work/oka/oka/packages/oka_service"
-  },
-  {
-    "package": "oka_verify",
-    "version": "0.8.1",
-    "tag": "oka_verify-v0.8.1",
-    "directory": "/home/runner/work/oka/oka/packages/oka_verify"
-  },
-  {
-    "package": "oka_harness",
-    "version": "0.12.0",
-    "tag": "oka_harness-v0.12.0",
-    "directory": "/home/runner/work/oka/oka/packages/oka_harness"
+    "version": "0.12.1",
+    "tag": "oka_service-v0.12.1",
+    "directory": "packages/oka_service"
   }
 ]
