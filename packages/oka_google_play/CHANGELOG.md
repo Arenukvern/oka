@@ -4,7 +4,7 @@ All notable changes to `oka_google_play` are documented here. The release
 train prepends sections per version — headings start with the exact
 version.
 
-## 0.12.1
+## 0.12.0
 
 - New package (ADR-0056 store/platform line): the Google Play STORE
   package — `storeKeyGooglePlay` plus the Play publish channel

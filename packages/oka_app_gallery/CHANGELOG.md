@@ -4,7 +4,7 @@ All notable changes to `oka_app_gallery` are documented here. The release
 train prepends sections per version — headings start with the exact
 version.
 
-## 0.12.1
+## 0.12.0
 
 - New package (ADR-0056 store/platform line): the AppGallery STORE package
   — `storeKeyAppGallery` plus the AppGallery Connect publish channel
