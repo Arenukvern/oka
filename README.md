@@ -9,6 +9,8 @@
 [![Docs](https://img.shields.io/badge/docs-docs.page-02569B)](https://docs.page/arenukvern/oka)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/arenukvern/oka)
 [![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
+[![release train](https://img.shields.io/github/actions/workflow/status/Arenukvern/oka/dart_changesets.yml?branch=main&label=release%20train&logo=github)](https://github.com/Arenukvern/oka/actions/workflows/dart_changesets.yml)
+[![release engine: dart_changesets](https://img.shields.io/badge/release_engine-dart__changesets-0175C2?logo=dart&logoColor=white)](https://github.com/Arenukvern/dart_changesets)
 [![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.44-blue.svg)](https://flutter.dev)
 [![All Contributors](https://img.shields.io/github/all-contributors/Arenukvern/oka?color=ee8449&style=flat-square)](https://github.com/Arenukvern/oka#contributors-)
 <a title="Discord" href="https://discord.com/invite/y54DpJwmAn" ><img src="https://img.shields.io/discord/696688204476055592.svg" /></a>
