@@ -15,6 +15,8 @@ const packages = <String>[
   'oka_play',
   'oka_rustore',
   'oka_web',
+  'oka_desktop',
+  'oka_service',
   'oka_harness',
   'oka_update',
   'oka',

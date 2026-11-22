@@ -76,7 +76,7 @@ Paths are workspace-relative; follow public exports when modules move.
 | Browser targets and profiles | `packages/oka_web/lib/src/session/` |
 | Store publishing | `packages/oka_play/`, `packages/oka_huawei/` |
 | Release inventory and synchronization | `tool/release/train.dart` and thin shell wrappers |
-| pub.dev train publishing and post-publish gates | `tool/release/publish_packages.sh`, `.github/workflows/pub_publish.yml`, `tool/ci/check_package_consumer.sh` |
+| pub.dev train publishing and post-publish gates | the dart_changesets train (`.changesets/` intent → version PR → per-tag publish, ADR 0054), `tool/ci/check_package_consumer.sh` |
 
 ## Maintenance checks
 

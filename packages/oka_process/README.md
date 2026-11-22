@@ -59,7 +59,7 @@ final receipt = await backend.stop(handle);
 
 ## Publishing
 
-Published on the automated pub.dev OIDC train with the rest of oka (GitHub
-Actions via `tool/release/publish_packages.sh`; **first** in upload order). See
+Published on the automated pub.dev OIDC train with the rest of oka
+(dart_changesets per-tag CI — oka_process is **first** in upload order). See
 [`PUBLISHING.md`](PUBLISHING.md) for one-time pub.dev automated-publishing setup
 (required before the next tagged release).

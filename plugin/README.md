@@ -30,6 +30,6 @@ The CLI itself installs from pub.dev: `dart pub global activate oka`.
 ## Versioning
 
 All manifests carry the repo version. release-please bumps them via
-`release-please-config.json` `extra-files`; `tool/release/sync_version.sh`
+`the dart_changesets release train (.changesets/).json` `extra-files`; `tool/release/sync_version.sh`
 derives everything from root `VERSION`. Run `just check-contracts` before
 merge — it fails on drift.

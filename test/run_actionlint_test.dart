@@ -41,7 +41,11 @@ void main() {
     );
   });
 
-  test('linux amd64 runs actionlint when binary available', () {
+  test('linux amd64 runs actionlint when binary available',
+      skip: !Platform.isLinux
+          ? 'the provisioned binary is linux_amd64 — only a linux host '
+              'can execute it; the ubuntu CI leg owns this case'
+          : null, () {
     final result = Process.runSync(
       'bash',
       ['tool/contracts/run_actionlint.sh'],

@@ -37,10 +37,6 @@ lint:
 check-contracts:
     bash tool/contracts/check_contracts.sh
 
-# Sync all version touchpoints from VERSION
-sync-version:
-    bash tool/release/sync_version.sh
-
 # Build performance benchmarks against example/ (evidence in .steward/benchmark-summaries)
 bench:
     bash tool/benchmarks/build_benchmarks.sh example
@@ -49,13 +45,9 @@ bench:
 bench-kernel:
     bash tool/benchmarks/kernel_benchmarks.sh
 
-# Dry-run the complete pub.dev package train
-publish-dry-run:
-    bash tool/release/publish_packages.sh --dry-run
-
-# Publish the complete package train (requires publisher auth)
-publish:
-    bash tool/release/publish_packages.sh --publish
+# Publish the pub.dev train: dart_changesets CI does it — a pending
+# .changesets/*.md intent lands a version PR (dart_changesets.yml); its
+# merge tags every package and the per-tag publish workflow (OIDC) runs.
 
 # Run oka locally without global install
 dev:

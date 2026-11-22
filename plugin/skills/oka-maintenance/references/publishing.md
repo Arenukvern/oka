@@ -1,11 +1,13 @@
 # Publishing to pub.dev
 
-Runbook for cutting and publishing the oka package train. Behavior SSOT is code:
-`tool/release/publish_packages.sh` (train driver), `tool/release/train.dart`
-(order), `.github/workflows/pub_publish.yml` (automation), and
-`tool/ci/check_package_consumer.sh` (post-publish consumer gate). This file
-records the release procedure and the operational rules that are easy to get
-wrong; when a script and this file disagree, fix this file or the script.
+Runbook for cutting and publishing the oka package train. Behavior SSOT is
+code (ADR 0054): `.changesets/*.md` intent files (bump declarations),
+`.github/workflows/dart_changesets.yml` (assembles the version PR on main
+pushes), `.github/workflows/dart_changesets_publish.yml` (per-tag OIDC
+publish), and `tool/ci/check_package_consumer.sh` (post-publish consumer
+gate). This file records the release procedure and the operational rules
+that are easy to get wrong; when a script and this file disagree, fix this
+file or the script.
 
 ## Train invariants
 

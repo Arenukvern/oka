@@ -6,8 +6,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$ROOT_DIR"
 export OKA_ROOT="$ROOT_DIR"
-bash tool/release/check_version_sync.sh
-bash tool/release/check_release_please_manifest.sh
+# ADR 0054: the one-version train is retired — per-package versions move
+# via dart_changesets; the VERSION file and the release-please manifest
+# are gone, so no version-sync / manifest gates here anymore.
 bash tool/release/check_package_changelogs.sh
 bash tool/release/check_package_licenses.sh
 bash tool/contracts/check_docs_drift.sh
@@ -18,7 +19,8 @@ dart tool/contracts/check_duplicate_train_inventory.dart
 bash tool/release/check_no_personal_paths.sh
 bash tool/release/check_changelog_markdown.sh
 bash tool/contracts/run_actionlint.sh
-bash tool/contracts/test_publish_packages_oidc.sh
+# ADR 0054: publishing is the dart_changesets per-tag CI train — the
+# local publish_packages.sh / pub_publish.yml OIDC contract is retired.
 
 echo ""
 echo "check-contracts: all gates passed"
