@@ -24,7 +24,7 @@ dev_dependencies:
   lints: ^6.1.0
   oka: ^0.12.1 # x-release-please-version
   oka_android: ^0.13.0 # x-release-please-version
-  oka_core: ^0.13.0 # x-release-please-version
+  oka_core: ^0.14.0 # x-release-please-version
   path: ^1.9.0
   test: ^1.25.0
   xsoulspace_lints: ^0.1.2
