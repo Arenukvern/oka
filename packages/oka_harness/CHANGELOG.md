@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.12.0 <!-- x-release-please-version -->
+## 0.12.0
 
 ### Patch Changes
 

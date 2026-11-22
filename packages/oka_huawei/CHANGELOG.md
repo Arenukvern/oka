@@ -1,6 +1,6 @@
 # Changelog — oka_huawei
 
-## 0.12.1 <!-- x-release-please-version -->
+## 0.12.1
 
 ### Minor Changes
 

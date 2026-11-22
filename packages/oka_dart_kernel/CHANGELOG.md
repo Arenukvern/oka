@@ -1,4 +1,4 @@
-## 0.0.1 <!-- x-release-please-version -->
+## 0.0.1
 
 ### Patch Changes
 
