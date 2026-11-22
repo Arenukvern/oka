@@ -1,3 +1,8 @@
+## 0.13.1
+
+### Patch Changes
+
+- Updated `oka_core` dependency constraint to `^0.14.0`.
 ## 0.13.0
 
 ### Minor Changes
