@@ -11,19 +11,17 @@ file or the script.
 
 ## Train invariants
 
-- One workspace `VERSION`; every publishable package's `pubspec.yaml` and
-  changelog must match it. `just check-contracts` gates the full sync
-  (version, release-please manifest, changelogs, licenses, docs drift).
+- **Per-package versions** on the train; dependents' caret constraints are
+  rewritten by dart_changesets when a bump requires it.
+  `just check-contracts` gates changelogs, licenses, docs drift, workspace
+  leaks, and train-inventory SSOT.
 - `dart tool/release/train.dart list --publish` is the pub.dev upload order
-  (13 packages; topological sort of in-train `dependencies` and
-  `dev_dependencies`, static train inventory as tiebreak; `oka_process` is first
-  when it has no in-train deps).
-  Never publish out of order: a package whose hosted dependency closure does
-  not exist at the new version cannot resolve for consumers after upload.
-- `oka_dart_kernel`, `oka_update`, and the root `oka_workspace` are
-  `publish_to: none`; they ride along but never upload. For `oka_process`
-  one-time pub.dev automated-publishing setup (required before the next
-  release), see `packages/oka_process/PUBLISHING.md`.
+  (17 packages at time of writing; topological sort of in-train deps with
+  `tool/release/train_inventory.dart` as tiebreak). Never publish out of order.
+- `oka_dart_kernel`, `oka_devices`, `oka_verify`, and the root workspace
+  package are `publish_to: none`; they ride along but never upload. For
+  `oka_process` one-time pub.dev automated-publishing setup, see
+  `packages/oka_process/PUBLISHING.md`.
 
 ## One-time setup (Anton checklist)
 
@@ -44,17 +42,21 @@ For each package below, open `https://pub.dev/packages/<name>/admin` →
 | `oka_supervisor` |
 | `oka_conformance` |
 | `oka_android` |
+| `oka_google_play` |
+| `oka_app_gallery` |
 | `oka_huawei` |
-| `oka_play` |
 | `oka_rustore` |
 | `oka_web` |
+| `oka_desktop` |
+| `oka_service` |
 | `oka_harness` |
+| `oka_update` |
 | `oka` |
 
 Per package:
 
 - **Repository:** `Arenukvern/oka`
-- **Tag pattern:** `v{{version}}`
+- **Tag pattern:** `<package>-v{{version}}` (per-package tags — not a single `vX.Y.Z`)
 - **Publishing from GitHub Actions:** enabled
 - **Publishing from workflow_dispatch:** enabled
 - No required GitHub environment — the workflow declares none.
@@ -69,44 +71,32 @@ manually, then configure automated publishing.
 
 Under **Settings → Actions → General**:
 
-- **Workflow permissions:** Read and write permissions (needed for release-please
-  to dispatch `pub_publish.yml` after a release).
-- **Allow GitHub Actions to create and approve pull requests:** enabled
-  (release-please Release PRs).
+- **Workflow permissions:** Read and write permissions (needed for dart_changesets
+  to open the version PR and push tags).
+- **Allow GitHub Actions to create and approve pull requests:** enabled.
 
-Optional: set `RELEASE_PLEASE_TOKEN` to a PAT or GitHub App token if you need
-release-please tag pushes to trigger *other* workflows; pub.dev publish does
-not depend on tag-push triggers.
+`RELEASE_PLEASE_TOKEN` is still used as a PAT for tag pushes that must trigger
+downstream workflows; pub.dev publish uses OIDC on the publish workflow.
 
 ## Automated publish (canonical path)
 
 1. Green baseline: `just lint`, `just test`, `just check-contracts`.
 2. Complete the one-time setup above for every train package.
-3. Merge the release-please **Release PR** on `main`. release-please creates
-   the `vX.Y.Z` tag and GitHub release, then dispatches
-   `pub_publish.yml` on that tag ref.
-4. The train script skips packages whose `<VERSION>` already exists on
-   pub.dev (`already exists; skipping`), so re-running after a partial
-   failure is safe and idempotent.
+3. Add `.changesets/<name>.md` with the intended bump(s); merge to `main`.
+4. Review and merge the **version PR** opened/updated by
+   `.github/workflows/dart_changesets.yml`.
+5. Per-package tags dispatch `.github/workflows/dart_changesets_publish.yml`;
+   upload order follows `dart tool/release/train.dart list --publish`.
 
 ### Workflow rules that bite
 
-- `pub_publish.yml` is **workflow_dispatch only** (no `on.push.tags`). Tag
-  pushes from `GITHUB_TOKEN` do not trigger workflows; dispatch is the sole
-  publish path.
-- To publish or recover manually:
-  `gh workflow run pub_publish.yml --ref vX.Y.Z`
-- PR validation: CI `validate` job runs per-package `dart pub publish --dry-run`
-  on pull requests; merging does not publish.
-- The final "Verify published packages from a fresh hosted consumer" step
-  resolves every name from `dart tool/release/train.dart list --publish`
-  (including `oka_process`). No other train package declares a hosted
-  dependency on `oka_process`, but the consumer gate still requires
-  `oka_process:$VERSION` on pub.dev after upload.
-- That step races pub.dev's index propagation (uploads claim "up to 10
-  minutes"). If it fails with `doesn't match any versions` right after a green
-  publish step, the uploads succeeded: wait for propagation, then
-  `gh run rerun <run-id> --failed` to turn the run green without re-uploading.
+- Publish runs are **per tag** (`<package>-v<version>`), not one consolidated
+  root tag (ADR-0054).
+- PR validation: CI runs `dart pub publish --dry-run` where applicable; merging
+  does not publish without a merged version PR + tags.
+- The post-publish consumer gate (`tool/ci/check_package_consumer.sh`) races
+  pub.dev index propagation. If it fails immediately after green uploads, wait
+  and rerun the failed job — do not re-upload.
 
 ## Manual publish (fallback and first-publish)
 
@@ -118,20 +108,14 @@ cd packages/<name> && dart pub publish --dry-run   # 0 warnings expected
 dart pub publish --force
 ```
 
-- Publish in train order and stop at the first failure. Local uploader
-  credentials on the release machine are used; no login flow is expected.
-- A brand-new package must be published together with its hosted dependency
-  closure at the current `VERSION` (e.g. a new package depending on
-  `oka_core: ^0.7.0` requires `oka_core 0.7.0` uploaded first — the train
-  order already encodes this).
+- Publish in train order and stop at the first failure.
 - After a manual publish, wait for propagation before anything resolves
-  against the new version; the pub.dev API (`/api/packages/<name>`) is the
-  cheapest freshness check.
+  against the new version.
 
 ## Release hygiene
 
-- Never bypass a failing gate; fix the source. Version-skew and changelog
-  gates exist to keep the train atomic.
-- Store-bound publishing (`oka_play`, `oka_huawei`, `oka_rustore`) is a
+- Never bypass a failing gate; fix the source. Changelog and workspace-leak
+  gates exist to keep the train coherent.
+- Store-bound publishing (`oka_google_play`, `oka_huawei`, `oka_rustore`) is a
   separate concern from pub.dev publishing; see
   `docs/guides/accounts_and_stores.mdx`.

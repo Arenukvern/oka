@@ -175,7 +175,7 @@ Caveats (honest list):
 
 | Store | Target package | Special rule |
 |---|---|---|
-| Google Play | `oka_play` | `bundletool` verification composable; staged rollout via `userFraction` |
+| Google Play | `oka_google_play` | `bundletool` verification composable; staged rollout via `userFraction` |
 | Huawei AppGallery | `oka_huawei` | Must build the **GMS-free variant** — `HuaweiBuildVariant` filters GMS deps out and makes GMS-required steps fail at composition time, before any tool runs |
 | RuStore | `oka_rustore` | Release-signed AAB required; readiness planning + verification only — real upload needs a project-supplied adapter |
 | Web stores | `oka_web` | Per-store `index.html` contributions (SDK scripts, base href) as const Dart values; deploy to GitHub Pages / itch.io |

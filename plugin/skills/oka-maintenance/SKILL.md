@@ -74,7 +74,7 @@ Paths are workspace-relative; follow public exports when modules move.
 | Android compilation, dependencies, tools and packaging | `packages/oka_android/lib/src/` |
 | Provenance, artifact validation and verification ladder | `packages/oka_android/lib/src/build/provenance.dart`, `build/artifact_checks.dart`, `dev/verify_ladder.dart` |
 | Browser targets and profiles | `packages/oka_web/lib/src/session/` |
-| Store publishing | `packages/oka_play/`, `packages/oka_huawei/` |
+| Store publishing | `packages/oka_google_play/`, `packages/oka_app_gallery/`, `packages/oka_huawei/` |
 | Release inventory and synchronization | `tool/release/train.dart` and thin shell wrappers |
 | pub.dev train publishing and post-publish gates | the dart_changesets train (`.changesets/` intent → version PR → per-tag publish, ADR 0054), `tool/ci/check_package_consumer.sh` |
 

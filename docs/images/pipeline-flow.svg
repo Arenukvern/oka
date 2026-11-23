@@ -1,61 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 420" role="img" aria-labelledby="ptitle pdesc">
   <title id="ptitle">Oka Android build pipeline (no Gradle)</title>
   <desc id="pdesc">Flow from tool/oka_pipeline.dart through flutter assemble and SDK tools to APK or AAB.</desc>
-  <style>
-    .box { fill: #f5f9fc; stroke: #02569B; stroke-width: 2; }
-    .step { fill: #ffffff; stroke: #546e7a; stroke-width: 1.5; }
-    .label { font-family: system-ui,Segoe UI,sans-serif; font-size: 14px; fill: #263238; }
-    .small { font-size: 11px; fill: #546e7a; }
-    .arrow { stroke: #02569B; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
-  </style>
   <defs>
     <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
       <polygon points="0 0, 8 3, 0 6" fill="#02569B"/>
     </marker>
   </defs>
-  <rect class="box" x="24" y="24" width="832" height="372" rx="12"/>
-  <text class="label" x="44" y="52" font-weight="700">Validated before any tool runs</text>
-  <!-- Row 1 -->
-  <rect class="step" x="44" y="72" width="200" height="64" rx="8"/>
-  <text class="label" x="58" y="98" font-weight="600">Composition root</text>
-  <text class="small" x="58" y="118">tool/oka_pipeline.dart</text>
-  <path class="arrow" d="M 252 104 L 288 104"/>
-  <rect class="step" x="292" y="72" width="180" height="64" rx="8"/>
-  <text class="label" x="306" y="98" font-weight="600">oka explain</text>
-  <text class="small" x="306" y="118">plan + step chain</text>
-  <path class="arrow" d="M 480 104 L 516 104"/>
-  <rect class="step" x="520" y="72" width="200" height="64" rx="8"/>
-  <text class="label" x="534" y="98" font-weight="600">BuildStep graph</text>
-  <text class="small" x="534" y="118">requires / provides</text>
-  <!-- vertical -->
-  <path class="arrow" d="M 144 136 L 144 168"/>
-  <text class="label" x="200" y="160" font-weight="600">oka build apk | aab</text>
-  <path class="arrow" d="M 144 168 L 144 200"/>
-  <!-- pipeline steps -->
-  <rect class="step" x="44" y="204" width="150" height="48" rx="6"/>
-  <text class="label" x="54" y="232" font-size="12">Codegen + manifest</text>
-  <path class="arrow" d="M 196 228 L 220 228"/>
-  <rect class="step" x="224" y="204" width="150" height="48" rx="6"/>
-  <text class="label" x="234" y="232" font-size="12">flutter assemble</text>
-  <path class="arrow" d="M 376 228 L 400 228"/>
-  <rect class="step" x="404" y="204" width="150" height="48" rx="6"/>
-  <text class="label" x="414" y="232" font-size="12">Plugins + Maven</text>
-  <path class="arrow" d="M 556 228 L 580 228"/>
-  <rect class="step" x="584" y="204" width="150" height="48" rx="6"/>
-  <text class="label" x="594" y="232" font-size="12">aapt2 / dex / zip</text>
-  <path class="arrow" d="M 736 228 L 760 228"/>
-  <rect class="step" x="764" y="204" width="92" height="48" rx="6"/>
-  <text class="label" x="774" y="232" font-size="12">sign</text>
-  <!-- output -->
-  <path class="arrow" d="M 144 252 L 144 284"/>
-  <rect class="step" x="44" y="288" width="240" height="56" rx="8" fill="#E3F2FD"/>
-  <text class="label" x="58" y="314" font-weight="600">.oka_cache/build/</text>
-  <text class="small" x="58" y="332">app-debug.apk � app-release.apk � *.aab</text>
-  <rect class="step" x="320" y="288" width="200" height="56" rx="8"/>
-  <text class="label" x="334" y="314" font-weight="600">oka run device</text>
-  <text class="small" x="334" y="332">install � launch � log scan</text>
-  <rect class="step" x="560" y="288" width="200" height="56" rx="8"/>
-  <text class="label" x="574" y="314" font-weight="600">oka dev</text>
-  <text class="small" x="574" y="332">hot reload session</text>
-  <text class="small" x="44" y="378">Invariant: success never uses flutter build apk or Gradle (ADR-0001).</text>
+  <rect x="24" y="24" width="832" height="372" rx="12" fill="#f5f9fc" stroke="#02569B" stroke-width="2"/>
+  <text x="44" y="52" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="700" fill="#263238">Validated before any tool runs</text>
+  <rect x="44" y="72" width="200" height="64" rx="8" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="58" y="98" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600" fill="#263238">Composition root</text>
+  <text x="58" y="118" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#546e7a">tool/oka_pipeline.dart</text>
+  <path d="M 252 104 L 288 104" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="292" y="72" width="180" height="64" rx="8" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="306" y="98" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600" fill="#263238">oka explain</text>
+  <text x="306" y="118" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#546e7a">plan + step chain</text>
+  <path d="M 480 104 L 516 104" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="520" y="72" width="200" height="64" rx="8" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="534" y="98" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600" fill="#263238">BuildStep graph</text>
+  <text x="534" y="118" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#546e7a">requires / provides</text>
+  <path d="M 144 136 L 144 168" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <text x="200" y="160" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600" fill="#263238">oka build apk | aab</text>
+  <path d="M 144 168 L 144 200" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="44" y="204" width="150" height="48" rx="6" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="54" y="232" font-family="system-ui,Segoe UI,sans-serif" font-size="12" fill="#263238">Codegen + manifest</text>
+  <path d="M 196 228 L 220 228" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="224" y="204" width="150" height="48" rx="6" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="234" y="232" font-family="system-ui,Segoe UI,sans-serif" font-size="12" fill="#263238">flutter assemble</text>
+  <path d="M 376 228 L 400 228" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="404" y="204" width="150" height="48" rx="6" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="414" y="232" font-family="system-ui,Segoe UI,sans-serif" font-size="12" fill="#263238">Plugins + Maven</text>
+  <path d="M 556 228 L 580 228" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="584" y="204" width="150" height="48" rx="6" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="594" y="232" font-family="system-ui,Segoe UI,sans-serif" font-size="12" fill="#263238">aapt2 / dex / zip</text>
+  <path d="M 736 228 L 760 228" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="764" y="204" width="92" height="48" rx="6" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="774" y="232" font-family="system-ui,Segoe UI,sans-serif" font-size="12" fill="#263238">sign</text>
+  <path d="M 144 252 L 144 284" stroke="#02569B" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <rect x="44" y="288" width="240" height="56" rx="8" fill="#E3F2FD" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="58" y="314" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600" fill="#263238">.oka_cache/build/</text>
+  <text x="58" y="332" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#546e7a">app-debug.apk &#183; app-release.apk &#183; *.aab</text>
+  <rect x="320" y="288" width="200" height="56" rx="8" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="334" y="314" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600" fill="#263238">oka run device</text>
+  <text x="334" y="332" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#546e7a">install &#183; launch &#183; log scan</text>
+  <rect x="560" y="288" width="200" height="56" rx="8" fill="#ffffff" stroke="#546e7a" stroke-width="1.5"/>
+  <text x="574" y="314" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600" fill="#263238">oka dev</text>
+  <text x="574" y="332" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#546e7a">hot reload session</text>
+  <text x="44" y="378" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#546e7a">Invariant: success never uses flutter build apk or Gradle (ADR-0001).</text>
 </svg>

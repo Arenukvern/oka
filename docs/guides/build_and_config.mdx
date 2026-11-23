@@ -562,15 +562,18 @@ one. Results from that state are not evidence.
 ## 🚢 Release Station
 
 **Q: How do I cut a release?**
-Merge conventional commits to `main`; release-please opens a Release PR that
-bumps `VERSION` + `CHANGELOG.md`. The sync workflow derives pubspec/plugin
-versions automatically. Merge → tag → pub.dev publish (automated). Full
-runbook: [contribution guide](../contributing/contribution_guide).
+Add a `.changesets/*.md` intent file declaring the bump(s); merge to `main`.
+The [dart_changesets](https://github.com/Arenukvern/dart_changesets) workflow
+(`.github/workflows/dart_changesets.yml`) opens/updates the version PR, then
+per-package tags trigger
+`.github/workflows/dart_changesets_publish.yml` (ADR-0054). Full runbook:
+[contribution guide](../contributing/contribution_guide) and
+`skills/oka-maintenance/references/publishing.md`.
 
-**Q: How do I verify version consistency locally?**
+**Q: How do I verify release hygiene locally?**
 ```bash
-just check-contracts   # VERSION == pubspec == plugin manifests; docs drift; changelog hygiene
-just sync-version      # fix drift from VERSION
+just check-contracts   # changelogs, licenses, docs drift, train inventory, …
+dart tool/release/train.dart list --publish   # pub.dev upload order
 ```
 
 **Q: How do I prove a refactor produced a byte-equivalent artifact?**
