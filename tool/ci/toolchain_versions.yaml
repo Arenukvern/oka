@@ -2,5 +2,6 @@
 # Docs contract gate reads this file; do not duplicate version numbers elsewhere.
 dart_sdk_min: "3.14.0"
 dart_sdk_constraint: "^3.14.0"
+dart_ci_pin: "3.14.1"
 flutter_min: "3.50.0"
 flutter_ci_pin: "3.50.0"

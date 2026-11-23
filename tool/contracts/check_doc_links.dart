@@ -2,12 +2,17 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'contract_tree_scan.dart';
+
 Never _fail(String message) {
   stderr.writeln('check_doc_links: $message');
   exit(1);
 }
 
-final _linkPattern = RegExp(r'\[[^\]]*\]\(([^)]+)\)');
+final _linkPattern = RegExp(
+  r'\[[^\]]*\]\(\s*([^)]+?)\s*\)',
+  multiLine: true,
+);
 
 bool _isExternal(String url) =>
     url.startsWith('http://') ||
@@ -48,42 +53,39 @@ File? _resolveDocTarget(Directory root, File source, String rawPath) {
 }
 
 void _checkFile(Directory root, File file) {
-  final lines = file.readAsLinesSync();
-  for (var i = 0; i < lines.length; i++) {
-    final line = lines[i];
-    for (final match in _linkPattern.allMatches(line)) {
-      var url = match.group(1)!.trim();
-      if (url.isEmpty || _isExternal(url)) continue;
-      if (url.startsWith('#')) {
+  final text = file.readAsStringSync();
+  for (final match in _linkPattern.allMatches(text)) {
+    var url = match.group(1)!.trim();
+    if (url.isEmpty || _isExternal(url)) continue;
+    if (url.startsWith('#')) continue;
+
+    final hash = url.indexOf('#');
+    if (hash >= 0) {
+      url = url.substring(0, hash);
+    }
+
+    if (!url.startsWith('/')) {
+      final repoTarget = p.normalize(p.join(file.parent.path, url));
+      if (File(repoTarget).existsSync() ||
+          Directory(repoTarget).existsSync()) {
         continue;
       }
+    }
 
-      final hash = url.indexOf('#');
-      if (hash >= 0) {
-        url = url.substring(0, hash);
+    if (file.path.endsWith('README.md') && !url.startsWith('/')) {
+      final repoTarget = p.normalize(p.join(root.path, url));
+      if (!File(repoTarget).existsSync() &&
+          !Directory(repoTarget).existsSync()) {
+        final line = text.substring(0, match.start).split('\n').length;
+        _fail('${file.path}:$line: broken link → $url');
       }
+      continue;
+    }
 
-      if (!url.startsWith('/')) {
-        final repoTarget = p.normalize(p.join(file.parent.path, url));
-        if (File(repoTarget).existsSync() ||
-            Directory(repoTarget).existsSync()) {
-          continue;
-        }
-      }
-
-      if (file.path.endsWith('README.md') && !url.startsWith('/')) {
-        final repoTarget = p.normalize(p.join(root.path, url));
-        if (!File(repoTarget).existsSync() &&
-            !Directory(repoTarget).existsSync()) {
-          _fail('${file.path}:${i + 1}: broken link → $url');
-        }
-        continue;
-      }
-
-      final target = _resolveDocTarget(root, file, url);
-      if (target == null) {
-        _fail('${file.path}:${i + 1}: broken link → $url');
-      }
+    final target = _resolveDocTarget(root, file, url);
+    if (target == null) {
+      final line = text.substring(0, match.start).split('\n').length;
+      _fail('${file.path}:$line: broken link → $url');
     }
   }
 }
@@ -94,13 +96,17 @@ void main() {
         File.fromUri(Platform.script).parent.parent.parent.path,
   ).absolute;
 
-  _checkFile(root, File(p.join(root.path, 'README.md')));
+  final readme = File(p.join(root.path, 'README.md'));
+  if (readme.existsSync()) {
+    _checkFile(root, readme);
+  }
+
   final docsDir = Directory(p.join(root.path, 'docs'));
   if (docsDir.existsSync()) {
-    for (final file in docsDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.mdx') || f.path.endsWith('.md'))) {
+    for (final file in contractScanFiles(
+      docsDir,
+      select: (f) => f.path.endsWith('.mdx') || f.path.endsWith('.md'),
+    )) {
       final rel = p.relative(file.path, from: root.path).replaceAll(r'\', '/');
       if (rel.startsWith('docs/archive/')) continue;
       _checkFile(root, file);

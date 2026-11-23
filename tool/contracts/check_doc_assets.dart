@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
+import 'contract_tree_scan.dart';
+
 Never _fail(String message) {
   stderr.writeln('check_doc_assets: $message');
   exit(1);
@@ -23,7 +25,10 @@ void _checkSvg(File file) {
   }
 }
 
-final _mdImagePattern = RegExp(r'!\[[^\]]*\]\(([^)]+)\)');
+final _mdImagePattern = RegExp(
+  r'!\[[^\]]*\]\(\s*([^)]+?)\s*\)',
+  multiLine: true,
+);
 final _htmlImgPattern = RegExp(
   '<img[^>]+src=["\']([^"\']+)["\']',
   caseSensitive: false,
@@ -65,24 +70,23 @@ void main() {
         File.fromUri(Platform.script).parent.parent.parent.path,
   ).absolute;
 
-  final docsImages = Directory(p.join(root.path, 'docs'));
-  if (docsImages.existsSync()) {
-    docsImages
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.svg'))
-        .forEach(_checkSvg);
-  }
-
-  _scanMarkdownImages(root, File(p.join(root.path, 'README.md')));
   final docsDir = Directory(p.join(root.path, 'docs'));
   if (docsDir.existsSync()) {
-    for (final file in docsDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.mdx') || f.path.endsWith('.md'))) {
+    contractScanFiles(
+      docsDir,
+      select: (f) => f.path.endsWith('.svg'),
+    ).forEach(_checkSvg);
+    for (final file in contractScanFiles(
+      docsDir,
+      select: (f) => f.path.endsWith('.mdx') || f.path.endsWith('.md'),
+    )) {
       _scanMarkdownImages(root, file);
     }
+  }
+
+  final readme = File(p.join(root.path, 'README.md'));
+  if (readme.existsSync()) {
+    _scanMarkdownImages(root, readme);
   }
 
   stdout.writeln('check_doc_assets: ok');
