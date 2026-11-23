@@ -4,7 +4,7 @@ description: >-
   GMS-excluding Android build composition (HuaweiBuildVariant) validated at
   composition time. Stores are separate packages — the AppGallery channel
   lives in oka_app_gallery, RuStore in oka_rustore.
-version: 0.13.1 # x-release-please-version
+version: 0.14.0 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_huawei
 issue_tracker: https://github.com/Arenukvern/oka/issues
@@ -22,8 +22,8 @@ environment:
 
 dependencies:
   meta: ^1.14.0
-  oka_android: ^0.13.0 # x-release-please-version
-  oka_core: ^0.14.0 # x-release-please-version
+  oka_android: ^0.14.0 # x-release-please-version
+  oka_core: ^0.15.0 # x-release-please-version
   path: ^1.9.0
 
 dev_dependencies:

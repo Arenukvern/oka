@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Updated `oka_conformance` dependency constraint to `^0.13.0`.
+- Updated `oka_core` dependency constraint to `^0.15.0`.
 ## 0.13.2
 
 ### Patch Changes
@@ -171,6 +178,7 @@ targets use — publish only after the train lands, never against hosted
   pilot (a store package ships exactly this const shape alongside its
   runtime adapter), with SDK-script global reconciled against the
   runtime adapter's `expectedSdkGlobal`.
+
 
 
 
