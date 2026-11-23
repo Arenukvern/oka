@@ -3,7 +3,7 @@ description: >-
   Authoring and planner surface for declarative patch units (ADR-0031):
   unit specs, revision manifests, and computed patch eligibility. The
   kernel-graph machinery lives in oka_dart_kernel (ADR-0032). Experimental.
-version: 0.12.0 # x-release-please-version
+version: 0.12.1 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_update
 issue_tracker: https://github.com/Arenukvern/oka/issues

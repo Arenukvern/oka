@@ -3,7 +3,7 @@ description: >-
   Non-GUI buildables for oka (ADR-0055): a generic command pipeline driving
   `jaspr build` / `dart compile exe` / `docker build` / any argv sequence,
   plus a GitHub Releases publish channel. Tiny, framework-agnostic.
-version: 0.12.1 # x-release-please-version
+version: 0.12.2 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_service
 issue_tracker: https://github.com/Arenukvern/oka/issues
