@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.12.1
+
+### Patch Changes
+
+- **Release-train smoke cut — the first train where every published package
+  has its own verified per-package pub.dev tag pattern
+  (`<package>-v{{version}}`, repo `Arenukvern/oka`).**
+  
+  - Automated publishing verified server-side for all 17 published packages;
+    `oka_service`, `oka_desktop`, `oka_google_play`, `oka_app_gallery`
+    re-enabled after config drift, `oka_update` enabled for the first time.
+  - No functional changes: the patch bumps exercise the OIDC publish legs
+    end-to-end against the corrected tag patterns.
 ## 0.12.0
 
 ### Patch Changes
@@ -61,4 +74,5 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   already-running session without launching anything.
 - Offline test suite: fake `oka` script covering launch → attach → stop,
   arg threading, and the no-session timeout/teardown path.
+
 

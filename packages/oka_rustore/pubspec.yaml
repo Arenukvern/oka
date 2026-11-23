@@ -1,6 +1,6 @@
 name: oka_rustore
 description: RuStore Android distribution target and readiness policy for oka.
-version: 0.13.0 # x-release-please-version
+version: 0.13.1 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_rustore
 issue_tracker: https://github.com/Arenukvern/oka/issues
