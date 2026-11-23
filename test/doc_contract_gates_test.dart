@@ -101,6 +101,41 @@ void main() {
       expect(result.exitCode, isNot(0));
       expect(result.stderr, contains('missing image'));
     });
+
+    test('does not traverse symlinked directories under docs', () {
+      final probe = Directory(p.join(Directory.systemTemp.path, 'oka-symlink-probe'));
+      if (probe.existsSync()) probe.deleteSync(recursive: true);
+      probe.createSync();
+      addTearDown(() {
+        if (probe.existsSync()) probe.deleteSync(recursive: true);
+      });
+      File(p.join(probe.path, 'bad.svg')).writeAsStringSync(
+        '<svg xmlns="http://www.w3.org/2000/svg"><style>.x{}</style></svg>',
+      );
+
+      try {
+        final cap = Directory.systemTemp.createTempSync('oka-symlink-cap-');
+        addTearDown(() {
+          if (cap.existsSync()) cap.deleteSync(recursive: true);
+        });
+        Link(p.join(cap.path, 'l')).createSync(cap.path);
+        Link(p.join(cap.path, 'l')).deleteSync();
+      } on IOException {
+        return;
+      }
+
+      final root = _tempRoot();
+      Directory(p.join(root.path, 'docs')).createSync(recursive: true);
+      File(p.join(root.path, 'README.md')).writeAsStringSync('docs ok');
+      Link(p.join(root.path, 'docs', 'via-symlink')).createSync(probe.path);
+
+      final result = _runGate('check_doc_assets.dart', root);
+      expect(
+        result.exitCode,
+        0,
+        reason: 'must not follow docs symlink: ${result.stderr}',
+      );
+    }, testOn: 'linux || mac-os');
   });
 
   group('check_doc_links.dart', () {
