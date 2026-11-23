@@ -74,7 +74,7 @@ Paths are workspace-relative; follow public exports when modules move.
 | Android compilation, dependencies, tools and packaging | `packages/oka_android/lib/src/` |
 | Provenance, artifact validation and verification ladder | `packages/oka_android/lib/src/build/provenance.dart`, `build/artifact_checks.dart`, `dev/verify_ladder.dart` |
 | Browser targets and profiles | `packages/oka_web/lib/src/session/` |
-| Store publishing | `packages/oka_play/`, `packages/oka_huawei/` |
+| Store publishing | `packages/oka_google_play/`, `packages/oka_app_gallery/`, `packages/oka_huawei/` |
 | Release inventory and synchronization | `tool/release/train.dart` and thin shell wrappers |
 | pub.dev train publishing and post-publish gates | the dart_changesets train (`.changesets/` intent → version PR → per-tag publish, ADR 0054), `tool/ci/check_package_consumer.sh` |
 
@@ -92,9 +92,9 @@ Paths are workspace-relative; follow public exports when modules move.
   structural validation alone does not prove skill behavior.
 - Versions follow `tool/release/train.dart`; run `just check-contracts`.
   Publishing/tagging remains an explicit task — the pub.dev release runbook
-  (tag-triggered GitHub Actions publishing, rerun and propagation rules,
-  manual fallback and first-publish closure, automated-publishing config) is
-  in [publishing.md](references/publishing.md).
+  (dart_changesets per-package tags, publish workflow dispatch, propagation
+  rules, manual fallback) is in [publishing.md](references/publishing.md).
+  Toolchain floors: Dart `^3.14.0`, Flutter **3.50** (`tool/ci/toolchain_versions.yaml`).
 
 ## Docs and distribution
 

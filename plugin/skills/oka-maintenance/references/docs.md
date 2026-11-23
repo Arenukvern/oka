@@ -65,7 +65,7 @@ These tokens/links are load-bearing — a rewrite that drops them fails
 ## Verification
 
 ```bash
-bash tool/contracts/check_contracts.sh   # version sync + docs drift + paths + changelog
+bash tool/contracts/check_contracts.sh   # docs drift, SVG/link guards, toolchain floors, changelog
 dart analyze                             # root workspace (examples/ excluded)
 just test                                # full suite
 ```

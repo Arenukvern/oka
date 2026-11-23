@@ -37,8 +37,8 @@ Oka is **not** a general-purpose build orchestrator (Bazel/Just/Melos) and
 
 | Tool | Required when |
 | --- | --- |
-| **Dart SDK** (3.12+) | Installing the `oka` CLI (`dart pub global activate oka`) |
-| **Flutter SDK** | Building or running Flutter apps (`oka build`, `oka dev`, `oka run device`) |
+| **Dart SDK** (3.14+, `^3.14.0`) | Installing the `oka` CLI (`dart pub global activate oka`) |
+| **Flutter SDK** (3.50) | Building or running Flutter apps (`oka build`, `oka dev`, `oka run device`) |
 | **Android SDK** | Android packaging; bootstrap with `oka get android-sdk` or point at an existing SDK |
 
 From the repo, contributors also use **`just`** — see

@@ -1,7 +1,7 @@
 # oka_verify
 
 The fast Dart verification lane as a reusable package
-([ADR-0048](../../docs/decisions/0048-oka-verify-fast-dart-verification-package.mdx)):
+([ADR-0048](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0048-oka-verify-fast-dart-verification-package.mdx)):
 **pay Dart's compile cost once per suite, not once per iteration.** Suite
 kernels are cached artifacts keyed by their import closure's content,
 rebuilt only when a changed file transitively reaches them, and run through

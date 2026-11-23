@@ -68,7 +68,7 @@ interactive prompts are agent-hostile; steps fail with a named fix instead.
 A: No — distribution targets are not platforms (ADR-0013). Play, AppGallery,
 and RuStore builds are one Android application composed differently: a target
 = a build-variant composition plus a publish tail. Targets live in separate
-packages (`oka_play`, `oka_huawei`, …) over the same shared Android delivery
+packages (`oka_google_play`, `oka_huawei`, …) over the same shared Android delivery
 primitives. Huawei additionally requires split/universal verification and a
 GMS-free variant; RuStore requires a release-signed AAB and its signature
 constraints. The multi-store boundary is settled in

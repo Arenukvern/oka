@@ -22,7 +22,8 @@ Declare what should run; `converge` makes reality match once and exits.
 ADRs: [0040](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0040-declarative-supervisor.mdx)
 (engine) · [0041](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0041-supervisor-adoption-ladder.mdx)
 (adoption ladder) · [0042](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0042-resident-supervisor-ota-runtime-owner.mdx)
-(resident, proposed). Guide: `docs/guides/supervisor.mdx`.
+(resident, proposed). Guide: `docs/guides/supervisor.mdx`. Host toolchain: Dart ^3.14.0, Flutter
+3.50 (`tool/ci/toolchain_versions.yaml`).
 
 ## The verbs
 

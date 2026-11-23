@@ -7,9 +7,9 @@
 
 ## The four pillars (and their maturity)
 
-- **Build** — no-Gradle APK/AAB, provenance, byte-equivalence gates. Production: on pub.dev (0.8.0).
+- **Build** — no-Gradle APK/AAB, provenance, byte-equivalence gates. Production: on pub.dev (`oka` 0.12.x train).
 - **Distribute** — Play / AppGallery / RuStore / web stores, multi-account, white-label; dry-run by default. Production: on pub.dev.
-- **Update** — live per-unit patching of running programs; `oka run dev`, `oka ship` air channel. Gate-proven experimental: runs from a repo checkout (`oka_dart_kernel` + `oka_update` are `publish_to: none`).
+- **Update** — live per-unit patching of running programs; `oka run dev`, `oka ship` air channel. Gate-proven experimental: kernel gates from checkout (`oka_dart_kernel` is `publish_to: none`; `oka_update` is on pub.dev with a settling API).
 - **Operate** — declarative supervisor, process leases, session-state, artifact store with delta chains. Production at supervisor ladder rung L0: on pub.dev.
 
 ## Start here (agents)
@@ -29,7 +29,7 @@
 
 - Default build success must never use `flutter build apk` or Gradle (ADR-0001).
 - Only one Android build path (no cargo-apk hybrid; ADR-0009).
-- A phase is done only when tests/evidence exist; new surfaces adopt through explicit ADR-gated ladders (ADR-0041 pattern).
+- A phase is done only when tests/evidence exists; new surfaces adopt through explicit ADR-gated ladders (ADR-0041 pattern).
 - Docs link to code; they do not paraphrase implementation as SSOT.
 
 ## Primary CLI (packages/oka/bin/oka.dart)
@@ -37,28 +37,35 @@
 init, explain, why, build, compare, debug, run, dev, doctor, get, clean, cache,
 launch, live, ship, processes, stop, session-state, supervisor, artifacts
 (`device`, `verify` are project-declared targets reached via `oka run` or
-unknown-verb dispatch, ADR-0015)
+unknown-verb dispatch, ADR-0015). Default `oka init` scaffolds Dart config;
+`oka init --yaml` is opt-in fast-settings.
 
 ## Repository layout
 
 - packages/oka — CLI
 - packages/oka_core — contracts (pipeline, artifacts, process seam)
 - packages/oka_android — Android pipeline
-- packages/oka_play, oka_huawei, oka_rustore, oka_web — distribution targets
+- packages/oka_process — owned POSIX process sessions
+- packages/oka_devices — declarative device/run specs (checkout-only)
+- packages/oka_desktop — Linux desktop dev slice
+- packages/oka_google_play, oka_app_gallery, oka_huawei, oka_rustore, oka_web — distribution targets
 - packages/oka_supervisor — declarative supervisor (planner, converge, spec codec)
 - packages/oka_artifacts — content-addressed store, delta chains
 - packages/oka_conformance — publish-target contract suite
 - packages/oka_harness — device E2E targets over dev sessions
+- packages/oka_update — patch-unit authoring/planner (pub.dev; experimental)
 - packages/resource_composition — zero-dependency composition contracts
 - packages/oka_dart_kernel — kernel graph, live-patch gates (checkout-only)
-- packages/oka_update — patch-unit authoring/planner (checkout-only)
 - example/ — full reference app; examples/ — learning ladder
-- docs/decisions/ — ADR index (47 records, statuses kept in sync)
+- docs/decisions/ — ADR index (see docs/decisions/index.mdx for current count)
+- tool/release/train_inventory.dart — release-train package SSOT
+
+## Toolchain
+
+Dart **^3.14.0** (CI pin `3.14.1`), Flutter **3.50** — SSOT: `tool/ci/toolchain_versions.yaml`.
 
 ## Contributor gates
 
 just install && just lint && just test && just check-contracts
 
-## Human docs site
-
-https://docs.page/arenukvern/oka
+Release train: dart_changesets (`.changesets/` intent → version PR → per-package tags → `dart_changesets_publish.yml`, ADR-0054). Inventory: `dart tool/release/train.dart list --publish`.

@@ -11,7 +11,8 @@
 [![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
 [![release train](https://img.shields.io/github/actions/workflow/status/Arenukvern/oka/dart_changesets.yml?branch=main&label=release%20train&logo=github)](https://github.com/Arenukvern/oka/actions/workflows/dart_changesets.yml)
 [![release engine: dart_changesets](https://img.shields.io/badge/release_engine-dart__changesets-0175C2?logo=dart&logoColor=white)](https://github.com/Arenukvern/dart_changesets)
-[![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.44-blue.svg)](https://flutter.dev)
+[![Dart SDK](https://img.shields.io/badge/Dart-%3E%3D3.14-0175C2?logo=dart&logoColor=white)](https://dart.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.50-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![All Contributors](https://img.shields.io/github/all-contributors/Arenukvern/oka?color=ee8449&style=flat-square)](https://github.com/Arenukvern/oka#contributors-)
 <a title="Discord" href="https://discord.com/invite/y54DpJwmAn" ><img src="https://img.shields.io/discord/696688204476055592.svg" /></a>
 [![maintained with Skill Steward](https://raw.githubusercontent.com/Arenukvern/skill_steward/main/docs/brand/assets/svg/badge-light.svg)](https://github.com/Arenukvern/skill_steward)
@@ -38,7 +39,7 @@ pillars, each at a different, honestly-labeled maturity:
 
 | Pillar | What it does | Maturity |
 |---|---|---|
-| **Build** | No-Gradle APK/AAB: `flutter assemble` + direct SDK tools, provenance on every artifact, byte-equivalence gates | **Production** — on pub.dev (see `VERSION`) |
+| **Build** | No-Gradle APK/AAB: `flutter assemble` + direct SDK tools, provenance on every artifact, byte-equivalence gates | **Production** — on pub.dev (`oka` 0.12.x train) |
 | **Distribute** | Play / AppGallery / RuStore / web stores, multiple developer accounts, white-label brands — dry-run by default | **Production** — on pub.dev |
 | **Update** | Live per-unit patching of **running** programs: the `oka run dev` session, `oka ship` store-free air channel, AOT slots | **Gate-proven experimental** — runs from a checkout |
 | **Operate** | Declarative supervisor, process leases, session-state, content-addressed artifact store with delta chains | **Production** — supervisor at adoption rung L0 |
@@ -88,7 +89,7 @@ dart pub global activate oka        # or: curl -fsSL https://raw.githubuserconte
 oka get android-sdk && oka doctor
 
 # 3. In your Flutter project: scaffold config, build, run
-oka init
+oka init                # default: typed Dart config (tool/oka_pipeline.dart); oka init --yaml for fast-settings
 oka build apk --release             # → .oka_cache/build/release/app-release.apk
 oka run device                      # install → launch → crash-log scan
 ```
@@ -215,14 +216,14 @@ oka ship                                       # derive + publish a patch from t
 packages/oka_dart_kernel/example/live_showcase/run.sh   # 30 s demo
 ```
 
-Works today: the dev session (macOS/web) with watch-on-save, asset sync,
-and live shader recompiles; invisible patch authoring; signed channels;
-migration chains with snapshot fallback; the boot watchdog; command lanes on
-the watcher. Not yet: the android dev session convergence, live freshness
-for already-loaded assets (engine seam), per-unit AOT over the air
-(research line, ADR-gated). The update stack itself is not on pub.dev — it
-runs from an oka repo checkout; everything it patches can be a plain pub
-app.
+Works today: the dev session on macOS, web, and Linux desktop (`oka run dev
+--platform linux`) with watch-on-save; invisible patch authoring; signed
+channels; migration chains with snapshot fallback; the boot watchdog;
+command lanes on the watcher. Not yet: Android dev-session convergence,
+live freshness for already-loaded assets (engine seam), per-unit AOT over
+the air (research line, ADR-gated). `oka_dart_kernel` stays checkout-only;
+`oka_update` is on pub.dev but the full live kernel gates still run from a
+checkout.
 
 Guide: [Live update](docs/guides/live_update.mdx).
 
@@ -300,6 +301,9 @@ with `oka init --from-yaml`. Precedence: defaults < `oka.yaml` < Dart config
 
 ## How it works
 
+Android is the deepest build path today (Linux/desktop dev and web distribution
+have their own slices — this diagram is the no-Gradle Android pipeline only).
+
 <p align="center">
   <img src="docs/images/pipeline-flow.svg" alt="Diagram: oka_pipeline.dart to flutter assemble and Android SDK tools, output APK or AAB" width="720" />
 </p>
@@ -308,7 +312,29 @@ with `oka init --from-yaml`. Precedence: defaults < `oka.yaml` < Dart config
   <img src="docs/images/cli-help-example.svg" alt="Example terminal session: oka explain, build, and doctor" width="560" />
 </p>
 
-Source: [`docs/images/pipeline-flow.mmd`](docs/images/pipeline-flow.mmd) (Mermaid).
+```mermaid
+flowchart TB
+  subgraph plan["Plan (no tools)"]
+    P["tool/oka_pipeline.dart"]
+    E["oka explain / --dry-run"]
+    G["BuildStep graph\nrequires → provides"]
+    P --> E --> G
+  end
+  subgraph build["oka build apk | aab"]
+    C["Codegen + manifest"]
+    F["flutter assemble\n(never flutter build apk)"]
+    M["Plugin packaging +\nMaven/AAR resolve"]
+    D["aapt2 · javac/kotlinc · d8"]
+    Z["zipalign · apksigner"]
+    C --> F --> M --> D --> Z
+  end
+  G --> C
+  Z --> O[".oka_cache/build/\nAPK or AAB + oka-provenance.json"]
+  O --> R["oka run device"]
+  O --> V["oka dev / oka run verify"]
+```
+
+Source: [`docs/images/pipeline-flow.mmd`](docs/images/pipeline-flow.mmd) (kept in sync with the diagram above).
 
 1. Host checks + codegen (manifest, `MainActivity`, adaptive vector icons)
 2. `flutter assemble` (assets / kernel / AOT) — **never** `flutter build apk`
@@ -370,25 +396,32 @@ Agents: [`llms.txt`](llms.txt) and [`AGENTS.md`](AGENTS.md).
 
 ## Packages
 
-Twelve packages ride the automated release train on pub.dev; the live-update
-kernel stack is checkout-only while its API settles.
+Seventeen packages ride the [dart_changesets](https://github.com/Arenukvern/dart_changesets)
+release train on pub.dev (inventory:
+`dart tool/release/train.dart list --publish`, ADR-0054). Experimental /
+checkout-only pieces are listed separately.
 
 | Package | Pub | Purpose |
 |---|---|---|
 | [`oka`](https://pub.dev/packages/oka) | ✅ | CLI + agent surface |
+| [`oka_process`](https://pub.dev/packages/oka_process) | ✅ | Owned POSIX process sessions and leases |
 | [`oka_core`](https://pub.dev/packages/oka_core) | ✅ | Platform-agnostic contracts: pipeline, artifacts, typed config |
 | [`oka_android`](https://pub.dev/packages/oka_android) | ✅ | Android pipelines, toolchain, plugin packaging |
-| [`oka_play`](https://pub.dev/packages/oka_play) | ✅ | Google Play publish target |
-| [`oka_huawei`](https://pub.dev/packages/oka_huawei) | ✅ | AppGallery Connect target (GMS-free variant + upload) |
+| [`oka_desktop`](https://pub.dev/packages/oka_desktop) | ✅ | Linux desktop dev slice contracts |
+| [`oka_google_play`](https://pub.dev/packages/oka_google_play) | ✅ | Google Play publish target (`PlayPublishTarget`) |
+| [`oka_app_gallery`](https://pub.dev/packages/oka_app_gallery) | ✅ | AppGallery Connect publish target |
+| [`oka_huawei`](https://pub.dev/packages/oka_huawei) | ✅ | Huawei AppGallery variant + upload target |
 | [`oka_rustore`](https://pub.dev/packages/oka_rustore) | ✅ | RuStore target (readiness + verification; adapter-supplied upload) |
 | [`oka_web`](https://pub.dev/packages/oka_web) | ✅ | Web shell station + deploy targets |
+| [`oka_service`](https://pub.dev/packages/oka_service) | ✅ | Shared service helpers for targets |
 | [`oka_conformance`](https://pub.dev/packages/oka_conformance) | ✅ | The contract suite every target must pass |
 | [`oka_supervisor`](https://pub.dev/packages/oka_supervisor) | ✅ | Declarative supervisor: pure planner + crash-only converge |
 | [`oka_artifacts`](https://pub.dev/packages/oka_artifacts) | ✅ | Content-addressed artifact store with delta chains |
 | [`oka_harness`](https://pub.dev/packages/oka_harness) | ✅ | Device E2E targets over oka dev sessions |
+| [`oka_update`](https://pub.dev/packages/oka_update) | ✅ | Patch-unit authoring/planner surface (ADR-0031; experimental API) |
 | [`resource_composition`](https://pub.dev/packages/resource_composition) | ✅ | Zero-dependency resource composition contracts |
 | `oka_dart_kernel` | checkout | Kernel-graph partitioning + live-patch gates (ADR-0032) |
-| `oka_update` | checkout | Patch-unit authoring/planner surface (ADR-0031) |
+| `oka_devices` | checkout | Declarative device/run spec types (`publish_to: none`) |
 
 ## Documentation
 

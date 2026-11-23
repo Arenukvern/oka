@@ -9,7 +9,8 @@ Single source of truth for the shippable oka plugin: **Claude Code**,
   pipeline/build code, docs sync rules, device validation, and the release
   train.
 - **Agent manifests** — `.claude-plugin/`, `.codex-plugin/`,
-  `.cursor-plugin/` plugin.json files, version-pinned to root `VERSION`.
+  `.cursor-plugin/` plugin.json files (versioned manually today; not synced to
+  the pub train — see ADR-0054).
 
 ## Install
 
@@ -29,7 +30,7 @@ The CLI itself installs from pub.dev: `dart pub global activate oka`.
 
 ## Versioning
 
-All manifests carry the repo version. release-please bumps them via
-`the dart_changesets release train (.changesets/).json` `extra-files`; `tool/release/sync_version.sh`
-derives everything from root `VERSION`. Run `just check-contracts` before
-merge — it fails on drift.
+Plugin manifests are **not** auto-synced to per-package pub.dev versions
+(ADR-0054). Bump plugin.json when the plugin surface itself changes. The pub
+train uses dart_changesets (`.changesets/` → version PR → per-package tags).
+Run `just check-contracts` before merge — it fails on docs and changelog drift.

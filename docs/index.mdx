@@ -22,7 +22,7 @@ New here? Read the [FAQ (newcomers)](/FAQ) before diving into ADRs.
 
 | Pillar | What it does | Maturity |
 | --- | --- | --- |
-| **Build** | No-Gradle APK/AAB, provenance, byte-equivalence gates | Production (pub.dev, 0.8.0) |
+| **Build** | No-Gradle APK/AAB, provenance, byte-equivalence gates | Production (pub.dev; `oka` 0.12.x train) |
 | **Distribute** | Play / AppGallery / RuStore / web stores, multi-account, white-label — dry-run by default | Production (pub.dev) |
 | **Update** | Live per-unit patching of running programs; `oka run dev`, `oka ship` air channel | Gate-proven experimental (checkout) |
 | **Operate** | Supervisor, process leases, session-state, artifact store with delta chains | Production at ladder rung L0 |
@@ -73,10 +73,10 @@ cd example && oka build apk
 
 ## Status
 
-Production for build and distribution (the release train publishes 13 packages
-to pub.dev — including `oka_process` from the next release once pub.dev
-automated publishing is enabled); gate-proven experimental for the live-update
-stack (runs
-from a checkout); supervisor at adoption rung L0. See the
+Production for build and distribution (the dart_changesets train publishes 17
+packages to pub.dev — see `dart tool/release/train.dart list --publish`,
+ADR-0054); gate-proven experimental for the live-update kernel stack
+(`oka_dart_kernel` is checkout-only; `oka_update` is on pub.dev with a settling
+API); supervisor at adoption rung L0. See the
 [phase checklist](/PHASE_CHECKLIST) for what is proven by tests, and the
 [roadmap](/start_here/roadmap) for what's next.

@@ -26,7 +26,9 @@ dills, and never fork or patch the SDK. Architecture and gate definitions:
 `docs/decisions/0032-oka-dart-kernel-graph-ownership.mdx`. Evidence:
 `docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`. The concise
 user/agent guide for live update itself (first steps, JIT dev loop vs AOT
-production, dangers): `docs/guides/live_update.mdx`.
+production, dangers): `docs/guides/live_update.mdx`. Workspace floor: Dart
+^3.14.0; Flutter app lanes use **3.50** (`tool/ci/toolchain_versions.yaml`).
+Kernel SDK checkouts for gates remain pinned separately (`OKA_SDK_CHECKOUT`).
 
 ## Workflow
 

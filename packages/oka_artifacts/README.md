@@ -1,7 +1,7 @@
 # oka_artifacts
 
 Content-addressed artifact store with delta chains
-([ADR-0043](../docs/decisions/0043-artifact-store-delta-chains.mdx)):
+([ADR-0043](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0043-artifact-store-delta-chains.mdx)):
 **git stores pointers, bytes live here**, and the snapshot cadence
 emerges from measured delta ratios — the "diff → diff… → snapshot"
 storage shape, with no configuration and no cron.

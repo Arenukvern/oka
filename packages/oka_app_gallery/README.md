@@ -11,8 +11,8 @@ A store is **not** a platform (ADR-0056): this package names the store
 (`storeKeyAppGallery`) and publishes to it. The platform half — a Huawei
 device's GMS-free build posture — is a delivery composition (`hms-free`
 overlay via `oka_android`; the reference variant lives in
-[oka_huawei](../oka_huawei)). The same app, same pipeline code, composes
-[oka_google_play](../oka_google_play) and [oka_rustore](../oka_rustore)
+[oka_huawei](https://pub.dev/packages/oka_huawei)). The same app, same pipeline code, composes
+[oka_google_play](https://pub.dev/packages/oka_google_play) and [oka_rustore](https://pub.dev/packages/oka_rustore)
 channels onto it — a Huawei device carries AppGallery, RuStore, and
 sideloaded APKs alike.
 
@@ -155,7 +155,7 @@ composes onto that pipeline. Nothing in this package invokes Gradle.
 
 **How do I test without credentials?**
 Run the dry-run target (needs nothing), and use the shared
-[oka_conformance](../oka_conformance) suite from your own tests — this
+[oka_conformance](https://pub.dev/packages/oka_conformance) suite from your own tests — this
 package's conformance is asserted with it, with the real AGC flow tested
 offline against a scripted fake transport.
 
@@ -169,19 +169,19 @@ are per-target typed fields.
 **Why did my Play Services / Billing dependency disappear?**
 By design. AppGallery artifacts ship without GMS: the GMS-free posture is
 the DELIVERY's (`hms-free` overlay folds GMS coordinates out of
-`extraDeps`; [oka_huawei](../oka_huawei) is the reference platform
+`extraDeps`; [oka_huawei](https://pub.dev/packages/oka_huawei) is the reference platform
 composition), and a step *requiring* a GMS-provided artifact fails
 composition-time validation — before any tool runs.
 
 ## Conformance
 
 `AppGalleryPublishTarget` passes the shared ADR-0014 publishing conformance
-suite in [oka_conformance](../oka_conformance): dry-run without
+suite in [oka_conformance](https://pub.dev/packages/oka_conformance): dry-run without
 credentials, no stdin, no secret values in state — plus offline
 scripted-transport tests for the real AGC flow and composition-validation
 tests proving the GMS-free delivery law.
 
 See the [docs](https://docs.page/arenukvern/oka) and the
-[design decisions](https://github.com/Arenukvern/oka/tree/main/docs/decisions)
+[design decisions](https://github.com/Arenukvern/ohttps://github.com/Arenukvern/oka/tree/main/docs/decisions)
 (ADR-0055 delivery matrix, ADR-0056 the store/platform line, ADR-0014
 targets + secrets model).

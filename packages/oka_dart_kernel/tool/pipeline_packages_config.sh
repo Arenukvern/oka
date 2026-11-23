@@ -33,7 +33,7 @@ mkdir -p "$OUT_DIR/depshim"
   echo 'name: depshim'
   echo 'publish_to: none'
   echo 'environment:'
-  echo '  sdk: ^3.13.0'
+  echo '  sdk: ^3.14.0'
   echo 'dependencies:'
   for d in $pub_deps; do echo "  $d: any"; done
 } > "$OUT_DIR/depshim/pubspec.yaml"

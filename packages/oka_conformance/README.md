@@ -47,7 +47,7 @@ Writing a new store/distribution target for oka:
    `endpoint`, `track`, `artifactId`, `metadata`, `credentialRefs`,
    `publishSteps` (stages the publish artifact), and `uploadStep` (the
    real tail — never invoked while `dryRun` is true).
-2. **Add the dev dependency**: `oka_conformance: ^0.1.6`.
+2. **Add the dev dependency**: `oka_conformance: ^0.12.0` (or latest train).
 3. **Assert the suite** from `test/`:
    `await expectPublishConformance(target, ctx, sourcePaths:
    [p.absolute('lib/src')]);` — law 1 (dry-run chain compiles, validates,
@@ -141,7 +141,7 @@ Yes. Law 3 allows refs, booleans, numbers, plans, and plain path/id
 strings. What is forbidden is secret *values* and secret-ish *keys*.
 
 See the [docs](https://docs.page/arenukvern/oka) and the
-[design decisions](https://github.com/Arenukvern/oka/tree/main/docs/decisions)
+[design decisions](https://github.com/Arenukvern/ohttps://github.com/Arenukvern/oka/tree/main/docs/decisions)
 (ADR-0014 publishing laws and the three-tier secrets model).
 
 ## Managed session-state workflows

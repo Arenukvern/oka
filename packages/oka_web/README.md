@@ -36,7 +36,7 @@ Every emitter declares what it owns (`ownedPaths`); the pure
 owned region on disk that is not the re-render (what's owned, what
 differs, what to run). `EmitWebShellStep` runs it automatically as a
 post-emit idempotency check — the written bytes must be the
-composition's re-render. See `docs/guides/web_shell_station.mdx` for the
+composition's re-render. See the [web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station) for the
 full guide (migration path, SSOT split, `requiredSdkGlobal`
 reconciliation, deploy posture).
 

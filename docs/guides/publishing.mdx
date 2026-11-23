@@ -13,7 +13,7 @@ secrets model lives in
 [ADR-0014](../decisions/0014-distribution-targets-secrets-model);
 the CLI surface law (verbs never know targets) in
 [ADR-0015](../decisions/0015-cli-verb-target-split). Behavior SSOT is the
-package code: [`packages/oka_play`](https://github.com/Arenukvern/oka/tree/main/packages/oka_play),
+package code: [`packages/oka_google_play`](https://github.com/Arenukvern/oka/tree/main/packages/oka_google_play),
 [`packages/oka_huawei`](https://github.com/Arenukvern/oka/tree/main/packages/oka_huawei),
 and [`packages/oka_rustore`](https://github.com/Arenukvern/oka/tree/main/packages/oka_rustore).
 
@@ -272,6 +272,6 @@ const-constructible, compiled to a validated pipeline via
 The three conformance laws are mechanical: reuse
 [`oka_conformance`](https://github.com/Arenukvern/oka/tree/main/packages/oka_conformance)
 (`expectPublishConformance`, `expectPlanShape`, `expectNoSecretMaterial`,
-`FakeHttpTransport`) in the target's tests, exactly as `oka_play` and
+`FakeHttpTransport`) in the target's tests, exactly as `oka_google_play` and
 `oka_huawei` do. New target packages start as an RFC-style proposal against
 the conformance suite — the suite is the contract, the CLI never grows.

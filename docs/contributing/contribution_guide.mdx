@@ -12,8 +12,9 @@ in issues, reviews, and community spaces.
 
 ## Setup
 
-Install Dart 3.13 or newer and `just` for the contributor tooling. Real Android build tests also need
-Flutter and the Android SDK; see the [build guide](../guides/build_and_config).
+Install **Dart 3.14+** (`^3.14.0`; see `tool/ci/toolchain_versions.yaml`) and `just`
+for contributor tooling. Flutter apps need **Flutter 3.50** and the Android SDK;
+see the [build guide](../guides/build_and_config).
 
 ```bash
 git clone https://github.com/Arenukvern/oka.git && cd oka
@@ -53,84 +54,40 @@ After any behavior change, update the matching doc layer — see
 
 ## Commit messages
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) so
-[release-please](https://github.com/googleapis/release-please) can build the
-changelog and version bumps:
-
-- `feat:` — new capability (minor bump)
-- `fix:` — bug fix (patch bump)
-- `docs:` — documentation (patch bump when it is the only change in a release)
-- `perf:` — performance improvement
-- `chore:` / `refactor:` / `test:` — hidden in the generated changelog
+Use [Conventional Commits](https://www.conventionalcommits.org/) for readable
+history. **Pub.dev versions are no longer driven by commit prefixes** — release
+intent lives in reviewed `.changesets/` files (ADR-0054).
 
 ## Releases
 
-Releases are automated on `main` via **release-please**. After a Release PR
-merges, release-please dispatches
-[`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
-on the new tag (OIDC to pub.dev; no PAT or pub credentials in CI). Optional
-`RELEASE_PLEASE_TOKEN` can still be set if tag pushes must trigger other
-workflows. With the repository-token fallback, PR workflow runs may require
-approval. See [GitHub workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
-The sync workflow also runs its contract checks after synchronization.
+The pub.dev train runs on **[dart_changesets](https://github.com/Arenukvern/dart_changesets)**
+(ADR-0054; supersedes release-please for packages):
 
-One-time pub.dev and GitHub Actions setup for the train is documented in
-[`plugin/skills/oka-maintenance/references/publishing.md`](https://github.com/Arenukvern/oka/blob/main/plugin/skills/oka-maintenance/references/publishing.md)
-(Anton checklist).
+1. Land changes on `main` with `just lint`, `just test`, and `just check-contracts` green.
+2. Add a `.changesets/<name>.md` intent file (e.g. `'oka': patch`, `'oka_core': minor`);
+   dependents cascade when caret constraints no longer admit the new versions.
+3. Merge the intent to `main`. [`.github/workflows/dart_changesets.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/dart_changesets.yml)
+   assembles/updates the **version PR** with pubspec + changelog rewrites.
+4. Review the version PR, re-run `just check-contracts`, then merge it.
+5. The engine pushes **per-package tags** (`<package>-v<version>`) and dispatches
+   [`.github/workflows/dart_changesets_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/dart_changesets_publish.yml)
+   (OIDC to pub.dev; upload order from `dart tool/release/train.dart list --publish`).
 
-Release sequence:
-
-1. Merge PRs to `main` with conventional commit titles.
-
-   **Merge commit body vs release-please:** release-please also parses
-   conventional-commit subjects found in a merge commit's **body**, not only
-   its title. GitHub's default merge commit body is the PR title, so when the PR
-   already contains commits whose subjects match that title (e.g.
-   `fix(contracts): …`), the generated changelog can list the same fix twice — as
-   in 0.10.2 (`98611f2` and `079100e`, PR [#36](https://github.com/Arenukvern/oka/pull/36)).
-   When merging with `merge_method=merge`, prefer a non-conventional merge body
-   (e.g. `Merged after pinned second-steward review.`) or omit the PR title from
-   the body unless the PR title is the only conventional message in the merge.
-2. release-please opens or updates a **Release PR** (e.g.
-   `chore: release 0.2.0`) with `packages/oka/CHANGELOG.md` and `VERSION`.
-   [`.github/workflows/release_pr_sync_versions.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/release_pr_sync_versions.yml)
-   derives package versions, internal dependency constraints, plugin manifests,
-   and the marketplace catalog from
-   that one version and commits any drift.
-3. Review the Release PR, run `just check-contracts`, then merge it.
-4. release-please creates the `vX.Y.Z` tag and GitHub release **with changelog
-   notes**.
-5. [`.github/workflows/pub_publish.yml`](https://github.com/Arenukvern/oka/blob/main/.github/workflows/pub_publish.yml)
-   is dispatched on the release tag: asserts tag == `VERSION`, dry-run
-   preflight, then publishes the full train in dependency order via
-   `tool/release/publish_packages.sh` (full train, `oka_process` first).
-   Package inventory and ordering: `dart tool/release/train.dart list --publish`.
-   Each dependency must be on pub.dev before dependents upload. All train
-   packages share `VERSION`. The workflow verifies an independent hosted
-   consumer after the train completes. Complete the one-time automated-publishing
-   checklist before the first release.
+One-time pub.dev automated-publishing setup (per-package tag pattern) is in
+[`skills/oka-maintenance/references/publishing.md`](https://github.com/Arenukvern/oka/blob/main/skills/oka-maintenance/references/publishing.md).
 
 Local preflight (does not publish):
 
 ```bash
-just publish-dry-run
-bash tool/ci/check_package_consumer.sh  # isolated local package consumer
+bash tool/ci/check_package_consumer.sh   # after a train upload, when debugging resolution
 ```
+
+`oka_dart_kernel`, `oka_devices`, `oka_verify`, and the root workspace
+package stay `publish_to: none` — they never upload.
 
 CI also runs `test/adr0011_apk_contents_test.dart` with
 `OKA_REQUIRE_REAL_ANDROID_SMOKE=true`: missing prerequisites fail that job
 instead of skipping the real APK/AAB builds.
-
-Manual fallback (when automation is blocked):
-
-```bash
-bash tool/release/sync_version.sh --version 0.2.0   # or: just sync-version
-# update packages/oka/CHANGELOG.md; keep the release-please manifest
-# at the last actually released version until the release is recorded
-just check-contracts
-git commit -am "chore: release 0.2.0" && git tag v0.2.0 && git push --tags
-gh workflow run pub_publish.yml --ref v0.2.0
-```
 
 ## Contract gates
 
@@ -138,47 +95,15 @@ Run before every merge (`just check-contracts`):
 
 | Gate | Checks |
 |---|---|
-| `check_version_sync.sh` | VERSION == all package versions and internal constraints == plugin manifests == marketplace |
-| `check_docs_drift.sh` | Invariants documented; fast-settings keys present; docs.json sidebar resolves |
-| `check_no_personal_paths.sh` | No `/Users/<maintainer>/` paths in tracked files |
-| `check_changelog_markdown.sh` | MD052 disable header kept; no bare `[bracket]` identifiers |
-| `check_package_changelogs.sh` | Every train package `CHANGELOG.md` must list `VERSION`; follower packages keep a single `x-release-please-version` on the upcoming heading only (frozen released section has no marker) |
-
-### Follower package changelogs
-
-release-please’s generic `extra-files` updater only rewrites version strings on lines
-that contain `x-release-please-version`. Train follower `packages/*/CHANGELOG.md`
-files (every path in `release-please-config.json` `extra-files` except
-`packages/oka/CHANGELOG.md`) therefore use:
-
-```markdown
-## 0.11.0 <!-- x-release-please-version -->
-
-See `packages/oka/CHANGELOG.md` for train-wide release notes.
-
-## 0.10.0
-
-See `packages/oka/CHANGELOG.md` for train-wide release notes.
-
-…package-specific release notes for the shipped version…
-```
-
-On **release-please** `release_created` (push to `main` only), `.github/workflows/release-please.yml`
-runs `tool/release/freeze_follower_release_pr.sh` to apply the freeze and open (or
-reuse) a follow-up PR — do not push frozen changelogs straight to `main`.
-
-Manual override (offline or recovery):
-
-```bash
-bash tool/release/freeze_follower_changelogs.sh --apply --released 0.10.0 --next 0.11.0
-bash tool/release/freeze_follower_changelogs.sh --check
-```
-
-`--check` (default) runs the same validation as `check_package_changelogs.sh`.
-`check_package_changelogs.sh` accepts a **release PR** layout where the marked heading
-equals `VERSION` (semver ≥ `VERSION`), or an **in-flight** layout where the marker
-sits on a heading above frozen `VERSION`. `--apply` is idempotent when changelogs
-already match the frozen layout.
+| `check_package_changelogs.sh` | Train package changelogs match dart_changesets heading rules |
+| `check_package_licenses.sh` | Every train package ships `LICENSE` |
+| `check_docs_drift.dart` | Invariants documented; fast-settings keys present; `docs.json` sidebar resolves |
+| `check_example_path_overrides.dart` | Example app path overrides cover reachable train deps |
+| `check_train_package_lib_workspace_leak.dart` | Published `lib/` never imports monorepo-only paths |
+| `check_duplicate_train_inventory.dart` | Train inventory SSOT stays in `tool/release/train_inventory.dart` |
+| `check_no_personal_paths.sh` | No maintainer-local absolute paths in tracked files |
+| `check_changelog_markdown.sh` | Markdown hygiene for changelogs |
+| `run_actionlint.sh` | Workflow YAML lint |
 
 ## Pull requests
 

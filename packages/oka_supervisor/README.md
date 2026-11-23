@@ -1,7 +1,7 @@
 # oka_supervisor
 
 Declarative supervisor (ADR-0040): steady-state convergence over the
-[`resource_composition`](../resource_composition) substrate.
+[`resource_composition`](https://pub.dev/packages/resource_composition) substrate.
 
 **TL;DR**: declare desired state as typed specs → run `converge` → it
 observes, diffs, acts once, writes facts, exits. No daemon.
@@ -83,7 +83,7 @@ Dev tip: the test suite contains a real-process end-to-end
 (`converge_real_process_test.dart`) — a `/bin/sh` service converging to
 ready and a crashing command climbing the ladder to `giveUp`.
 
-Codemap index lifecycle ([ADR-0045](../../docs/decisions/0045-codemap-index-worker-supervision.mdx))
+Codemap index lifecycle ([ADR-0045](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0045-codemap-index-worker-supervision.mdx))
 is an explicit native worker recipe, separate from read-only lane projection:
 
 ```dart

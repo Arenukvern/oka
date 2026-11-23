@@ -11,4 +11,4 @@ Depends only on [oka_core](https://pub.dev/packages/oka_core) plus
 lightweight packages — no CLI/AI surface (ADR-0006).
 
 See the [docs](https://docs.page/arenukvern/oka) and the
-[design decisions](https://github.com/Arenukvern/oka/tree/main/docs/decisions).
+[design decisions](https://github.com/Arenukvern/ohttps://github.com/Arenukvern/oka/tree/main/docs/decisions).

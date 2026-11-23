@@ -140,7 +140,7 @@ composes onto that pipeline. Nothing in this package invokes Gradle.
 
 **How do I test without credentials?**
 Run the dry-run target (needs nothing), and use the shared
-[oka_conformance](../oka_conformance) suite from your own tests — this
+[oka_conformance](https://pub.dev/packages/oka_conformance) suite from your own tests — this
 package's conformance is asserted with it (`dryRun` without credentials,
 no stdin, no secret values in state), with the real-run flow tested
 offline against a scripted fake transport.
@@ -161,10 +161,10 @@ track. Either way the plan shows the value before anything is uploaded.
 ## Conformance
 
 `PlayPublishTarget` passes the shared ADR-0014 publishing conformance
-suite in [oka_conformance](../oka_conformance): dry-run without
+suite in [oka_conformance](https://pub.dev/packages/oka_conformance): dry-run without
 credentials, no stdin, no secret values in state — plus offline
 scripted-transport tests for the real Edits flow.
 
 See the [docs](https://docs.page/arenukvern/oka) and the
-[design decisions](https://github.com/Arenukvern/oka/tree/main/docs/decisions)
+[design decisions](https://github.com/Arenukvern/ohttps://github.com/Arenukvern/oka/tree/main/docs/decisions)
 (ADR-0014 targets + secrets model, ADR-0015 verb/target split).

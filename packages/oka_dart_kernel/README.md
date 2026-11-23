@@ -1,10 +1,10 @@
 # oka_dart_kernel
 
 Kernel-graph experiments and gates for
-[ADR-0032](../../docs/decisions/0032-oka-dart-kernel-graph-ownership.mdx).
+[ADR-0032](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0032-oka-dart-kernel-graph-ownership.mdx).
 
 The founding observations (evidence:
-[deferred-patch-units spike](../../docs/evidence/deferred-patch-units-spike-2026-10-01.mdx),
+[deferred-patch-units spike](https://github.com/Arenukvern/oka/blob/main/docs/evidence/deferred-patch-units-spike-2026-10-01.mdx),
 §7–9):
 
 - dart2js part files, DDC modules, and gen_snapshot loading units are all

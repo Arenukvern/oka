@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/Arenukvern/oka/main/install.sh | ba
 Then, in a Flutter project:
 
 ```bash
-oka init                # scaffold the typed composition root
+oka init                # default: typed Dart config (tool/oka_pipeline.dart); --yaml for fast-settings
 oka build apk --release # no Gradle, no daemon, no AGP
 oka doctor              # verify the whole environment
 ```
@@ -29,5 +29,9 @@ documentation: **[docs.page/arenukvern/oka](https://docs.page/arenukvern/oka)**.
 
 This package is the CLI shell (parse-and-delegate only — ADR-0015): platform
 pipelines, toolchain provisioning, and publish targets live in the sibling
-packages (`oka_core`, `oka_android`, `oka_google_play`, `oka_app_gallery`, `oka_huawei`, `oka_web`,
-`oka_conformance`).
+sibling packages on the pub.dev train — see
+[`tool/release/train_inventory.dart`](https://github.com/Arenukvern/oka/blob/main/tool/release/train_inventory.dart)
+or `dart tool/release/train.dart list --publish`.
+
+Requires **Dart ^3.14.0** and **Flutter 3.50** for Flutter workflows
+(`tool/ci/toolchain_versions.yaml`).
