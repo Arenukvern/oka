@@ -12,7 +12,7 @@ workspace:
   - packages/*
 
 environment:
-  sdk: ^3.13.0
+  sdk: ^3.14.0
 
 dev_dependencies:
   analyzer: ^14.0.0
@@ -27,5 +27,6 @@ dev_dependencies:
   oka_core: ^0.14.0 # x-release-please-version
   path: ^1.9.0
   test: ^1.25.0
+  xml: ^7.1.0
   xsoulspace_lints: ^0.1.2
   yaml: ^3.1.2

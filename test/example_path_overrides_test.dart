@@ -39,7 +39,7 @@ dependencies:
         '''
 name: example
 environment:
-  sdk: ^3.13.0
+  sdk: ^3.14.0
 dependencies:
   oka_supervisor: ^0.9.0
 dependency_overrides:

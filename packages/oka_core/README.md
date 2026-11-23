@@ -10,4 +10,4 @@ Dependency-light by design (no CLI/AI surface) so host apps with strict
 `dependency_overrides` can pin it for Dart pipeline hooks.
 
 See the [docs](https://docs.page/arenukvern/oka) and the
-[design decisions](https://github.com/Arenukvern/oka/tree/main/docs/decisions).
+[design decisions](https://github.com/Arenukvern/ohttps://github.com/Arenukvern/oka/tree/main/docs/decisions).

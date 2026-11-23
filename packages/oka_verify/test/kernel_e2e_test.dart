@@ -78,7 +78,7 @@ void main() {
     fixture
       ..write(
         'pkgs/a/pubspec.yaml',
-        'name: a\nenvironment:\n  sdk: ^3.13.0\n'
+        'name: a\nenvironment:\n  sdk: ^3.14.0\n'
             'dev_dependencies:\n  test: ^1.25.0\n',
       )
       ..write('pkgs/a/lib/core.dart', 'int answer() => 42;\n')
@@ -131,7 +131,7 @@ void main() {
     fixture
       ..write(
         'pkgs/a/pubspec.yaml',
-        'name: a\nenvironment:\n  sdk: ^3.13.0\n'
+        'name: a\nenvironment:\n  sdk: ^3.14.0\n'
             'dev_dependencies:\n  test: ^1.25.0\n',
       )
       ..write(

@@ -1,7 +1,7 @@
 # oka_process
 
 POSIX **owned process sessions** for the oka ecosystem
-([ADR-0052](https://github.com/arenukvern/oka/blob/main/docs/decisions/0052-owned-process-sessions.mdx)).
+([ADR-0052](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0052-owned-process-sessions.mdx)).
 
 Adopts dfp ADR-0066 rules as oka policy:
 

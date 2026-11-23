@@ -12,6 +12,9 @@ export OKA_ROOT="$ROOT_DIR"
 bash tool/release/check_package_changelogs.sh
 bash tool/release/check_package_licenses.sh
 bash tool/contracts/check_docs_drift.sh
+dart tool/contracts/check_doc_assets.dart
+dart tool/contracts/check_doc_links.dart
+dart tool/contracts/check_toolchain_versions.dart
 dart tool/contracts/check_example_path_overrides.dart
 dart tool/contracts/check_no_directory_current_assignment.dart
 dart tool/contracts/check_train_package_lib_workspace_leak.dart

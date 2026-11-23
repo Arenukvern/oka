@@ -11,7 +11,8 @@
 [![CI](https://github.com/Arenukvern/oka/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arenukvern/oka/actions/workflows/ci.yml)
 [![release train](https://img.shields.io/github/actions/workflow/status/Arenukvern/oka/dart_changesets.yml?branch=main&label=release%20train&logo=github)](https://github.com/Arenukvern/oka/actions/workflows/dart_changesets.yml)
 [![release engine: dart_changesets](https://img.shields.io/badge/release_engine-dart__changesets-0175C2?logo=dart&logoColor=white)](https://github.com/Arenukvern/dart_changesets)
-[![Dart SDK](https://img.shields.io/badge/Dart_SDK-%5E3.13-0175C2?logo=dart&logoColor=white)](https://dart.dev)
+[![Dart SDK](https://img.shields.io/badge/Dart-%3E%3D3.14-0175C2?logo=dart&logoColor=white)](https://dart.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.50-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![All Contributors](https://img.shields.io/github/all-contributors/Arenukvern/oka?color=ee8449&style=flat-square)](https://github.com/Arenukvern/oka#contributors-)
 <a title="Discord" href="https://discord.com/invite/y54DpJwmAn" ><img src="https://img.shields.io/discord/696688204476055592.svg" /></a>
 [![maintained with Skill Steward](https://raw.githubusercontent.com/Arenukvern/skill_steward/main/docs/brand/assets/svg/badge-light.svg)](https://github.com/Arenukvern/skill_steward)

@@ -60,6 +60,10 @@ unknown-verb dispatch, ADR-0015). Default `oka init` scaffolds Dart config;
 - docs/decisions/ — ADR index (see docs/decisions/index.mdx for current count)
 - tool/release/train_inventory.dart — release-train package SSOT
 
+## Toolchain
+
+Dart **^3.14.0** (CI pin `3.14.1`), Flutter **3.50** — SSOT: `tool/ci/toolchain_versions.yaml`.
+
 ## Contributor gates
 
 just install && just lint && just test && just check-contracts

@@ -23,6 +23,6 @@ Design laws:
   `providerFault`, `transportLost`, `unknown`); `unknown` is never silently
   upgraded — report-never-guess.
 
-See `docs/decisions/0026-declarative-resource-composition-sdk.mdx`,
-`docs/guides/resource_composition_plan.mdx`, and the R0 survey evidence in
-`docs/evidence/process-lifecycle-r0-survey-2026-09-27.mdx`.
+See [ADR-0026](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0026-declarative-resource-composition-sdk.mdx),
+the [composition plan](https://github.com/Arenukvern/oka/blob/main/docs/guides/resource_composition_plan.mdx),
+and the [R0 survey evidence](https://github.com/Arenukvern/oka/blob/main/docs/evidence/process-lifecycle-r0-survey-2026-09-27.mdx).

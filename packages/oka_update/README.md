@@ -1,12 +1,12 @@
 # oka_update
 
 Authoring and planner surface for
-[ADR-0031](../../docs/decisions/0031-declarative-patch-units.mdx) —
+[ADR-0031](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0031-declarative-patch-units.mdx) —
 declarative patch units: unit specs, revision manifests, computed eligibility.
 
 The kernel-graph machinery (partitioning, deferred-ization transforms,
 frontend_server protocol) lives in
-[oka_dart_kernel](../oka_dart_kernel) / [ADR-0032](../../docs/decisions/0032-oka-dart-kernel-graph-ownership.mdx).
+[`oka_dart_kernel`](https://github.com/Arenukvern/oka/tree/main/packages/oka_dart_kernel) / [ADR-0032](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0032-oka-dart-kernel-graph-ownership.mdx).
 The full API design (generator, pointer delivery, UpdateClient, verify
 gating) is tracked in the design record referenced from ADR-0031's evidence.
 
@@ -42,5 +42,5 @@ gating) is tracked in the design record referenced from ADR-0031's evidence.
 The path from this prototype to a production API — typed manifests,
 analyzer-grade fingerprints, generator + `UpdateClient`, CI-grade gates —
 is the gap analysis and ladder in
-[ADR-0034](../../docs/decisions/0034-update-api-production-ladder.mdx)
+[ADR-0034](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0034-update-api-production-ladder.mdx)
 (P0–P5). Nothing here is production-ready yet, by design of that record.

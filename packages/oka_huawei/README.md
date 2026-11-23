@@ -12,8 +12,8 @@ tool runs.
 A platform is **not** a store (ADR-0056 — the line is thin but real): a
 Huawei device carries AppGallery, RuStore, and sideloaded APKs alike. The
 store halves live in their own packages —
-[oka_app_gallery](../oka_app_gallery) (AppGallery Connect channel + key)
-and [oka_rustore](../oka_rustore) (RuStore channel + key). Store channels
+[oka_app_gallery](https://pub.dev/packages/oka_app_gallery) (AppGallery Connect channel + key)
+and [oka_rustore](https://pub.dev/packages/oka_rustore) (RuStore channel + key). Store channels
 declare their platform requirements at composition time
 (`requiredOverlays`/`prohibitedOverlays`): AppGallery prohibits the `gms`
 overlay, Play requires it — the platform never names a store.
@@ -73,5 +73,5 @@ overrides, and the required-artifact failure — all offline, no tooling
 invoked.
 
 See the [docs](https://docs.page/arenukvern/oka) and the
-[design decisions](https://github.com/Arenukvern/oka/tree/main/docs/decisions)
+[design decisions](https://github.com/Arenukvern/ohttps://github.com/Arenukvern/oka/tree/main/docs/decisions)
 (ADR-0055 delivery matrix, ADR-0056 the store/platform line).
