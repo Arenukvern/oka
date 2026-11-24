@@ -39,7 +39,9 @@ jobs:
               if [ "$pkg" = "packages/oka_dart_kernel/" ]; then
                 # Long-lived adversarial suites can exhaust the test runner VM on
                 # ubuntu-latest; one dart test per file keeps loads independent.
-                if ! (cd "$pkg" && for f in test/*_test.dart; do dart test "$f"; done); then
+                # The for-loop status is the last file. A failing file must
+                # fail the job even when a later file passes.
+                if ! (cd "$pkg" && for f in test/*_test.dart; do dart test "$f" || exit 1; done); then
                   failed=1
                 fi
               else
