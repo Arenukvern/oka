@@ -3,7 +3,7 @@ description: >-
   Kernel-graph library (ADR-0032) and the oka dev, live, and ship commands.
   Kernel delta compilation stays in tool/ and needs a Dart SDK checkout.
   Experimental API.
-version: 0.1.0 # x-release-please-version
+version: 0.1.1 # x-release-please-version
 homepage: https://github.com/Arenukvern/oka
 repository: https://github.com/Arenukvern/oka/tree/main/packages/oka_dart_kernel
 issue_tracker: https://github.com/Arenukvern/oka/issues
@@ -19,9 +19,9 @@ dependencies:
   flutter_mcp_harness: ">=7.1.1 <9.0.0"
   is_dart_empty_or_not: ^0.6.0
   meta: ^1.19.0
-  oka_core: ^0.14.0 # x-release-please-version
-  oka_update: ^0.12.0 # x-release-please-version
-  oka_web: ^0.13.0 # x-release-please-version
+  oka_core: ^0.15.0 # x-release-please-version
+  oka_update: ^0.13.0 # x-release-please-version
+  oka_web: ^0.14.0 # x-release-please-version
   path: ^1.9.0
   yaml: ^3.1.2
 

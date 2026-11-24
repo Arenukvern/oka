@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Updated `oka_core` dependency constraint to `^0.15.0`.
+- Updated `resource_composition` dependency constraint to `^0.13.0`.
 ## 0.12.3
 
 ### Patch Changes
@@ -131,6 +138,7 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   (service/job shapes, watch/interval triggers as properties), advisory
   `MachineRegistry` with cession-based kill policy, crash-only
   `Supervisor.converge` driver, and `supervisorFinding` evidence events.
+
 
 
 

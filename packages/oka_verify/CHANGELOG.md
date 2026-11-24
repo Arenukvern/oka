@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2
+
+### Patch Changes
+
+- Call oka live, oka ship, and oka verify from the published oka executable. Live verify and oka verify need no oka checkout. Live patch, live watch, and ship unit-delta compile still need a Dart SDK checkout and OKA_KERNEL_ROOT.
+- Updated `oka_core` dependency constraint to `^0.15.0`.
 ## 0.8.1
 
 Published. `oka verify` calls this library in-process.
@@ -80,4 +86,5 @@ Published. `oka verify` calls this library in-process.
 ## 0.12.0
 
 See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
 
