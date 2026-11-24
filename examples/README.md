@@ -12,10 +12,11 @@ Six steps, smallest first. Each has a five-minute README and a
 | [05 web stores](05_web_stores) | Typed web shell, GitHub Pages + itch.io deploy | Dart, Flutter |
 | [06 live patch](06_live_patch) | Patch a running app via the air channel (`oka ship`) | the oka repo checkout |
 
-Steps 01–05 are runnable in place. Step 06 is a guided demo: the live-update
-stack is checkout-only (`oka_dart_kernel`/`oka_update` are not on pub.dev),
-so its README walks you through `packages/oka_dart_kernel/example/live_showcase/`
-inside this repo rather than a standalone project.
+Steps 01–05 are runnable in place. Step 06 is a guided demo. `oka dev` ships
+inside the `oka` package. `oka ship` and this showcase still run from the
+checkout, so the README walks you through
+`packages/oka_dart_kernel/example/live_showcase/` inside this repo rather
+than a standalone project.
 
 The one rule across all of them: **the build config is Dart you own.** No
 plugin DSLs, no hidden defaults — everything below is copy-paste and

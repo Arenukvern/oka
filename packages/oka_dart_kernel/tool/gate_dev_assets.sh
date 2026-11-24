@@ -2,9 +2,9 @@
 # Dev-session asset lane gate (ADR-0037 §6b, G-RUN): `oka run dev` boots
 # the oka example app (declares assets/), then
 #
-#   r <leaf dart>  = the delta lane: probe flip + `reassemble: ok` in the
+#   rf <leaf dart> = the delta lane: probe flip + `reassemble: ok` in the
 #                    receipt (the extension wire fix, G-RUN),
-#   r <asset>      = the sync lane: bytes land in the engine's asset
+#   rf <asset>     = the sync lane: bytes land in the engine's asset
 #                    dir, `ext.flutter.evict` fires, and the receipt
 #                    reports the post-evict probe honestly (on macOS the
 #                    engine's asset cache serves the old mapping until
@@ -58,18 +58,18 @@ exec 3> "$FIFO"
 wait_for "$OUT/session.log" 'dev: ready' 240 'dev session' 5 \
   || { FAILED=1; exec 3>&-; kill "$SESSION" 2>/dev/null; restore; exit 1; }
 
-echo "== [2/5] r <leaf dart>: the delta lane (flip + reassemble)"
+echo "== [2/5] rf <leaf dart>: the delta lane (flip + reassemble)"
 perl -pi -e "s/feature-v1/feature-v2-live/" "$LEAF"
 grep -q 'feature-v2-live' "$LEAF" || { echo 'FAIL: dart edit'; FAILED=1; }
-echo "r lib/units/feature.dart" >&3
+echo "rf lib/units/feature.dart" >&3
 wait_for "$OUT/session.log" 'reload 1: OK' 120 'delta reload' 5 \
   || { FAILED=1; exec 3>&-; kill "$SESSION" 2>/dev/null; restore; exit 1; }
 grep -q '"reassemble": "ok"' "$OUT/session.log" \
   || { echo 'FAIL: reassemble never reached the app (extension wire?)'; FAILED=1; }
 
-echo "== [3/5] r <asset>: the sync lane (bytes + evict, honest probe)"
+echo "== [3/5] rf <asset>: the sync lane (bytes + evict, honest probe)"
 printf '%s' "$NEW_CONTENT" > "$ASSET"
-echo "r assets/hello.txt" >&3
+echo "rf assets/hello.txt" >&3
 wait_for "$OUT/session.log" 'assets 2:' 60 'asset sync' 5 \
   || { FAILED=1; exec 3>&-; kill "$SESSION" 2>/dev/null; restore; exit 1; }
 grep -q 'assets 2: OK' "$OUT/session.log" \

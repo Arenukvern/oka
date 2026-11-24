@@ -7,7 +7,8 @@ import 'package:test/test.dart';
 const _runner = 'packages/oka_dart_kernel/tool/oka_run_dev.dart';
 
 void _markOkaWorkspace(Directory root) {
-  File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: oka_workspace\n');
+  File(p.join(root.path, 'pubspec.yaml'))
+      .writeAsStringSync('name: oka_workspace\n');
   File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml'))
       .createSync(recursive: true);
   File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml'))
@@ -19,33 +20,50 @@ void _markOkaWorkspace(Directory root) {
 }
 
 void main() {
-  test('kernelStackRootForScript walks past outer work/oka to inner repo', () async {
-    final tmp = await Directory.systemTemp.createTemp('oka_kernel_root');
-    addTearDown(() => tmp.delete(recursive: true));
-    final inner = Directory(p.join(tmp.path, 'work', 'oka', 'oka'));
-    await inner.create(recursive: true);
-    _markOkaWorkspace(inner);
-    await File(p.join(inner.path, _runner)).create(recursive: true);
-    final script = File(p.join(inner.path, 'packages', 'oka', 'bin', 'oka.dart'));
-    await script.create(recursive: true);
+  test(
+    'kernelStackRootForScript walks past outer work/oka to inner repo',
+    () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_kernel_root');
+      addTearDown(() => tmp.delete(recursive: true));
+      final inner = Directory(p.join(tmp.path, 'work', 'oka', 'oka'));
+      await inner.create(recursive: true);
+      _markOkaWorkspace(inner);
+      await File(p.join(inner.path, _runner)).create(recursive: true);
+      final script = File(
+        p.join(inner.path, 'packages', 'oka', 'bin', 'oka.dart'),
+      );
+      await script.create(recursive: true);
 
-    final root = kernelStackRootForScript(script.path, _runner);
-    expect(root, p.normalize(inner.path));
-  });
+      final root = kernelStackRootForScript(script.path, _runner);
+      expect(root, p.normalize(inner.path));
+    },
+  );
 
-  test('kernelStackRootForScript finds runner in differently named checkout', () async {
-    final tmp = await Directory.systemTemp.createTemp('oka_kernel_rename');
-    addTearDown(() => tmp.delete(recursive: true));
-    _markOkaWorkspace(tmp);
-    await File(p.join(tmp.path, _runner)).create(recursive: true);
-    final script =
-        File(p.join(tmp.path, 'vendor', 'fork', 'packages', 'oka', 'bin', 'oka.dart'));
-    await script.create(recursive: true);
-    expect(
-      kernelStackRootForScript(script.path, _runner),
-      p.normalize(tmp.path),
-    );
-  });
+  test(
+    'kernelStackRootForScript finds runner in differently named checkout',
+    () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_kernel_rename');
+      addTearDown(() => tmp.delete(recursive: true));
+      _markOkaWorkspace(tmp);
+      await File(p.join(tmp.path, _runner)).create(recursive: true);
+      final script = File(
+        p.join(
+          tmp.path,
+          'vendor',
+          'fork',
+          'packages',
+          'oka',
+          'bin',
+          'oka.dart',
+        ),
+      );
+      await script.create(recursive: true);
+      expect(
+        kernelStackRootForScript(script.path, _runner),
+        p.normalize(tmp.path),
+      );
+    },
+  );
 
   test('unrelated parent with runner only is rejected', () async {
     final tmp = await Directory.systemTemp.createTemp('oka_kernel_fake_parent');
@@ -57,10 +75,15 @@ void main() {
     await real.create(recursive: true);
     _markOkaWorkspace(real);
     await File(p.join(real.path, _runner)).create(recursive: true);
-    final script = File(p.join(real.path, 'packages', 'oka', 'bin', 'oka.dart'));
+    final script = File(
+      p.join(real.path, 'packages', 'oka', 'bin', 'oka.dart'),
+    );
     await script.create(recursive: true);
 
-    expect(kernelStackRootForScript(script.path, _runner), p.normalize(real.path));
+    expect(
+      kernelStackRootForScript(script.path, _runner),
+      p.normalize(real.path),
+    );
     expect(
       kernelStackRootForScript(
         p.join(parent.path, 'packages', 'oka', 'bin', 'oka.dart'),
@@ -73,7 +96,8 @@ void main() {
   test('wrong packages/oka pubspec name is rejected', () async {
     final tmp = await Directory.systemTemp.createTemp('oka_kernel_bad_pkg');
     addTearDown(() => tmp.delete(recursive: true));
-    File(p.join(tmp.path, 'pubspec.yaml')).writeAsStringSync('name: oka_workspace\n');
+    File(p.join(tmp.path, 'pubspec.yaml'))
+        .writeAsStringSync('name: oka_workspace\n');
     File(p.join(tmp.path, 'packages', 'oka', 'pubspec.yaml'))
         .createSync(recursive: true);
     File(p.join(tmp.path, 'packages', 'oka', 'pubspec.yaml'))
@@ -112,6 +136,51 @@ void main() {
       reason: 'name field must be oka_workspace, not substring match',
     );
   });
+
+  test(
+    'explicit OKA_KERNEL_ROOT does not walk when the pin is unusable',
+    () async {
+      final tmp = await Directory.systemTemp.createTemp('oka_kernel_explicit');
+      addTearDown(() => tmp.delete(recursive: true));
+      _markOkaWorkspace(tmp);
+      await File(p.join(tmp.path, _runner)).create(recursive: true);
+      final script = p.join(tmp.path, 'packages', 'oka', 'bin', 'oka.dart');
+      await File(script).create(recursive: true);
+      final missing = p.join(tmp.path, 'nowhere');
+
+      expect(
+        explicitKernelStackRoot(
+          _runner,
+          environment: {'OKA_KERNEL_ROOT': missing},
+        ),
+        isNull,
+      );
+      expect(explicitKernelStackRoot(_runner, environment: {}), isNull);
+      expect(
+        explicitKernelStackRoot(
+          _runner,
+          environment: {'OKA_KERNEL_ROOT': '   '},
+        ),
+        isNull,
+      );
+      expect(
+        explicitKernelStackRoot(
+          _runner,
+          environment: {'OKA_KERNEL_ROOT': tmp.path},
+        ),
+        p.normalize(tmp.path),
+      );
+      expect(
+        kernelStackRootForScript(
+          script,
+          _runner,
+          environment: {'OKA_KERNEL_ROOT': missing},
+        ),
+        p.normalize(tmp.path),
+        reason: 'oka live and oka ship still fall through to the checkout walk',
+      );
+    },
+  );
 
   test('OKA_KERNEL_ROOT overrides walk when runner exists', () async {
     final tmp = await Directory.systemTemp.createTemp('oka_kernel_env');

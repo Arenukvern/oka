@@ -5,8 +5,11 @@ a `LivePatchSpec` (units, targets, probes) — covers the developer loop
 (JIT) and the production path (AOT). Behavior SSOT is code + tests
 (`packages/oka_update/test/`); this guide links, it does not paraphrase.
 
-Stack: `oka_dart_kernel` (unit graph, delta compiler, pipeline exe) +
-`oka_update` (session, targets, receipts) — experimental, not on pub.
+Stack: `oka_dart_kernel` (unit graph, delta compiler, pipeline exe, and the
+dev session `oka dev` calls) + `oka_update` (session, targets, receipts).
+`oka dev` calls that session inside the oka executable. The kernel-graph
+gates and `oka ship` stay checkout-only. `oka_dart_kernel`'s first pub.dev
+upload is the next release.
 Design: ADR-0031/0032/0034/0035; evidence:
 `docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`.
 
@@ -15,8 +18,9 @@ Design: ADR-0031/0032/0034/0035; evidence:
 | Capability | State | Proof |
 |---|---|---|
 | Live patch a running VM/desktop/web/flutter app (JIT) | **works** | `gate_live_e2e.sh`, `gate_live_products.sh`, `gate_run_dev.sh` |
-| Dev session r/R: `oka run dev --platform macos\|web` | **works** (E2E) | `gate_run_dev.sh` |
-| Dev session r/R: `--platform linux` | **works** when GTK + Flutter linux desktop available | `packages/oka_dart_kernel/tool/gate_linux_dev_convergence.sh` on **ubuntu-amd64** CI; `oka doctor` `[Linux Desktop Dev (L0)]` elsewhere |
+| Dev session `rf` / `R`: `oka run dev --platform macos\|web` | **works** (E2E) | `gate_run_dev.sh` |
+| Dev session `r` | serving-toolchain hot reload, same key on macOS, Linux, and web. Dispatch is unit-tested (`oka_run_dev_test.dart`); the E2E gate proves `rf` and `R` | `oka_run_dev_test.dart` |
+| Dev session `rf` / `R`: `--platform linux` | **works** when GTK + Flutter linux desktop available | `packages/oka_dart_kernel/tool/gate_linux_dev_convergence.sh` on **ubuntu-amd64** CI; `oka doctor` `[Linux Desktop Dev (L0)]` elsewhere |
 | Asset changes in the dev session | **syncs + evicts** — never-loaded assets read fresh (models "hot reload"); already-loaded ones refresh at `R`; **shaders go live** (engine-native eviction) | `gate_dev_assets.sh` |
 | Ship a patch invisibly: `oka ship` (derive, sign, deltas, channel) | **works** | `gate_air_channel.sh` (signed, bare-origin) |
 | Clients resolve + stage updates over file/HTTP/git; chains vs snapshots; boot watchdog | **works** | `gate_air_web.sh` + 64 `oka_update` tests |
@@ -42,10 +46,12 @@ if (!receipt.ok) print(receipt.describe());
 
 ### The converged session: `oka run dev`
 
-One command boots the app and owns the loop (ADR-0037 §6 — r is oka's
-unit-delta lane; R is the platform restart). `oka dev` is the same
-session under its short name; the ADR-0011 android daemon lives at
-`oka dev android` until the android rung lands:
+One command boots the app and owns the loop (ADR-0037 §6d). `r` and `R`
+are the serving toolchain's hot reload and hot restart. Today that
+toolchain is `flutter run` on macOS, Linux, and web. `rf [file]` is oka's
+file delta. `oka dev` is the same session under its short name; the
+ADR-0011 android daemon lives at `oka dev android` until the android rung
+lands:
 
 ```bash
 oka run dev --platform macos --project ~/xs/storage_problem/last_answer
@@ -54,12 +60,19 @@ oka dev --platform web --project ~/xs/storage_problem/last_answer \
 oka dev android   # the ADR-0011 daemon (manifest + attach + control port)
 ```
 
+`oka dev` and `oka run dev` call `runRunDevCli` inside the oka executable
+(`package:oka_dart_kernel/dev_session.dart`). A published oka does not need
+a checkout for that command. `OKA_KERNEL_ROOT` overrides it with this
+checkout's `tool/oka_run_dev.dart`. `oka live` and `oka ship` stay on the
+checkout.
+
 | Command | Lane | What happens |
 |---|---|---|
-| `r [file]` | **oka** | a `.dart` file: the changed library is compiled by the app's own frontend and applied over the VM service (DevFS + `reloadSources` + reassemble on desktop; dwds on web) — receipt per reload, probes verified. A **declared asset**: bytes sync into the engine's asset dir + `ext.flutter.evict` (already-loaded assets refresh at the next engine cycle — `R`; never-loaded ones read fresh immediately). A **declared shader** (`flutter: shaders:` `.frag`): impellerc recompiles, the compiled `.iplr` rides the source's key, and the engine-native `ext.ui.window.reinitializeShader` makes it live WITHOUT a restart |
-| `R` | platform | the serving `flutter run` session hot-restarts the app |
+| `r` | serving toolchain | Flutter's hot reload on the owned `flutter run`: every dirty library, state kept. The same key on macOS, Linux, and web. `r <path>` is refused |
+| `R` | serving toolchain | Flutter's hot restart on that same session. State is dropped |
+| `rf [file]` | **oka** | a `.dart` file: the changed library is compiled by the app's own frontend and applied over the VM service (DevFS + `reloadSources` + reassemble on desktop; on web and `--native-vm-uri`, the injected serving-toolchain owner performs the reload) — receipt per reload, probes verified. A **declared asset**: bytes sync into the engine's asset dir + `ext.flutter.evict` (already-loaded assets refresh at the next engine cycle — `R`; never-loaded ones read fresh immediately). A **declared shader** (`flutter: shaders:` `.frag`): impellerc recompiles, the compiled `.iplr` rides the source's key, and the engine-native `ext.ui.window.reinitializeShader` makes it live WITHOUT a restart. No path reloads the last saved file |
 | `q` | — | clean quit |
-| `--watch` (default) | oka | every saved file in the watch set applies automatically — dart sources + declared assets + shaders (flutter-run parity). `--no-watch` for the explicit loop |
+| `--watch` (default) | oka | every saved file in the watch set applies through the `rf` lane — dart sources + declared assets + shaders. `--no-watch` for the explicit loop |
 | `--probes <f>` | oka | declarative probe specs verified after each reload |
 | `--json` | oka | receipts as JSON lines (agents) |
 
@@ -347,8 +360,9 @@ external ecsai_harness repo — a harness ADR, not an oka one).
 
 - `--native-vm-uri <http-uri>` with `--platform macos` explicitly addresses
   an already-running debug app: oka attaches one Flutter compiler instead of
-  launching a new app, the original launcher keeps app ownership, `r [file]`
-  uses that serving tool for compile and apply, and `q` detaches the
+  launching a new app, the original launcher keeps app ownership, `r`
+  is that serving tool's hot reload, `rf [file]` runs the file receipt
+  through the same owner, and `q` detaches the
   compiler rather than stopping the app. Arguments after `--` are forwarded
   to Flutter attach (attach has its own option surface — no `--no-pub`);
   dependency resolution happens explicitly before attachment; web or

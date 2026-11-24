@@ -1,3 +1,14 @@
+## 0.1.0
+
+The dev session is part of this package. `oka dev` and `oka run dev` call
+`runRunDevCli` in-process. `OKA_KERNEL_ROOT` overrides that with this
+checkout's `tool/oka_run_dev.dart`. `oka live` and `oka ship` stay
+checkout-only.
+
+## 0.12.0
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
+
 ## 0.0.1
 
 ### Patch Changes

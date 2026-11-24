@@ -111,15 +111,21 @@ secrets. Guides: [Publishing](guides/publishing.mdx),
 
 - **`oka run device`** — one-shot install → launch → scan device logs for known
   failure signatures.
-- **`oka dev`** — dev session with hot reload / hot restart (Dart-only; native,
-  manifest, and asset changes need a rebuild). See ADR-0011 and the
-  [Build guide — Dev loop](guides/build_and_config.mdx).
+- **`oka dev`** — dev session. `r` / `R` are the serving toolchain's hot
+  reload and hot restart (Flutter today, including web). `rf [file]` is
+  oka's file delta. Native and manifest changes still need a rebuild. See
+  ADR-0037 §6d and the [Live update guide](guides/live_update.mdx).
 
 ## What are live update / `oka ship`?
 
-Experimental stack (`oka_dart_kernel`, `oka_update`) for patching running Dart
-programs and shipping store-free updates. It is **not** published on pub.dev;
-it runs from an oka repo checkout. Start with
+`oka dev` calls the dev session inside the oka package. App developers leave
+`OKA_KERNEL_ROOT` unset. That variable overrides `oka dev` with a checkout
+when someone is working on the session itself.
+
+`oka ship`, `oka live`, and the kernel-graph gates still run from an oka
+repo checkout. `oka_dart_kernel` is on the release train; its first pub.dev
+upload is the next release. Until that upload, an already published `oka`
+does not contain this session. Start with
 [Live update guide](guides/live_update.mdx) and ADR-0037.
 
 ## What is `oka supervisor`?

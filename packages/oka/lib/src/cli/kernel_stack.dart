@@ -1,26 +1,64 @@
 import 'dart:io';
 
+import 'package:oka_dart_kernel/dev_session.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-/// Locates the experimental live-update stack checkout for the delegating
-/// CLI verbs (`oka live`, `oka ship`, `oka run dev`): the stack is
-/// `publish_to: none`, so the published CLI carries no compile-time
-/// dependency — when a checkout is present (`OKA_KERNEL_ROOT`, or the
-/// source layout around this package …/oka/packages/oka → …/oka), verbs
-/// run its tool with the workspace package config. Pub-global installs
-/// live in .pub-cache — no checkout to find unless [OKA_KERNEL_ROOT] is set.
+/// Locates the experimental live-update stack checkout for the verbs that
+/// are still checkout-only (`oka live`, `oka ship`). The stack runner is a
+/// tool script: when a checkout is present (`OKA_KERNEL_ROOT`, or the source
+/// layout around this package), those verbs run it with the workspace
+/// package config.
 ///
-/// **Hosted `oka` on pub.dev:** `oka run dev` / `oka live` / `oka ship` need
-/// either this monorepo checkout (auto-discovered from the `oka` script path)
-/// or an explicit `OKA_KERNEL_ROOT` pointing at that checkout. CI must not
-/// mask missing discovery by setting `OKA_KERNEL_ROOT` unless also exercising
-/// the public auto-discovery path in a separate step.
+/// `oka dev` does not use this walk. It calls the published dev session.
+/// `OKA_KERNEL_ROOT` remains an explicit override for that one command when
+/// someone is working on the session itself.
 ///
+const devSessionRunner = 'packages/oka_dart_kernel/tool/oka_run_dev.dart';
+
+/// Runs the dev session built into this executable.
+///
+/// `OKA_KERNEL_ROOT`, when it points at a checkout that contains
+/// [devSessionRunner], runs that script instead. A set but unusable value
+/// fails. An unset value never searches the filesystem.
+Future<void> runPublishedDevSession(List<String> args) async {
+  final pinned = Platform.environment['OKA_KERNEL_ROOT']?.trim();
+  if (pinned == null || pinned.isEmpty) {
+    await runRunDevCli(args);
+    return;
+  }
+  final root = explicitKernelStackRoot(devSessionRunner);
+  if (root == null) {
+    stderr.writeln(
+      'OKA_KERNEL_ROOT does not contain $devSessionRunner.\n'
+      'Unset it to use the dev session built into this oka.',
+    );
+    exitCode = 2;
+    return;
+  }
+  await spawnKernelRunner(root: root, runner: devSessionRunner, args: args);
+}
+
 /// [runner] is the tool path relative to the checkout, e.g.
 /// `packages/oka_dart_kernel/tool/oka_live.dart`.
 String? kernelStackRoot(String runner) =>
     kernelStackRootForScript(Platform.script.toFilePath(), runner);
+
+/// The `OKA_KERNEL_ROOT` checkout when it contains [runner]. A bad value
+/// does not fall through to the script-path walk.
+String? explicitKernelStackRoot(
+  String runner, {
+  Map<String, String>? environment,
+}) {
+  final env = (environment ?? Platform.environment)['OKA_KERNEL_ROOT']?.trim();
+  if (env == null || env.isEmpty) return null;
+  final root = p.normalize(env);
+  if (File(p.join(root, runner)).existsSync() &&
+      isOkaKernelWorkspaceRoot(root)) {
+    return root;
+  }
+  return null;
+}
 
 /// Resolves the kernel checkout by walking upward from [scriptPath] until
 /// [runner] exists. Handles nested layouts (e.g. GitHub `…/work/oka/oka/…`
@@ -30,8 +68,7 @@ String? kernelStackRootForScript(
   String runner, {
   Map<String, String>? environment,
 }) {
-  final env =
-      (environment ?? Platform.environment)['OKA_KERNEL_ROOT']?.trim();
+  final env = (environment ?? Platform.environment)['OKA_KERNEL_ROOT']?.trim();
   if (env != null && env.isNotEmpty) {
     final root = p.normalize(env);
     if (File(p.join(root, runner)).existsSync() &&
@@ -71,7 +108,9 @@ bool isOkaKernelWorkspaceRoot(String root) {
 }
 
 bool _packagePubspecNamed(String workspaceRoot, String folder, String name) {
-  final pubspec = File(p.join(workspaceRoot, 'packages', folder, 'pubspec.yaml'));
+  final pubspec = File(
+    p.join(workspaceRoot, 'packages', folder, 'pubspec.yaml'),
+  );
   if (!pubspec.existsSync()) return false;
   try {
     final doc = loadYaml(pubspec.readAsStringSync());
@@ -96,22 +135,28 @@ Future<void> delegateToKernelStack({
     exitCode = 2;
     return;
   }
+  await spawnKernelRunner(root: root, runner: runner, args: args);
+}
+
+/// Runs [runner] under [root] with that workspace's package config.
+Future<void> spawnKernelRunner({
+  required String root,
+  required String runner,
+  required List<String> args,
+}) async {
   final packagesConfig = '$root/.dart_tool/package_config.json';
   if (!File(packagesConfig).existsSync()) {
     stderr.writeln(
-        'run `dart pub get --no-example` in $root (missing '
-        'package_config.json)');
+      'run `dart pub get --no-example` in $root (missing '
+      'package_config.json)',
+    );
     exitCode = 2;
     return;
   }
-  final proc = await Process.start(
-    'dart',
-    [
-      '--packages=$packagesConfig',
-      p.join(root, runner),
-      ...args,
-    ],
-    mode: ProcessStartMode.inheritStdio,
-  );
+  final proc = await Process.start('dart', [
+    '--packages=$packagesConfig',
+    p.join(root, runner),
+    ...args,
+  ], mode: ProcessStartMode.inheritStdio);
   exitCode = await proc.exitCode;
 }

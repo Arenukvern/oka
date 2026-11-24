@@ -6,6 +6,8 @@ import 'package:path/path.dart' as p;
 const contractGeneratedSkipDirNames = <String>{
   '.git',
   '.dart_tool',
+  '.build',
+  '.steward',
   'build',
   '.pub-cache',
   'node_modules',
@@ -43,6 +45,9 @@ bool shouldSkipContractScanPath(
   final rel = p.relative(absolutePath, from: root.path).replaceAll(r'\', '/');
   for (final segment in rel.split('/')) {
     if (skipDirNames.contains(segment)) return true;
+    // Kernel gate output (`.gate_g1b`, `.gate_run_dev`, …) is gitignored
+    // evidence, not a package pubspec.
+    if (segment.startsWith('.gate')) return true;
   }
   return false;
 }
@@ -57,7 +62,11 @@ Iterable<File> contractScanFiles(
   for (final entity in root.listSync(followLinks: false)) {
     if (entity is Link) continue;
     if (entity is Directory) {
-      if (shouldSkipContractScanPath(entity.path, root, skipDirNames: skipDirNames)) {
+      if (shouldSkipContractScanPath(
+        entity.path,
+        root,
+        skipDirNames: skipDirNames,
+      )) {
         continue;
       }
       yield* contractScanFiles(

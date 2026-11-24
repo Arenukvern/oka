@@ -208,9 +208,18 @@ version-lock cost. ADR-0011 delegates the Dart VM session over the
 machine-readable daemon protocol (`--machine`) while oka owns build →
 install → launch and the entire event/UX surface — including the headless,
 agent-usable control path a TUI cannot provide. (`oka dev` itself is now
-the converged oka-lane session — ADR-0037 §6c — and the daemon is its
-`android` subcommand, the bridge until `oka run dev --platform android`
-lands.)
+the converged session — ADR-0037 §6c — and the daemon is its `android`
+subcommand, the bridge until `oka run dev --platform android` lands.)
+
+**Q: Why is `r` Flutter's hot reload, with the file delta on `rf`?**
+A: `r` and `R` belong to the serving toolchain. Flutter has supported both
+on macOS, Linux, and web for a long time, so the session forwards them to
+the `flutter run` it owns. `rf [file]` is oka's one-file delta (a library,
+a declared asset, or a shader). `--watch` stays on that lane. The delta is
+what remains when oka owns the compiler for Dart, Jaspr, ecsly, ecsai, and
+other Dart applications; `r` and `R` then delegate to that compiler. `oka
+dev android` does not gain `rf`: its `r` is already Flutter's whole-app
+reload.
 
 **Q: Why not just exec `flutter attach`?**
 A: Its default interface is a human TUI keystroke loop — unusable by agents,

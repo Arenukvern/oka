@@ -81,9 +81,9 @@ leg() {
   wait_for "$log" 'dev: ready' 240 "dev session ($platform)" 5 \
     || { FAILED=1; exec 3>&-; kill "$session" 2>/dev/null; restore; return 0; }
 
-  # r — the developer's plain save, applied by the oka delta lane.
+  # rf — the developer's plain save, applied by the oka delta lane.
   edit_file || { echo "FAIL: edit ($platform)"; FAILED=1; exec 3>&-; kill "$session" 2>/dev/null; restore; return 0; }
-  echo "r $APP_ROOT/$UNIT_FILE" >&3
+  echo "rf $APP_ROOT/$UNIT_FILE" >&3
   wait_for "$log" 'reload 1: OK' 120 "hot reload ($platform)" 5 \
     || { FAILED=1; exec 3>&-; kill "$session" 2>/dev/null; restore; return 0; }
   grep -q 'b -> c' "$log" || { echo "FAIL: probe did not flip ($platform)"; FAILED=1; }

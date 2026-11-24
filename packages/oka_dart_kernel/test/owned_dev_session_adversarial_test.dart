@@ -28,7 +28,8 @@ Future<String?> linuxFixtureStartToken(int pid) async {
 }
 ''';
 
-const _stubSource = '''
+const _stubSource =
+    '''
 import 'dart:convert';
 import 'dart:io';
 
@@ -57,7 +58,7 @@ Future<void> main(List<String> args) async {
     );
     await stderr.flush();
   }
-  stdout.writeln('dev: ready — commands: r [file] | R | q');
+  stdout.writeln('dev: ready — commands: r | R | rf [file] | q');
   await for (final line
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     final t = line.trim();
@@ -85,8 +86,10 @@ late Directory _scratch;
 late String _stub;
 
 void _workspaceMarkers(Directory root) {
-  File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: oka_workspace\n');
-  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml')).createSync(recursive: true);
+  File(p.join(root.path, 'pubspec.yaml'))
+      .writeAsStringSync('name: oka_workspace\n');
+  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml'))
+      .createSync(recursive: true);
   File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml'))
       .writeAsStringSync('name: oka\n');
   File(p.join(root.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
@@ -112,59 +115,51 @@ void main() {
     await _scratch.delete(recursive: true);
   });
 
-  test(
-    'mutation: no-drain + setsid must not pass physical success',
-    () async {
-      const liveness = HostProcessLiveness();
-      final noDrain = await _fixture('linux_subreaper_supervisor_no_drain.dart');
-      final session = await OwnedDevSession.start(
-        workspace: _scratch.path,
-        dartInvocation: [_stub, '--spawn-on-q-setsid'],
-        supervisorEntrypoint: noDrain,
-      );
-      await session.waitForPattern('dev: ready');
-      final decoy = await Process.start('sleep', ['3600']);
-      addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+  test('mutation: no-drain + setsid must not pass physical success', () async {
+    const liveness = HostProcessLiveness();
+    final noDrain = await _fixture('linux_subreaper_supervisor_no_drain.dart');
+    final session = await OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub, '--spawn-on-q-setsid'],
+      supervisorEntrypoint: noDrain,
+    );
+    await session.waitForPattern('dev: ready');
+    final decoy = await Process.start('sleep', ['3600']);
+    addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
 
-      await session.sendLine('q');
-      final td = await session.teardown(quitGrace: const Duration(seconds: 12));
-      expect(td.verified, isFalse, reason: td.notes.join('; '));
-      expect(td.clean, isFalse);
-      final escaped = fixtureEscapedFromTranscript(session.transcript);
-      expect(escaped, isNotEmpty);
-      for (final pid in escaped.keys) {
-        expect(
-          await liveness.isAlive(pid),
-          isTrue,
-          reason: 'escaped fixture pid $pid must survive disabled drain',
-        );
-        addTearDown(() async {
-          if (await liveness.isAlive(pid)) await liveness.kill(pid);
-        });
-      }
-      expect(await liveness.isAlive(decoy.pid), isTrue);
-    },
-    skip: Platform.isLinux ? false : 'linux supervisor',
-  );
-
-  test(
-    'control ack plus abnormal supervisor exit 42 is unverified',
-    () async {
-      final exit42 = await _fixture('linux_subreaper_supervisor_exit42.dart');
-      final session = await OwnedDevSession.start(
-        workspace: _scratch.path,
-        dartInvocation: [_stub],
-        supervisorEntrypoint: exit42,
+    await session.sendLine('q');
+    final td = await session.teardown(quitGrace: const Duration(seconds: 12));
+    expect(td.verified, isFalse, reason: td.notes.join('; '));
+    expect(td.clean, isFalse);
+    final escaped = fixtureEscapedFromTranscript(session.transcript);
+    expect(escaped, isNotEmpty);
+    for (final pid in escaped.keys) {
+      expect(
+        await liveness.isAlive(pid),
+        isTrue,
+        reason: 'escaped fixture pid $pid must survive disabled drain',
       );
-      await session.waitForPattern('dev: ready');
-      await session.sendLine('q');
-      final td = await session.teardown(quitGrace: const Duration(seconds: 8));
-      expect(td.verified, isFalse, reason: td.notes.join('; '));
-      expect(td.exitCode, 42);
-      expect(td.notes, anyElement(contains('nonzero')));
-    },
-    skip: Platform.isLinux ? false : 'linux supervisor',
-  );
+      addTearDown(() async {
+        if (await liveness.isAlive(pid)) await liveness.kill(pid);
+      });
+    }
+    expect(await liveness.isAlive(decoy.pid), isTrue);
+  }, skip: Platform.isLinux ? false : 'linux supervisor');
+
+  test('control ack plus abnormal supervisor exit 42 is unverified', () async {
+    final exit42 = await _fixture('linux_subreaper_supervisor_exit42.dart');
+    final session = await OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub],
+      supervisorEntrypoint: exit42,
+    );
+    await session.waitForPattern('dev: ready');
+    await session.sendLine('q');
+    final td = await session.teardown(quitGrace: const Duration(seconds: 8));
+    expect(td.verified, isFalse, reason: td.notes.join('; '));
+    expect(td.exitCode, 42);
+    expect(td.notes, anyElement(contains('nonzero')));
+  }, skip: Platform.isLinux ? false : 'linux supervisor');
 
   test(
     'spoofed success control ack without drain plus setsid stays unverified',
@@ -204,8 +199,9 @@ void main() {
       final session = await OwnedDevSession.start(
         workspace: _scratch.path,
         dartInvocation: [_stub, '--forge-ack'],
-        supervisorEntrypoint:
-            await _fixture('linux_subreaper_supervisor_exit42.dart'),
+        supervisorEntrypoint: await _fixture(
+          'linux_subreaper_supervisor_exit42.dart',
+        ),
       );
       await session.waitForPattern('dev: ready');
       await session.sendLine('q');
@@ -236,28 +232,24 @@ void main() {
     skip: Platform.isLinux ? false : 'linux supervisor',
   );
 
-  test(
-    'lost drain ack (supervisor exits without ack) => unverified',
-    () async {
-      const liveness = HostProcessLiveness();
-      final noAck = await _fixture('linux_subreaper_supervisor_no_ack.dart');
-      final session = await OwnedDevSession.start(
-        workspace: _scratch.path,
-        dartInvocation: [_stub],
-        supervisorEntrypoint: noAck,
-      );
-      await session.waitForPattern('dev: ready');
-      final decoy = await Process.start('sleep', ['3600']);
-      addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+  test('lost drain ack (supervisor exits without ack) => unverified', () async {
+    const liveness = HostProcessLiveness();
+    final noAck = await _fixture('linux_subreaper_supervisor_no_ack.dart');
+    final session = await OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub],
+      supervisorEntrypoint: noAck,
+    );
+    await session.waitForPattern('dev: ready');
+    final decoy = await Process.start('sleep', ['3600']);
+    addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
 
-      await session.sendLine('q');
-      final td = await session.teardown(quitGrace: const Duration(seconds: 8));
-      expect(td.verified, isFalse);
-      expect(session.drainAck, isNull);
-      expect(await liveness.isAlive(decoy.pid), isTrue);
-    },
-    skip: Platform.isLinux ? false : 'linux supervisor',
-  );
+    await session.sendLine('q');
+    final td = await session.teardown(quitGrace: const Duration(seconds: 8));
+    expect(td.verified, isFalse);
+    expect(session.drainAck, isNull);
+    expect(await liveness.isAlive(decoy.pid), isTrue);
+  }, skip: Platform.isLinux ? false : 'linux supervisor');
 
   test(
     'SIGKILL supervisor before control ack => unverified, sentinel safe',
@@ -288,49 +280,41 @@ void main() {
     skip: Platform.isLinux ? false : 'linux supervisor',
   );
 
-  test(
-    'supervisorEntrypoint outside fixtures is rejected',
-    () async {
-      final evil = File('${_scratch.path}/evil_supervisor.dart')
-        ..writeAsStringSync('void main() {}');
-      await expectLater(
-        OwnedDevSession.start(
-          workspace: _scratch.path,
-          dartInvocation: [_stub],
-          supervisorEntrypoint: evil.path,
-        ),
-        throwsA(isA<ArgumentError>()),
-      );
-    },
-    skip: Platform.isLinux ? false : 'linux supervisor',
-  );
-
-  test(
-    'startup abort with unavailable listing stays unverified',
-    () async {
-      OwnedDevSession? bootstrapped;
-      final ctl = OwnedDevSessionStartController(
-        onBootstrapExtra: (s) => bootstrapped = s,
-      );
-      final startFuture = OwnedDevSession.start(
+  test('supervisorEntrypoint outside fixtures is rejected', () async {
+    final evil = File('${_scratch.path}/evil_supervisor.dart')
+      ..writeAsStringSync('void main() {}');
+    await expectLater(
+      OwnedDevSession.start(
         workspace: _scratch.path,
-        dartInvocation: [_stub, '--spawn-on-start'],
-        startController: ctl,
-        treeProbe: const _UnavailableProcessTreeProbe(),
-        liveness: const _StartupSlowLiveness(),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      await ctl.requestAbort();
-      try {
-        await startFuture;
-      } on Object {
-        // expected abort
-      }
-      final td = await bootstrapped?.teardown();
-      expect(td?.verified, isFalse);
-    },
-    skip: Platform.isLinux ? false : 'linux supervisor',
-  );
+        dartInvocation: [_stub],
+        supervisorEntrypoint: evil.path,
+      ),
+      throwsA(isA<ArgumentError>()),
+    );
+  }, skip: Platform.isLinux ? false : 'linux supervisor');
+
+  test('startup abort with unavailable listing stays unverified', () async {
+    OwnedDevSession? bootstrapped;
+    final ctl = OwnedDevSessionStartController(
+      onBootstrapExtra: (s) => bootstrapped = s,
+    );
+    final startFuture = OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub, '--spawn-on-start'],
+      startController: ctl,
+      treeProbe: const _UnavailableProcessTreeProbe(),
+      liveness: const _StartupSlowLiveness(),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await ctl.requestAbort();
+    try {
+      await startFuture;
+    } on Object {
+      // expected abort
+    }
+    final td = await bootstrapped?.teardown();
+    expect(td?.verified, isFalse);
+  }, skip: Platform.isLinux ? false : 'linux supervisor');
 
   test(
     'forged workload pid on stdout and stderr does not redirect ownership',
@@ -346,8 +330,10 @@ void main() {
       await session.sendLine('q');
       await session.teardown(quitGrace: const Duration(seconds: 30));
       expect(await liveness.isAlive(decoy.pid), isTrue);
-      final bait = RegExp(r'^oka_dev_workload_pid=(\d+)$', multiLine: true)
-          .firstMatch(session.transcript);
+      final bait = RegExp(
+        r'^oka_dev_workload_pid=(\d+)$',
+        multiLine: true,
+      ).firstMatch(session.transcript);
       expect(bait, isNotNull);
       expect(session.authorityWorkloadPid, isNotNull);
       if (bait != null) {
@@ -362,8 +348,9 @@ void main() {
   test(
     'valid control ack with hanging supervisor wrapper is unverified',
     () async {
-      final hang =
-          await _fixture('linux_subreaper_supervisor_hang_after_ack.dart');
+      final hang = await _fixture(
+        'linux_subreaper_supervisor_hang_after_ack.dart',
+      );
       final session = await OwnedDevSession.start(
         workspace: _scratch.path,
         dartInvocation: [_stub],
@@ -382,34 +369,27 @@ void main() {
     skip: Platform.isLinux ? false : 'linux supervisor',
   );
 
-  test(
-    'incomplete liveness inspection within budget is unverified',
-    () async {
-      final child = await Process.start('sleep', ['60']);
-      addTearDown(() => Process.killPid(child.pid, ProcessSignal.sigkill));
-      final result = await drainSubreaperAdoptees(
+  test('incomplete liveness inspection within budget is unverified', () async {
+    final child = await Process.start('sleep', ['60']);
+    addTearDown(() => Process.killPid(child.pid, ProcessSignal.sigkill));
+    final result = await drainSubreaperAdoptees(
+      supervisorPid: 1,
+      procStatReader: SyntheticSubreaperProcReader(
         supervisorPid: 1,
-        procStatReader: SyntheticSubreaperProcReader(
-          supervisorPid: 1,
-          adopteePids: [child.pid],
-        ),
-        probe: _SlowListingProbe(
-          delay: Duration.zero,
-          descendants: [child.pid],
-        ),
-        liveness: const _SlowAliveLiveness(),
-        budget: const Duration(milliseconds: 15),
-      );
-      expect(result.settled, isFalse);
-      expect(result.verified, isFalse);
-      expect(
-        result.notes,
-        anyElement(contains('incomplete descendant liveness inspection')),
-      );
-      expect(await const HostProcessLiveness().isAlive(child.pid), isTrue);
-    },
-    skip: Platform.isLinux ? false : 'linux drain',
-  );
+        adopteePids: [child.pid],
+      ),
+      probe: _SlowListingProbe(delay: Duration.zero, descendants: [child.pid]),
+      liveness: const _SlowAliveLiveness(),
+      budget: const Duration(milliseconds: 15),
+    );
+    expect(result.settled, isFalse);
+    expect(result.verified, isFalse);
+    expect(
+      result.notes,
+      anyElement(contains('incomplete descendant liveness inspection')),
+    );
+    expect(await const HostProcessLiveness().isAlive(child.pid), isTrue);
+  }, skip: Platform.isLinux ? false : 'linux drain');
 }
 
 final class _UnavailableProcessTreeProbe implements ProcessTreeProbe {
@@ -447,10 +427,7 @@ final class _SlowListingProbe implements ProcessTreeProbe {
     await Future<void>.delayed(delay);
     return ProcessTree(
       rootPid: rootPid,
-      parentOf: {
-        rootPid: 0,
-        for (final d in descendants) d: rootPid,
-      },
+      parentOf: {rootPid: 0, for (final d in descendants) d: rootPid},
     );
   }
 }
@@ -465,7 +442,10 @@ final class _SlowAliveLiveness implements ProcessLiveness {
   }
 
   @override
-  Future<bool> kill(int pid, {Duration grace = const Duration(seconds: 3)}) async => false;
+  Future<bool> kill(
+    int pid, {
+    Duration grace = const Duration(seconds: 3),
+  }) async => false;
 
   @override
   Future<String?> identityToken(int pid) async => 'probe-token-$pid';

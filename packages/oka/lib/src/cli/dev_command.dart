@@ -33,13 +33,7 @@ class DevCommand {
     // daemon keeps its exact behavior under `oka dev android [...]`
     // until `oka run dev --platform android` lands — then it is deleted.
     if (args.isEmpty || args.first != 'android') {
-      await delegateToKernelStack(
-        runner: 'packages/oka_dart_kernel/tool/oka_run_dev.dart',
-        args: args,
-        missingMessage: 'oka dev: the experimental live-update stack is '
-            'not available.\nPoint OKA_KERNEL_ROOT at a checkout with '
-            'packages/oka_dart_kernel (see docs/guides/live_update.mdx).',
-      );
+      await runPublishedDevSession(args);
       return;
     }
     await _runAndroidDaemon(args.sublist(1));
@@ -124,10 +118,9 @@ class DevCommand {
     final watch = results['watch'] as bool;
     final verbose = results['verbose'] as bool;
     final controlPortArg = (results['control-port'] as String?)?.trim();
-    final controlPort =
-        controlPortArg == null || controlPortArg.isEmpty
-            ? 0
-            : int.tryParse(controlPortArg);
+    final controlPort = controlPortArg == null || controlPortArg.isEmpty
+        ? 0
+        : int.tryParse(controlPortArg);
     if (controlPort == null || controlPort < 0 || controlPort > 65535) {
       stderr.writeln(
         '❌ --control-port must be an integer between 0 and 65535 '
@@ -270,13 +263,12 @@ class DevCommand {
           // Delegation channel: the spec-v2 runner-session file at each
           // ready (the forwarded host-reachable endpoint of THIS attach
           // round), real outcomes fed back to waiting control clients.
-          onReady:
-              () => writeRunnerSessionFile(
-                projectPath,
-                vmServiceUri: prepared.vmServiceUri,
-                controlPort: controlServer.port,
-                deviceId: deviceId,
-              ),
+          onReady: () => writeRunnerSessionFile(
+            projectPath,
+            vmServiceUri: prepared.vmServiceUri,
+            controlPort: controlServer.port,
+            deviceId: deviceId,
+          ),
           onResult: controlServer.handleSessionResult,
           projectPath: projectPath,
         );

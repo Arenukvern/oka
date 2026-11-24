@@ -33,7 +33,8 @@ final class LinuxDevGate {
     Duration identityBudget,
     DevSessionSpawner spawn,
     OwnedDevSessionStartController? startController,
-  }) sessionStart;
+  })
+  sessionStart;
   final DevSessionSpawner sessionSpawn;
 
   OwnedDevSession? _activeSession;
@@ -63,21 +64,18 @@ final class LinuxDevGate {
       p.join(workspace, '.dart_tool/package_config.json');
 
   /// Public `oka run dev` CLI (kernel stack auto-discovery from script path).
-  List<String> _devInvocation({
-    required List<String> extra,
-  }) =>
-      [
-        '--packages=$_packageConfig',
-        _okaDart,
-        'run',
-        'dev',
-        '--project',
-        _appRoot,
-        '--platform',
-        'linux',
-        '--no-watch',
-        ...extra,
-      ];
+  List<String> _devInvocation({required List<String> extra}) => [
+    '--packages=$_packageConfig',
+    _okaDart,
+    'run',
+    'dev',
+    '--project',
+    _appRoot,
+    '--platform',
+    'linux',
+    '--no-watch',
+    ...extra,
+  ];
 
   String? get _sessionCwd {
     final fromEnv = Platform.environment['OKA_LINUX_DEV_GATE_CWD']?.trim();
@@ -86,7 +84,9 @@ final class LinuxDevGate {
   }
 
   Future<int> runReloadLeg() async {
-    final out = outDir ?? p.join(workspace, 'packages/oka_dart_kernel/.gate_run_dev_linux');
+    final out =
+        outDir ??
+        p.join(workspace, 'packages/oka_dart_kernel/.gate_run_dev_linux');
     await Directory(out).create(recursive: true);
     final unitFile = p.join(_appRoot, 'lib/units/feature.dart');
     final original = await File(unitFile).readAsString();
@@ -118,7 +118,9 @@ final class LinuxDevGate {
         stderr.writeln('gate: timeout waiting for dev session (linux)');
         stderr.writeln('gate: --- log tail (last 40 lines) ---');
         final lines = session.transcript.split('\n');
-        stderr.writeln(lines.skip(lines.length > 40 ? lines.length - 40 : 0).join('\n'));
+        stderr.writeln(
+          lines.skip(lines.length > 40 ? lines.length - 40 : 0).join('\n'),
+        );
         return 1;
       }
       await session.snapshotOwnedTree();
@@ -150,8 +152,11 @@ final class LinuxDevGate {
       }
       await File(unitFile).writeAsString(edited);
 
-      await session.sendLine('r $unitFile');
-      if (!await session.waitForPattern('reload 1: OK', timeout: const Duration(minutes: 2))) {
+      await session.sendLine('rf $unitFile');
+      if (!await session.waitForPattern(
+        'reload 1: OK',
+        timeout: const Duration(minutes: 2),
+      )) {
         stderr.writeln('gate: timeout hot reload (linux)');
         return 1;
       }
@@ -167,9 +172,7 @@ final class LinuxDevGate {
         outDir: out,
         vmUri: vmAfterReload,
         tag: 'reload-post',
-        probes: const [
-          _VmProbe('devGateSessionTick()', '1'),
-        ],
+        probes: const [_VmProbe('devGateSessionTick()', '1')],
       )) {
         stderr.writeln(
           'FAIL: hot reload must preserve in-memory session tick '
@@ -183,9 +186,7 @@ final class LinuxDevGate {
         outDir: out,
         vmUri: vmAfterReload,
         tag: 'reload-bump',
-        probes: const [
-          _VmProbe('devGateSessionBump()', '2'),
-        ],
+        probes: const [_VmProbe('devGateSessionBump()', '2')],
       )) {
         stderr.writeln('FAIL: session tick bump before restart');
         return 1;
@@ -205,15 +206,14 @@ final class LinuxDevGate {
         _logTail(session.transcript);
         exitCode = 1;
       } else {
-        final vmAfterRestart = _extractVmUri(session.transcript) ?? vmAfterReload;
+        final vmAfterRestart =
+            _extractVmUri(session.transcript) ?? vmAfterReload;
         if (!await _vmProbesOk(
           workspace: workspace,
           outDir: out,
           vmUri: vmAfterRestart,
           tag: 'restart-reset',
-          probes: const [
-            _VmProbe('devGateSessionTick()', '0'),
-          ],
+          probes: const [_VmProbe('devGateSessionTick()', '0')],
         )) {
           stderr.writeln(
             'FAIL: hot restart must reset in-memory session tick to 0',
@@ -243,7 +243,8 @@ final class LinuxDevGate {
 
   Future<int> runAssetsLeg() async {
     final out =
-        outDir ?? p.join(workspace, 'packages/oka_dart_kernel/.gate_dev_assets_linux');
+        outDir ??
+        p.join(workspace, 'packages/oka_dart_kernel/.gate_dev_assets_linux');
     await Directory(out).create(recursive: true);
     final assetFile = p.join(_appRoot, 'assets/hello.txt');
     final leafFile = p.join(_appRoot, 'lib/units/feature.dart');
@@ -254,7 +255,8 @@ final class LinuxDevGate {
       await File(leafFile).writeAsString(originalLeaf);
     }
 
-    final newContent = 'asset-sync-gate-linux-${DateTime.now().millisecondsSinceEpoch}';
+    final newContent =
+        'asset-sync-gate-linux-${DateTime.now().millisecondsSinceEpoch}';
     final bytes = utf8.encode(newContent);
     var sum = 0;
     for (final b in bytes) {
@@ -266,7 +268,9 @@ final class LinuxDevGate {
     var exitCode = 1;
     _startCtl = OwnedDevSessionStartController();
     try {
-      stderr.writeln('== [1/5] boot example under oka run dev --platform linux');
+      stderr.writeln(
+        '== [1/5] boot example under oka run dev --platform linux',
+      );
       session = await sessionStart(
         workspace: workspace,
         dartInvocation: _devInvocation(extra: ['--json']),
@@ -308,24 +312,28 @@ final class LinuxDevGate {
           _VmProbe('devGateSessionTick()', '1'),
         ],
       )) {
-        stderr.writeln('FAIL: assets leg must establish nonzero tick before lanes');
+        stderr.writeln(
+          'FAIL: assets leg must establish nonzero tick before lanes',
+        );
         return 1;
       }
 
-      stderr.writeln('== [2/5] r <leaf dart>: delta lane');
+      stderr.writeln('== [2/5] rf <leaf dart>: delta lane');
       await File(leafFile).writeAsString(
         originalLeaf.replaceFirst('feature-v1', 'feature-v2-live'),
       );
-      await session.sendLine('r lib/units/feature.dart');
-      if (!await session.waitForPattern('reload 1: OK', timeout: const Duration(minutes: 2))) {
+      await session.sendLine('rf lib/units/feature.dart');
+      if (!await session.waitForPattern(
+        'reload 1: OK',
+        timeout: const Duration(minutes: 2),
+      )) {
         return 1;
       }
       if (!session.transcript.contains('"reassemble": "ok"')) {
         stderr.writeln('FAIL: reassemble missing');
         return 1;
       }
-      final vmAfterReload =
-          _extractVmUri(session.transcript) ?? vmBoot;
+      final vmAfterReload = _extractVmUri(session.transcript) ?? vmBoot;
       if (!await _vmProbesOk(
         workspace: workspace,
         outDir: out,
@@ -337,10 +345,13 @@ final class LinuxDevGate {
         return 1;
       }
 
-      stderr.writeln('== [3/5] r <asset>: sync lane');
+      stderr.writeln('== [3/5] rf <asset>: sync lane');
       await File(assetFile).writeAsString(newContent);
-      await session.sendLine('r assets/hello.txt');
-      if (!await session.waitForPattern('assets 2:', timeout: const Duration(minutes: 1))) {
+      await session.sendLine('rf assets/hello.txt');
+      if (!await session.waitForPattern(
+        'assets 2:',
+        timeout: const Duration(minutes: 1),
+      )) {
         return 1;
       }
       if (!session.transcript.contains('assets 2: OK')) {
@@ -370,33 +381,33 @@ final class LinuxDevGate {
       }
 
       if (exitCode == 0) {
-      stderr.writeln('== [5/5] verify fingerprint via VM');
-      final vmUri = _extractVmUri(session.transcript);
-      if (vmUri == null) {
-        stderr.writeln('FAIL: no VM uri');
-        return 1;
-      }
-      if (!await _vmProbesOk(
-        workspace: workspace,
-        outDir: out,
-        vmUri: vmUri,
-        tag: 'assets-fingerprint',
-        probes: [_VmProbe('helloAssetFingerprint()', '$fprint')],
-      )) {
-        stderr.writeln('FAIL: post-restart asset fingerprint not verified');
-        exitCode = 1;
-      } else if (!await _vmProbesOk(
-        workspace: workspace,
-        outDir: out,
-        vmUri: vmUri,
-        tag: 'assets-restart-tick',
-        probes: const [_VmProbe('devGateSessionTick()', '0')],
-      )) {
-        stderr.writeln('FAIL: asset leg restart did not reset session tick');
-        exitCode = 1;
-      } else {
-        exitCode = 0;
-      }
+        stderr.writeln('== [5/5] verify fingerprint via VM');
+        final vmUri = _extractVmUri(session.transcript);
+        if (vmUri == null) {
+          stderr.writeln('FAIL: no VM uri');
+          return 1;
+        }
+        if (!await _vmProbesOk(
+          workspace: workspace,
+          outDir: out,
+          vmUri: vmUri,
+          tag: 'assets-fingerprint',
+          probes: [_VmProbe('helloAssetFingerprint()', '$fprint')],
+        )) {
+          stderr.writeln('FAIL: post-restart asset fingerprint not verified');
+          exitCode = 1;
+        } else if (!await _vmProbesOk(
+          workspace: workspace,
+          outDir: out,
+          vmUri: vmUri,
+          tag: 'assets-restart-tick',
+          probes: const [_VmProbe('devGateSessionTick()', '0')],
+        )) {
+          stderr.writeln('FAIL: asset leg restart did not reset session tick');
+          exitCode = 1;
+        } else {
+          exitCode = 0;
+        }
       }
     } finally {
       await restore();
@@ -418,7 +429,9 @@ final class LinuxDevGate {
 
   static void _logTail(String transcript) {
     final lines = transcript.split('\n');
-    final tail = lines.skip(lines.length > 40 ? lines.length - 40 : 0).join('\n');
+    final tail = lines
+        .skip(lines.length > 40 ? lines.length - 40 : 0)
+        .join('\n');
     stderr.writeln(tail);
   }
 
@@ -463,7 +476,10 @@ final class LinuxDevGate {
     };
     final specPath = p.join(outDir, 'verify-$tag.json');
     await File(specPath).writeAsString(jsonEncode(verifySpec));
-    final live = p.join(workspace, 'packages/oka_dart_kernel/tool/oka_live.dart');
+    final live = p.join(
+      workspace,
+      'packages/oka_dart_kernel/tool/oka_live.dart',
+    );
     final result = await runBoundedProcess(
       Platform.resolvedExecutable,
       [

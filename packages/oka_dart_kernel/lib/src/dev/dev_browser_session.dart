@@ -6,12 +6,11 @@ import 'package:oka_web/oka_web.dart';
 
 export 'package:oka_web/oka_web.dart' show BrowserSessionSpec;
 
-typedef DevBrowserLauncher =
-    Future<DevBrowserSession> Function({
-      required String project,
-      required Uri appUrl,
-      required BrowserSessionSpec spec,
-    });
+typedef DevBrowserLauncher = Future<DevBrowserSession> Function({
+  required String project,
+  required Uri appUrl,
+  required BrowserSessionSpec spec,
+});
 
 class DevBrowserSession {
   const DevBrowserSession({required this.pageWsUrl, required this.stop});

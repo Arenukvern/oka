@@ -14,7 +14,7 @@ import 'dart:io';
 
 Future<void> main(List<String> args) async {
   final hang = args.contains('--hang-on-quit');
-  stdout.writeln('dev: ready — commands: r [file] | R | q');
+  stdout.writeln('dev: ready — commands: r | R | rf [file] | q');
   await for (final line
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     final t = line.trim();
@@ -51,10 +51,12 @@ void main() {
       expect(File(pkgConfig).existsSync(), isTrue, reason: pkgConfig);
       expect(File(driver).existsSync(), isTrue, reason: driver);
 
-      final owner = await Process.start(
-        Platform.resolvedExecutable,
-        ['--packages=$pkgConfig', driver, scratch.path, stub.path],
-      );
+      final owner = await Process.start(Platform.resolvedExecutable, [
+        '--packages=$pkgConfig',
+        driver,
+        scratch.path,
+        stub.path,
+      ]);
 
       final tracked = <int>[];
       final ready = Completer<void>();
@@ -90,7 +92,9 @@ void main() {
       });
 
       owner.kill();
-      final exitCode = await owner.exitCode.timeout(const Duration(seconds: 30));
+      final exitCode = await owner.exitCode.timeout(
+        const Duration(seconds: 30),
+      );
       expect(exitCode, 143);
 
       const liveness = HostProcessLiveness();
@@ -103,7 +107,7 @@ void main() {
       }
       expect(await liveness.isAlive(decoy.pid), isTrue);
     },
-  skip: Platform.isWindows ? 'posix SIGTERM' : false,
-  timeout: const Timeout(Duration(seconds: 90)),
+    skip: Platform.isWindows ? 'posix SIGTERM' : false,
+    timeout: const Timeout(Duration(seconds: 90)),
   );
 }

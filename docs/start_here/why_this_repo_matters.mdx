@@ -7,7 +7,8 @@ same laws carry live updates for running programs, declarative process
 supervision, and a content-addressed artifact store. Today the promise is
 kept at production depth for **Android builds and distribution** (12
 packages on pub.dev), at gate-proven experimental depth for the **live
-update stack** (`oka_dart_kernel` + `oka_update`, checkout-only), and at
+update stack** (`oka ship` and the kernel gates stay checkout-only; `oka
+dev` calls its session from the oka package), and at
 adoption-ladder rung L0 for the **supervisor**. Every claim below points at
 a gate or an evidence doc — nothing is promised on demos.
 
@@ -127,7 +128,7 @@ stay binding and each landed piece is governed by its own ADR.
   with deploy targets (ADR-0016). Web compilation stays delegated to
   `flutter build web`.
 
-**Update (gate-proven experimental, checkout-only).**
+**Update (gate-proven experimental).**
 
 - Per-unit live reload across macOS/Android/web via the kernel graph
   (ADR-0031, ADR-0032) — the endless dev loop, AOT slots, and the product
@@ -135,9 +136,10 @@ stay binding and each landed piece is governed by its own ADR.
 - `oka ship`: invisible patch authoring → signed channels → git or
   static-host publish → `UpdateClient` chains with snapshot fallback and a
   boot watchdog (ADR-0035 Part 1, ADR-0037).
-- The converged dev session `oka run dev` (macOS + web) with watch-on-save,
-  the dev-session asset lane, and command lanes on the watcher (ADR-0037
-  §6, ADR-0038, ADR-0044).
+- The converged dev session `oka run dev` / `oka dev` is called from the oka
+  package. `OKA_KERNEL_ROOT` overrides that with a checkout. Watch-on-save,
+  the dev-session asset lane, and command lanes on the watcher stay as in
+  ADR-0037 §6, ADR-0038, and ADR-0044.
 - Honest limits: the android dev session convergence, live freshness for
   already-loaded assets (engine seam), and per-unit AOT over the air are
   open (research lines are ADR-gated).

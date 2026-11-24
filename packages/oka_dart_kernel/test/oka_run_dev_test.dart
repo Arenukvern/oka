@@ -14,6 +14,7 @@ class _FakeApp implements DevApp {
   final written = <String>[];
   final _lines = <String>[];
   final _waiters = <(Pattern, Completer<String>)>[];
+  String reloadAck = 'Reloaded 2 of 40 libraries in 80ms.';
 
   @override
   final Uri vmUri = Uri.parse('http://127.0.0.1:8111/token=/');
@@ -30,6 +31,7 @@ class _FakeApp implements DevApp {
   @override
   void write(String line) {
     written.add(line);
+    if (line == 'r') emit(reloadAck);
     if (line == 'R') emit('Restarted application in 271ms.');
   }
 
@@ -121,9 +123,8 @@ void main() {
     tmp = Directory.systemTemp.createTempSync('oka-run-dev-test-');
     root = '${tmp.path}/app';
     Directory('$root/lib').createSync(recursive: true);
-    File(
-      '$root/lib/main.dart',
-    ).writeAsStringSync('void main() {}\nint seed() => 1;\n');
+    File('$root/lib/main.dart')
+        .writeAsStringSync('void main() {}\nint seed() => 1;\n');
     app = _FakeApp();
     target = _FakeTarget();
     compiled = [];
@@ -154,18 +155,55 @@ void main() {
   }
 
   test(
-    'r <file> compiles the changed file and applies over the lane',
+    'rf <file> compiles the changed file and applies over the lane',
     () async {
-      await dev([], ['r lib/main.dart', 'q']);
+      await dev([], ['rf lib/main.dart', 'q']);
       expect(exit, 0);
       expect(compiled.single, endsWith('lib/main.dart'));
       expect(target.applies, 1);
       expect(out.join('\n'), contains('reload 1: OK'));
+      expect(app.written, isNot(contains('r')));
       expect(app.written, isNot(contains('q')));
       expect(app.stops, 1);
       expect(target.closes, 0, reason: 'Injected target remains caller-owned');
     },
   );
+
+  test('bare r hot-reloads through the serving toolchain', () async {
+    await dev([], ['r', 'q']);
+    expect(exit, 0);
+    expect(compiled, isEmpty);
+    expect(app.written, contains('r'));
+    expect(out.join('\n'), contains('Reloaded 2 of 40 libraries in 80ms.'));
+    expect(out.join('\n'), contains('reload: OK (platform lane'));
+    expect(out.join('\n'), contains('commands: r | R | rf [file] | q'));
+  });
+
+  test('web hot reload uses the same r key', () async {
+    app.reloadAck = 'Reloaded application in 40ms.';
+    await dev(['--platform', 'web'], ['r', 'q']);
+    expect(exit, 0);
+    expect(app.written, contains('r'));
+    expect(compiled, isEmpty);
+    expect(out.join('\n'), contains('Reloaded application in 40ms.'));
+    expect(out.join('\n'), contains('reload: OK (platform lane'));
+  });
+
+  test('a failed serving-toolchain reload is not reported OK', () async {
+    app.reloadAck = 'Hot reload failed: compilation error';
+    await dev([], ['r', 'q']);
+    expect(exit, 0);
+    expect(out.join('\n'), contains('reload: FAILED (platform lane)'));
+    expect(out.join('\n'), isNot(contains('reload: OK')));
+  });
+
+  test('r <path> is refused and points at rf', () async {
+    await dev([], ['r lib/main.dart', 'q']);
+    expect(exit, 0);
+    expect(compiled, isEmpty);
+    expect(app.written, isNot(contains('r')));
+    expect(out.join('\n'), contains('rf <path>'));
+  });
 
   test(
     'quit delegates teardown once and does not replay an unknown failure',
@@ -184,11 +222,13 @@ void main() {
     expect(out.join('\n'), contains('restart: OK (platform lane'));
   });
 
-  test('bare r without a changed file hints instead of compiling', () async {
-    await dev([], ['r', 'q']);
+  test('rf without a changed file hints instead of compiling', () async {
+    await dev([], ['rf', 'q']);
     expect(exit, 0);
     expect(compiled, isEmpty);
+    expect(app.written, isNot(contains('r')));
     expect(out.join('\n'), contains('no changed file'));
+    expect(out.join('\n'), contains('rf <path>'));
   });
 
   test('unknown command prints the session help', () async {
@@ -197,7 +237,7 @@ void main() {
     expect(out.join('\n'), contains('unknown command: reload now'));
   });
 
-  test('r <asset> rides the sync lane, not the delta lane', () async {
+  test('rf <asset> rides the sync lane, not the delta lane', () async {
     Directory('$root/assets').createSync();
     final asset = File('$root/assets/hello.txt')..writeAsStringSync('hello');
     Directory(
@@ -205,7 +245,7 @@ void main() {
       '/app.app/Contents/Frameworks/App.framework/Versions/A'
       '/Resources/flutter_assets',
     ).createSync(recursive: true);
-    await dev([], ['r assets/hello.txt', 'q']);
+    await dev([], ['rf assets/hello.txt', 'q']);
     expect(exit, 0);
     expect(target.applies, 0, reason: 'assets never compile as deltas');
     expect(target.assetSyncs.single.assetKey, 'assets/hello.txt');

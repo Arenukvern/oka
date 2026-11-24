@@ -106,7 +106,7 @@ Every path below is the same two moves: **add values to
 
 ```bash
 oka build apk --debug   # once
-oka dev                 # r hot reload · R hot restart · q quit · d detach
+oka dev                 # r hot reload · R hot restart · rf file delta · q quit
 oka dev --watch --json  # agents: Dart edits auto-reload; native edits print
                         # the honest full-rebuild command
 ```
@@ -211,7 +211,7 @@ A full live apply lands in **0.57 s**; AOT deltas compile ~94x faster than
 JIT.
 
 ```bash
-oka run dev --platform macos --project <app>   # r = oka's delta lane, R = restart
+oka run dev --platform macos --project <app>   # r hot reload, R hot restart, rf file delta
 oka ship                                       # derive + publish a patch from the working tree
 packages/oka_dart_kernel/example/live_showcase/run.sh   # 30 s demo
 ```
@@ -221,9 +221,9 @@ Works today: the dev session on macOS, web, and Linux desktop (`oka run dev
 channels; migration chains with snapshot fallback; the boot watchdog;
 command lanes on the watcher. Not yet: Android dev-session convergence,
 live freshness for already-loaded assets (engine seam), per-unit AOT over
-the air (research line, ADR-gated). `oka_dart_kernel` stays checkout-only;
-`oka_update` is on pub.dev but the full live kernel gates still run from a
-checkout.
+the air (research line, ADR-gated). `oka dev` calls the dev session inside
+the `oka` package. `oka live`, `oka ship`, and the kernel gates still run
+from a checkout. `OKA_KERNEL_ROOT` overrides `oka dev` with that checkout.
 
 Guide: [Live update](docs/guides/live_update.mdx).
 
@@ -396,10 +396,11 @@ Agents: [`llms.txt`](llms.txt) and [`AGENTS.md`](AGENTS.md).
 
 ## Packages
 
-Seventeen packages ride the [dart_changesets](https://github.com/Arenukvern/dart_changesets)
-release train on pub.dev (inventory:
-`dart tool/release/train.dart list --publish`, ADR-0054). Experimental /
-checkout-only pieces are listed separately.
+The [dart_changesets](https://github.com/Arenukvern/dart_changesets)
+release train is the pub.dev inventory
+(`dart tool/release/train.dart list --publish`, ADR-0054). Packages already
+on pub.dev are marked below. `oka_dart_kernel` joins the train; its first
+upload is the next release. Checkout-only pieces are listed separately.
 
 | Package | Pub | Purpose |
 |---|---|---|
@@ -420,7 +421,7 @@ checkout-only pieces are listed separately.
 | [`oka_harness`](https://pub.dev/packages/oka_harness) | ✅ | Device E2E targets over oka dev sessions |
 | [`oka_update`](https://pub.dev/packages/oka_update) | ✅ | Patch-unit authoring/planner surface (ADR-0031; experimental API) |
 | [`resource_composition`](https://pub.dev/packages/resource_composition) | ✅ | Zero-dependency resource composition contracts |
-| `oka_dart_kernel` | checkout | Kernel-graph partitioning + live-patch gates (ADR-0032) |
+| `oka_dart_kernel` | train | Dev session called by `oka dev`, plus the kernel-graph library (ADR-0032). First pub.dev upload is the next release |
 | `oka_devices` | checkout | Declarative device/run spec types (`publish_to: none`) |
 
 ## Documentation

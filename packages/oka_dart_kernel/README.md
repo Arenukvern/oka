@@ -3,6 +3,11 @@
 Kernel-graph experiments and gates for
 [ADR-0032](https://github.com/Arenukvern/oka/blob/main/docs/decisions/0032-oka-dart-kernel-graph-ownership.mdx).
 
+`package:oka_dart_kernel/dev_session.dart` exports `runRunDevCli`. The oka
+executable calls it for `oka dev` and `oka run dev`. `OKA_KERNEL_ROOT`
+overrides that with `tool/oka_run_dev.dart`. `oka live` and `oka ship` stay
+checkout-only.
+
 The founding observations (evidence:
 [deferred-patch-units spike](https://github.com/Arenukvern/oka/blob/main/docs/evidence/deferred-patch-units-spike-2026-10-01.mdx),
 §7–9):

@@ -76,11 +76,13 @@ oka dev --platform web --project <app-dir> --open-browser # `oka dev` = same ses
 oka dev android                                           # the ADR-0011 android daemon
 ```
 
-Inside the session: `r [file]` = hot reload through oka's unit-delta lane
-(app frontend → VM service → reassemble), `R` = platform hot restart,
-`q` = quit, `--watch` = apply on every save, `--json` = receipts for
-agents. Needs the experimental stack checkout (same posture as
-`oka ship`). Docs: [Live update](../guides/live_update), ADR-0037 §6.
+Inside the session: `r` = the serving toolchain's hot reload (Flutter
+today, on macOS, Linux, and web), `R` = its hot restart, `rf [file]` =
+oka's file delta (one library, declared asset, or shader), `q` = quit,
+`--watch` = apply the file delta on every save, `--json` = receipts for
+agents. `oka dev` ships inside the oka package. `OKA_KERNEL_ROOT`
+overrides it with a checkout. `oka ship` still needs that checkout. Docs:
+[Live update](../guides/live_update), ADR-0037 §6d.
 
 ## Release
 

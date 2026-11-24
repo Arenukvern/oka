@@ -54,6 +54,8 @@ dependency_overrides:
     path: ../packages/oka_artifacts
   oka_core:
     path: ../packages/oka_core
+  oka_dart_kernel:
+    path: ../packages/oka_dart_kernel
   oka_app_gallery:
     path: ../packages/oka_app_gallery
   oka_google_play:

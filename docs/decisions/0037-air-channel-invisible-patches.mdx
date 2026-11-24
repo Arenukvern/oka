@@ -142,17 +142,22 @@ and three product families (ADR-0035 §2e) and is the **same mechanism the
 production lanes use** — dev is the pipeline pointed at a device. The
 converged session ships as the built-in `oka run dev` target:
 
-- **`r` (hot reload) is oka's lane**: the developer's plain file save is
-  compiled by the app's own frontend and applied over the VM service —
+- **`r` and `R` are the serving toolchain** (§6d): Flutter's hot reload
+  and hot restart on the owned `flutter run`, on macOS, Linux, and web.
+  The file-delta behavior this section originally bound to the `r` key
+  is now `rf [file]`.
+- **`rf [file]` is oka's lane**: one changed library is compiled by the
+  app's own frontend and applied over the VM service —
   DevFS + `reloadSources(rootLibUri)` + `ext.flutter.reassemble` on
-  flutter desktop, dwds `reloadSources` on web — with a per-reload
-  receipt (mode, reload report, reassemble, probe flip/hold). This is
-  byte-for-byte the production reload lane, pointed at the dev app.
-- **`R` (hot restart) stays the platform lane**: the serving
-  `flutter run` session recompiles and restarts (oka's lane is a *delta*
-  lane; full restarts stay delegated until oka owns the resident
-  compiler, ADR-0011 Option C's evidence bar). The session re-arms the
-  browser wire after a web restart.
+  flutter desktop — with a per-reload receipt (mode, reload report,
+  reassemble, probe flip/hold). On web and `--native-vm-uri` the
+  injected serving-toolchain owner performs the reload, because Flutter
+  already owns the compiler. Declared assets and shaders use the same
+  command (§6b). This is the production reload lane, pointed at the dev
+  app. `--watch` applies it on save.
+- **`R` re-arms the browser wire** after a web restart. Full restarts
+  stay on the serving toolchain until oka owns the resident compiler
+  (ADR-0011 Option C's evidence bar).
 - **`q`** quits; **watch-on-save is DEFAULT** (flutter-run parity;
   `--no-watch` opts out): every saved dart source, declared asset, or
   declared shader applies without a command (the invisible loop).
@@ -171,7 +176,7 @@ not the daily loop.
 
 ### 6b. Asset lane (landed 2026-10-05, with an honest ceiling)
 
-`r <asset>` and `--watch` (default ON, flutter-run parity; `--no-watch`
+`rf <asset>` and `--watch` (default ON; `--no-watch`
 opts out) cover declared assets (`flutter: assets:`, dirs expanded) and
 declared shaders (`flutter: shaders:`): the session writes the bytes
 into the engine's asset directory (the build product's `App.framework`
@@ -203,6 +208,29 @@ under `oka dev android [...]` until `oka run dev --platform android`
 lands — then the subcommand is deleted and one command owns all
 platforms. The runner-session contract (`.flutter_mcp/runner-session.json`)
 is untouched: the daemon still writes it under `oka dev android`.
+
+### 6d. Serving-toolchain keys (2026-11-24)
+
+`r` and `R` forward to the serving toolchain. Today that is `flutter run`,
+and Flutter's hot reload and hot restart already cover macOS, Linux, and
+web, so the session does not grow a web-specific reload command. `r` takes
+no path. `r <path>` is refused. `rf [file]` is the oka file delta formerly
+bound to `r` (one library, a declared asset, or a declared shader), and
+`--watch` stays on that lane.
+
+`oka dev android` is unchanged. Its `r` is already Flutter's whole-app
+reload through `flutter attach`; that daemon has no file delta.
+
+`oka dev` and `oka run dev` call `runRunDevCli` inside the `oka`
+executable (`package:oka_dart_kernel/dev_session.dart`). A published `oka`
+does not need an oka checkout for that command. `OKA_KERNEL_ROOT` remains
+an override that runs the checkout's `tool/oka_run_dev.dart` instead.
+`oka live` and `oka ship` stay on that checkout.
+
+The build will move to oka. The goal is not only Flutter: Dart, Jaspr,
+ecsly, ecsai, and other Dart applications need the same session. When oka
+owns that compiler, `r` and `R` delegate to it. `rf` remains the file
+delta. This section does not perform that migration.
 
 Wire facts this lane established (see
 `skills/oka-kernel/references/troubleshooting.md`): service extensions
@@ -282,12 +310,13 @@ product, not the DevFS.
    default, one name 2026-10-05).** The converged session ships as the
    built-in `oka run dev` target (`oka dev` is its short name; the
    ADR-0011 daemon is `oka dev android`, §6c): build → launch → r/R over
-   oka's lanes (§6). `r` applies the unit delta with `reassemble` on
-   flutter desktop and dwds `reloadSources` on web; `R` restarts through
-   the platform lane; watch-on-save is default (`--no-watch` opts out);
+   the serving toolchain, with the file delta on `rf` (§6d). At the time
+   of this gate the file delta was the `r` key; gates now send `rf`.
+   `R` restarts through the serving toolchain; watch-on-save is default
+   (`--no-watch` opts out);
    the session prints a receipt per reload and verifies declarative
    probes. Proven on last_answer's real macOS desktop app and real web
-   app (`tool/gate_run_dev.sh`: r flips a live probe, R restarts, q
+   app (`tool/gate_run_dev.sh`: `rf` flips a live probe, `R` restarts, q
    exits). The asset lane (§6b): declared assets sync into the engine's
    asset dir + `ext.flutter.evict`; declared shaders recompile through
    impellerc and evict engine-side (live, no restart); live freshness of

@@ -9,11 +9,10 @@ import 'kernel_stack.dart';
 class DeclaredTarget {
   const DeclaredTarget({required this.name, required this.description});
 
-  factory DeclaredTarget.fromJson(Map<String, dynamic> json) =>
-      DeclaredTarget(
-        name: json['name']?.toString() ?? '',
-        description: json['description']?.toString() ?? '',
-      );
+  factory DeclaredTarget.fromJson(Map<String, dynamic> json) => DeclaredTarget(
+    name: json['name']?.toString() ?? '',
+    description: json['description']?.toString() ?? '',
+  );
 
   final String name;
   final String description;
@@ -55,13 +54,7 @@ class RunCommand {
     // dev session under `oka run dev` — a project that explicitly declares
     // its own `dev` target keeps precedence.
     if (targetName == 'dev' && !await _declaresTarget('dev', projectPath)) {
-      await delegateToKernelStack(
-        runner: 'packages/oka_dart_kernel/tool/oka_run_dev.dart',
-        args: rest,
-        missingMessage: 'oka run dev: the experimental live-update stack '
-            'is not available.\nPoint OKA_KERNEL_ROOT at a checkout with '
-            'packages/oka_dart_kernel (see docs/guides/live_update.mdx).',
-      );
+      await runPublishedDevSession(rest);
       return;
     }
 
@@ -80,10 +73,7 @@ class RunCommand {
 
   /// True when the project's entrypoint declares a target named [name].
   /// No entrypoint means nothing is declared.
-  Future<bool> _declaresTarget(
-    String name,
-    String projectPath,
-  ) async {
+  Future<bool> _declaresTarget(String name, String projectPath) async {
     final entrypoint = await findPipelineEntrypoint(projectPath);
     if (entrypoint == null) return false;
     final targets = await loadDeclaredTargets(
@@ -98,10 +88,7 @@ class RunCommand {
 /// switch; anything else loads the project entrypoint and either dispatches
 /// to a matching target or fails naming the available targets. When no
 /// entrypoint exists, says so and points at `oka init`.
-Future<void> dispatchUnknownVerb(
-  String command,
-  List<String> args,
-) async {
+Future<void> dispatchUnknownVerb(String command, List<String> args) async {
   final projectPath = Directory.current.path;
   final entrypoint = await findPipelineEntrypoint(projectPath);
   if (entrypoint == null) {
@@ -191,10 +178,7 @@ String targetsMessage(List<DeclaredTarget> targets) {
 }
 
 /// Unknown-verb error naming the available targets (ADR-0015).
-String unknownVerbMessage(
-  String command,
-  List<DeclaredTarget> targets,
-) =>
+String unknownVerbMessage(String command, List<DeclaredTarget> targets) =>
     '❌ Unknown command: $command\n${targetsMessage(targets)}';
 
 /// Error for a command that cannot be a target because the project has no

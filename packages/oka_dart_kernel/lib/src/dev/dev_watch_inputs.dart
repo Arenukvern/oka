@@ -36,9 +36,8 @@ List<String> resolveDevWatchFiles(
       final root = config.absolute.uri.resolve(entry['rootUri'] as String);
       if (root.scheme != 'file') continue;
       roots.add(
-        Directory.fromUri(
-          Directory.fromUri(root).absolute.uri.resolve('lib/'),
-        ).path,
+        Directory.fromUri(Directory.fromUri(root).absolute.uri.resolve('lib/'))
+            .path,
       );
     }
   }

@@ -4,7 +4,7 @@ import 'dart:io';
 /// Minimal `oka run dev` transcript for owned-session gate tests.
 Future<void> main(List<String> args) async {
   final hang = args.contains('--hang-on-quit');
-  stdout.writeln('dev: ready — commands: r [file] | R | q');
+  stdout.writeln('dev: ready — commands: r | R | rf [file] | q');
   await for (final line
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     final t = line.trim();

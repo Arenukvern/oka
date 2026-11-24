@@ -26,7 +26,8 @@ Future<String?> linuxFixtureStartToken(int pid) async {
 }
 ''';
 
-const _stubSource = '''
+const _stubSource =
+    '''
 import 'dart:convert';
 import 'dart:io';
 
@@ -44,7 +45,7 @@ Future<void> main(List<String> args) async {
     );
     await stderr.flush();
   }
-  stdout.writeln('dev: ready — commands: r [file] | R | q');
+  stdout.writeln('dev: ready — commands: r | R | rf [file] | q');
   await for (final line
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     final t = line.trim();
@@ -84,8 +85,10 @@ Future<void> main(List<String> args) async {
 ''';
 
 void _workspaceMarkers(Directory root) {
-  File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: oka_workspace\n');
-  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml')).createSync(recursive: true);
+  File(p.join(root.path, 'pubspec.yaml'))
+      .writeAsStringSync('name: oka_workspace\n');
+  File(p.join(root.path, 'packages', 'oka', 'pubspec.yaml'))
+      .createSync(recursive: true);
   File(p.join(root.path, 'packages', 'oka_dart_kernel', 'pubspec.yaml'))
       .createSync(recursive: true);
 }
@@ -112,7 +115,10 @@ void main() {
       useSubreaperSupervisor: false,
     );
     expect(
-      await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
+      await session.waitForPattern(
+        'dev: ready',
+        timeout: const Duration(seconds: 10),
+      ),
       isTrue,
       reason: session.transcript,
     );
@@ -122,66 +128,81 @@ void main() {
     expect(td.survivors, isEmpty);
   });
 
-  test('teardown: root exited early still stops owned child, not decoy', () async {
-    const launcher = '''
+  test(
+    'teardown: root exited early still stops owned child, not decoy',
+    () async {
+      const launcher = '''
 #!/bin/sh
 sleep 180 &
-echo "dev: ready — commands: r [file] | R | q"
+echo "dev: ready — commands: r | R | rf [file] | q"
 sleep 1
 exit 0
 ''';
-    final script = File('${_scratch.path}/orphan_launcher.sh')
-      ..writeAsStringSync(launcher);
-    await Process.run('chmod', ['+x', script.path]);
+      final script = File('${_scratch.path}/orphan_launcher.sh')
+        ..writeAsStringSync(launcher);
+      await Process.run('chmod', ['+x', script.path]);
 
-    final decoy = await Process.start('sleep', ['3600']);
-    addTearDown(() {
-      if (decoy.pid > 0) {
-        Process.killPid(decoy.pid, ProcessSignal.sigkill);
-      }
-    });
+      final decoy = await Process.start('sleep', ['3600']);
+      addTearDown(() {
+        if (decoy.pid > 0) {
+          Process.killPid(decoy.pid, ProcessSignal.sigkill);
+        }
+      });
 
-    Future<Process> orphanSpawn(
-      String executable,
-      List<String> arguments, {
-      String? workingDirectory,
-      Map<String, String>? environment,
-    }) =>
-        Process.start(
-          '/bin/sh',
-          [script.path],
-          workingDirectory: workingDirectory,
-          environment: environment,
+      Future<Process> orphanSpawn(
+        String executable,
+        List<String> arguments, {
+        String? workingDirectory,
+        Map<String, String>? environment,
+      }) => Process.start(
+        '/bin/sh',
+        [script.path],
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+
+      const liveness = HostProcessLiveness();
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: const [],
+        useSubreaperSupervisor: false,
+        spawn: orphanSpawn,
+      );
+      expect(
+        await session.waitForPattern(
+          'dev: ready',
+          timeout: const Duration(seconds: 10),
+        ),
+        isTrue,
+        reason: session.transcript,
+      );
+      final trackedChild = session.ownershipLedger.descendantPids.toList();
+      expect(
+        trackedChild,
+        isNotEmpty,
+        reason: 'sleep child must be owned at ready',
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      final td = await session.teardown(quitGrace: const Duration(seconds: 1));
+      expect(td.survivors, isEmpty, reason: td.notes.join('; '));
+      expect(td.verified, isTrue);
+      expect(td.clean, isTrue);
+      for (final pid in trackedChild) {
+        expect(
+          await liveness.isAlive(pid),
+          isFalse,
+          reason: 'owned sleep $pid must be terminated',
         );
-
-    const liveness = HostProcessLiveness();
-    final session = await OwnedDevSession.start(
-      workspace: _scratch.path,
-      dartInvocation: const [],
-      useSubreaperSupervisor: false,
-      spawn: orphanSpawn,
-    );
-    expect(
-      await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
-      isTrue,
-      reason: session.transcript,
-    );
-    final trackedChild = session.ownershipLedger.descendantPids.toList();
-    expect(trackedChild, isNotEmpty, reason: 'sleep child must be owned at ready');
-
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-
-    final td = await session.teardown(quitGrace: const Duration(seconds: 1));
-    expect(td.survivors, isEmpty, reason: td.notes.join('; '));
-    expect(td.verified, isTrue);
-    expect(td.clean, isTrue);
-    for (final pid in trackedChild) {
-      expect(await liveness.isAlive(pid), isFalse,
-          reason: 'owned sleep $pid must be terminated');
-    }
-    expect(await liveness.isAlive(decoy.pid), isTrue,
-        reason: 'unrelated decoy must survive owned teardown');
-  });
+      }
+      expect(
+        await liveness.isAlive(decoy.pid),
+        isTrue,
+        reason: 'unrelated decoy must survive owned teardown',
+      );
+    },
+  );
 
   test('teardown: hang-on-quit physically terminates owned tree', () async {
     const liveness = HostProcessLiveness();
@@ -191,7 +212,10 @@ exit 0
       useSubreaperSupervisor: false,
     );
     expect(
-      await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
+      await session.waitForPattern(
+        'dev: ready',
+        timeout: const Duration(seconds: 10),
+      ),
       isTrue,
       reason: session.transcript,
     );
@@ -221,38 +245,47 @@ exit 0
     expect(await liveness.isAlive(decoy.pid), isTrue);
   });
 
-  test('teardown: q spawns owned sleep then exits; sleep must not survive', () async {
-    const liveness = HostProcessLiveness();
-    final session = await OwnedDevSession.start(
-      workspace: _scratch.path,
-      dartInvocation: [_stub, '--spawn-on-q'],
-    );
-    expect(
-      await session.waitForPattern('dev: ready', timeout: const Duration(seconds: 10)),
-      isTrue,
-    );
+  test(
+    'teardown: q spawns owned sleep then exits; sleep must not survive',
+    () async {
+      const liveness = HostProcessLiveness();
+      final session = await OwnedDevSession.start(
+        workspace: _scratch.path,
+        dartInvocation: [_stub, '--spawn-on-q'],
+      );
+      expect(
+        await session.waitForPattern(
+          'dev: ready',
+          timeout: const Duration(seconds: 10),
+        ),
+        isTrue,
+      );
 
-    final decoy = await Process.start('sleep', ['3600']);
-    addTearDown(() {
-      if (decoy.pid > 0) {
-        Process.killPid(decoy.pid, ProcessSignal.sigkill);
+      final decoy = await Process.start('sleep', ['3600']);
+      addTearDown(() {
+        if (decoy.pid > 0) {
+          Process.killPid(decoy.pid, ProcessSignal.sigkill);
+        }
+      });
+
+      await session.sendLine('q');
+      final td = await session.teardown(quitGrace: const Duration(seconds: 10));
+      expect(td.verified, isTrue, reason: td.notes.join('; '));
+      expect(td.clean, isTrue, reason: td.notes.join('; '));
+      for (final pid in td.survivors) {
+        expect(await liveness.isAlive(pid), isFalse);
       }
-    });
-
-    await session.sendLine('q');
-    final td = await session.teardown(quitGrace: const Duration(seconds: 10));
-    expect(td.verified, isTrue, reason: td.notes.join('; '));
-    expect(td.clean, isTrue, reason: td.notes.join('; '));
-    for (final pid in td.survivors) {
-      expect(await liveness.isAlive(pid), isFalse);
-    }
-    final ledgerPids = session.ownershipLedger.descendantPids;
-    for (final pid in ledgerPids) {
-      expect(await liveness.isAlive(pid), isFalse,
-          reason: 'descendant from ledger $pid');
-    }
-    expect(await liveness.isAlive(decoy.pid), isTrue);
-  });
+      final ledgerPids = session.ownershipLedger.descendantPids;
+      for (final pid in ledgerPids) {
+        expect(
+          await liveness.isAlive(pid),
+          isFalse,
+          reason: 'descendant from ledger $pid',
+        );
+      }
+      expect(await liveness.isAlive(decoy.pid), isTrue);
+    },
+  );
 
   test(
     'teardown: setsid child adopted by subreaper is physically terminated',
@@ -289,46 +322,42 @@ exit 0
     skip: Platform.isLinux ? false : 'posix setsid',
   );
 
-  test(
-    'regression: supervisor without drain fails verified and leaves escaped pid',
-    () async {
-      const liveness = HostProcessLiveness();
-      final kernelRoot = await resolveOkaDartKernelRoot();
-      final noDrain = p.join(
-        kernelRoot,
-        'test',
-        'fixtures',
-        'linux_subreaper_supervisor_no_drain.dart',
-      );
+  test('regression: supervisor without drain fails verified and leaves escaped pid', () async {
+    const liveness = HostProcessLiveness();
+    final kernelRoot = await resolveOkaDartKernelRoot();
+    final noDrain = p.join(
+      kernelRoot,
+      'test',
+      'fixtures',
+      'linux_subreaper_supervisor_no_drain.dart',
+    );
 
-      final session = await OwnedDevSession.start(
-        workspace: _scratch.path,
-        dartInvocation: [_stub, '--spawn-on-q-setsid'],
-        supervisorEntrypoint: noDrain,
-      );
-      expect(await session.waitForPattern('dev: ready'), isTrue);
-      final decoy = await Process.start('sleep', ['3600']);
-      addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
+    final session = await OwnedDevSession.start(
+      workspace: _scratch.path,
+      dartInvocation: [_stub, '--spawn-on-q-setsid'],
+      supervisorEntrypoint: noDrain,
+    );
+    expect(await session.waitForPattern('dev: ready'), isTrue);
+    final decoy = await Process.start('sleep', ['3600']);
+    addTearDown(() => Process.killPid(decoy.pid, ProcessSignal.sigkill));
 
-      await session.sendLine('q');
-      final td = await session.teardown(quitGrace: const Duration(seconds: 30));
-      expect(td.verified, isFalse, reason: td.notes.join('; '));
-      expect(td.clean, isFalse);
-      final escaped = fixtureEscapedFromTranscript(session.transcript);
-      expect(escaped, isNotEmpty);
-      expect(session.drainAck?.settled, isFalse);
-      expect(session.drainAck?.verified, isFalse);
-      for (final pid in escaped.keys) {
-        addTearDown(() async {
-          if (await liveness.isAlive(pid)) {
-            await liveness.kill(pid, grace: const Duration(milliseconds: 200));
-          }
-        });
-      }
-      expect(await liveness.isAlive(decoy.pid), isTrue);
-    },
-    skip: Platform.isLinux ? false : 'posix setsid',
-  );
+    await session.sendLine('q');
+    final td = await session.teardown(quitGrace: const Duration(seconds: 30));
+    expect(td.verified, isFalse, reason: td.notes.join('; '));
+    expect(td.clean, isFalse);
+    final escaped = fixtureEscapedFromTranscript(session.transcript);
+    expect(escaped, isNotEmpty);
+    expect(session.drainAck?.settled, isFalse);
+    expect(session.drainAck?.verified, isFalse);
+    for (final pid in escaped.keys) {
+      addTearDown(() async {
+        if (await liveness.isAlive(pid)) {
+          await liveness.kill(pid, grace: const Duration(milliseconds: 200));
+        }
+      });
+    }
+    expect(await liveness.isAlive(decoy.pid), isTrue);
+  }, skip: Platform.isLinux ? false : 'posix setsid');
 
   test('enumeration failure never claims verified clean', () async {
     final session = await OwnedDevSession.start(
