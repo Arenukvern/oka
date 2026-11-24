@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Updated `oka_android` dependency constraint to `^0.14.0`.
+- Updated `resource_composition` dependency constraint to `^0.13.0`.
 ## 0.12.1
 
 ### Patch Changes
@@ -74,5 +81,6 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   already-running session without launching anything.
 - Offline test suite: fake `oka` script covering launch → attach → stop,
   arg threading, and the no-session timeout/teardown path.
+
 
 

@@ -1,3 +1,9 @@
+## 0.15.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Updated `resource_composition` dependency constraint to `^0.13.0`.
 ## 0.14.1
 
 ### Patch Changes

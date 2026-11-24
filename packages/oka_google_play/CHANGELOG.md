@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Updated `oka_android` dependency constraint to `^0.14.0`.
+- Updated `oka_conformance` dependency constraint to `^0.13.0`.
+- Updated `oka_core` dependency constraint to `^0.15.0`.
 ## 0.13.1
 
 ### Patch Changes
@@ -69,5 +77,6 @@ version.
   dry-run plans, service-account credentials by path). Succeeds the
   retired `oka_play` package; the store key identity joins the channel in
   one store package.
+
 
 

@@ -1,5 +1,12 @@
 # Changelog — oka_huawei
 
+## 0.14.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Updated `oka_android` dependency constraint to `^0.14.0`.
+- Updated `oka_core` dependency constraint to `^0.15.0`.
 ## 0.13.1
 
 ### Patch Changes
@@ -182,6 +189,7 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   `HuaweiBuildVariant` — the GMS-excluding AndroidBuild variant whose
   composition is validated by the standard artifact checker before any tool
   runs.
+
 
 
 

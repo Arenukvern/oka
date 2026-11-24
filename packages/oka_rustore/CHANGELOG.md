@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Updated `oka_core` dependency constraint to `^0.15.0`.
 ## 0.13.1
 
 ### Patch Changes
@@ -173,6 +179,7 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 ## 0.4.0
 
 - Version alignment with the 0.4.0 oka release train; no functional changes in this package.
+
 
 
 

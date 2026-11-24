@@ -1,3 +1,10 @@
+## 0.1.1
+
+### Patch Changes
+
+- Updated `oka_core` dependency constraint to `^0.15.0`.
+- Updated `oka_update` dependency constraint to `^0.13.0`.
+- Updated `oka_web` dependency constraint to `^0.14.0`.
 ## 0.1.0
 
 The dev session is part of this package. `oka dev` and `oka run dev` call
