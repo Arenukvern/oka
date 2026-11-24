@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
 ## 0.12.1
 
 ### Patch Changes
@@ -68,4 +73,5 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
   and stop-receipt types, graceful cleanup hook, observation budget.
 - Placeholder p1 contract doc and conformance harness directory for the dfp
   suite migration.
+
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
 ## 0.12.1
 
 ### Patch Changes
@@ -27,4 +32,5 @@ See `packages/oka/CHANGELOG.md` for train-wide release notes.
 Joins the release train: the air-channel authoring surface (ADR-0031),
 planner eligibility, revision manifests, and the signed channel model
 (ADR-0037) are published to pub.dev with the next train version.
+
 

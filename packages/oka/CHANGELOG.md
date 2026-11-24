@@ -3,6 +3,18 @@
 <!-- markdownlint-disable MD052 -->
 
 
+## 0.13.0
+
+### Minor Changes
+
+- Raise Dart SDK floor to ^3.14.0 (Flutter 3.50 toolchain).
+- Call oka live, oka ship, and oka verify from the published oka executable. Live verify and oka verify need no oka checkout. Live patch, live watch, and ship unit-delta compile still need a Dart SDK checkout and OKA_KERNEL_ROOT.
+- Updated `oka_android` dependency constraint to `^0.14.0`.
+- Updated `oka_artifacts` dependency constraint to `^0.13.0`.
+- Updated `oka_core` dependency constraint to `^0.15.0`.
+- Updated `oka_supervisor` dependency constraint to `^0.13.0`.
+- Updated `oka_web` dependency constraint to `^0.14.0`.
+- Updated `resource_composition` dependency constraint to `^0.13.0`.
 ## 0.12.3
 
 ### Patch Changes
@@ -523,6 +535,7 @@ All notable changes to the Oka project will be documented in this file.
 - Complete Phase 5: Hot Reload
 - Create example app with monetization + crashlytics
 - Integration testing
+
 
 
 
