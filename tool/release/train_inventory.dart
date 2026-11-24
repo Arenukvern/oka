@@ -20,5 +20,6 @@ const packages = <String>[
   'oka_harness',
   'oka_update',
   'oka_dart_kernel',
+  'oka_verify',
   'oka',
 ];

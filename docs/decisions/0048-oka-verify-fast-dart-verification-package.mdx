@@ -81,14 +81,20 @@ inherit silently:
    the kernel builder and the suite runner are interfaces. The orchestration
    composes them; a consumer can substitute any of the three.
 
+## Amendment — 2026-11-24
+
+`publish_to: none` is retired. The package uses only the public Dart SDK,
+so `oka verify` calls it in-process from the published oka executable.
+`OKA_KERNEL_ROOT` overrides that with a checkout. Widget suites stay
+refused. The kernel delta compiler is a different package and stays out
+of the pub tarball.
+
 ## Non-goals
 
 No Flutter support. No eval channel (the harness's resident-VM expression
 loop) and no resident test runner — those stay harness-side. No change to
 `dart test` itself, no runner fork, no internal `test_core` protocol
-reimplementation beyond the documented `--precompiled` contract. The `oka verify` CLI delegates to the checkout-backed package, following
-the existing live/ship command posture. The package is internal and is not
-part of the public release train.
+reimplementation beyond the documented `--precompiled` contract.
 
 ## Consequences
 

@@ -1,6 +1,8 @@
 # Checkout-only kernel gates. They import SDK-internal libraries
 # (package:kernel, package:vm, package:front_end) that are not pub
-# dependencies. `oka live` and `oka ship` run them from a git checkout.
+# dependencies. `oka live` and `oka ship` call this package in-process.
+# `patch`, `watch`, and ship unit-delta compile still need these scripts
+# plus a Dart SDK checkout (`OKA_KERNEL_ROOT`, `~/.oka/dart-sdks`).
 # `oka dev` publishes through lib/dev_session.dart.
 tool/deferredize.dart
 tool/gate_pipeline.dart

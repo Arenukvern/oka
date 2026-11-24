@@ -118,14 +118,16 @@ secrets. Guides: [Publishing](guides/publishing.mdx),
 
 ## What are live update / `oka ship`?
 
-`oka dev` calls the dev session inside the oka package. App developers leave
-`OKA_KERNEL_ROOT` unset. That variable overrides `oka dev` with a checkout
-when someone is working on the session itself.
+`oka dev`, `oka live`, `oka ship`, and `oka verify` call published libraries
+inside the oka package. App developers leave `OKA_KERNEL_ROOT` unset. That
+variable overrides one command with a checkout when someone is working on
+the session itself.
 
-`oka ship`, `oka live`, and the kernel-graph gates still run from an oka
-repo checkout. `oka_dart_kernel` is on the release train; its first pub.dev
-upload is the next release. Until that upload, an already published `oka`
-does not contain this session. Start with
+`oka live verify` and `oka verify` need no oka checkout. `oka live patch`,
+`oka live watch`, ship unit-delta compile, and the kernel-graph gates still
+need an oka checkout plus a Dart SDK checkout (`~/.oka/dart-sdks`, or
+`OKA_SDK_CHECKOUT`). The published `oka` on pub.dev gains these calls at
+the release that contains them. Start with
 [Live update guide](guides/live_update.mdx) and ADR-0037.
 
 ## What is `oka supervisor`?

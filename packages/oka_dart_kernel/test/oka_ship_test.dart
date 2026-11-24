@@ -37,40 +37,43 @@ void main() {
   });
 
   Future<void> ship(List<String> args) => runShipCli(
-        ['--project', root, '--channel-dir', channelDir, ...args],
-        compiler: fakeCompile,
-        unitsProvider: (project) async => const [
-          PatchUnit(name: 'feature', libraries: ['lib/units/feature.dart']),
-        ],
-        revisionProvider: (project) => revision,
-        output: lines.add,
-        errorOutput: lines.add,
-        setExitCode: (c) => exitCode = c,
-      );
+    ['--project', root, '--channel-dir', channelDir, ...args],
+    compiler: fakeCompile,
+    unitsProvider: (project) async => const [
+      PatchUnit(name: 'feature', libraries: ['lib/units/feature.dart']),
+    ],
+    revisionProvider: (project) => revision,
+    output: lines.add,
+    errorOutput: lines.add,
+    setExitCode: (c) => exitCode = c,
+  );
 
-  test('baseline then body-only patch: zero flags, receipts all the way',
-      () async {
-    await ship([]);
-    expect(exitCode, 0);
-    expect(File('$channelDir/pointer.json').existsSync(), isTrue);
-    expect(lines.join('\n'), contains('baseline'));
+  test(
+    'baseline then body-only patch: zero flags, receipts all the way',
+    () async {
+      await ship([]);
+      expect(exitCode, 0);
+      expect(File('$channelDir/pointer.json').existsSync(), isTrue);
+      expect(lines.join('\n'), contains('baseline'));
 
-    lines.clear();
-    revision = 'rev2';
-    File('$root/lib/units/feature.dart')
-        .writeAsStringSync('int featureValue() {\n  return 2;\n}\n');
-    await ship([]);
-    expect(exitCode, 0);
-    expect(lines.join('\n'), contains('patch'));
-    expect(
+      lines.clear();
+      revision = 'rev2';
+      File('$root/lib/units/feature.dart')
+          .writeAsStringSync('int featureValue() {\n  return 2;\n}\n');
+      await ship([]);
+      expect(exitCode, 0);
+      expect(lines.join('\n'), contains('patch'));
+      expect(
         File('$channelDir/artifacts/feature-rev2.delta.dill').existsSync(),
-        isTrue);
-    // The receipt names the unit and the changed file (one line per
-    // derivation — ADR-0037 §1).
-    final receipt = lines.join('\n');
-    expect(receipt, contains('feature'));
-    expect(receipt, contains('lib/units/feature.dart'));
-  });
+        isTrue,
+      );
+      // The receipt names the unit and the changed file (one line per
+      // derivation — ADR-0037 §1).
+      final receipt = lines.join('\n');
+      expect(receipt, contains('feature'));
+      expect(receipt, contains('lib/units/feature.dart'));
+    },
+  );
 
   test('dry-run derives but publishes nothing', () async {
     await ship([]);
@@ -81,8 +84,9 @@ void main() {
     await ship(['--dry-run']);
     expect(exitCode, 0);
     expect(
-        File('$channelDir/artifacts/feature-rev2.delta.dill').existsSync(),
-        isFalse);
+      File('$channelDir/artifacts/feature-rev2.delta.dill').existsSync(),
+      isFalse,
+    );
   });
 
   test('contract-touching edit refuses with exit 1', () async {
@@ -116,9 +120,12 @@ int featureValue() {
     final exit = <int>[];
     await runShipCli(
       [
-        '--project', root,
-        '--channel-dir', channelDir,
-        '--revision', 'flag-rev',
+        '--project',
+        root,
+        '--channel-dir',
+        channelDir,
+        '--revision',
+        'flag-rev',
       ],
       compiler: fakeCompile,
       unitsProvider: (project) async => const [
@@ -132,43 +139,88 @@ int featureValue() {
     expect(File('$channelDir/manifests/flag-rev.json').existsSync(), isTrue);
   });
 
-  test('--snapshot-from-build <file> attaches the whole-revision artifact',
-      () async {
-    final build = File('${tmp.path}/main.dart.js')
-      ..writeAsStringSync('whole web bundle');
-    await ship(['--snapshot-from-build', build.path]);
-    expect(exitCode, 0);
-    final node = RevisionNode.fromJson((jsonDecode(
-            File('$channelDir/manifests/base-rev.json').readAsStringSync())
-        as Map)
-        .cast<String, dynamic>());
-    expect(node.snapshot, isNotNull);
-    expect(node.snapshot!.file, 'artifacts/base-rev.snapshot.js');
-  });
+  test(
+    '--snapshot-from-build <file> attaches the whole-revision artifact',
+    () async {
+      final build = File('${tmp.path}/main.dart.js')
+        ..writeAsStringSync('whole web bundle');
+      await ship(['--snapshot-from-build', build.path]);
+      expect(exitCode, 0);
+      final node = RevisionNode.fromJson(
+        (jsonDecode(
+          File('$channelDir/manifests/base-rev.json').readAsStringSync(),
+        ) as Map).cast<String, dynamic>(),
+      );
+      expect(node.snapshot, isNotNull);
+      expect(node.snapshot!.file, 'artifacts/base-rev.snapshot.js');
+    },
+  );
 
   test('--snapshot-from-build <dir> archives the build output', () async {
     final buildDir = Directory('${tmp.path}/web-build')..createSync();
     File('${buildDir.path}/index.html').writeAsStringSync('<html></html>');
     await ship(['--snapshot-from-build', buildDir.path]);
     expect(exitCode, 0);
-    final node = RevisionNode.fromJson((jsonDecode(
-            File('$channelDir/manifests/base-rev.json').readAsStringSync())
-        as Map)
-        .cast<String, dynamic>());
+    final node = RevisionNode.fromJson(
+      (jsonDecode(
+        File('$channelDir/manifests/base-rev.json').readAsStringSync(),
+      ) as Map).cast<String, dynamic>(),
+    );
     expect(node.snapshot!.file, 'artifacts/base-rev.snapshot.tgz');
     final staged = File('$channelDir/${node.snapshot!.file}');
     expect(staged.existsSync(), isTrue);
     expect(staged.lengthSync(), greaterThan(0));
   });
 
-  test('--max-chain-bytes seeds the pointer policy (publisher override)',
-      () async {
-    await ship(['--max-chain-bytes', '4096', '--max-chain-revisions', '2']);
-    expect(exitCode, 0);
-    final pointer = ChannelPointer.fromJson((jsonDecode(
-            File('$channelDir/pointer.json').readAsStringSync()) as Map)
-        .cast<String, dynamic>());
-    expect(pointer.policy.maxChainBytes, 4096);
-    expect(pointer.policy.maxChainRevisions, 2);
+  test('generate-signing-key needs no kernel checkout', () async {
+    final key = File('${tmp.path}/seed');
+    final out = <String>[];
+    await runShipCli(
+      ['--project', root, '--generate-signing-key', key.path],
+      output: out.add,
+      errorOutput: out.add,
+    );
+    expect(key.existsSync(), isTrue);
+    expect(out.join('\n'), contains('trust anchor'));
+    expect(out.join('\n'), isNot(contains('kernel delta compiler')));
   });
+
+  test(
+    'a unit delta without a kernel checkout names OKA_KERNEL_ROOT',
+    () async {
+      await ship([]);
+      lines.clear();
+      File('$root/lib/units/feature.dart')
+          .writeAsStringSync('int featureValue() {\n  return 2;\n}\n');
+      final exit = <int>[];
+      await runShipCli(
+        ['--project', root, '--channel-dir', channelDir, '--revision', 'rev2'],
+        unitsProvider: (project) async => const [
+          PatchUnit(name: 'feature', libraries: ['lib/units/feature.dart']),
+        ],
+        output: lines.add,
+        errorOutput: lines.add,
+        setExitCode: exit.add,
+      );
+      expect(exit, [1]);
+      final message = lines.join('\n');
+      expect(message, contains('OKA_KERNEL_ROOT'));
+      expect(message, contains('.oka/dart-sdks'));
+      expect(message, contains('OKA_SDK_CHECKOUT'));
+    },
+  );
+
+  test(
+    '--max-chain-bytes seeds the pointer policy (publisher override)',
+    () async {
+      await ship(['--max-chain-bytes', '4096', '--max-chain-revisions', '2']);
+      expect(exitCode, 0);
+      final pointer = ChannelPointer.fromJson(
+        (jsonDecode(File('$channelDir/pointer.json').readAsStringSync()) as Map)
+            .cast<String, dynamic>(),
+      );
+      expect(pointer.policy.maxChainBytes, 4096);
+      expect(pointer.policy.maxChainRevisions, 2);
+    },
+  );
 }

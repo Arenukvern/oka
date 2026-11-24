@@ -4,45 +4,55 @@ import 'package:oka_dart_kernel/dev_session.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-/// Locates the experimental live-update stack checkout for the verbs that
-/// are still checkout-only (`oka live`, `oka ship`). The stack runner is a
-/// tool script: when a checkout is present (`OKA_KERNEL_ROOT`, or the source
-/// layout around this package), those verbs run it with the workspace
-/// package config.
+/// Checkout override for the verbs that also run inside this executable.
 ///
-/// `oka dev` does not use this walk. It calls the published dev session.
-/// `OKA_KERNEL_ROOT` remains an explicit override for that one command when
-/// someone is working on the session itself.
-///
+/// `oka dev`, `oka live`, `oka ship`, and `oka verify` call their published
+/// libraries. `OKA_KERNEL_ROOT`, when it points at a checkout that contains
+/// the verb's runner, runs that script instead. A set but unusable value
+/// fails. An unset value never searches the filesystem.
 const devSessionRunner = 'packages/oka_dart_kernel/tool/oka_run_dev.dart';
 
+/// Checkout runner for `oka live`. The published command does not use it.
+const liveRunner = 'packages/oka_dart_kernel/tool/oka_live.dart';
+
+/// Checkout runner for `oka ship`. The published command does not use it.
+const shipRunner = 'packages/oka_dart_kernel/tool/oka_ship.dart';
+
+/// Checkout runner for `oka verify`. The published command does not use it.
+const verifyRunner = 'packages/oka_verify/bin/oka_verify.dart';
+
 /// Runs the dev session built into this executable.
-///
-/// `OKA_KERNEL_ROOT`, when it points at a checkout that contains
-/// [devSessionRunner], runs that script instead. A set but unusable value
-/// fails. An unset value never searches the filesystem.
-Future<void> runPublishedDevSession(List<String> args) async {
-  final pinned = Platform.environment['OKA_KERNEL_ROOT']?.trim();
+Future<void> runPublishedDevSession(List<String> args) =>
+    runPublishedOrCheckout(
+      runner: devSessionRunner,
+      args: args,
+      inProcess: runRunDevCli,
+      unsetHint: 'Unset it to use the dev session built into this oka.',
+    );
+
+/// Runs [inProcess] unless `OKA_KERNEL_ROOT` pins a checkout that contains
+/// [runner].
+Future<void> runPublishedOrCheckout({
+  required String runner,
+  required List<String> args,
+  required Future<void> Function(List<String> args) inProcess,
+  required String unsetHint,
+  Map<String, String>? environment,
+}) async {
+  final env = environment ?? Platform.environment;
+  final pinned = env['OKA_KERNEL_ROOT']?.trim();
   if (pinned == null || pinned.isEmpty) {
-    await runRunDevCli(args);
+    await inProcess(args);
     return;
   }
-  final root = explicitKernelStackRoot(devSessionRunner);
+  final root = explicitKernelStackRoot(runner, environment: env);
   if (root == null) {
-    stderr.writeln(
-      'OKA_KERNEL_ROOT does not contain $devSessionRunner.\n'
-      'Unset it to use the dev session built into this oka.',
-    );
+    stderr.writeln('OKA_KERNEL_ROOT does not contain $runner.\n$unsetHint');
     exitCode = 2;
     return;
   }
-  await spawnKernelRunner(root: root, runner: devSessionRunner, args: args);
+  await spawnKernelRunner(root: root, runner: runner, args: args);
 }
-
-/// [runner] is the tool path relative to the checkout, e.g.
-/// `packages/oka_dart_kernel/tool/oka_live.dart`.
-String? kernelStackRoot(String runner) =>
-    kernelStackRootForScript(Platform.script.toFilePath(), runner);
 
 /// The `OKA_KERNEL_ROOT` checkout when it contains [runner]. A bad value
 /// does not fall through to the script-path walk.
@@ -119,23 +129,6 @@ bool _packagePubspecNamed(String workspaceRoot, String folder, String name) {
   } on Object {
     return false;
   }
-}
-
-/// Spawns [tool] from the kernel-stack checkout with the workspace package
-/// config and the caller's stdio, and exits with its code. When the stack
-/// is not available, prints [missingMessage] and exits 2.
-Future<void> delegateToKernelStack({
-  required String runner,
-  required List<String> args,
-  required String missingMessage,
-}) async {
-  final root = kernelStackRoot(runner);
-  if (root == null) {
-    stderr.writeln(missingMessage);
-    exitCode = 2;
-    return;
-  }
-  await spawnKernelRunner(root: root, runner: runner, args: args);
 }
 
 /// Runs [runner] under [root] with that workspace's package config.

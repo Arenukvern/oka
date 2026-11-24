@@ -62,6 +62,8 @@ dependency_overrides:
     path: ../packages/oka_google_play
   oka_update:
     path: ../packages/oka_update
+  oka_verify:
+    path: ../packages/oka_verify
   resource_composition:
     path: ../packages/resource_composition
   oka_supervisor:

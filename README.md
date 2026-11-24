@@ -399,8 +399,10 @@ Agents: [`llms.txt`](llms.txt) and [`AGENTS.md`](AGENTS.md).
 The [dart_changesets](https://github.com/Arenukvern/dart_changesets)
 release train is the pub.dev inventory
 (`dart tool/release/train.dart list --publish`, ADR-0054). Packages already
-on pub.dev are marked below. `oka_dart_kernel` joins the train; its first
-upload is the next release. Checkout-only pieces are listed separately.
+on pub.dev are marked below. `oka_dart_kernel` is published.
+`oka_verify` joins the train; its first upload is manual, then tags.
+Checkout-only pieces are listed separately. The kernel delta compiler
+stays in the `oka_dart_kernel` checkout even though the package is published.
 
 | Package | Pub | Purpose |
 |---|---|---|
@@ -421,7 +423,8 @@ upload is the next release. Checkout-only pieces are listed separately.
 | [`oka_harness`](https://pub.dev/packages/oka_harness) | ✅ | Device E2E targets over oka dev sessions |
 | [`oka_update`](https://pub.dev/packages/oka_update) | ✅ | Patch-unit authoring/planner surface (ADR-0031; experimental API) |
 | [`resource_composition`](https://pub.dev/packages/resource_composition) | ✅ | Zero-dependency resource composition contracts |
-| `oka_dart_kernel` | train | Dev session called by `oka dev`, plus the kernel-graph library (ADR-0032). First pub.dev upload is the next release |
+| [`oka_dart_kernel`](https://pub.dev/packages/oka_dart_kernel) | ✅ | Dev, live, and ship commands, plus the kernel-graph library (ADR-0032). Unit-delta compile stays in the checkout |
+| `oka_verify` | train | Fast Dart verification lane (ADR-0048). `oka verify` calls it. First pub.dev upload is manual |
 | `oka_devices` | checkout | Declarative device/run spec types (`publish_to: none`) |
 
 ## Documentation

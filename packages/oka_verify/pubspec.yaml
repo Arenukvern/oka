@@ -1,5 +1,4 @@
 name: oka_verify
-publish_to: none
 description: >-
   Fast Dart verification lane (ADR-0048): a reusable import-closure graph, a
   content-keyed suite-kernel cache and precompiled-suite orchestration, as a

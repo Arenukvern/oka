@@ -18,13 +18,15 @@ file or the script.
 - `dart tool/release/train.dart list --publish` is the pub.dev upload order
   (topological sort of in-train deps with `tool/release/train_inventory.dart`
   as tiebreak). Never publish out of order.
-- `oka_devices`, `oka_verify`, and the root workspace package are
-  `publish_to: none`; they ride along but never upload. `oka_dart_kernel`
-  is on the train: it holds the dev session that `oka dev` calls. Its
-  `.pubignore` keeps the checkout-only kernel gates out of the tarball
-  (`package:kernel`, `package:vm`, `package:front_end`). For `oka_process`
-  one-time pub.dev automated-publishing setup, see
-  `packages/oka_process/PUBLISHING.md`.
+- `oka_devices` and the root workspace package are `publish_to: none`;
+  they ride along but never upload. `oka_dart_kernel` is on the train:
+  `oka dev`, `oka live`, and `oka ship` call it. Its `.pubignore` keeps
+  the checkout-only kernel gates out of the tarball (`package:kernel`,
+  `package:vm`, `package:front_end`). `oka live patch`, `oka live watch`,
+  and ship unit-delta compile still need those gates plus a Dart SDK
+  checkout. `oka_verify` is on the train: `oka verify` calls it, and it
+  uses only the public Dart SDK. For `oka_process` one-time pub.dev
+  automated-publishing setup, see `packages/oka_process/PUBLISHING.md`.
 
 ## One-time setup (Anton checklist)
 
@@ -55,6 +57,7 @@ For each package below, open `https://pub.dev/packages/<name>/admin` →
 | `oka_harness` |
 | `oka_update` |
 | `oka_dart_kernel` |
+| `oka_verify` |
 | `oka` |
 
 Per package:

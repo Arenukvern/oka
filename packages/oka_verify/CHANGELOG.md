@@ -2,6 +2,8 @@
 
 ## 0.8.1
 
+Published. `oka verify` calls this library in-process.
+
 ### Patch Changes
 
 - **Identity + law hardening (2026-11-22 review wave)**:
@@ -74,4 +76,8 @@
   generated `internalBootstrapVmTest` bootstrap, warm frontend-server
   session, revision-stamped receipt, and the `oka_verify` CLI
   (`--package`, `--all`, `--only`, `--changed`, `--no-run`).
+
+## 0.12.0
+
+See `packages/oka/CHANGELOG.md` for train-wide release notes.
 

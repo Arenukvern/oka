@@ -82,10 +82,10 @@ Local preflight (does not publish):
 bash tool/ci/check_package_consumer.sh   # after a train upload, when debugging resolution
 ```
 
-`oka_devices`, `oka_verify`, and the root workspace package stay
-`publish_to: none` — they never upload. `oka_dart_kernel` is on the train:
-it holds the dev session `oka dev` calls. Its first pub.dev upload is the
-next release.
+`oka_devices` and the root workspace package stay `publish_to: none` —
+they never upload. `oka_dart_kernel` and `oka_verify` are on the train.
+`oka dev`, `oka live`, and `oka ship` call `oka_dart_kernel`. `oka verify`
+calls `oka_verify`. Kernel delta compilation stays in the checkout.
 
 CI also runs `test/adr0011_apk_contents_test.dart` with
 `OKA_REQUIRE_REAL_ANDROID_SMOKE=true`: missing prerequisites fail that job

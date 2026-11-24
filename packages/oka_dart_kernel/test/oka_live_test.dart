@@ -36,13 +36,16 @@ class _FakeTarget implements LivePatchTarget {
   }
 
   @override
-  Future<ApplyOutcome> syncAsset(
-          {required String assetKey,
-          required List<int> bytes,
-          required String flutterAssetsDir,
-          bool shader = false}) async =>
-      const ApplyOutcome(
-          ok: false, mode: 'assets-sync', error: 'fake: unsupported');
+  Future<ApplyOutcome> syncAsset({
+    required String assetKey,
+    required List<int> bytes,
+    required String flutterAssetsDir,
+    bool shader = false,
+  }) async => const ApplyOutcome(
+    ok: false,
+    mode: 'assets-sync',
+    error: 'fake: unsupported',
+  );
 
   @override
   Future<String> evaluate(ProbeSpec probe) async => values[probe.expression]!;
@@ -72,8 +75,11 @@ void main() {
   test('malformed invocation: usage on stderr, exit 2', () async {
     final err = <String>[];
     final codes = <int>[];
-    await runLiveCli(const ['nope'],
-        errorOutput: err.add, setExitCode: codes.add);
+    await runLiveCli(
+      const ['nope'],
+      errorOutput: err.add,
+      setExitCode: codes.add,
+    );
     expect(codes, [2]);
     expect(err.join(), contains('usage: oka live'));
   });
@@ -81,8 +87,11 @@ void main() {
   test('missing spec: exit 2 with the path', () async {
     final err = <String>[];
     final codes = <int>[];
-    await runLiveCli(const ['verify', '--spec', '/nope/none.json'],
-        errorOutput: err.add, setExitCode: codes.add);
+    await runLiveCli(
+      const ['verify', '--spec', '/nope/none.json'],
+      errorOutput: err.add,
+      setExitCode: codes.add,
+    );
     expect(codes, [2]);
     expect(err.join(), contains('/nope/none.json'));
   });
@@ -92,15 +101,14 @@ void main() {
     final codes = <int>[];
     await runLiveCli(
       ['verify', '--spec', specPath, '--project', root.path, '--json'],
-      compiler: (request) => Future.value(
-          const DeltaArtifact(path: 'fake.dill', bytes: 1)),
+      compiler: (request) =>
+          Future.value(const DeltaArtifact(path: 'fake.dill', bytes: 1)),
       targetOverrides: {'t1': _FakeTarget('t1')},
       output: out.add,
       setExitCode: codes.add,
     );
     expect(codes, [0]);
-    final receipt =
-        (jsonDecode(out.join()) as Map).cast<String, dynamic>();
+    final receipt = (jsonDecode(out.join()) as Map).cast<String, dynamic>();
     expect(receipt['ok'], isTrue);
     expect((receipt['targets'] as List).length, 1);
   });
@@ -111,8 +119,8 @@ void main() {
     final fake = _FakeTarget('t1', applyValues: {'label': 'alpha-g4b'});
     await runLiveCli(
       ['patch', '--spec', specPath, '--project', root.path],
-      compiler: (request) => Future.value(
-          const DeltaArtifact(path: 'fake.dill', bytes: 1)),
+      compiler: (request) =>
+          Future.value(const DeltaArtifact(path: 'fake.dill', bytes: 1)),
       targetOverrides: {'t1': fake},
       output: out.add,
       setExitCode: codes.add,
@@ -121,5 +129,22 @@ void main() {
     expect(fake.applied, 1);
     expect(out.join(), contains('live patch OK'));
     expect(out.join(), contains('label'));
+  });
+
+  test('patch without a kernel checkout names the compiler and does not '
+      'search', () async {
+    final err = <String>[];
+    final codes = <int>[];
+    await runLiveCli(
+      ['patch', '--spec', specPath, '--project', root.path],
+      errorOutput: err.add,
+      setExitCode: codes.add,
+    );
+    expect(codes, [2]);
+    final message = err.join();
+    expect(message, contains('OKA_KERNEL_ROOT'));
+    expect(message, contains('.oka/dart-sdks'));
+    expect(message, contains('OKA_SDK_CHECKOUT'));
+    expect(message, isNot(contains('cannot locate oka_dart_kernel/tool')));
   });
 }

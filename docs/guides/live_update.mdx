@@ -6,10 +6,11 @@ a `LivePatchSpec` (units, targets, probes) — covers the developer loop
 (`packages/oka_update/test/`); this guide links, it does not paraphrase.
 
 Stack: `oka_dart_kernel` (unit graph, delta compiler, pipeline exe, and the
-dev session `oka dev` calls) + `oka_update` (session, targets, receipts).
-`oka dev` calls that session inside the oka executable. The kernel-graph
-gates and `oka ship` stay checkout-only. `oka_dart_kernel`'s first pub.dev
-upload is the next release.
+dev, live, and ship commands) + `oka_update` (session, targets, receipts).
+`oka dev`, `oka live`, and `oka ship` call that package inside the oka
+executable. `oka live verify` needs no checkout. `oka live patch`,
+`oka live watch`, ship unit-delta compile, and the kernel-graph gates stay
+on a Dart SDK checkout named by `OKA_KERNEL_ROOT`.
 Design: ADR-0031/0032/0034/0035; evidence:
 `docs/evidence/deferred-patch-units-spike-2026-10-01.mdx`.
 
@@ -61,10 +62,11 @@ oka dev android   # the ADR-0011 daemon (manifest + attach + control port)
 ```
 
 `oka dev` and `oka run dev` call `runRunDevCli` inside the oka executable
-(`package:oka_dart_kernel/dev_session.dart`). A published oka does not need
-a checkout for that command. `OKA_KERNEL_ROOT` overrides it with this
-checkout's `tool/oka_run_dev.dart`. `oka live` and `oka ship` stay on the
-checkout.
+(`package:oka_dart_kernel/dev_session.dart`). `oka live` calls `runLiveCli`
+and `oka ship` calls `runShipCli` the same way. A published oka does not
+need a checkout for those commands, except when the verb compiles a kernel
+unit delta. `OKA_KERNEL_ROOT` overrides a command with this checkout's
+tool runner. Unset, it never searches.
 
 | Command | Lane | What happens |
 |---|---|---|

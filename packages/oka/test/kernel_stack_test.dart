@@ -177,7 +177,9 @@ void main() {
           environment: {'OKA_KERNEL_ROOT': missing},
         ),
         p.normalize(tmp.path),
-        reason: 'oka live and oka ship still fall through to the checkout walk',
+        reason:
+            'the walk helper still falls through; live, ship, and verify '
+            'do not call it',
       );
     },
   );
@@ -208,5 +210,37 @@ void main() {
       ),
       p.normalize(tmp.path),
     );
+  });
+
+  test('unset OKA_KERNEL_ROOT runs in-process and does not search', () async {
+    var called = false;
+    await runPublishedOrCheckout(
+      runner: liveRunner,
+      args: const ['verify'],
+      inProcess: (args) async {
+        called = true;
+        expect(args, ['verify']);
+      },
+      unsetHint: 'Unset it to use the live command built into this oka.',
+      environment: const {},
+    );
+    expect(called, isTrue);
+  });
+
+  test('a set but unusable OKA_KERNEL_ROOT exits 2 for live', () async {
+    final previous = exitCode;
+    addTearDown(() => exitCode = previous);
+    var called = false;
+    await runPublishedOrCheckout(
+      runner: liveRunner,
+      args: const [],
+      inProcess: (_) async {
+        called = true;
+      },
+      unsetHint: 'Unset it to use the live command built into this oka.',
+      environment: const {'OKA_KERNEL_ROOT': '/tmp/not-an-oka-checkout'},
+    );
+    expect(called, isFalse);
+    expect(exitCode, 2);
   });
 }
