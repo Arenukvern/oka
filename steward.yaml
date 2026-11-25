@@ -55,7 +55,8 @@ stewardship:
 docs:
   "Why This Repo Matters": docs/start_here/why_this_repo_matters.mdx
   "Build & Configuration Guide": docs/guides/build_and_config.mdx
-  "Design FAQ": docs/guides/design_faq.mdx
+  "Design FAQ": docs/DESIGN_FAQ.mdx
+  "DX FAQ": docs/DX_FAQ.mdx
 
 actions:
   oka.check.architecture:

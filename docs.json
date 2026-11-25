@@ -72,6 +72,14 @@
           "href": "/FAQ"
         },
         {
+          "title": "Design FAQ (why)",
+          "href": "/DESIGN_FAQ"
+        },
+        {
+          "title": "DX FAQ (how)",
+          "href": "/DX_FAQ"
+        },
+        {
           "title": "Docs Map",
           "href": "/start_here/docs_map"
         },
@@ -119,10 +127,6 @@
         {
           "title": "Capability Architecture",
           "href": "/guides/capability_architecture"
-        },
-        {
-          "title": "Design FAQ",
-          "href": "/guides/design_faq"
         },
         {
           "title": "Supervisor",

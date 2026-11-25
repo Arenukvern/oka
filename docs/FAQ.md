@@ -1,8 +1,8 @@
 # Frequently asked questions (newcomers)
 
-Answers here are grounded in the current repository — behavior lives in code
-and tests; deeper “why” questions go to the
-[Design FAQ](guides/design_faq.mdx) on the docs site.
+**Router:** newcomer **what/who/prerequisites** stay on this page;
+**why** → [Design FAQ](DESIGN_FAQ.mdx); **how** (CLI) →
+[DX FAQ](DX_FAQ.mdx). Behavior truth is code + tests; ADRs hold full deliberation.
 
 Oka in one sentence: **one typed Dart surface to build, run, patch,
 supervise, and distribute apps — that humans and agents operate
@@ -165,5 +165,6 @@ write an intent file in `.changesets/`, merge the version PR it produces
 | --- | --- |
 | Copy-paste commands | [Quick recipes](start_here/quick_recipes.mdx) |
 | How to run/build/test | [Build & configuration](guides/build_and_config.mdx) |
-| Design rationale | [Design FAQ](guides/design_faq.mdx) |
+| Design rationale | [Design FAQ](DESIGN_FAQ.mdx) |
+| CLI how-to | [DX FAQ](DX_FAQ.mdx) |
 | Agent routing | [`AGENTS.md`](../AGENTS.md) |
