@@ -15,6 +15,17 @@ follow links.
 - Mark a phase done only when its tests/evidence exist (`docs/PHASE_CHECKLIST.mdx`).
 - Design forks → decision checkpoint + ADR before coding (see `docs/decisions/`).
 
+## FAQ router (why vs how)
+
+| Question | Read |
+|---|---|
+| **Why** (trade-offs, boundaries) | [`docs/DESIGN_FAQ.mdx`](docs/DESIGN_FAQ.mdx) → ADRs in `docs/decisions/` |
+| **How** (CLI, maintainer loops) | [`docs/DX_FAQ.mdx`](docs/DX_FAQ.mdx) → [`docs/guides/build_and_config.mdx`](docs/guides/build_and_config.mdx) for depth |
+| Newcomer FAQ | [`docs/FAQ.md`](docs/FAQ.md) |
+| Cursor rule | [`.cursor/rules/faq_usage.mdc`](.cursor/rules/faq_usage.mdc) |
+
+Package-level FAQs: root only for now; see `faq_usage` for candidates (`oka_dart_kernel`, `oka_update`, `oka_process`).
+
 ## Map — "I want to…"
 
 | I want to… | Read |
@@ -28,8 +39,8 @@ follow links.
 | Decide shell vs harness vs declared verbs for live-update automation | `docs/decisions/0036-live-update-agent-surface.mdx` (accepted, implemented: gates = thin shell, orchestration = Dart drivers, `oka.live.*` verbs in `oka_update/live_agent.dart`) |
 | Run a rebuild-and-swap artifact lane (OTA exes, generated bundles) from file saves | `docs/decisions/0038-command-lanes-on-the-live-watcher.mdx` (accepted, implemented: optional spec `commands` section in `oka_live_watch`, commands-only boots need no toolchain; first consumer: the harness OptMem deploy) |
 | Ship store-free patches invisibly / run the air channel | `docs/decisions/0037-air-channel-invisible-patches.mdx` (accepted, implemented: `oka ship` derives everything from the working tree incl. snapshot-from-build; `UpdateClient`/`planChain` resolve chains vs snapshots; signed channels; gates G-AC1..8 done, G-AC9 ADR-gated) |
-| Know **why** a design choice was made | `docs/guides/design_faq.mdx`, `docs/decisions/` |
-| Know **how** to run/build/test | `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
+| Know **why** a design choice was made | `docs/DESIGN_FAQ.mdx`, `docs/decisions/` |
+| Know **how** to run/build/test | `docs/DX_FAQ.mdx`, `docs/guides/build_and_config.mdx`, `docs/start_here/quick_recipes.mdx` |
 | Newcomer FAQ (what / who / prerequisites) | `docs/FAQ.md`, `llms.txt` |
 | Run/understand live update (first steps → JIT dev loop → AOT production, dangers) | `docs/guides/live_update.mdx` |
 | Dev session with watch-on-save + r/R on macOS/web/linux (`oka dev` = `oka run dev`; android daemon = `oka dev android`) | `docs/guides/live_update.mdx` → "The converged session"; gates: `gate_run_dev.sh` (macos/web), `gate_linux_dev_convergence.sh` (linux L0) |

@@ -1,0 +1,153 @@
+---
+title: Design FAQ — why
+---
+
+# Design FAQ — why
+
+Compressed **why** answers for oka maintainers and agents changing architecture.
+Operational **how** lives in [DX_FAQ](DX_FAQ). Newcomer questions stay in
+[FAQ](FAQ). Full deliberation: [`docs/decisions/`](decisions/index).
+
+## Scope & boundaries
+
+**Q: What does oka own versus Flutter, Gradle, and store consoles?**
+A: Oka owns typed composition of build/run/patch/supervise/distribute
+workflows in project code (`tool/oka_pipeline.dart`), not reimplementing
+Flutter's compiler or AGP. The default Android path calls `flutter assemble`
+and direct SDK tools—never Gradle as success ([ADR-0001](decisions/0001-no-gradle-default-build-path.mdx)).
+Charter and expansion gates: [why this repo matters](start_here/why_this_repo_matters).
+
+**Q: Why one typed Dart surface instead of scattered platform configs?**
+A: Gradle, XML, plists, and per-store HTML drift because they are
+copy-paste-only. A single compositional Dart file is refactorable,
+diffable, and the same artifact agents and humans execute
+([ADR-0010](decisions/0010-typed-dart-project-config.mdx),
+[ADR-0030](decisions/0030-application-composition-and-operation-projections.mdx)
+proposed whole-app direction).
+
+## Build path & provenance
+
+**Q: Why replace Gradle instead of wrapping it?**
+A: Gradle adds configuration/daemon overhead Flutter Android builds do not
+need; oka targets faster incremental work via direct SDK invocation.
+Trade-off: no full AGP plugin compatibility—failures must be loud, not silent
+([ADR-0001](decisions/0001-no-gradle-default-build-path.mdx)).
+
+**Q: Why must the default path never fall back to `flutter build apk`?**
+A: A silent fallback would hide pipeline gaps and make success
+non-deterministic. Missing-tool failures surface via doctor-oriented errors so
+agents can remediate; enforced by phase-0 contract tests.
+
+**Q: Why sort d8 inputs and zip entries?**
+A: Parallel dependency resolution made jar order nondeterministic, which
+changed multi-dex splits between runs. Sorted inputs and zip paths make
+`oka compare` a real byte-equivalence gate
+([ADR-0007](decisions/0007-self-resolving-builds.mdx)).
+
+## Composable pipeline
+
+**Q: Why a composable step pipeline instead of one builder method?**
+A: A monolithic builder forced every dependency or flag change into oka's
+source. `BuildStep` values let projects extend and test stages in isolation
+([ADR-0002](decisions/0002-composable-build-pipeline.mdx)).
+
+**Q: Why `PipelineState` as a mutable blackboard?**
+A: Steps consume several upstream artifacts; threading a growing immutable
+tuple would churn every signature on each addition. A blackboard keeps step
+APIs stable; typed getters prevent key typos
+([ADR-0002](decisions/0002-composable-build-pipeline.mdx)).
+
+## Targets, CLI & configuration
+
+**Q: Why doesn't `oka --help` grow with every platform and store?**
+A: Core verbs stay platform-agnostic; projects declare **targets** compiled
+from `tool/oka_pipeline.dart` (`oka run <name>`, `oka explain --targets`).
+Stores and platforms arrive as packages, not CLI switches
+([ADR-0015](decisions/0015-cli-verb-target-split.mdx)).
+
+**Q: Why can't publishing secrets live in `--dart-define`?**
+A: Defines bake into the binary and leak into logs. Credentials are
+**paths** resolved through a doctor-printable policy—dry-run must work with no
+secret present ([ADR-0014](decisions/0014-distribution-targets-secrets-model.mdx)).
+
+**Q: Why was the Rust/cargo-apk hybrid removed?**
+A: It corrupted shared Cargo state and duplicated packaging; with zero usage
+and a quarantined test, ADR-0009 deleted it—the no-Gradle pipeline is the only
+build path ([ADR-0009](decisions/0009-remove-cargo-apk-hybrid.mdx)).
+
+## Distribution & stores
+
+**Q: Are Google Play and Huawei separate platforms?**
+A: No—distribution targets are build-variant compositions plus publish tails
+over shared Android delivery primitives, not new platforms
+([ADR-0023](decisions/0023-multi-store-distribution-architecture.mdx),
+[ADR-0013](decisions/0013-toolchain-provisioning-artifact-store.mdx)).
+
+**Q: How does a project support several stores without store CLI switches?**
+A: It declares target names in `tool/oka_pipeline.dart`; `oka explain
+--targets` lists the inventory. Oka does not infer targets from credentials
+([ADR-0023](decisions/0023-multi-store-distribution-architecture.mdx)).
+
+## Supervision & sessions
+
+**Q: Why a declarative supervisor instead of ad hoc restart scripts?**
+A: Desired state (plans) should converge against recorded reality with
+budgeted restarts and explicit kill rights—not opaque shell loops. Rung R1
+shipped a pure planner plus `oka supervisor status|apply|check`
+([ADR-0040](decisions/0040-declarative-supervisor.mdx),
+[ADR-0041](decisions/0041-supervisor-adoption-ladder.mdx)).
+
+**Q: Why process leases before sending signals?**
+A: PIDs recycle; oka records spawned processes with identity metadata so
+`oka stop` never signals the wrong process
+([ADR-0018](decisions/0018-process-lifecycle-leases.mdx),
+[ADR-0052](decisions/0052-owned-process-sessions.mdx)).
+
+## Build provenance & verification
+
+**Q: Why embed `oka-provenance.json` in release artifacts?**
+A: Startup hangs from engine/snapshot skew are expensive to debug in the
+field. Provenance makes pairing and assembly fingerprints inspectable before
+install ([ADR-0029](decisions/0029-build-provenance-and-verification-ladder.mdx)).
+
+**Q: Why `oka run verify` as a declared target instead of a one-off script?**
+A: Verification is composable like builds: typed rungs, project failure
+signatures, and the same explain/plan discipline agents already use
+([ADR-0029](decisions/0029-build-provenance-and-verification-ladder.mdx),
+[ADR-0048](decisions/0048-oka-verify-fast-dart-verification-package.mdx)).
+
+## Live update & Dart kernel
+
+**Q: Why does oka own ship/patch orchestration in Dart packages?**
+A: Gates stay thin shells; compilation graphs, patch units, and air-channel
+resolution belong in testable libraries (`oka_dart_kernel`, `oka_update`) with
+agent verbs (`oka ship`, `oka live.*`) on top
+([ADR-0032](decisions/0032-oka-dart-kernel-graph-ownership.mdx),
+[ADR-0036](decisions/0036-live-update-agent-surface.mdx)).
+
+**Q: Why the air channel instead of only store updates?**
+A: Store-free signed channels let running programs accept snapshot/delta chains
+without visible store UX; snapshot-from-build and `planChain` keep authoring
+in the working tree ([ADR-0037](decisions/0037-air-channel-invisible-patches.mdx),
+[ADR-0031](decisions/0031-declarative-patch-units.mdx)).
+
+**Q: Why does `oka dev android` delegate hot reload to flutter_tools?**
+A: `flutter assemble` is a stable batch contract; the resident kernel protocol
+changes with the engine. Oka owns build→install→launch and the agent-usable
+control surface; reimplementing the VM session is ADR-gated
+([ADR-0011](decisions/0011-hot-reload-run-loop.mdx)).
+
+## Artifacts & cache
+
+**Q: Why a content-addressed artifact store with delta chains?**
+A: Large dills and AOT snapshots must not bloat git. Pointers in repo plus
+zstd `--patch-from` chains in `~/.oka/store` keep developer trees silent while
+preserving reproducible materialization
+([ADR-0043](decisions/0043-artifact-store-delta-chains.mdx)).
+
+## Release train
+
+**Q: Why dart_changesets for a Dart monorepo?**
+A: Pub packages need ordered, reviewable version intent in PRs and tags that
+trigger OIDC publish—human and agent legibility over ad hoc bumps
+([ADR-0054](decisions/0054-dart-changesets-package-train.mdx)).

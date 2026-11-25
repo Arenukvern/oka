@@ -391,7 +391,8 @@ data); `oka cache clean` previews before deleting.
 and as writable by agents as by humans. `oka.yaml` covers the 90% case and
 its growth is frozen ([ADR-0010](docs/decisions/0010-typed-dart-project-config.mdx)).
 
-Design rationale: [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq).
+Design rationale: [Design FAQ](https://docs.page/arenukvern/oka/DESIGN_FAQ) ·
+How-to (CLI): [DX FAQ](https://docs.page/arenukvern/oka/DX_FAQ).
 Agents: [`llms.txt`](llms.txt) and [`AGENTS.md`](AGENTS.md).
 
 ## Packages
@@ -434,15 +435,17 @@ Published via docs.page: **[docs.page/arenukvern/oka](https://docs.page/arenukve
 | I want to… | Read |
 |---|---|
 | Newcomer questions | [FAQ](docs/FAQ.md) · [docs.page/FAQ](https://docs.page/arenukvern/oka/FAQ) |
+| **Why** design choices | [Design FAQ](https://docs.page/arenukvern/oka/DESIGN_FAQ) · [`docs/DESIGN_FAQ.mdx`](docs/DESIGN_FAQ.mdx) |
+| **How** CLI & maintainer loops | [DX FAQ](https://docs.page/arenukvern/oka/DX_FAQ) · [`docs/DX_FAQ.mdx`](docs/DX_FAQ.mdx) |
 | Copy-paste the common loops | [Quick recipes](https://docs.page/arenukvern/oka/start_here/quick_recipes) |
-| Run/build/test/configure | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
+| Run/build/test/configure (depth) | [Build & configuration guide](https://docs.page/arenukvern/oka/guides/build_and_config) |
 | Publish to stores, set up accounts | [Publishing](https://docs.page/arenukvern/oka/guides/publishing) · [Accounts & stores](https://docs.page/arenukvern/oka/guides/accounts_and_stores) |
 | Ship a web app | [Web shell station guide](https://docs.page/arenukvern/oka/guides/web_shell_station) |
 | Patch running apps / ship updates | [Live update](https://docs.page/arenukvern/oka/guides/live_update) |
 | Govern daemons, watchers, automations | [Supervisor guide](https://docs.page/arenukvern/oka/guides/supervisor) |
 | Manage processes, emulators, browsers | [Process lifecycle](https://docs.page/arenukvern/oka/guides/process_lifecycle) |
 | Keep build binaries out of git | [Artifacts guide](https://docs.page/arenukvern/oka/guides/artifacts) |
-| Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/guides/design_faq) |
+| Know why it's designed this way | [Design FAQ](https://docs.page/arenukvern/oka/DESIGN_FAQ) |
 | Where oka is going | [Roadmap](https://docs.page/arenukvern/oka/start_here/roadmap) |
 | Check phase status | [`docs/PHASE_CHECKLIST.mdx`](docs/PHASE_CHECKLIST.mdx) |
 

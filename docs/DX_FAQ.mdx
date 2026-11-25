@@ -1,0 +1,155 @@
+---
+title: DX FAQ — how
+---
+
+# DX FAQ — how
+
+Memory Palace for oka's **public CLI and maintainer loops**. Walk by emoji or
+jump to a station. **Why** questions → [DESIGN_FAQ](DESIGN_FAQ). Long-form
+stations → [build & configuration guide](guides/build_and_config).
+
+## 🧭 Router
+
+| I need… | Open |
+|---|---|
+| Why a choice was made | [DESIGN_FAQ](DESIGN_FAQ) → then [decisions/](decisions/index) |
+| Charter / boundaries | [why this repo matters](start_here/why_this_repo_matters) |
+| Copy-paste recipes | [quick recipes](start_here/quick_recipes) |
+| Stores, accounts, publish | [accounts & stores](guides/accounts_and_stores) · [publishing](guides/publishing) |
+| Live patch / `oka ship` | [live update](guides/live_update) |
+| Supervisor plans | [supervisor](guides/supervisor) |
+| Agent map | [`AGENTS.md`](../AGENTS.md) |
+
+## 📦 Install Hub
+
+From the repo (maintainers) or pub (consumers):
+
+```bash
+just install && just global    # repo: pub get + path-activate packages/oka
+# or: dart pub global activate oka
+
+dart pub global activate oka   # consumer install (Dart 3.14+)
+oka get android-sdk            # bootstrap ~/.oka/android-sdk
+oka doctor                     # toolchain + device readiness
+```
+
+Verified: `packages/oka/bin/oka.dart` (`get`, `doctor`), `justfile` recipes.
+
+## 🏗️ Init Station
+
+```bash
+oka init                       # scaffold tool/oka_pipeline.dart (typed config)
+oka init --yaml                # legacy oka.yaml + Gradle porting checklist
+oka init --from-yaml           # convert existing oka.yaml → Dart entrypoint
+oka explain                    # validated plan, no tools run
+oka explain --targets          # project-declared targets + step chains
+```
+
+Verified: `InitCommand`, `ExplainCommand`; flags match `oka init --help`.
+
+## 🔨 Build Bench
+
+```bash
+oka build apk                  # debug APK (no-Gradle pipeline)
+oka build apk --release
+oka build aab                  # Play upload format
+oka compare old.apk new.apk    # byte-equivalence gate (exit 1 on diff)
+oka explain --deps             # dependency plan (offline cache)
+oka explain --deps --network   # full resolution
+```
+
+Verified: `BuildCommand`, `CompareCommand`, `ExplainCommand` usage text in
+`packages/oka/bin/oka.dart`.
+
+## 📱 Run & Dev Loop
+
+```bash
+oka run device                 # install → launch → failure-signature scan
+oka launch                     # alias of oka run device
+oka dev                        # converged session (oka run dev)
+oka dev android                # Flutter attach + optional --json control
+oka dev android --watch        # Dart saves → reload; native → honest rebuild path
+```
+
+Verified: `dev_command.dart`, `run_command.dart`; `oka dev android --help`
+(ADR-0011).
+
+## 🎯 Target Station
+
+Targets compile from `tool/oka_pipeline.dart`—discovered, not hard-coded in core:
+
+```bash
+oka run                        # list declared targets when argv empty
+oka run verify                 # release startup ladder (ADR-0029)
+oka explain --targets
+```
+
+Verified: `dispatchUnknownVerb` / `RunCommand` (ADR-0015); example
+`VerifyTarget` in project pipelines.
+
+## 🩺 Plan & Debug Desk
+
+```bash
+oka why <step-cache-name>      # step-cache staleness (e.g. release-aot)
+oka debug step <step-name>     # single pipeline step probe
+oka debug dex <apk> --find <class>
+oka doctor
+```
+
+Verified: `WhyCommand`, `DebugCommand`, `DoctorCommand` in `oka.dart` usage.
+
+## 🗄️ Cache & Artifacts
+
+```bash
+oka cache schema               # storage layout inventory
+oka cache clean --preview      # dry-run prune
+oka artifacts put …            # record revision (delta chain)
+oka artifacts materialize …
+```
+
+Verified: `cache_command.dart`, `artifacts_command.dart` top-level help in
+`oka.dart` (ADR-0043).
+
+## 👷 Supervisor L0
+
+```bash
+oka supervisor status
+oka supervisor apply plan.json
+oka supervisor check plan.json   # drift gate for CI
+```
+
+Verified: `supervisor_command.dart`; `oka supervisor --help` (ADR-0040/0041).
+
+## 🚢 Release & Contract Gates
+
+```bash
+# Maintainer / CI hygiene
+just lint
+just test
+just check-contracts
+
+# Release train intent (merge to main → version PR → tags → pub publish)
+# Add .changesets/*.md describing package bumps
+dart tool/release/train.dart list --publish
+```
+
+Verified: `justfile`, `tool/contracts/check_contracts.sh`,
+`.github/workflows/dart_changesets.yml` (ADR-0054).
+
+## 🔬 Live & ship (checkout)
+
+Need `oka_dart_kernel` in the workspace for full surface:
+
+```bash
+oka ship                       # air-channel patch from working tree (ADR-0037)
+oka live --help                # agent verbs; orchestration in oka_update
+```
+
+Verified: `ship_command.dart`, `live_command.dart` registration in `oka.dart`.
+
+## 🛠️ Repo dev without global install
+
+```bash
+dart run packages/oka/bin/oka.dart build apk
+# or: just dev   # same entrypoint alias in justfile
+```

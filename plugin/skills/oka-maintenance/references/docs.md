@@ -12,7 +12,8 @@ paraphrase implementation.
 | Charter | `docs/start_here/why_this_repo_matters.mdx` | why + invariants |
 | How-to | `docs/guides/build_and_config.mdx` (manual), `docs/start_here/quick_recipes.mdx` (copy-paste) | users |
 | Distribution | `docs/guides/accounts_and_stores.mdx`, `docs/guides/publishing.mdx`, `docs/guides/web_shell_station.mdx` | users shipping |
-| Why | `docs/guides/design_faq.mdx`, `docs/decisions/` (ADRs, append-only) | maintainers |
+| Why | `docs/DESIGN_FAQ.mdx`, `docs/decisions/` (ADRs, append-only) | maintainers |
+| How (CLI) | `docs/DX_FAQ.mdx`, `docs/guides/build_and_config.mdx` | contributors |
 | Status | `docs/PHASE_CHECKLIST.mdx` (+ `docs/archive/` for completed eras) | evidence |
 | Ladder | `examples/01..06` (runnable teaching projects) + `example/` (full reference) | learners |
 
@@ -56,7 +57,8 @@ These tokens/links are load-bearing — a rewrite that drops them fails
 
 | Change type | Update |
 |---|---|
-| Internal trade-off / architecture | `docs/guides/design_faq.mdx` and/or new ADR |
+| Internal trade-off / architecture | `docs/DESIGN_FAQ.mdx` and/or new ADR |
+| Command / workflow how-to | `docs/DX_FAQ.mdx` and/or build guide |
 | Public API / usage / config key | `docs/guides/build_and_config.mdx` (copy-paste valid) |
 | Stores / accounts / distribution | `docs/guides/accounts_and_stores.mdx`, `publishing.mdx` |
 | Settled strategic decision | `docs/decisions/NNNN-*.mdx` + index + `AGENTS.md` map row |

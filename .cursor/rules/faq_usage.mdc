@@ -1,5 +1,5 @@
 ---
-description: Router for oka docs — when to read the design FAQ vs build guide vs ADRs
+description: Router for oka docs — when to read DESIGN_FAQ vs DX_FAQ vs ADRs vs guides
 alwaysApply: true
 ---
 
@@ -9,15 +9,32 @@ Before answering questions about this repo, route to the right doc:
 
 | Question type | Read |
 |---|---|
-| **Why** is it designed this way? | `docs/guides/design_faq.mdx`, then `docs/decisions/` |
-| **How** do I run/build/test? | `docs/guides/build_and_config.mdx` |
+| **Why** is it designed this way? | `docs/DESIGN_FAQ.mdx`, then `docs/decisions/` (ADRs) |
+| **How** do I run/build/test/ship? | `docs/DX_FAQ.mdx` (Memory Palace), then `docs/guides/build_and_config.mdx` for depth |
 | What does oka own / not own? | `docs/start_here/why_this_repo_matters.mdx` |
+| Newcomer what/who/prerequisites | `docs/FAQ.md` |
 | Phase status / evidence | `docs/PHASE_CHECKLIST.mdx` |
 | Behavior of code | The code and tests themselves — docs only link |
+
+## DESIGN vs DX vs ADRs
+
+- **ADRs** (`docs/decisions/`) record significant, reviewable decisions.
+- **DESIGN_FAQ** compresses standing **why** answers; link to ADRs for full deliberation.
+- **DX_FAQ** compresses **how** with copy-paste CLI blocks — no duplicated rationale.
+- **build_and_config** and topic guides remain long-form; FAQs do not replace them.
+
+## Package-level FAQs
+
+Root FAQs cover the monorepo charter and CLI today. Packages with distinct
+design boundaries may later add their own `DESIGN_FAQ` / `DX_FAQ` pairs; parent
+FAQs should only route (no repeated answers). Candidates: `oka_dart_kernel`
+(kernel graph / live gates), `oka_update` (patch units), `oka_process` (owned
+POSIX sessions).
 
 Rules:
 
 - Never paraphrase implementation in answers; link to the authoritative file.
-- After changing architecture → add/update a Q&A in `docs/guides/design_faq.mdx` (or ADR).
-- After changing commands/API usage → update `docs/guides/build_and_config.mdx`.
+- After changing architecture → add/update a Q&A in `docs/DESIGN_FAQ.mdx` (or ADR).
+- After changing commands/API usage → update `docs/DX_FAQ.mdx` and, if needed, `docs/guides/build_and_config.mdx`.
 - Design forks require a decision checkpoint + ADR before coding.
+- Do not duplicate paragraphs between DESIGN_FAQ and DX_FAQ—link instead.

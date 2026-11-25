@@ -21,7 +21,8 @@
 - docs/guides/supervisor.mdx — plans, converge, drift gate
 - docs/guides/artifacts.mdx — content-addressed store, delta chains
 - docs/guides/process_lifecycle.mdx — leases, teardown, session-state
-- docs/guides/design_faq.mdx — why decisions were made
+- docs/DESIGN_FAQ.mdx — why decisions were made (compressed)
+- docs/DX_FAQ.mdx — how to run CLI and maintainer loops (Memory Palace)
 - docs/start_here/quick_recipes.mdx — copy-paste command loops
 - docs/start_here/why_this_repo_matters.mdx — charter: north star, invariants, gates
 
