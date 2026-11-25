@@ -1,8 +1,8 @@
 # Frequently asked questions (newcomers)
 
-Answers here are grounded in the current repository — behavior lives in code
-and tests; deeper “why” questions go to the
-[Design FAQ](DESIGN_FAQ.mdx) and [DX FAQ](DX_FAQ.mdx) on the docs site.
+**Router:** newcomer **what/who/prerequisites** stay on this page;
+**why** → [Design FAQ](DESIGN_FAQ.mdx); **how** (CLI) →
+[DX FAQ](DX_FAQ.mdx). Behavior truth is code + tests; ADRs hold full deliberation.
 
 Oka in one sentence: **one typed Dart surface to build, run, patch,
 supervise, and distribute apps — that humans and agents operate
