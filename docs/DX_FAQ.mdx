@@ -45,7 +45,15 @@ oka explain                    # validated plan, no tools run
 oka explain --targets          # project-declared targets + step chains
 ```
 
-Verified: `InitCommand`, `ExplainCommand`; flags match `oka init --help`.
+Gradle porting (after `oka init --yaml` checklist — why: [DESIGN_FAQ](DESIGN_FAQ#gradle-conversion)):
+
+```bash
+oka explain                      # validate plan before build
+oka build apk                    # missing classes → dependency suggestion output
+```
+
+Verified: `InitCommand`, `ExplainCommand`; flags match `oka init --help`;
+`suggestion` path in `packages/oka_android/lib/src/build/dependency_suggest.dart`.
 
 ## 🔨 Build Bench
 
